@@ -1,0 +1,63 @@
+# ─────────────────────────────────────────────────────────────────
+# CI Logix (З3): те же четыре проверки, что и локально перед
+# поставкой — на каждый push в main и каждый pull_request.
+#
+# Зачем: Vercel собирает прод независимо и напишет письмом при
+# падении, а этот workflow — ранний сигнал прямо в GitHub: вкладка
+# Actions показывает состояние ветки до деплоя, а pull_request
+# проверяется до вливания.
+#
+# Шаги (формулировка очереди З3):
+#   1. prisma validate — схема согласована (провайдер в репо —
+#      postgres, как на проде);
+#   2. tsc --noEmit    — типы; ДО него prisma generate: типы клиента
+#                        генерируются в node_modules, без этого шага
+#                        tsc падает на импортах из '@prisma/client';
+#   3. lint            — eslint;
+#   4. build           — prisma generate && next build.
+#
+# DATABASE_URL фиктивный и публичный: ни один шаг не ходит в БД.
+# Значение нужно только чтобы Prisma разобрал env("DATABASE_URL")
+# из schema.prisma — страницы за авторизацией динамические,
+# пререндеров с запросами к базе нет. Секретов в GitHub не требуется.
+#
+# Пакетный менеджер — bun, как и весь DEPLOY.md этого проекта.
+# bun.lock в репо может отсутствовать — bun install резолвит по
+# package.json и печатает свежий lock только в раннер (не в репо).
+# ─────────────────────────────────────────────────────────────────
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Установка bun
+        uses: oven/setup-bun@v2
+
+      - name: Установка зависимостей
+        run: bun install
+
+      - name: Схема Prisma валидна
+        run: bunx prisma validate
+
+      - name: Генерация клиента Prisma (типы для tsc)
+        run: bunx prisma generate
+
+      - name: TypeScript — tsc --noEmit
+        run: bunx tsc --noEmit
+
+      - name: ESLint
+        run: bun run lint
+
+      - name: Сборка (prisma generate && next build)
+        run: bun run build

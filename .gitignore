@@ -1,0 +1,22 @@
+node_modules
+.next
+.env
+.env.local
+*.log
+.DS_Store
+next-env.d.ts
+
+# артефакты сборки
+*.tsbuildinfo
+
+# runtime песочницы: изолированный стенд смоука и артефакты превью
+.staging
+.zscripts/preview.pid
+.zscripts/dev.pid
+
+# платформа песочницы: скиллы и локальная sqlite-база
+skills/
+db/
+
+# кэш вывода инструментов платформы (большие результаты чтения)
+tool-results/

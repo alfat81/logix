@@ -1,0 +1,589 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Остальные модели (LegalEntity, Customer, Contract, Order,
+// OrderStageCatalog, OrderStageInstance) начинаются с Дорожки Б —
+// намеренно не добавлены здесь, Employee/EmployeeSession нужны раньше
+// как часть auth-паттерна (А4+А5, см. LOGISTICS-TASK-QUEUE.md).
+// ^ Исторический комментарий А4 — с Дорожкой Б (Б1) модели ядра
+// добавлены ниже по разделу 9 LOGISTICS-ROADMAP.md. Скоуп Б1: шесть
+// моделей ядра заявки; Lead/QuoteOption/документы/подрядчики/брокеры —
+// следующих дорожки, поля-ссылки на них сюда не добавлены, чтобы не
+// тянуть миграцию-заглушку.
+
+model Employee {
+  id           String   @id @default(cuid())
+  name         String
+  phone        String   @unique
+  password     String   // hashPassword() из src/lib/password.ts
+  // JSON-массив, не enum — см. раздел 1а LOGISTICS-ROADMAP.md: точный
+  // периметр "начальник отдела" ещё не решён, добавление новой роли
+  // позже не должно требовать миграции структуры этого поля.
+  roles        String   @default("[\"manager\"]")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  sessions     EmployeeSession[]
+}
+
+model EmployeeSession {
+  id         String   @id @default(cuid())
+  employeeId String
+  token      String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([token])
+}
+
+// ─── Дорожка Б: ядро заявки (раздел 9 LOGISTICS-ROADMAP.md) ──
+
+model LegalEntity {
+  id        String   @id @default(cuid())
+  name      String
+  // Реквизиты для печатных форм — структура уточняется при генерации
+  // документов (роадмап: "не фиксировать точную структуру до реальных форм").
+  requisites Json
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  contracts Contract[]
+  orders    Order[]
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  comment   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  // И1: доступ в клиентский кабинет. Nullable — доступ выдаётся
+  // опционально (не каждому клиенту справочника он нужен), логин —
+  // по телефону (+7XXXXXXXXXX, см. lib/phone.ts). Пароль задаёт
+  // менеджер через POST /api/admin/customers/[id]/access — той же
+  // моделью «менеджер выдаёт учётку», что у подрядчика (Г2),
+  // саморегистрации в MVP нет (нужна была бы SMS-верификация телефона).
+  // hashPassword() из src/lib/password.ts.
+  password  String?
+
+  contracts Contract[]
+  orders    Order[]
+  leads     Lead[]
+  sessions  ClientSession[]
+}
+
+model Contract {
+  id            String    @id @default(cuid())
+  legalEntityId String
+  customerId    String
+  // Сквозной номер рамочного договора (Б4: заявка = "<договор>-<порядковый>",
+  // например "17-1"). Int, а не String: выдаётся системой последовательно
+  // (max+1 с retry-петлёй на P2002), как number у заказов APEX Moto.
+  number        Int       @unique
+  signedAt      DateTime?
+  createdAt     DateTime  @default(now())
+
+  legalEntity   LegalEntity @relation(fields: [legalEntityId], references: [id])
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  orders        Order[]
+
+  // Рамочный договор — ровно один на пару клиент+юрлицо (роадмап,
+  // разделы 4 и 8.2). Уникальность на уровне БД заодно закрывает гонку
+  // двух одновременных «первых заявок» одной пары (см. lib/orders.ts).
+  @@unique([customerId, legalEntityId])
+  @@index([customerId])
+  @@index([legalEntityId])
+}
+
+model Order {
+  id        String @id @default(cuid())
+  // Составной номер "договор-порядковый" (Б4), например "17-1".
+  // Денормализован намеренно (роадмап: "формируется автоматически"):
+  // обе части (contract.number, numberInContract) неизменяемы после
+  // создания, так что рассинхрона не бывает, а печатные формы заявки
+  // всегда имеют готовый номер без сборки через include.
+  number        String   @unique
+  numberInContract Int
+  contractId    String
+  legalEntityId String
+  customerId    String
+  // Связь с лидом воронки (В1): заявка из конвертации (В4) знает свой
+  // источник, «ручные» заявки из Б — leadId null (осознанно допустимо,
+  // роадмап). Удаление лида с заявкой невозможно (API В2 откажет 409),
+  // а удаление заявки лид не убивает. @unique: один лид → максимум
+  // одна заявка.
+  leadId        String?  @unique
+  // Справочные поля заявки (роадмап, раздел 4/6): Инкотермс — подсказка
+  // менеджеру, не управляет логикой; ТН ВЭД — текстовое поле с первого
+  // дня как точка расширения Phase 2 (дерево/валидация позже).
+  incoterm      String?
+  cargoProfile  String   @default("standard") // standard | oversized | dangerous
+  hsCode        String?
+  // Ручной верхнеуровневый статус (роадмап 8.1: менеджер переводит
+  // осознанно, этапы не диктуют его автоматически).
+  status        String   @default("calculating") // calculating | confirmed | in_progress | completed | cancelled
+  // ─── Ж1: суть заявки ────────────────────────────────────────────
+  // Заявка — источник правды после конвертации (принцип переработки):
+  // груз и условия копируются с лида СНИМКОМ, дальнейшие правки лида
+  // заявку не меняют. cargoInfo — та же форма бланка, что у Lead
+  // (хелперы buildLeadCargo/readLeadCargo общие); quoteSnapshot —
+  // снимок выбранного варианта расчёта (описание, виды транспорта,
+  // цена, срок, ориентир). Оба поля nullable: у ручных заявок (Б3,
+  // без лида) они заполняются PATCH'ем (Ж1) или остаются пустыми.
+  cargoInfo     Json?
+  quoteSnapshot Json?
+  createdAt     DateTime @default(now())
+
+  contract    Contract             @relation(fields: [contractId], references: [id])
+  legalEntity LegalEntity          @relation(fields: [legalEntityId], references: [id])
+  customer    Customer             @relation(fields: [customerId], references: [id])
+  lead        Lead?                @relation(fields: [leadId], references: [id])
+  stages      OrderStageInstance[]
+  activities  Activity[]
+  // Д (роадмап 5а): брокеры заявки — полная видимость сделки целиком,
+  // не per-stage (в отличие от подрядчиков). Переносится из LeadBroker
+  // при конвертации В4; менеджер может добавить/снять и после.
+  brokers     OrderBroker[]
+
+  @@unique([contractId, numberInContract])
+  @@index([status])
+  @@index([customerId])
+}
+
+model OrderStageCatalog {
+  // Справочник типовых этапов — расширяемый (роадмап, раздел 3).
+  id          String  @id @default(cuid())
+  code        String  @unique // export_pickup | export_customs | loading | transport | import_customs | final_delivery | ...
+  name        String
+  // Порядок по умолчанию при подстановке/предложении менеджеру.
+  order       Int
+  // true — подставляется в каждую заявку автоматически, менеджер не
+  // может удалить (защита и в API, и в UI).
+  isMandatory Boolean @default(false)
+}
+
+model OrderStageInstance {
+  // Конкретный этап конкретной заявки. Ссылка на каталог — по code
+  // (роадмап, раздел 9): isMandatory берётся из каталога живым lookup'ом,
+  // а не снимком на момент добавления — правило "обязательное нельзя
+  // удалить" следует за актуальным состоянием справочника.
+  id          String    @id @default(cuid())
+  orderId     String
+  stageCode   String
+  sequence    Int
+  status      String    @default("not_started") // not_started | in_progress | done | problem
+  // Исполнитель этапа (Дорожка Г, роадмап 3/9): подрядчик назначается
+  // на ЭТАП, а не на заявку целиком — принципиальное отличие от брокера
+  // (5а: тот подключается к сделке с этапа расчёта и видит её целиком,
+  // брокерские связи — Дорожка Д). null = ещё не назначен или снят;
+  // plannedDate/actualDate существуют с Б1, с Г активируются: план
+  // ставит менеджер при назначении (Г3), факт проставляет сервер
+  // при done (Г4).
+  contractorId String?
+  plannedDate DateTime?
+  actualDate  DateTime?
+  createdAt   DateTime  @default(now())
+
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // SetNull явно: прямое удаление подрядчика в БД не тянет за собой
+  // этапы — назначения обнуляются, история этапов жива (API-удаления
+  // подрядчика нет вовсе, Г3 — это страховка от ручных операций в БД).
+  contractor  Contractor? @relation(fields: [contractorId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([stageCode])
+  @@index([contractorId])
+}
+
+// ─── Воронка (Дорожка В, В1) ────────────────────────────────────────
+// Lead/QuoteOption добавлены с Дорожкой В; Order получил опциональную
+// ссылку leadId (ручные заявки без лида — законны, null).
+
+model Lead {
+  id String @id @default(cuid())
+  // Клиент опционален: лид рождается на этапе запроса, когда клиента
+  // в справочнике может ещё не быть (обращение с сайта/по телефону).
+  // rawContact хранит анкету как есть; Customer рождается из неё при
+  // конвертации (В4), тогда проставляется customerId.
+  customerId String?
+  // Черновая анкета { name, phone?, email? } — Json, а не поля: до
+  // конвертации структура «сырая» (телефон может быть иностранным,
+  // нормализация — только при рождении Customer, см. lib/phone.ts).
+  rawContact Json?
+  // Груз/вес/объём/маршрут — свободный Json на этапе запроса.
+  cargoInfo Json?
+  // Ручной верхнеуровневый статус воронки (роадмап 8.1 — статусами
+  // управляет человек, не этапы): new | calculated | won | lost.
+  // «won» вручную поставить нельзя (API В2: 409) — только конвертацией
+  // в заявку (В4). Первый добавленный вариант расчёта (В3) переводит
+  // new → calculated автоматически.
+  status     String   @default("new")
+  lostReason String?
+  // И1: откуда родился лид — 'manual' (менеджер, В2) | 'cabinet'
+  // (запрос из клиентского кабинета). С default, чтобы db:push на
+  // непустой таблице прошёл без разрушения: все существующие лиды
+  // созданы руками менеджеров — честное значение по умолчанию.
+  source     String   @default("manual")
+  createdAt  DateTime @default(now())
+  // Ж5 «Требует внимания»: дата последнего изменения — маркер «лид без
+  // движения» (порог 3 дня). @default(now()) обязателен: db:push на
+  // непустой таблице должен заполнить колонку у существующих строк
+  // (счётчик простоя у них пойдёт от момента миграции — честно). Каждый
+  // update лида трогает колонку автоматически (@updatedAt); добавление
+  // /правка/удаление варианта дополнительно трогает лид явно (В3),
+  // чтобы «движением» считалась и работа с вариантами без смены
+  // статуса.
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  customer Customer?      @relation(fields: [customerId], references: [id])
+  options  QuoteOption[]
+  order    Order?
+  activities Activity[]
+  // Д (роадмап 5а): брокеры консультируют сделку уже на расчёте —
+  // связь на уровне лида, до рождения заявки. При конвертации В4
+  // переносится в OrderBroker автоматически («переживает конвертацию,
+  // не заводится заново» — формулировка роадмапа).
+  brokers  LeadBroker[]
+
+  @@index([status])
+  @@index([customerId])
+  @@index([updatedAt])
+}
+
+model QuoteOption {
+  // Вариант расчёта лида (В3 — API вариантов): один расчёт = один
+  // способ доставки (описание + виды транспорта + цена + сроки + чем
+  // хорош). Менеджер выбирает ровно один вариант на лид (isSelected,
+  // выбор нового снимает прежний — инвариант на уровне API В3).
+  id              String   @id @default(cuid())
+  leadId          String
+  description     String
+  transportModes  Json?
+  priceEstimate   Int
+  etaDays         Int
+  // Чем вариант лучше других: speed | cost | safety.
+  priorityFit     String
+  isSelected      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+}
+
+// ─── Подрядчики (Дорожка Г) ────────────────────────────────────────
+// Подрядчическая воронка (роадмап 2): ContractorLead (кандидат,
+// квалификация) → Contractor (пул). Contractor — глобальный
+// справочник, НЕ разовая привязка и НЕ роль Employee (роадмап 1:
+// урезанный ЛК — отдельный кабинет с собственной сессией, задел А5).
+
+model Contractor {
+  // Справочник пула (роадмап 2): квалифицировали один раз —
+  // используется во всех заявках, пока не исключён из пула.
+  id          String    @id @default(cuid())
+  companyName String
+  // Логин урезанного ЛК (Г4) — тот же паттерн, что у Employee (А5).
+  phone       String    @unique
+  // hashPassword() из src/lib/password.ts — стартовый пароль задаёт
+  // менеджер при переводе кандидата в пул (Г2), смена — PATCH (Г3).
+  password    String
+  // Виды транспорта/направления — Json, структуру не фиксируем до
+  // реальных форм (роадмап 9); допуски (негабарит/опасные, фильтр по
+  // CargoProfile) — Phase 2, добавятся внутрь Json без миграции
+  // (роадмап 6 — «точка расширения на старте»).
+  competencies Json?
+  // Контактное лицо/email/реквизиты — сырой Json по образцу rawContact
+  // лида (В1): до реальных форм структуру сознательно не фиксируем.
+  contactInfo Json?
+  // Факт договора с подрядчиком — только номер + дата (тарифы из
+  // Приложений, УПД и взаиморасчёты — финансовая модель, осознанно
+  // вне MVP, роадмап 9). Прообраз из разбора S13: ИП Сванишвили,
+  // договор 0105/1-СВ.
+  contractNumber   String?
+  contractSignedAt DateTime?
+  // Пул: false = не назначается на новые этапы (Г3 отклонит), но
+  // существующие назначения и вход в ЛК живут — мягкое исключение
+  // (иначе сорванные перевозки). API-удаления подрядчика нет вовсе
+  // (Г3): история заявок не должна терять исполнителей.
+  isActive    Boolean   @default(true)
+  comment     String?
+  createdAt   DateTime  @default(now())
+
+  sessions ContractorSession[]
+  lead     ContractorLead?
+  stages   OrderStageInstance[]
+  activities Activity[]
+
+  @@index([isActive])
+}
+
+model ContractorSession {
+  // Сессия урезанного ЛК подрядчика — по образцу EmployeeSession
+  // (А5: своя сессия на каждый тип внешнего пользователя, не роль
+  // в общей таблице пользователей).
+  id           String   @id @default(cuid())
+  contractorId String
+  token        String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  @@index([contractorId])
+  @@index([token])
+}
+
+model ContractorLead {
+  // Кандидат в пул (роадмап 2): свой чек-лист квалификации — НЕ копия
+  // клиентской воронки один в один, статусы свои.
+  id          String   @id @default(cuid())
+  companyName String
+  // Черновая анкета кандидата (контакты/что возит/зоны/источник) —
+  // толерантный Json по образцу rawContact лида (В1): API структуру
+  // не валидирует, известные ключи UI показывает по меткам (Г5).
+  rawInfo     Json?
+  // Ручные статусы (симметрия 8.1 — решает человек, не триггер):
+  // new | qualifying | contracted | rejected. «contracted» руками
+  // не ставится — только рождением Contractor в транзакции (Г2),
+  // как «won» у лида (В2/В4); терминален, повторный 409.
+  status      String   @default("new")
+  // Причина отказа — обязательна при rejected (симметрия lostReason).
+  rejectReason String?
+  // Рождённый подрядчик: 1:1 (@unique), связь проставляется в
+  // транзакции перевода contracted (Г2) и не рвётся.
+  contractorId String?  @unique
+  createdAt   DateTime @default(now())
+  // Ж5: маркер «без движения» по образцу Lead.updatedAt — экран
+  // внимания сейчас смотрит только клиентские лиды, колонка ставится
+  // сразу, чтобы вторая воронка не требовала новой миграции, когда
+  // до неё дойдёт очередь (зеркальный комментарий Lead).
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  contractor Contractor? @relation(fields: [contractorId], references: [id])
+
+  @@index([status])
+  @@index([updatedAt])
+}
+
+// ─── И1: сессия клиентского кабинета ───────────────────────────
+// По образцу EmployeeSession (А5) и ContractorSession (Г4): своя
+// сессия на каждый тип внешнего пользователя, не роль в общей
+// таблице (роадмап, раздел 1 — «три портала, не три роли»).
+model ClientSession {
+  id         String   @id @default(cuid())
+  customerId String
+  token      String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([token])
+}
+
+// ─── Дорожка Д: брокеры (роадмап 5а) ────────────────────────────────
+// Брокер подключается к сделке ЦЕЛИКОМ — на уровне лида (с этапа
+// расчёта) и заявки (после конвертации), а не к отдельному этапу:
+// стоимость оформления декларации входит в сумму варианта расчёта,
+// то есть брокер нужен ДО появления заявки. Видимость — «заявка
+// целиком», не per-stage (принципиальное отличие от подрядчика, Г).
+// Все таблицы новые — db:push на живой базе не разрушающий.
+
+model Broker {
+  // Справочник привлечённых таможенных представителей (роадмап 1/6:
+  // штатный/привлечённый — атрибут isInHouse, не отдельная модель;
+  // «экран назначить штатного» на старте не реализуем).
+  id          String    @id @default(cuid())
+  companyName String
+  // Логин урезанного ЛК (Д) — тот же паттерн, что Employee (А5) и
+  // Contractor (Г2): нормализованный +7XXXXXXXXXX, @unique.
+  phone       String    @unique
+  // hashPassword() из src/lib/password.ts. Пароль задаёт менеджер при
+  // создании (как сотрудникам Ж6в и клиентам И1 — брокер внешний
+  // пользователь, саморегистрации нет), смена — PATCH /[id] с разрывом
+  // сессий (паттерн Ж6в/И1).
+  password    String
+  // Штатный/привлечённый — только пометка для справочника, на права
+  // не влияет (роадмап 6: «деталь атрибута, не отдельная модель»).
+  isInHouse   Boolean   @default(false)
+  // Деактивация = доступ закрыт (паттерн клиента И1, не подрядчика):
+  // брокер — внешний участник сделки, перестали работать — видеть
+  // сделки он больше не должен. Проверка живая в broker-auth (сессия
+  // гаснет немедленно), вход деактивированного — 403 после сверки
+  // пароля; новые подключения — 409.
+  isActive    Boolean   @default(true)
+  comment     String?
+  // Контактное лицо/email — сырой Json по образцу contactInfo
+  // подрядчика (Г1): структуру не фиксируем до реальных форм.
+  contactInfo Json?
+  createdAt   DateTime  @default(now())
+
+  sessions    BrokerSession[]
+  leadLinks   LeadBroker[]
+  orderLinks  OrderBroker[]
+}
+
+model BrokerSession {
+  // Сессия урезанного ЛК брокера — по образцу EmployeeSession (А5),
+  // ContractorSession (Г4) и ClientSession (И1): четвёртый портал,
+  // своя кука, не роль в общей таблице (роадмап, раздел 1).
+  id         String   @id @default(cuid())
+  brokerId   String
+  token      String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  broker Broker @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+
+  @@index([brokerId])
+  @@index([token])
+}
+
+model LeadBroker {
+  // Связь «брокер консультирует расчёт» (роадмап 5а, черновик 9).
+  // ОДНА связь работает и на расчёте, и после конвертации: оценка
+  // таможенных платежей (BrokerEstimate, 1:1) живёт здесь и переживает
+  // конвертацию — заявка до неё доходит через order.lead (лиды с
+  // заявкой не удаляются, В2), так что оценка не теряется и после
+  // перехода сделки в исполнение.
+  id        String   @id @default(cuid())
+  leadId    String
+  brokerId  String
+  createdAt DateTime @default(now())
+
+  lead    Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  broker  Broker         @relation(fields: [brokerId], references: [id])
+  estimate BrokerEstimate?
+
+  // Повторное подключение того же брокера к тому же лиду — ошибка
+  // данных, уникальность ловит гонку двойного клика.
+  @@unique([leadId, brokerId])
+  @@index([brokerId])
+}
+
+model OrderBroker {
+  // Видимость заявки целиком для брокера (5а) — не per-stage.
+  // Рождается конвертацией из LeadBroker (В4) либо прямым подключением
+  // менеджером (заявки без лида, подключение после конвертации).
+  id        String   @id @default(cuid())
+  orderId   String
+  brokerId  String
+  createdAt DateTime @default(now())
+
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  broker  Broker @relation(fields: [brokerId], references: [id])
+
+  @@unique([orderId, brokerId])
+  @@index([brokerId])
+}
+
+model BrokerEstimate {
+  // То, что брокер обязан сообщить ещё на этапе расчёта (роадмап 5а):
+  // (а) ожидаемый размер таможенных платежей и (б) список
+  // разрешительных документов. Прямой вход в цену варианта расчёта
+  // (QuoteOption.priceEstimate) — но ценообразование отложено
+  // (решение И1), поэтому оценка пока внутренняя: менеджер видит её
+  // на карточках лида/заявки, клиенту не показывается. Обновлять
+  // может только сам брокер (его заявление, не слово менеджера).
+  id                  String   @id @default(cuid())
+  leadBrokerId        String   @unique
+  // Целые рубли, как priceEstimate. Nullable — «посчитаю позже»:
+  // брокер может сначала сообщить список документов, а сумму потом.
+  customsDutyEstimate Int?
+  // Список разрешительных документов (строки: «Сертификат
+  // соответствия», «Лицензия Минпромторга»…). Json, а не связь со
+  // справочником: разрешительная база по ТН ВЭД — Phase 2 (роадмап 6),
+  // сейчас это свободный список.
+  requiredPermits     Json?
+  notes               String?
+  createdAt           DateTime @default(now())
+  // @updatedAt: оценка уточняется (точные платежи после классификации
+  // товара) — менеджеру важно видеть, насколько свежие цифры.
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  leadBroker LeadBroker @relation(fields: [leadBrokerId], references: [id], onDelete: Cascade)
+}
+
+// ─── Журнал событий (Дорожка Ж, Ж2) ────────────────────────────────
+// Лента «кто что сделал и когда» для заявки, лида и подрядчика.
+// Пишется хелпером logActivity() (lib/activity.ts) из write-роутов —
+// прямой create в роутах не допускается, чтобы инвариант «ровно одна
+// цель» и формат актёра держались в одном месте.
+model Activity {
+  id String @id @default(cuid())
+  // Цель события — ровно одна из трёх (инвариант хелпера на TS-уровне;
+  // SQLite не умеет CHECK-ограничения между колонками). Удаление цели —
+  // каскад: лента удалённой сущности бессмысленна (лид без заявки
+  // можно удалить В2, заявки и подрядчики API-удаления не имеют, но
+  // страховка от ручных операций в БД та же, что у этапов Г3).
+  orderId      String?
+  leadId       String?
+  contractorId String?
+  // Кто действовал: сотрудник | подрядчик | система. actorName —
+  // СНИМОК на момент действия: переименование/деактивация сотрудника
+  // или подрядчика историю не переписывают, живой lookup ленте не
+  // нужен. actorId — строка без FK по той же причине: справочник
+  // живёт короче истории (и не тянет каскады при чистках).
+  actorType String // employee | contractor | system
+  actorId   String?
+  actorName String
+  // Стабильный код события (словарь ACTIVITY_TYPES в lib/activity.ts)
+  // и человекочитаемое описание с деталями — что именно изменилось.
+  type        String
+  description String
+  // Ж3: внутренняя заметка (и другие приватные события) не показывается
+  // внешним кабинетам — подрядчику (Г4) и клиенту (И1). Внешние
+  // read-контексты обязаны фильтровать isInternal: false
+  // (ACTIVITY_EXTERNAL_WHERE в lib/activity.ts); админская лента видит
+  // всё. default false — события Ж2 остаются видимыми без правки данных.
+  isInternal Boolean @default(false)
+  createdAt   DateTime @default(now())
+
+  order      Order?      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  lead       Lead?       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  contractor Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@index([leadId, createdAt])
+  @@index([contractorId, createdAt])
+}
+
+// ─── З2: защита входа от перебора ──────────────────────────────
+// Каждая попытка входа сотрудников и подрядчиков: провал сверки
+// учётных данных (401) ИЛИ успех (аудит). Лимиты считает
+// lib/login-guard.ts (скользящие окна, паттерн APEX Moto
+// rate-limit): 5 провалов/мин и 20/час на IP + 10 провалов/5 мин
+// на связку «логин ИЛИ IP» — анти-перечисление телефонов.
+// Новая таблица без ссылок на остальные — db:push не разрушающий.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  // employee | contractor | client | broker — какой из четырёх входов
+  // дёргали (в APEX порталов было три, но различие в таблице он не
+  // хранил; здесь храним — аудиту важно, какую дверь дёргали; Д
+  // добавила четвёртую дверь)
+  kind      String
+  ip        String   @default("unknown")
+  // Логин в нормализованном виде (+7XXXXXXXXXX). Nullable — на
+  // случай будущего входа без логина (мастер-пароль в APEX).
+  login     String?
+  userAgent String?
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+  @@index([login, createdAt])
+  @@index([createdAt])
+}

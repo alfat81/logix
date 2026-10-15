@@ -1,0 +1,127 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Дизайн-токены Logix. Структура — стандартный набор shadcn/ui
+   (перенесена с платформы APEX Moto осознанно: подход, не цвета),
+   палитра — своя: глубокий тил как фирменный, нейтральный графит
+   для остального, семантические цвета статусов вместо прямых
+   цветов Tailwind по всему коду (success/warning/info/destructive),
+   плюс text-xxs для микро-бейджей, которых нет в стандартной шкале. */
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* Семантические цвета статусов этапов/заявок. Используются вместо
+     Tailwind-палитры (bg-green-500 и т.п.) — тема управляет в одном месте. */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  /* Микро-бейджи (10px) — нет в стандартной шкале Tailwind. */
+  --text-xxs: 0.625rem;
+  --text-xxs--line-height: 1rem;
+}
+
+/* ─── Светлая тема ────────────────────────────────────────── */
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.985 0.002 200);
+  --foreground: oklch(0.20 0.015 220);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.20 0.015 220);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.20 0.015 220);
+  /* Фирменный — глубокий морской тил */
+  --primary: oklch(0.47 0.085 195);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.94 0.005 210);
+  --secondary-foreground: oklch(0.25 0.015 220);
+  --muted: oklch(0.955 0.004 210);
+  --muted-foreground: oklch(0.50 0.015 220);
+  --accent: oklch(0.94 0.02 195);
+  --accent-foreground: oklch(0.32 0.05 195);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.90 0.006 210);
+  --input: oklch(0.92 0.006 210);
+  --ring: oklch(0.47 0.085 195);
+  /* Статусы: зелёный = завершено, янтарный = в работе/внимание,
+     синий = информационный, красный = проблема. */
+  --success: oklch(0.62 0.16 150);
+  --success-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.75 0.16 75);
+  --warning-foreground: oklch(0.22 0.05 75);
+  --info: oklch(0.55 0.13 235);
+  --info-foreground: oklch(0.99 0 0);
+}
+
+/* ─── Тёмная тема (токены готовы, переключатель — позже) ──── */
+.dark {
+  --background: oklch(0.14 0.01 220);
+  --foreground: oklch(0.95 0.004 210);
+  --card: oklch(0.18 0.012 220);
+  --card-foreground: oklch(0.95 0.004 210);
+  --popover: oklch(0.18 0.012 220);
+  --popover-foreground: oklch(0.95 0.004 210);
+  --primary: oklch(0.68 0.10 195);
+  --primary-foreground: oklch(0.13 0.02 210);
+  --secondary: oklch(0.24 0.012 220);
+  --secondary-foreground: oklch(0.95 0.004 210);
+  --muted: oklch(0.22 0.01 220);
+  --muted-foreground: oklch(0.70 0.012 220);
+  --accent: oklch(0.28 0.03 195);
+  --accent-foreground: oklch(0.95 0.004 210);
+  --destructive: oklch(0.65 0.22 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.68 0.10 195);
+  --success: oklch(0.72 0.16 150);
+  --success-foreground: oklch(0.13 0.02 150);
+  --warning: oklch(0.80 0.16 75);
+  --warning-foreground: oklch(0.18 0.04 75);
+  --info: oklch(0.68 0.13 235);
+  --info-foreground: oklch(0.13 0.02 235);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
