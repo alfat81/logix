@@ -47,6 +47,13 @@ export const ACTIVITY_TYPES = [
   'order_broker_attached',
   'order_broker_detached',
   'broker_estimate_changed',
+  // документы (Е): создание/версии/удаление — цель событие лид ИЛИ
+  // заявка (сделка, на которой живёт документ); события о ВНУТРЕННИХ
+  // документах пишутся с isInternal — внешний кабинет не должен
+  // даже узнать о факте их существования.
+  'document_created',
+  'document_version_added',
+  'document_deleted',
   // внутренние заметки (Ж3): по заявке и лиду; текст заметки —
   // description, автор — actor, время — createdAt. Попадают в
   // ленту, внешним кабинетам не показываются (isInternal).
@@ -66,7 +73,15 @@ export type ActivityActor =
   | { type: 'broker'; id: string; name: string }
   | { type: 'system' }
 
-export function employeeActor(e: { id: string; name: string }): ActivityActor {
+// Конкретные типы актёров (Е: документы требуют ровно один из трёх
+// — сотрудник/клиент/брокер, система файлы не грузит; суженный
+// возврат хелперов делает их взаимозаменяемыми с DocActor без
+// спредов и каста на каждом вызове).
+export type EmployeeActor = { type: 'employee'; id: string; name: string }
+export type ClientActor = { type: 'client'; id: string; name: string }
+export type BrokerActor = { type: 'broker'; id: string; name: string }
+
+export function employeeActor(e: { id: string; name: string }): EmployeeActor {
   return { type: 'employee', id: e.id, name: e.name }
 }
 
@@ -77,13 +92,13 @@ export function contractorActor(c: { id: string; companyName: string }): Activit
 
 // Клиент кабинета (И1): имя — Customer.name на момент действия
 // (снимок, как у остальных актёров).
-export function clientActor(c: { id: string; name: string }): ActivityActor {
+export function clientActor(c: { id: string; name: string }): ClientActor {
   return { type: 'client', id: c.id, name: c.name }
 }
 
 // Брокер портала (Д): имя — companyName на момент действия (снимок,
 // как у подрядчика — люди у брокера не заведены).
-export function brokerActor(b: { id: string; companyName: string }): ActivityActor {
+export function brokerActor(b: { id: string; companyName: string }): BrokerActor {
   return { type: 'broker', id: b.id, name: b.companyName }
 }
 
@@ -112,6 +127,7 @@ export async function logActivity(
   type: ActivityType,
   description: string,
   tx?: Prisma.TransactionClient,
+  opts?: { isInternal?: boolean },
 ): Promise<void> {
   const client = tx ?? db
   try {
@@ -123,6 +139,9 @@ export async function logActivity(
         actorName: actor.type === 'system' ? SYSTEM_ACTOR_NAME : actor.name,
         type,
         description,
+        // Е: события о внутренних документах — внутренние (симметрия
+        // с заметками Ж3); все прочие события — прежние, false.
+        ...(opts?.isInternal ? { isInternal: true } : {}),
       },
     })
   } catch (e) {

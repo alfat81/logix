@@ -272,15 +272,18 @@ export function ClientHome() {
               const r = routeOf(l.cargoInfo)
               return (
                 <Card key={l.id} className="p-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <div className="min-w-48 flex-1">
-                    <div className="text-sm">
+                  <Link
+                    href={`/client/leads/${l.id}`}
+                    className="min-w-48 flex-1 group"
+                  >
+                    <div className="text-sm group-hover:underline">
                       {r.cargoName || <span className="text-muted-foreground">Груз не указан</span>}
                     </div>
                     <div className="text-xs text-muted-foreground truncate">
                       {r.from || r.to ? `${r.from || '—'} → ${r.to || '—'}` : 'Маршрут не указан'} · от{' '}
                       {fmtDate(l.createdAt)}
                     </div>
-                  </div>
+                  </Link>
                   {l.order ? (
                     <Link
                       href={`/client/orders/${l.order.id}`}

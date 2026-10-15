@@ -1,0 +1,191 @@
+/* PRINT_CSS — печатная форма заявки (Дорожка Е, бланк из S13:
+   zayavka-J-3-26-2634.pdf). Паттерн APEX Moto (public/print.css):
+   экран — серый фон и белый лист с тенью, печать — чистый A4. */
+
+@page {
+  size: A4;
+  margin: 12mm 10mm 14mm 10mm;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto',
+    sans-serif;
+  font-size: 10.5pt;
+  color: #1a1a1a;
+  background: #fff;
+  line-height: 1.35;
+}
+
+.print-root {
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+@media screen {
+  body {
+    background: #f0f0f0;
+  }
+  .print-root {
+    background: #fff;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+    padding: 30px 38px;
+  }
+}
+
+.sheet {
+  width: 100%;
+}
+
+/* Тулбар (только на экране) */
+.toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 12px 16px;
+  background: #1a1a1a;
+  color: #fff;
+  border-radius: 8px;
+}
+
+.toolbar button {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.toolbar button.secondary {
+  background: #374151;
+}
+
+.toolbar .doc-type-label {
+  margin-left: auto;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+@media print {
+  .toolbar {
+    display: none;
+  }
+  .print-root {
+    padding: 0;
+    max-width: none;
+  }
+  .page-break {
+    break-before: page;
+  }
+}
+
+/* ── Шапка: реквизиты экспедитора + заголовок ── */
+.doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 10px;
+}
+
+.org-info {
+  font-size: 8.5pt;
+  line-height: 1.45;
+  max-width: 62mm;
+}
+
+.doc-title-block {
+  text-align: center;
+  flex: 1;
+}
+
+.doc-kind {
+  font-size: 11.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.doc-meta {
+  font-size: 10pt;
+  margin-top: 3px;
+}
+
+/* ── Таблица 28 пунктов бланка ── */
+.zayavka-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.zayavka-table th,
+.zayavka-table td {
+  border: 1px solid #1a1a1a;
+  padding: 4px 6px;
+  vertical-align: top;
+  text-align: left;
+  font-weight: 400;
+  word-wrap: break-word;
+}
+
+.zayavka-table th {
+  font-weight: 700;
+}
+
+.zayavka-table .num {
+  width: 7mm;
+  text-align: center;
+  font-weight: 600;
+}
+
+.zayavka-table .label {
+  width: 62mm;
+  font-weight: 600;
+}
+
+.zayavka-table .empty-line {
+  height: 8mm;
+}
+
+.multi-line {
+  display: block;
+}
+
+.doc-footer {
+  margin-top: 8px;
+  font-size: 8pt;
+  color: #555;
+  text-align: center;
+}
+
+/* Подписи */
+.signatures {
+  margin-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+}
+
+.signatures .sign-block {
+  flex: 1;
+  font-size: 9.5pt;
+}
+
+.signatures .sign-line {
+  margin-top: 22px;
+  border-top: 1px solid #1a1a1a;
+  padding-top: 3px;
+  font-size: 8pt;
+  color: #444;
+  text-align: center;
+}

@@ -11,6 +11,7 @@ import { readApiResponse } from '@/lib/api-client'
 import { CargoGroups } from '@/components/admin/CargoGroups'
 import { BrokerLeadStatusBadge } from '@/components/broker/BrokerBadges'
 import { BrokerEstimateForm, type BrokerEstimate } from '@/components/broker/BrokerEstimateForm'
+import { DocumentsSection } from '@/components/documents/DocumentsSection'
 import type { LeadStatus } from '@/lib/leads'
 
 // ─── Карточка расчёта для брокера (Д) ──────────────────────────────
@@ -122,6 +123,17 @@ export function BrokerLeadCard() {
       </Card>
 
       <BrokerEstimateForm leadId={lead.id} estimate={lead.estimate} onSaved={load} />
+
+      {/* ── Е: документы расчёта (роадмап 5) — инвойс клиента для
+          расчёта пошлины, правки с комментариями. Видимость — по
+          связи с лидом (5а), внутренние документы не отдаются. */}
+      {!lead.order && (
+        <DocumentsSection
+          documentsUrl={`/api/broker/leads/${lead.id}/documents`}
+          versionsUrlFor={(docId) => `/api/broker/documents/${docId}/versions`}
+          emptyText="Документов нет — предварительный инвойс клиента ускорит расчёт платежей"
+        />
+      )}
     </div>
   )
 }

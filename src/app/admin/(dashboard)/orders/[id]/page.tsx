@@ -13,6 +13,7 @@ import {
   Lock,
   Pencil,
   Plus,
+  Printer,
   Trash2,
   Truck,
   UserX,
@@ -45,6 +46,7 @@ import { CargoGroups, CargoFormFields } from '@/components/admin/CargoGroups'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
 import { Breadcrumbs } from '@/components/admin/Breadcrumbs'
 import { NoteForm } from '@/components/admin/NoteForm'
+import { DocumentsSection } from '@/components/documents/DocumentsSection'
 import {
   BrokerLinksSection,
   type BrokerLinkRow,
@@ -502,6 +504,17 @@ export default function OrderPage() {
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight font-mono">{order.number}</h1>
         <OrderStatusBadge status={order.status} />
+        {/* Е: печатная форма заявки — приложение к договору по
+            реальному бланку из S13 */}
+        <a
+          href={`/admin/orders/${order.id}/print`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground underline underline-offset-4"
+        >
+          <Printer className="size-4" />
+          Печатная форма
+        </a>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-sm text-muted-foreground hidden sm:inline">Статус заявки:</span>
           <Select
@@ -663,6 +676,17 @@ export default function OrderPage() {
         estimatesByBrokerId={estimatesByBrokerId}
         onChanged={load}
         emptyText="Брокеры не подключены — сделка видна только менеджеру и подключённым подрядчикам своих этапов"
+      />
+
+      {/* ── Е: документы сделки (роадмап 5) — обмен клиент/брокер/
+          менеджер внутри сервиса, версионность; менеджер видит всё,
+          включая внутренние. */}
+      <DocumentsSection
+        documentsUrl={`/api/admin/orders/${id}/documents`}
+        versionsUrlFor={(docId) => `/api/admin/documents/${docId}/versions`}
+        deleteUrlFor={(docId) => `/api/admin/documents/${docId}`}
+        canMarkInternal
+        emptyText="Документов нет — товаросопроводительные и таможенные бумаги живут здесь, без почты"
       />
 
       <div className="flex items-center justify-between">

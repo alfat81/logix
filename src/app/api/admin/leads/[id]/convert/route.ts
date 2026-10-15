@@ -8,6 +8,7 @@ import {
   LEAD_STATUS_LABELS,
 } from '@/lib/leads'
 import { createOrderWithStages, findOrCreateCustomer } from '@/lib/orders'
+import { carryDocumentsToOrder } from '@/lib/documents'
 import { normalizePhone } from '@/lib/phone'
 import { apiErrorResponse } from '@/lib/api-errors'
 import {
@@ -123,6 +124,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       await db.lead.update({ where: { id }, data: { status: 'won' } })
       // Д: догоняем и перенос брокеров — краш мог случиться и до него
       await carryBrokersToOrder(id, lead.order.id)
+      // Е: документы лида переезжают в заявку тем же догоном
+      await carryDocumentsToOrder(id, lead.order.id)
       const repaired = await loadLeadCard(id)
       return NextResponse.json(
         {
@@ -252,6 +255,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     // «при win переносится автоматически, не заводится заново»)
     const carriedBrokers = await carryBrokersToOrder(id, result.id)
 
+    // Е: документы лида (предварительный инвойс для расчёта и прочее)
+    // переезжают в заявку вместе со сделкой (роадмап 5) — обмен
+    // продолжается там, где начался, без перезагрузки файлов
+    const carriedDocs = await carryDocumentsToOrder(id, result.id)
+
     // Ж2: журнал — конвертация пишет в ОБЕ ленты: событие лида
     // («воронка завершена») и рождение заявки («откуда взялась»).
     // Ссылка на номер в обе стороны — менеджер идёт по истории без
@@ -261,14 +269,16 @@ export async function POST(req: NextRequest, { params }: Params) {
       employeeActor(auth.employee),
       'lead_converted',
       `Сконвертирован в заявку №${result.number}` +
-        (carriedBrokers > 0 ? ` — брокеры перенесены: ${carriedBrokers}` : ''),
+        (carriedBrokers > 0 ? ` — брокеры перенесены: ${carriedBrokers}` : '') +
+        (carriedDocs > 0 ? `, документы перенесены: ${carriedDocs}` : ''),
     )
     await logActivity(
       { orderId: result.id },
       employeeActor(auth.employee),
       'order_created',
       `Заявка №${result.number} создана конвертацией из лида — груз и условия скопированы снимком` +
-        (carriedBrokers > 0 ? `, брокеры видимости: ${carriedBrokers}` : ''),
+        (carriedBrokers > 0 ? `, брокеры видимости: ${carriedBrokers}` : '') +
+        (carriedDocs > 0 ? `, документы: ${carriedDocs}` : ''),
     )
 
     const updatedLead = await loadLeadCard(id)

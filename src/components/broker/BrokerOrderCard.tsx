@@ -13,6 +13,7 @@ import {
   BrokerStageStatusBadge,
 } from '@/components/broker/BrokerBadges'
 import { BrokerEstimateForm, type BrokerEstimate } from '@/components/broker/BrokerEstimateForm'
+import { DocumentsSection } from '@/components/documents/DocumentsSection'
 import { CARGO_PROFILE_LABELS, type CargoProfile, type OrderStatus, type StageStatus } from '@/lib/order-constants'
 
 // ─── Карточка заявки для брокера (Д, роадмап 5а) ───────────────────
@@ -181,6 +182,16 @@ export function BrokerOrderCard() {
           </div>
         </Card>
       )}
+
+      {/* ── Е: документы сделки (роадмап 5) — видимость заявки
+          целиком (5а): товаросопроводительные, разрешительные,
+          правки с комментариями; загрузка ДТ и ответных бумаг —
+          отсюда. Внутренние документы менеджера не отдаются. */}
+      <DocumentsSection
+        documentsUrl={`/api/broker/orders/${order.id}/documents`}
+        versionsUrlFor={(docId) => `/api/broker/documents/${docId}/versions`}
+        emptyText="Документов нет — загрузите ДТ или запросите бумаги у менеджера"
+      />
     </div>
   )
 }

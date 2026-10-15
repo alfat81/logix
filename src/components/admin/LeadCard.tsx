@@ -37,6 +37,7 @@ import { LeadStatusBadge } from '@/components/admin/LeadsList'
 import { Breadcrumbs } from '@/components/admin/Breadcrumbs'
 import { CargoGroups } from '@/components/admin/CargoGroups'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
+import { DocumentsSection } from '@/components/documents/DocumentsSection'
 import { NoteForm } from '@/components/admin/NoteForm'
 import {
   BrokerLinksSection,
@@ -483,6 +484,19 @@ export function LeadCard() {
         onChanged={load}
         emptyText="Брокеры не подключены — подключите таможенного представителя для оценки платежей"
       />
+
+      {/* ── Е: документы сделки (роадмап 5) — предварительный инвойс
+          для расчёта пошлины живёт на расчёте. won — без секции: сделка
+          переехала в заявку, документы уехали вместе с ней (В4). ── */}
+      {!isWon && (
+        <DocumentsSection
+          documentsUrl={`/api/admin/leads/${id}/documents`}
+          versionsUrlFor={(docId) => `/api/admin/documents/${docId}/versions`}
+          deleteUrlFor={(docId) => `/api/admin/documents/${docId}`}
+          canMarkInternal
+          emptyText="Документов нет — предварительный инвойс брокеру, сканы и прочее загружайте здесь"
+        />
+      )}
 
       {/* ── Варианты расчёта (В3) ──────────────────────────────── */}
       <div className="flex items-center justify-between">

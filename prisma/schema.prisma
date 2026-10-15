@@ -156,6 +156,9 @@ model Order {
   // не per-stage (в отличие от подрядчиков). Переносится из LeadBroker
   // при конвертации В4; менеджер может добавить/снять и после.
   brokers     OrderBroker[]
+  // Е (роадмап 5): документы заявки — обмен клиент/брокер/менеджер
+  // внутри сервиса. Внутренние (isInternal) наружу не отдаются.
+  documents   Document[]
 
   @@unique([contractId, numberInContract])
   @@index([status])
@@ -256,6 +259,10 @@ model Lead {
   // переносится в OrderBroker автоматически («переживает конвертацию,
   // не заводится заново» — формулировка роадмапа).
   brokers  LeadBroker[]
+  // Е (роадмап 5): документы могут родиться ещё на лида — например,
+  // предварительный инвойс для расчёта пошлины брокером; при
+  // конвертации В4 переносятся на заявку (leadId → orderId).
+  documents Document[]
 
   @@index([status])
   @@index([customerId])
@@ -515,6 +522,88 @@ model BrokerEstimate {
   updatedAt           DateTime @default(now()) @updatedAt
 
   leadBroker LeadBroker @relation(fields: [leadBrokerId], references: [id], onDelete: Cascade)
+}
+
+// ─── Дорожка Е: документооборот внутри сервиса (роадмап 5) ────────
+// Обмен документами (товаросопроводительные, правки от брокера)
+// внутри платформы, не через внешнюю почту. Участвуют три стороны:
+// клиент, брокер и менеджер (подрядчик в контуре Е отсутствует —
+// роадмап 5 его не называет). Видимость: любой брокер, связанный с
+// заявкой через OrderBroker (или с лидом через LeadBroker, пока
+// заявки нет), видит все НЕ внутренние документы этой сделки —
+// видимость определяется связью со сделкой, не привязкой к этапу
+// (5а, поле stageInstanceId из черновика сознательно убрано).
+//
+// Все таблицы новые — db:push на живой базе не разрушающий.
+
+model Document {
+  id        String  @id @default(cuid())
+  // Цель — ровно одна: лид ИЛИ заявка (инвариант на уровне роутов,
+  // как у Activity — SQLite не умеет CHECK между колонками).
+  // Документ на лиде живёт своей жизнью до конвертации, затем В4
+  // переносит его на заявку (leadId → orderId, связь с лидом через
+  // order.lead остаётся у сделки, история не рвётся).
+  orderId   String?
+  leadId    String?
+  // Стабильный код типа из DOCUMENT_TYPES (lib/document-constants.ts):
+  // accompanying | invoice | permit | customs | contract | application | other
+  type      String
+  // Человекочитаемое название («Инвойс № INV-123», «Упаковочный лист»).
+  title     String
+  // Видимость: внутренние документы (подрядческие договоры, тарифы)
+  // видны только сотрудникам — клиент и брокер их не видят ни в
+  // списках, ни в скачивании. Решение №1 от 14.10.2026 (клиент не
+  // видит ставки) + Д (брокер не видит подрядческих условий): без
+  // флага менеджеру некуда положить «не для внешних» файл. Симметрия
+  // с Activity.isInternal (Ж3). Клиент и брокер создавать внутренние
+  // не могут — роуты принуждают false.
+  isInternal Boolean @default(false)
+  // Номер последней версии (кэш для списков без подсчёта версий).
+  currentVersion Int  @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  order    Order?            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  lead     Lead?             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  versions DocumentVersion[]
+
+  @@index([orderId])
+  @@index([leadId])
+}
+
+model DocumentVersion {
+  // Версия документа: файл + автор + комментарий «что изменено и
+  // почему» (роадмап 5: проект правится несколько раз до финала,
+  // минимум — история версий с датой и автором правки).
+  id         String   @id @default(cuid())
+  documentId String
+  version    Int
+  // Метаданные файла: оригинальное имя (санитизированное при загрузке),
+  // MIME из белого списка (DOC_ALLOWED_MIME), размер в байтах.
+  fileName   String
+  mimeType   String
+  fileSize   Int
+  // Содержимое — в БД, а не в файловой системе: переживает эпизодический
+  // диск Vercel, путешествует с базой между песочницами, а скачивание —
+  // только через авторизующий роут (публичных URL у файлов нет, тайна
+  // видимости держится проверкой кук, а не «неизвестной ссылкой»).
+  fileData   Bytes
+  // Что изменено и почему — правка от брокера/клиента.
+  comment    String?
+  // Кто загрузил: сотрудник | клиент | брокер (подрядчика в контуре Е
+  // нет). authorName — снимок имени на момент загрузки (лента Ж2).
+  authorType String
+  authorId   String?
+  authorName String
+  createdAt  DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  // Гонка двух одновременных загрузок версии: обе прочитали
+  // currentVersion=1 → обе создают v2 → уникальность ловит одну,
+  // роут повторяет с новым номером (паттерн retry Б4).
+  @@unique([documentId, version])
+  @@index([documentId])
 }
 
 // ─── Журнал событий (Дорожка Ж, Ж2) ────────────────────────────────
