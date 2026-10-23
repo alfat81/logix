@@ -39,11 +39,10 @@ git push --force --mirror
 
 ## 3. CI (5 минут)
 
-Все прогоны GitHub Actions до 23.10.2026 падали на шаге «Set up job» — это
-проблема аккаунта, а не кода. Проверить:
+Все прогоны GitHub Actions до 23.10.2026 падали на шаге «Set up job». Причина
+была в коде workflow: несуществующий action `oven/setup-bun` (правильно —
+`oven-sh/setup-bun`). Исправлено в PR #2, аккаунт и биллинг ни при чём.
 
-- [ ] Settings → Actions → General: «Allow all actions and reusable workflows».
-- [ ] github.com/settings/billing: нет блокировки аккаунта и исчерпанного лимита минут, привязан способ оплаты (для публичных репозиториев минуты бесплатны).
 - [ ] После зелёного прогона: Settings → Branches → правило для `main`: «Require status checks to pass» (checks, e2e, gitleaks).
 
 ## 4. Перевод прод-базы на миграции

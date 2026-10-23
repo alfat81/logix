@@ -41,8 +41,10 @@ export async function POST(req: NextRequest) {
     // разрушающий». Поэтому findFirst, а не findUnique: при
     // патологических дублях (ручная правка БД) вход детерминирован —
     // берётся самый старый клиент с этим телефоном.
+    // Только клиенты с выданным доступом: если в справочнике есть
+    // дубли по телефону, вход не должен попадать на дубль без пароля
     const customer = await db.customer.findFirst({
-      where: { phone },
+      where: { phone, password: { not: null } },
       orderBy: { createdAt: 'asc' },
     })
     // Одна формулировка на «нет такого», «доступ не выдан» (password

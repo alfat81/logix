@@ -79,10 +79,13 @@ s,d=a.r('POST',f'/api/admin/leads/{lid}/documents',raw=body,ct=ct); chk('фай�
 # parallel convert
 res=[]
 def cv(): res.append(a.r('POST',f'/api/admin/leads/{lid}/convert',{'legalEntityId':leid,'incoterm':'FOB'}))
-ts=[threading.Thread(target=cv) for _ in range(3)]; [t.start() for t in ts]; [t.join() for t in ts]
+ts=[threading.Thread(target=cv) for _ in range(5)]; [t.start() for t in ts]; [t.join() for t in ts]
 codes=sorted(r[0] for r in res); chk('параллельная конвертация: ровно одна 201',codes.count(201)==1,codes)
 order=[r[1] for r in res if r[0]==201][0]['order'] if codes.count(201) else None
 oid=order['id']; print('ORDER',order)
+s,d=a.r('GET','/api/admin/customers?limit=200'); cl=d.get('customers',d) if isinstance(d,dict) else d
+lead_phone='+7999%07d'%base
+chk('параллельная конвертация: один клиент на телефон (без дублей)',sum(1 for x in cl if x.get('phone')==lead_phone)==1,[x.get('phone') for x in cl if x.get('phone')==lead_phone])
 s,d=a.r('GET',f'/api/admin/orders/{oid}'); O=d.get('order',d)
 chk('обязательные этапы подставлены',len(O.get('stages',[]))>=6,len(O.get('stages',[])))
 chk('снимок цены перенесён',(O.get('quoteSnapshot') or {}).get('priceEstimate')==1200000,O.get('quoteSnapshot'))
