@@ -24,14 +24,17 @@ function isUniqueViolation(err: unknown): boolean {
 // created=true только когда клиент рождён прямо в этом вызове —
 // конвертация В4 отдаёт флаг UI, чтобы подсветить «клиент заведён
 // из контактов лида».
-export async function findOrCreateCustomer(input: {
-  customerId?: string
-  name?: string
-  phone?: string | null
-  email?: string | null
-}): Promise<{ id: string; created: boolean } | { error: string; status: number }> {
+export async function findOrCreateCustomer(
+  input: {
+    customerId?: string
+    name?: string
+    phone?: string | null
+    email?: string | null
+  },
+  client: Prisma.TransactionClient = db
+): Promise<{ id: string; created: boolean } | { error: string; status: number }> {
   if (input.customerId) {
-    const customer = await db.customer.findUnique({ where: { id: input.customerId } })
+    const customer = await client.customer.findUnique({ where: { id: input.customerId } })
     if (!customer) return { error: 'Клиент не найден', status: 404 }
     return { id: customer.id, created: false }
   }
@@ -40,11 +43,14 @@ export async function findOrCreateCustomer(input: {
   if (!name) return { error: 'Укажите клиента или его имя', status: 400 }
 
   if (input.phone) {
-    const byPhone = await db.customer.findFirst({ where: { phone: input.phone } })
+    const byPhone = await client.customer.findFirst({
+      where: { phone: input.phone },
+      orderBy: { createdAt: 'asc' },
+    })
     if (byPhone) return { id: byPhone.id, created: false }
   }
 
-  const created = await db.customer.create({
+  const created = await client.customer.create({
     data: { name, phone: input.phone ?? null, email: input.email ?? null },
   })
   return { id: created.id, created: true }

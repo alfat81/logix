@@ -171,10 +171,14 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     // ── Клиент: из лида или find-or-create из rawContact ──
-    let customer: { id: string; created: boolean } | { error: string; status: number }
-    if (lead.customerId) {
-      customer = await findOrCreateCustomer({ customerId: lead.customerId })
-    } else {
+    // Под блокировкой строки лида (SELECT … FOR UPDATE): параллельные
+    // конвертации одного лида раньше рождали по клиенту каждая — дубли
+    // с одним телефоном, и вход в кабинет попадал на дубль без пароля.
+    // Второй запрос ждёт первого и берёт уже записанный customerId.
+    let rawPhone: string | null = null
+    let rawName = ''
+    let rawEmail: string | null = null
+    if (!lead.customerId) {
       const raw = RawContactSchema.safeParse(lead.rawContact)
       if (!raw.success) {
         return NextResponse.json(
@@ -182,24 +186,27 @@ export async function POST(req: NextRequest, { params }: Params) {
           { status: 400 }
         )
       }
-      customer = await findOrCreateCustomer({
-        name: raw.data.name,
-        // Нормализация — в момент рождения Customer (см. комментарий к
-        // RawContactSchema): 8 900 555-01-02 → +79005550102 (дедупликация
-        // со справочником работает); +86… остаётся как есть.
-        phone: raw.data.phone ? (normalizePhone(raw.data.phone) ?? raw.data.phone.trim()) : null,
-        email: raw.data.email ?? null,
-      })
+      rawName = raw.data.name
+      // Нормализация в момент рождения Customer: 8 900 555-01-02 →
+      // +79005550102 (дедупликация со справочником); +86… как есть
+      rawPhone = raw.data.phone ? (normalizePhone(raw.data.phone) ?? raw.data.phone.trim()) : null
+      rawEmail = raw.data.email ?? null
     }
+    const customer = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Lead" WHERE id = ${id} FOR UPDATE`
+      const locked = await tx.lead.findUnique({ where: { id }, select: { customerId: true } })
+      const found = locked?.customerId
+        ? await findOrCreateCustomer({ customerId: locked.customerId }, tx)
+        : await findOrCreateCustomer({ name: rawName, phone: rawPhone, email: rawEmail }, tx)
+      // Backfill customerId ДО создания заявки: повторный заход после
+      // сбоя не заведёт дубль клиента
+      if (!('error' in found) && locked?.customerId !== found.id) {
+        await tx.lead.update({ where: { id }, data: { customerId: found.id } })
+      }
+      return found
+    })
     if ('error' in customer) {
       return NextResponse.json({ error: customer.error }, { status: customer.status })
-    }
-
-    // Backfill customerId ДО создания заявки: лид, родивший клиента,
-    // обязан помнить, чей он (и повторный заход после сбоя не заведёт
-    // дубль клиента по тому же телефону).
-    if (lead.customerId !== customer.id) {
-      await db.lead.update({ where: { id }, data: { customerId: customer.id } })
     }
 
     // ── Заявка: существующий конвейер Б4 + связь с рождения записи ──
