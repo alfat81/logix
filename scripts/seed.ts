@@ -110,7 +110,8 @@ async function seedEmployee(): Promise<void> {
       roles: '["master"]',
     },
   })
-  console.log(`  + Мастер-учётка: ${phone} / пароль: ${password}`)
+  // Пароль в лог не печатаем: логи CI и Vercel видят посторонние
+  console.log(`  + Мастер-учётка: ${phone} (пароль — из MASTER_PASSWORD или локальный по умолчанию)`)
   if (!process.env.MASTER_PASSWORD) {
     console.log('    (локальный режим: пароль по умолчанию; против не-локальной базы сид требует MASTER_PHONE + MASTER_PASSWORD — З1)')
   }

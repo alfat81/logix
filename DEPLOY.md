@@ -9,6 +9,19 @@ self-hosted Windows-процесс, пока прод давно уехал на
 
 ---
 
+> **С 23.10.2026 схема управляется миграциями (Prisma Migrate), `db:push` на рабочие базы запрещён.**
+>
+> - Новая база: `bun run db:deploy` (применяет `prisma/migrations`).
+> - **Существующая база, созданная через `db:push`** (в том числе текущий прод в Neon) — один раз пометить базовую миграцию как применённую, ничего не меняя в данных:
+>   ```bash
+>   DATABASE_URL="<direct-строка>" bun run db:baseline
+>   DATABASE_URL="<direct-строка>" bun run db:deploy   # должно ответить «No pending migrations»
+>   ```
+>   Перед этим проверьте, что прод-схема совпадает с репозиторием:
+>   `bunx prisma migrate diff --from-url "<direct-строка>" --to-schema-datamodel prisma/schema.prisma` — вывод должен быть пустым.
+> - Изменение схемы: разработчик делает `bun run db:migrate --name <задача>` и коммитит папку миграции. На прод: Neon branch (снимок) → `db:deploy` → проверка.
+> - Упоминания `db:push` ниже читать как `db:deploy`.
+
 ## 1. Что нужно завести один раз, до первого запуска
 
 1. **Аккаунт на [Neon](https://neon.tech)** — бесплатного тарифа
@@ -49,11 +62,11 @@ cp .env.example .env
 → ваш проект → Connection string → **Pooled connection**, не Direct —
 пул соединений важен, serverless-функции Vercel открывают много
 коротких соединений, без пулинга Neon быстро упрётся в лимит).
-Важно: именно `.env`, не `.env.local` — Prisma CLI (`db:push`)
+Важно: именно `.env`, не `.env.local` — Prisma CLI (`db:deploy`, `db:migrate`)
 читает только `.env`/`prisma/.env`, а не Next-овские `.env.local`.
 
 ```bash
-bun run db:push    # создаёт таблицы по prisma/schema.prisma (23 модели после Дорожек Б–Г, Ж2, З2, И1, Д и Е — документооборот)
+bun run db:deploy  # применяет миграции prisma/migrations (создаёт все таблицы)
 bun run seed        # мастер-учётка + каталог этапов + юрлицо-образец (один раз)
 bun run dev         # http://localhost:3000, вход: /admin/login
 ```
@@ -96,8 +109,8 @@ Zip приносит новую схему и новый код, но НЕ тр�
 
 ```bash
 bun install          # свежие зависимости (если добавились)
-bun run db:push      # СОЗДАЁТ НОВЫЕ ТАБЛИЦЫ/СТОЛБЦЫ в Neon и заодно
-                     # перегенерирует Prisma Client из новой схемы
+bun run db:deploy    # применяет новые миграции к базе
+bun run db:generate  # перегенерирует Prisma Client из новой схемы
 # перезапустить dev-сервер: Ctrl+C → bun run dev
 ```
 
@@ -155,7 +168,7 @@ Vercel (раздел 4).
 
 ```bash
 # 1. Таблицы в прод-базу:
-DATABASE_URL="<direct-строка>" bun run db:push
+DATABASE_URL="<direct-строка>" bun run db:deploy
 
 # 2. Мастер-учётка: против не-локальной базы сид требует ОБА
 #    значения (З1), пароль по умолчанию в бой не проходит:
@@ -246,7 +259,7 @@ git push
 Проверить статус сборки — Vercel Dashboard → Deployments, там же лог
 сборки, если что-то упало.
 
-**Если меняли `prisma/schema.prisma`** — `bun run db:push` нужно
+**Если меняли `prisma/schema.prisma`** — миграцию создаёт разработчик (`bun run db:migrate`), а `bun run db:deploy` нужно
 выполнить и против прод-базы тоже (обычно — локально, указав в
 `DATABASE_URL` прод-строку на момент запуска команды, либо через Neon
 SQL Editor вручную для сложных миграций). Vercel сам по себе схему в

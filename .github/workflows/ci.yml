@@ -1,30 +1,5 @@
-# ─────────────────────────────────────────────────────────────────
-# CI Logix (З3): те же четыре проверки, что и локально перед
-# поставкой — на каждый push в main и каждый pull_request.
-#
-# Зачем: Vercel собирает прод независимо и напишет письмом при
-# падении, а этот workflow — ранний сигнал прямо в GitHub: вкладка
-# Actions показывает состояние ветки до деплоя, а pull_request
-# проверяется до вливания.
-#
-# Шаги (формулировка очереди З3):
-#   1. prisma validate — схема согласована (провайдер в репо —
-#      postgres, как на проде);
-#   2. tsc --noEmit    — типы; ДО него prisma generate: типы клиента
-#                        генерируются в node_modules, без этого шага
-#                        tsc падает на импортах из '@prisma/client';
-#   3. lint            — eslint;
-#   4. build           — prisma generate && next build.
-#
-# DATABASE_URL фиктивный и публичный: ни один шаг не ходит в БД.
-# Значение нужно только чтобы Prisma разобрал env("DATABASE_URL")
-# из schema.prisma — страницы за авторизацией динамические,
-# пререндеров с запросами к базе нет. Секретов в GitHub не требуется.
-#
-# Пакетный менеджер — bun, как и весь DEPLOY.md этого проекта.
-# bun.lock в репо может отсутствовать — bun install резолвит по
-# package.json и печатает свежий lock только в раннер (не в репо).
-# ─────────────────────────────────────────────────────────────────
+# CI Logix: статические проверки + сквозной API-тест на живой PostgreSQL
+# + поиск секретов. Merge в main — только при зелёном CI (branch protection).
 name: CI
 
 on:
@@ -32,32 +7,89 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   checks:
+    name: validate · tsc · lint · build
     runs-on: ubuntu-latest
     env:
+      # Фиктивный: шаги этого job в БД не ходят
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Установка bun
-        uses: oven/setup-bun@v2
-
-      - name: Установка зависимостей
-        run: bun install
-
+      - uses: actions/checkout@v4
+      - uses: oven/setup-bun@v2
+      - run: bun install
       - name: Схема Prisma валидна
         run: bunx prisma validate
-
-      - name: Генерация клиента Prisma (типы для tsc)
+      - name: Генерация клиента Prisma
         run: bunx prisma generate
-
-      - name: TypeScript — tsc --noEmit
+      - name: TypeScript
         run: bunx tsc --noEmit
-
       - name: ESLint
         run: bun run lint
-
-      - name: Сборка (prisma generate && next build)
+      - name: Сборка
         run: bun run build
+
+  e2e:
+    name: e2e API (PostgreSQL)
+    runs-on: ubuntu-latest
+    needs: checks
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: logix
+          POSTGRES_PASSWORD: logix
+          POSTGRES_DB: logix
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U logix"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://logix:logix@localhost:5432/logix?schema=public
+      MASTER_PHONE: '+79000000000'
+      # Пароль только для одноразовой БД раннера
+      MASTER_PASSWORD: ci-e2e-master-password
+      ADMIN_PHONE: '+79000000000'
+      ADMIN_PASSWORD: ci-e2e-master-password
+      BASE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven/setup-bun@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: bun install
+      - name: Миграции
+        run: bunx prisma migrate deploy
+      - name: Сид
+        run: bun run seed
+      - name: Сборка
+        run: bun run build
+      - name: Запуск приложения
+        run: |
+          nohup bun run start > next.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/ > /dev/null && exit 0
+            sleep 1
+          done
+          cat next.log; exit 1
+      - name: Сквозной API-тест
+        run: python3 scripts/e2e_api_test.py
+      - name: Лог приложения при падении
+        if: failure()
+        run: tail -200 next.log
+
+  secrets:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
