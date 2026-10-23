@@ -48,6 +48,10 @@ import random; base=random.randint(1000000,8000000)
 # --- admin
 a=C()
 s,d=a.r('POST','/api/auth/employee/login',{'phone':os.environ.get('ADMIN_PHONE','+79000000000'),'password':os.environ['ADMIN_PASSWORD']}); chk('admin login (8-формат телефона)',s==200,(s,d))
+s,d=C().r('GET','/api/health'); chk('health: БД доступна (E0-10)',s==200 and isinstance(d,dict) and d.get('db')=='ok',(s,d))
+a2=C(); s,_=a2.r('POST','/api/auth/employee/login',{'phone':os.environ.get('ADMIN_PHONE','+79000000000'),'password':os.environ['ADMIN_PASSWORD']})
+s1,_=a2.r('POST','/api/auth/employee/logout'); s2,_=a2.r('GET','/api/auth/employee/me'); s3,_=a.r('GET','/api/auth/employee/me')
+chk('выход гасит только свою сессию (E0-06/E0-08)',s==200 and s2==401 and s3==200,(s,s1,s2,s3))
 s,d=a.r('GET','/api/admin/legal-entities'); le=(d.get('legalEntities') or d.get('items') or d) if isinstance(d,dict) else d
 leid=(le[0]['id'] if isinstance(le,list) else None); chk('юрлицо из сида',leid,d)
 # lead with raw contact
