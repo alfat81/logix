@@ -1,70 +1,50 @@
 # Logix
 
-Платформа мультимодальной логистики — заявки, подрядчики, брокеры,
-документооборот. Стек: Next.js, Prisma, PostgreSQL (Neon), Tailwind,
-shadcn/ui, деплой на Vercel.
+Операционная платформа международной экспедиторской компании:
+запросы клиентов → варианты расчёта → заявки с этапами перевозки →
+перевозчики и таможенные брокеры → документооборот с версиями.
+Четыре кабинета: сотрудники `/admin`, клиенты `/client`,
+брокеры `/broker`, перевозчики `/contractor`.
 
-**Статус:** рабочая версия. Карта развития — `LOGISTICS-ROADMAP.md`
-(пересмотр 21.10.2026: закрытые дорожки А–И зафиксированы как факт,
-дальше — аудит девяти перспектив и очередь по волнам), журнал сессий —
-`worklog.md`.
+Стек: Next.js 16, React 19, TypeScript strict, Prisma 6 + PostgreSQL (Neon),
+Tailwind 4 + shadcn/ui, деплой на Vercel.
 
-**Пройдено:** Дорожка А (А1–А6) — каркас, БД, авторизация сотрудников
-(телефон+пароль, scrypt, сессии в куках, `requireEmployee(req, {roles,
-write})`), деплой-конфиг. Дорожка Б (Б1–Б6) — ядро заявки: схема
-(LegalEntity/Customer/Contract/Order/OrderStageCatalog/
-OrderStageInstance), каталог этапов с обязательным ядром, API заявок
-и этапов, составная нумерация «договор-порядковый» (например «17-1»),
-кабинет `/admin` со списком заявок и карточкой этапов. Дорожка В
-(В1–В4) — клиентская воронка: схема Lead/QuoteOption (клиент на этапе
-запроса опционален, анкета в rawContact Json), API лидов со статусами
-`new | calculated | won | lost`; «won» вручную не ставится — только
-конвертацией. API вариантов расчёта (В3): выбор ровно одного на лид,
-первый вариант переводит лид в `calculated`. Конвертация (В4):
-`POST /api/admin/leads/[id]/convert` — требует выбранного варианта,
-клиент из `customerId` или find-or-create из `rawContact` (телефон
-нормализуется при рождении клиента), юрлицо — обязательный выбор,
-заявка через `createOrderWithStages` с договором и обязательными
-этапами, лид — `won` (терминальный), повторная — 409.
+## Документы проекта
+
+| Файл | Что в нём |
+|---|---|
+| `docs/ROADMAP.md` | Аудит, роадмап по фазам, задачи с ID и критериями приёмки |
+| `docs/RULES.md` | Правила проекта и готовый промпт для разработчика / ИИ-агента |
+| `docs/SECURITY-ACTIONS.md` | Действия владельца после инцидента с секретами |
+| `DEPLOY.md` | Деплой на Vercel + Neon, миграции, обновление версии |
+| `CHANGELOG.md` | История изменений |
+| `docs/archive/` | Старый роадмап v2.0 и журнал сессий (только для справки) |
 
 ## Быстрый старт
 
 ```bash
 bun install
-cp .env.example .env          # заполнить DATABASE_URL (Neon Postgres)
-bun run db:push
-bun run seed                  # мастер-учётка + каталог этапов + юрлицо-образец
-bun run dev
+cp .env.example .env          # DATABASE_URL — тестовая база PostgreSQL
+bun run db:deploy             # миграции
+bun run seed -- --dev         # мастер, каталог этапов, юрлицо-образец
+bun run dev                   # http://localhost:3000/admin/login
 ```
 
-Вход сотрудников: `/admin/login`. Данные мастера после сида:
-телефон `+79000000000`, пароль `logix-master` (для прода задать
-`MASTER_PHONE`/`MASTER_PASSWORD` в окружении до запуска сида —
-см. `scripts/seed.ts`).
+Вход после сида в режиме `--dev`: `+79000000000` / `logix-master`.
+Для любой не-локальной базы сид требует `MASTER_PHONE` и `MASTER_PASSWORD`.
 
-## Основные экраны и API
+## Проверки (то же, что в CI)
 
-| Что | Где |
-|---|---|
-| Лендинг | `/` |
-| Вход сотрудников | `/admin/login` |
-| Список заявок + фильтр по статусу | `/admin` |
-| Карточка заявки: этапы, статусы, даты | `/admin/orders/[id]` |
-| Авторизация | `POST /api/auth/employee/login`, `POST /api/auth/employee/logout`, `GET /api/auth/employee/me` |
-| Заявки | `GET/POST /api/admin/orders`, `GET/PATCH /api/admin/orders/[id]` |
-| Этапы | `POST /api/admin/orders/[id]/stages`, `PATCH/DELETE /api/admin/orders/[id]/stages/[stageId]` |
-| Справочники | `/api/admin/customers`, `/api/admin/contracts`, `/api/admin/legal-entities`, `/api/admin/stage-catalog` |
-| Лиды (воронка) | `GET/POST /api/admin/leads`, `GET/PATCH/DELETE /api/admin/leads/[id]` |
-| Варианты расчёта | `POST /api/admin/leads/[id]/options`, `PATCH/DELETE /api/admin/options/[id]` |
-| Конвертация лида в заявку | `POST /api/admin/leads/[id]/convert` |
+```bash
+bunx prisma validate && bunx tsc --noEmit && bun run lint && bun run build
+# сквозной API-тест — только на тестовой базе, при запущенном bun run start:
+ADMIN_PASSWORD=logix-master bun run test:e2e
+```
 
-Правила ядра (раздел 3 роадмапа): обязательные этапы подставляются в
-заявку автоматически и не удаляются ни в UI, ни на сервере
-(`DELETE` этапа проверяет `OrderStageCatalog.isMandatory`); необязательные
-менеджер добавляет из каталога, их порядок — на его усмотрение.
+Схема БД меняется только миграциями: `bun run db:migrate --name <задача>`.
+`db:push` — только для одноразовых песочниц.
 
 ## Имя проекта
 
-`logix` — плейсхолдер. При выборе реального названия заменить в
-`package.json` (`name`), здесь и в заголовке `LOGISTICS-ROADMAP.md`/
-`LOGISTICS-TASK-QUEUE.md`.
+`logix` — плейсхолдер. При выборе названия заменить в `package.json`,
+этом файле и `src/app/layout.tsx`.

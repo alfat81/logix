@@ -20,3 +20,12 @@ db/
 
 # кэш вывода инструментов платформы (большие результаты чтения)
 tool-results/
+
+# никогда не коммитим: cookie-джары, дампы сессий, локальные БД и артефакты тестов
+cmv*
+*.cookies
+cookies*.txt
+*.cookiejar
+*.dump
+*.sql.gz
+package-lock.json

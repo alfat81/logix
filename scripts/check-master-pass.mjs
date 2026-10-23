@@ -3,11 +3,9 @@
  * сотрудник в базе, которую видит приложение (тот же DATABASE_URL,
  * что и у dev-сервера: переменная окружения > .env).
  *
- * Запуск из корня проекта:  node scripts/check-master-pass.js
- * Можно передать свои кандидаты-пароли:
- *   node scripts/check-master-pass.js "мойпароль" "ещёпароль"
- * Без аргументов проверяются: пароль SQL-посева (S-cont-local) и
- * локальный default (logix-master).
+ * Запуск из корня проекта (кандидаты-пароли — только аргументами,
+ * в коде паролей не храним):
+ *   node scripts/check-master-pass.mjs "мойпароль" "ещёпароль"
  *
  * Только чтение; хэш и пароли не печатает (печатает ТОЛЬКО те
  * кандидаты, которые совпали — они и так известны вызывающему).
@@ -40,10 +38,11 @@ loadEnvFallback()
 
 const prisma = new PrismaClient()
 
-const candidates =
-  process.argv.length > 2
-    ? process.argv.slice(2)
-    : ['Logix-QTLbcKe06OJOl3sm', 'logix-master']
+const candidates = process.argv.slice(2)
+if (candidates.length === 0) {
+  console.error('Передайте пароли-кандидаты аргументами: node scripts/check-master-pass.mjs "пароль"')
+  process.exit(1)
+}
 
 const url = process.env.DATABASE_URL || '(DATABASE_URL не найден)'
 const host = (url.match(/@([^/?]+)/) || [])[1] || url
@@ -59,7 +58,7 @@ function passwordFits(stored, plain) {
 
 async function main() {
   console.log('Хост базы:', host)
-  console.log('Проверяемые пароли-кандидаты:', candidates.join(' | '))
+  console.log('Проверяемых паролей-кандидатов:', candidates.length)
   const employees = await prisma.employee.findMany({
     select: { phone: true, name: true, password: true },
     orderBy: { phone: 'asc' },

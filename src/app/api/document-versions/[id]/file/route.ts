@@ -6,6 +6,7 @@ import { getCurrentBroker } from '@/lib/broker-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { documentVisibleToBroker, documentVisibleToClient } from '@/lib/documents'
 import { DOC_INLINE_MIME } from '@/lib/document-constants'
+import { resolveFileMime } from '@/lib/file-signature'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -82,23 +83,30 @@ export async function GET(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Файл не найден' }, { status: 404 })
     }
 
-    // Inline отдаём только форматам, безопасным для рендера браузером
-    // (PDF, картинки) — предпросмотр в одну клику; офисные документы и
-    // архивы — attachment, без интерпретации. nosniff запрещает браузеру
-    // додумывать тип мимо заголовка.
-    const disposition = (DOC_INLINE_MIME as readonly string[]).includes(version.mimeType)
-      ? 'inline'
-      : 'attachment'
+    // Inline — только PDF и картинкам, и только если содержимое реально
+    // совпадает с типом (повторная проверка сигнатуры защищает и файлы,
+    // загруженные до E0-07). Всё остальное — attachment как
+    // application/octet-stream, без интерпретации браузером.
+    const bytes = new Uint8Array(version.fileData)
+    const verified = resolveFileMime(version.mimeType, version.fileName, bytes) === version.mimeType
+    const inline = verified && (DOC_INLINE_MIME as readonly string[]).includes(version.mimeType)
+    const disposition = inline ? 'inline' : 'attachment'
+    const contentType = verified ? version.mimeType : 'application/octet-stream'
+    const isImage = contentType.startsWith('image/')
     const asciiFallback = version.fileName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_')
 
-    return new NextResponse(new Uint8Array(version.fileData), {
+    return new NextResponse(bytes, {
       status: 200,
       headers: {
-        'Content-Type': version.mimeType,
+        'Content-Type': contentType,
         'Content-Length': String(version.fileSize),
         'Content-Disposition': `${disposition}; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(version.fileName)}`,
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'private, no-store',
+        // Картинка открывается в изолированном контексте без скриптов.
+        // PDF sandbox не ставим: Chrome не рендерит PDF в sandbox-документе
+        ...(isImage ? { 'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'" } : {}),
+        'X-Robots-Tag': 'noindex, nofollow',
       },
     })
   } catch (e) {

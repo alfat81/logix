@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { resolveFileMime } from '@/lib/file-signature'
 import { db } from '@/lib/db'
 import {
   logActivity,
@@ -108,7 +109,14 @@ export async function parseDocumentCreateForm(
     }
   }
 
-  return { ok: true, meta: parsed.data, file: await readDocFile(file) }
+  const payload = await readDocFile(file)
+  if (!payload) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: DOC_SIGNATURE_ERROR }, { status: 400 }),
+    }
+  }
+  return { ok: true, meta: parsed.data, file: payload }
 }
 
 export type ParsedVersionForm =
@@ -156,7 +164,14 @@ export async function parseDocumentVersionForm(
     }
   }
 
-  return { ok: true, comment: parsed.data.comment, file: await readDocFile(file) }
+  const payload = await readDocFile(file)
+  if (!payload) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: DOC_SIGNATURE_ERROR }, { status: 400 }),
+    }
+  }
+  return { ok: true, comment: parsed.data.comment, file: payload }
 }
 
 // ── Валидация и чтение файла ─────────────────────────────────────────
@@ -185,20 +200,23 @@ export function docFileError(file: File): string | null {
   if (file.size > DOC_FILE_MAX_BYTES) {
     return `Файл больше ${formatDocSize(DOC_FILE_MAX_BYTES)} — уменьшите файл или пришлите менеджеру напрямую`
   }
-  if (!(DOC_ALLOWED_MIME as readonly string[]).includes(file.type)) {
+  const declared = file.type && file.type !== 'application/octet-stream' ? file.type : ''
+  if (declared && !(DOC_ALLOWED_MIME as readonly string[]).includes(declared)) {
     return `Формат «${file.type || 'неизвестен'}» не поддерживается. Разрешены: PDF, PNG, JPEG, WebP, DOC/DOCX, XLS/XLSX, ZIP`
   }
   return null
 }
 
-export async function readDocFile(file: File): Promise<DocFilePayload> {
+export const DOC_SIGNATURE_ERROR =
+  'Содержимое файла не совпадает с его форматом. Разрешены: PDF, PNG, JPEG, WebP, DOC/DOCX, XLS/XLSX, ZIP'
+
+/** Читает файл и проверяет сигнатуру. null — содержимое не прошло проверку. */
+export async function readDocFile(file: File): Promise<DocFilePayload | null> {
   const fileData = new Uint8Array(await file.arrayBuffer())
-  return {
-    fileName: sanitizeFileName(file.name),
-    mimeType: file.type,
-    fileSize: file.size,
-    fileData,
-  }
+  const fileName = sanitizeFileName(file.name)
+  const mimeType = resolveFileMime(file.type, fileName, fileData)
+  if (!mimeType) return null
+  return { fileName, mimeType, fileSize: file.size, fileData }
 }
 
 // ── Проекции для списков (без fileData!) ────────────────────────────

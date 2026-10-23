@@ -7,7 +7,11 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "test:e2e": "python3 scripts/e2e_api_test.py",
     "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:baseline": "prisma migrate resolve --applied 20261023000000_baseline",
     "db:generate": "prisma generate",
     "seed": "tsx scripts/seed.ts",
     "set-master": "tsx scripts/set-master-password.ts"
