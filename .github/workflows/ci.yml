@@ -20,7 +20,7 @@ jobs:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
     steps:
       - uses: actions/checkout@v4
-      - uses: oven/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
       - run: bun install
       - name: Схема Prisma валидна
         run: bunx prisma validate
@@ -58,7 +58,7 @@ jobs:
       BASE_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
-      - uses: oven/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
