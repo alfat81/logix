@@ -127,11 +127,21 @@ Select-String -Path .\.env -Pattern 'DATABASE_URL'
 Затем сама миграция:
 
 ```powershell
-npx prisma migrate deploy
+npx prisma@6 migrate deploy
 ```
 
-- **Ожидается:** `1 migration found` и строка
-  `20261024113629_p1_01_responsible_manager` со словом `applied`.
+- Версия `@6` обязательна: в проекте Prisma 6.19.2. Если запускать
+  `npx prisma` без версии, скачается Prisma 8 (RC), где команда
+  `migrate deploy` переименована — вы могли это уже видеть (ошибка
+  CLI.COMMAND_MOVED). Совет «prisma db migrate» из этого сообщения
+  НЕ применяйте — он для 8-й версии.
+- На вопрос npx «Need to install the following packages: prisma@6.x.x.
+  Ok to proceed? (y)» — нажмите `y` (скачается CLI Prisma 6, это разово
+  и безопасно).
+- **Ожидается:** строка `Datasource "db": PostgreSQL database …neon.tech`,
+  затем `1 migration found` и `Applying migration
+  20261024113629_p1_01_responsible_manager`, в конце
+  «Your database is now in sync with your schema».
   Любая ошибка — стоп, копия вывода мне в чат.
 - Миграция идемпотентна: повторный запуск ответит «No pending migrations
   to apply» — это нормально.

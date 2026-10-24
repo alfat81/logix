@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { PatchLeadSchema, LEAD_STATUS_LABELS, type LeadStatus } from '@/lib/leads'
+import {
+  buildLeadEditDiff,
+  mergeLeadCargo,
+  isLeadAnketaEditable,
+} from '@/lib/lead-edit'
 import { checkLeadTransition } from '@/lib/status-machine'
 import { apiErrorResponse } from '@/lib/api-errors'
 import {
@@ -54,7 +60,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   }
 }
 
-// ─── PATCH /api/admin/leads/[id] — статус и/или ответственный ──
+// ─── PATCH /api/admin/leads/[id] — статус, ответственный, анкета ──
 // Статус (очередь В2 + роадмап 8.1):
 //   • статус меняет только человек, автоматов здесь нет (единственный
 //     автомат воронки — new→calculated при первом варианте, живёт в В3);
@@ -68,6 +74,13 @@ export async function GET(req: NextRequest, { params }: Params) {
 //     в журнал; повторная установка того же — 400 (контракт статуса);
 //   • у won-лида ответственный не меняется вовсе: лид после конвертации
 //     — история, ответственность живёт в заявке (переносится В4).
+// Анкета (P1-02):
+//   • rawContact/cargoInfo правятся только в new/calculated (won —
+//     история, lost — закрытая сделка; оба — 409);
+//   • cargoInfo — полная замена известных полей, неизвестные ключи
+//     старого Json сохраняются (mergeLeadCargo, принцип P1-03);
+//   • каждое реальное изменение — запись «lead_edited» с diff
+//     «Поле: старое → новое»; правка без изменений — 400.
 export async function PATCH(req: NextRequest, { params }: Params) {
   const auth = await requireEmployee(req, { write: true })
   if (!auth.ok) return auth.response
@@ -82,7 +95,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         { status: 400 }
       )
     }
-    const { status, lostReason, assignedToId } = parsed.data
+    const { status, lostReason, assignedToId, rawContact, cargoInfo } = parsed.data
 
     const existing = await db.lead.findUnique({
       where: { id },
@@ -97,6 +110,39 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         { error: 'Лид уже конвертирован в заявку — статус терминальный' },
         { status: 409 }
       )
+    }
+
+    // ── Правка анкеты (P1-02): окно new/calculated ──
+    // Контакты правятся только у лида БЕЗ клиента: у связанного клиента
+    // контакты живут в справочнике Customer (их правка — не здесь).
+    const editingAnketa = rawContact !== undefined || cargoInfo !== undefined
+    let editDescription: string | null = null
+    // undefined = груз в этом PATCH не менялся; null = очистить известные поля
+    let mergedCargo: Record<string, unknown> | null | undefined = undefined
+    if (editingAnketa) {
+      if (rawContact !== undefined && existing.customerId) {
+        return NextResponse.json(
+          { error: 'У лида есть клиент из справочника — контакты правятся в карточке клиента' },
+          { status: 409 }
+        )
+      }
+      if (!isLeadAnketaEditable(existing.status)) {
+        return NextResponse.json(
+          { error: 'Анкета закрытого («Отказ») лида не правится — верните лид в работу (мастер)' },
+          { status: 409 }
+        )
+      }
+      const diffs = buildLeadEditDiff(existing, { rawContact, cargoInfo })
+      if (!diffs.length && status === undefined && assignedToId === undefined) {
+        return NextResponse.json({ error: 'Анкета не изменилась' }, { status: 400 })
+      }
+      if (diffs.length) {
+        editDescription = diffs.join('; ')
+        mergedCargo =
+          cargoInfo !== undefined
+            ? mergeLeadCargo(existing.cargoInfo, cargoInfo)
+            : undefined
+      }
     }
 
     // ── Смена ответственного (P1-01) ──
@@ -196,6 +242,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           : {}),
         // P1-01: ответственный — id или null (снять)
         ...(assignedToId !== undefined ? { assignedToId } : {}),
+        // P1-02: анкета — прямые свойства (undefined = поле не трогаем —
+        // семантика Prisma; условные спреды здесь ломали вывод TS).
+        // Json-колонки: zod-объекты шире InputJsonObject — явный каст
+        // (паттерн заявки Ж1); null → Prisma.DbNull = очистка анкеты.
+        rawContact:
+          rawContact === undefined
+            ? undefined
+            : (rawContact as unknown as Prisma.InputJsonObject),
+        cargoInfo:
+          mergedCargo === undefined
+            ? undefined
+            : mergedCargo === null
+              ? Prisma.DbNull
+              : (mergedCargo as unknown as Prisma.InputJsonObject),
       },
       include: {
         customer: { select: { id: true, name: true, phone: true } },
@@ -241,10 +301,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       )
       assigneeMessage = assignedToId === null ? 'Ответственный снят' : `Ответственный: ${newAssigneeName}`
     }
+    if (editDescription) {
+      await logActivity(
+        { leadId: id },
+        employeeActor(auth.employee),
+        'lead_edited',
+        editDescription,
+      )
+    }
 
     const messageParts: string[] = []
     if (status !== undefined) messageParts.push(`Статус лида: ${LEAD_STATUS_LABELS[status]}`)
     if (assigneeMessage) messageParts.push(assigneeMessage)
+    if (editDescription) messageParts.push('Анкета обновлена')
 
     return NextResponse.json({
       lead,

@@ -368,13 +368,22 @@ Environment Variables → Save → **Redeploy** (без rebuild не подхв�
 **Шаг 5 — миграции (если есть в релизе):**
 1. До: Neon branch-снимок (на free-тарифе — зафиксировать точку point-in-time restore).
 2. Применить — один из протоколов:
-   - **А (основной, D16):** в клоне `npx prisma migrate deploy` — на машине
-     владельца установлен Node.js LTS; bookkeeping в `_prisma_migrations`
-     пишется автоматически;
+   - **А (основной, D16):** в клоне `npx prisma@<мажор из package.json>
+     migrate deploy` — версия CLI указывается ВСЕГДА (инцидент 24.10.2026:
+     `npx prisma` без версии скачал Prisma 8 RC, где `migrate deploy`
+     переименован в `db migrate` — команда упала до обращения к БД; проект
+     живёт на Prisma 6 → команда владельца `npx prisma@6 migrate deploy`);
+     на машине владельца установлен Node.js LTS; bookkeeping в
+     `_prisma_migrations` пишется автоматически;
    - **Б (резервный, если Node недоступен):** Neon SQL Editor — вставить
      содержимое `prisma/migrations/<name>/migration.sql`, затем
      регистрационный INSERT (агент даёт готовый блок с sha256-контрольной
-     суммой).
+     суммой). Если в базе нет таблицы `_prisma_migrations` (ошибка 42P01
+     «relation does not exist») — сначала создать её по DDL от агента и
+     зарегистрировать ВСЕ ранее применённые миграции (baseline), иначе
+     будущий `migrate deploy` попытается применить их повторно (случай
+     прод-базы 24.10.2026: журнал не создавался, схему делали до
+     внедрения миграций).
 3. После: `SELECT "migration_name" FROM "_prisma_migrations" ORDER BY "started_at" DESC LIMIT 1;`
    — последняя = имя миграции. Smoke: `/api/health`, вход ×4 кабинета,
    тестовый запрос → заявка → печатная форма, удаление тестовых данных.

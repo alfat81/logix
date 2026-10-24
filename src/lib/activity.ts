@@ -17,6 +17,9 @@ export const ACTIVITY_TYPES = [
   'lead_status_changed',
   // P1-01: смена ответственного менеджера лида (назначение/переназначение/снятие)
   'lead_assignee_changed',
+  // P1-02: правка анкеты лида (контакты/груз) — diff «Поле: старое → новое»;
+  // актёр — сотрудник (админка) или клиент (кабинет, до первого варианта)
+  'lead_edited',
   'lead_converted',
   'option_added',
   'option_updated',

@@ -255,12 +255,12 @@ export const CreateLeadSchema = z
   })
 export type CreateLeadInput = z.infer<typeof CreateLeadSchema>
 
-// PATCH лида — смена статуса (+ причина при отказе) и/или ответственного
-// (P1-01: assignedToId nullable — null снимает назначение). Состав полей
-// лида (rawContact/cargoInfo/customerId) через этот роут не меняется:
-// анкета — черновик запроса, ошибки в нём правятся пересозданием лида
-// или рождаются заново при конвертации (В4). Пустое обновление — 400:
-// молчаливый 200 плодит «ничего не изменилось» без следа в журнале.
+// PATCH лида — смена статуса (+ причина при отказе), ответственного
+// (P1-01: assignedToId nullable — null снимает назначение) и/или правка
+// анкеты (P1-02: rawContact/cargoInfo — окно new/calculated проверяет
+// роут; cargoInfo — полная замена известных полей, неизвестные ключи
+// сохраняет mergeLeadCargo). Пустое обновление — 400: молчаливый 200
+// плодит «ничего не изменилось» без следа в журнале.
 export const PatchLeadSchema = z
   .object({
     status: z
@@ -273,10 +273,20 @@ export const PatchLeadSchema = z
     // Существование и активность сотрудника проверяет роут (справочник
     // живёт короче истории — проверка на момент действия).
     assignedToId: z.string().min(1).nullable().optional(),
+    // P1-02: анкета — контакты (только у лида без клиента) и/или груз.
+    rawContact: RawContactSchema.optional(),
+    cargoInfo: CargoInfoSchema.optional(),
   })
-  .refine((d) => d.status !== undefined || d.assignedToId !== undefined, {
-    message: 'Нечего обновлять: укажите статус или assignedToId',
-  })
+  .refine(
+    (d) =>
+      d.status !== undefined ||
+      d.assignedToId !== undefined ||
+      d.rawContact !== undefined ||
+      d.cargoInfo !== undefined,
+    {
+      message: 'Нечего обновлять: укажите статус, assignedToId, rawContact или cargoInfo',
+    }
+  )
 export type PatchLeadInput = z.infer<typeof PatchLeadSchema>
 
 // ─── Конвертация лида в заявку (В4) ─────────────────────────────────

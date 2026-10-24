@@ -36,6 +36,7 @@ import { readApiResponse } from '@/lib/api-client'
 import { LeadStatusBadge } from '@/components/admin/LeadsList'
 import { Breadcrumbs } from '@/components/admin/Breadcrumbs'
 import { AssigneeField } from '@/components/admin/AssigneeField'
+import { LeadEditDialog } from '@/components/admin/LeadEditDialog'
 import { CargoGroups } from '@/components/admin/CargoGroups'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
@@ -138,6 +139,9 @@ export function LeadCard() {
   // Удаление (В2: только лид без заявки)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  // P1-02: правка анкеты (контакты + груз) — окно new/calculated
+  const [editOpen, setEditOpen] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -381,6 +385,9 @@ export function LeadCard() {
 
   const isWon = lead.status === 'won'
   const selectedOption = lead.options.find((o) => o.isSelected) ?? null
+  // P1-02: правка анкеты — new/calculated (won/lost закрывают правку;
+  // у lost возврат в работу — мастер, у won правка через заявку)
+  const anketaEditable = lead.status === 'new' || lead.status === 'calculated'
 
   // ── Анкета: контакты (бланк-группы груза — общий компонент CargoGroups,
   // Ж1: один бланк — одно место показа для лида и заявки)
@@ -459,11 +466,19 @@ export function LeadCard() {
         </Card>
       )}
 
-      {/* ── Анкета (бланк заявки, read-only: правки — пересозданием,
-             решение зафиксировано в В2) ─────────────────────────── */}
+      {/* ── Анкета запроса (бланк заявки; правка — P1-02,
+             диффы изменений в журнал пишет сервер) ─────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Анкета запроса</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base">Анкета запроса</CardTitle>
+            {anketaEditable && (
+              <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+                <Pencil className="size-4" />
+                Править анкету
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="grid gap-5">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -638,7 +653,18 @@ export function LeadCard() {
         emptyText="Событий пока нет — журнал начнётся с первого действия"
       />
 
-      {/* ── Диалог: вариант расчёта (добавление/правка) ────────── */}
+      {/* ── P1-02: диалог правки анкеты (контакты + груз) ── */}
+      <LeadEditDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        leadId={lead.id}
+        hasCustomer={!!lead.customer}
+        initialContact={lead.customer ? null : lead.rawContact}
+        initialCargo={lead.cargoInfo}
+        onSaved={load}
+      />
+
+      {/* Диалог: вариант расчёта (добавление/правка) */}
       <Dialog open={optionOpen} onOpenChange={setOptionOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
