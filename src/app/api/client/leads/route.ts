@@ -8,6 +8,7 @@ import {
   ClientCreateRequestSchema,
   CLIENT_LEAD_DAILY_LIMIT,
 } from '@/lib/client-constants'
+import { readyDateInput } from '@/lib/route-fields'
 
 // ─── Запросы клиента в кабинете (И1) ────────────────────────────────
 // GET  — «мои запросы»: лиды клиента (любого источника — и созданные
@@ -98,7 +99,25 @@ export async function POST(req: NextRequest) {
         source: 'cabinet',
         customerId: auth.client.id,
         rawContact,
-        cargoInfo: parsed.data.cargoInfo as unknown as Prisma.InputJsonObject,
+        ...(parsed.data.cargoInfo && Object.keys(parsed.data.cargoInfo).length > 0
+          ? {
+              // v: 1 — маркер версии анкеты-rest, ставит сервер (P1-03)
+              cargoInfo: {
+                ...(parsed.data.cargoInfo as Record<string, unknown>),
+                v: 1,
+              } as unknown as Prisma.InputJsonObject,
+            }
+          : {}),
+        // P1-03: маршрут/метрики — колонки (undefined = остаётся NULL)
+        originCity: parsed.data.route?.originCity,
+        originCountry: parsed.data.route?.originCountry,
+        destinationCity: parsed.data.route?.destinationCity,
+        destinationCountry: parsed.data.route?.destinationCountry,
+        transportType: parsed.data.route?.transportType,
+        readyDate: parsed.data.route ? readyDateInput(parsed.data.route.readyDate) : undefined,
+        weightKg: parsed.data.route?.weightKg,
+        volumeM3: parsed.data.route?.volumeM3,
+        placesCount: parsed.data.route?.placesCount,
       },
       select: CLIENT_LEAD_SELECT,
     })

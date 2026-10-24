@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { CargoInfoSchema } from '@/lib/leads'
+import { RouteFieldsSchema } from '@/lib/route-fields'
 
 // ─── Константы и схемы клиентского кабинета (И1) ───────────────────
 // Файл БЕЗ серверных зависимостей (db и т.п.): его импортируют и
@@ -30,12 +31,18 @@ export type ClientAccessInput = z.infer<typeof ClientAccessSchema>
 // клиент заполняет бланк (CargoFormFields) хотя бы частично.
 // rawContact и customerId в теле не принимаются — они подставляются
 // сервером из профиля клиента, подделать автора запроса нельзя.
-export const ClientCreateRequestSchema = z.object({
-  cargoInfo: CargoInfoSchema.refine(
-    (v) => Object.keys(v ?? {}).length > 0,
+export const ClientCreateRequestSchema = z
+  .object({
+    cargoInfo: CargoInfoSchema.optional(),
+    // P1-03: маршрут/метрики — колонки; запрос должен нести хоть что-то
+    route: RouteFieldsSchema.optional(),
+  })
+  .refine(
+    (d) =>
+      Object.keys(d.cargoInfo ?? {}).length > 0 ||
+      Object.values(d.route ?? {}).some((v) => v != null),
     'Заполните хотя бы одно поле анкеты груза'
-  ),
-})
+  )
 export type ClientCreateRequestInput = z.infer<typeof ClientCreateRequestSchema>
 
 // Дневной потолок запросов из кабинета на клиента (анти-спам внешнего

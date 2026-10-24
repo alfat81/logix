@@ -6,6 +6,13 @@ import {
   readLeadCargo,
   type RawContact,
 } from '@/lib/leads'
+import {
+  RouteFieldsSchema,
+  TRANSPORT_TYPE_LABELS,
+  joinRouteText,
+  type TransportTypeCode,
+  type RouteFieldsInput,
+} from '@/lib/route-fields'
 
 // ─── P1-02: правка анкеты лида (контакты + груз) ────────────────────
 //
@@ -27,18 +34,26 @@ export const LeadEditSchema = z
   .object({
     rawContact: RawContactSchema.optional(),
     cargoInfo: CargoInfoSchema.optional(),
+    // P1-03: маршрут/метрики — колонки, отдельным блоком route
+    route: RouteFieldsSchema.optional(),
   })
-  .refine((d) => d.rawContact !== undefined || d.cargoInfo !== undefined, {
-    message: 'Нечего обновлять: укажите rawContact или cargoInfo',
-  })
+  .refine(
+    (d) => d.rawContact !== undefined || d.cargoInfo !== undefined || d.route !== undefined,
+    {
+      message: 'Нечего обновлять: укажите rawContact, cargoInfo или route',
+    }
+  )
 export type LeadEditInput = z.infer<typeof LeadEditSchema>
 
 // Тело PATCH из кабинета клиента: клиент правит ТОЛЬКО анкету груза
 // (контакты — из его учётки, Customer — справочная сущность).
 export const ClientLeadEditSchema = z
-  .object({ cargoInfo: CargoInfoSchema.optional() })
-  .refine((d) => d.cargoInfo !== undefined, {
-    message: 'Нечего обновлять: укажите cargoInfo',
+  .object({
+    cargoInfo: CargoInfoSchema.optional(),
+    route: RouteFieldsSchema.optional(),
+  })
+  .refine((d) => d.cargoInfo !== undefined || d.route !== undefined, {
+    message: 'Нечего обновлять: укажите cargoInfo или route',
   })
 export type ClientLeadEditInput = z.infer<typeof ClientLeadEditSchema>
 
@@ -59,18 +74,43 @@ function fmtDiffValue(v: unknown): string {
   if (v === null || v === undefined) return '—'
   if (typeof v === 'boolean') return v ? 'Да' : 'Нет'
   if (typeof v === 'number') return fmtDiffNum(v)
+  // Decimal из Prisma-колонок (вес/объём): объект с toNumber — числа
+  // с русским форматированием, как и обычные number
+  if (
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as { toNumber?: unknown }).toNumber === 'function'
+  ) {
+    const n = (v as unknown as { toNumber: () => number }).toNumber()
+    return Number.isFinite(n) ? fmtDiffNum(n) : String(v)
+  }
+  if (v instanceof Date) return fmtDiffDate(v)
   const s = String(v).trim()
   return s || '—'
 }
 
 function sameDiffValue(a: unknown, b: unknown): boolean {
-  // Число и строка-число считаются равными («1200» и 1200 — одно значение:
-  // старые лиды могли сохранить вес строкой).
-  if (typeof a === 'number' || typeof b === 'number') {
-    const na = typeof a === 'number' ? a : Number(String(a ?? '').replace(',', '.'))
-    const nb = typeof b === 'number' ? b : Number(String(b ?? '').replace(',', '.'))
-    if (Number.isFinite(na) && Number.isFinite(nb)) return na === nb
+  // Decimal → строка → число; число и строка-число считаются равными
+  // («1200», 1200 и Decimal(1200) — одно значение)
+  const num = (x: unknown): number | null => {
+    if (typeof x === 'number') return Number.isFinite(x) ? x : null
+    if (
+      typeof x === 'object' &&
+      x !== null &&
+      typeof (x as { toNumber?: unknown }).toNumber === 'function'
+    ) {
+      const n = (x as unknown as { toNumber: () => number }).toNumber()
+      return Number.isFinite(n) ? n : null
+    }
+    if (typeof x === 'string' && x.trim()) {
+      const n = Number(x.replace(',', '.'))
+      return Number.isFinite(n) ? n : null
+    }
+    return null
   }
+  const na = num(a)
+  const nb = num(b)
+  if (na !== null && nb !== null) return na === nb
   return fmtDiffValue(a) === fmtDiffValue(b)
 }
 
@@ -109,15 +149,51 @@ const CONTACT_DIFF_LABELS: Record<keyof Omit<RawContact, never>, string> = {
   email: 'Email',
 }
 
-type ExistingAnketa = { rawContact?: unknown; cargoInfo: unknown }
-type IncomingAnketa = { rawContact?: RawContact; cargoInfo?: Record<string, unknown> | null }
+// Дата для diff: дд.мм.гггг (Date из колонки readyDate или ISO-строка)
+function fmtDiffDate(v: unknown): string {
+  const d = v instanceof Date ? v : typeof v === 'string' ? new Date(v) : null
+  if (!d || Number.isNaN(d.getTime())) return '—'
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  return `${dd}.${mm}.${d.getUTCFullYear()}`
+}
+
+// Подписи route-колонок в diff (короткие, как в приёмке P1-02 «Вес»)
+const ROUTE_DIFF_LABELS = {
+  origin: 'Откуда',
+  destination: 'Куда',
+  transportType: 'Тип перевозки',
+  readyDate: 'Дата отправления',
+  weightKg: 'Вес',
+  volumeM3: 'Объём',
+  placesCount: 'Мест',
+} as const
+
+type ExistingRow = {
+  rawContact?: unknown
+  cargoInfo: unknown
+  originCity?: unknown
+  originCountry?: unknown
+  destinationCity?: unknown
+  destinationCountry?: unknown
+  transportType?: unknown
+  readyDate?: unknown
+  weightKg?: unknown
+  volumeM3?: unknown
+  placesCount?: unknown
+}
+type IncomingEdit = {
+  rawContact?: RawContact
+  cargoInfo?: Record<string, unknown> | null
+  route?: RouteFieldsInput
+}
 
 // Diff анкеты: список строк «Подпись: старое → новое» (только реально
-// изменившиеся поля). Старые значения читаются толерантно
-// (readLeadCargo) — лиды с чужой/старой формой Json не роняют журнал.
+// изменившиеся поля). Старые значения читаются толерантно — лиды/заявки
+// с чужой формой Json и Decimal-колонками не роняют журнал.
 export function buildLeadEditDiff(
-  existing: ExistingAnketa,
-  incoming: IncomingAnketa,
+  existing: ExistingRow,
+  incoming: IncomingEdit,
 ): string[] {
   const out: string[] = []
 
@@ -131,6 +207,67 @@ export function buildLeadEditDiff(
       if (!sameDiffValue(prev, next)) {
         out.push(`${CONTACT_DIFF_LABELS[key]}: ${fmtDiffValue(prev)} → ${fmtDiffValue(next)}`)
       }
+    }
+  }
+
+  // ── P1-03: маршрут и метрики — diff по колонкам ──
+  // undefined в route = «поле не трогаем» (семантика записи) — в diff
+  // не попадает; null = очистить (сравнивается честно, «X → —»).
+  if (incoming.route !== undefined) {
+    const r = incoming.route
+    const pushDiff = (label: string, prev: unknown, next: unknown): void => {
+      if (!sameDiffValue(prev, next)) {
+        out.push(`${label}: ${fmtDiffValue(prev)} → ${fmtDiffValue(next)}`)
+      }
+    }
+    // Пара «страна, город»: присланное оверлейится на существующее
+    // (undefined на ПОЛОВИНЕ пары = «эту половину не трогаем») — иначе
+    // правка только страны рисовала фантомное «→ —» для города
+    if (r.originCity !== undefined || r.originCountry !== undefined) {
+      const c = r.originCountry !== undefined ? r.originCountry : existing.originCountry
+      const t = r.originCity !== undefined ? r.originCity : existing.originCity
+      pushDiff(
+        ROUTE_DIFF_LABELS.origin,
+        joinRouteText(existing.originCountry, existing.originCity),
+        joinRouteText(c, t)
+      )
+    }
+    if (r.destinationCity !== undefined || r.destinationCountry !== undefined) {
+      const c = r.destinationCountry !== undefined ? r.destinationCountry : existing.destinationCountry
+      const t = r.destinationCity !== undefined ? r.destinationCity : existing.destinationCity
+      pushDiff(
+        ROUTE_DIFF_LABELS.destination,
+        joinRouteText(existing.destinationCountry, existing.destinationCity),
+        joinRouteText(c, t)
+      )
+    }
+    if (r.transportType !== undefined) {
+      pushDiff(
+        ROUTE_DIFF_LABELS.transportType,
+        typeof existing.transportType === 'string' &&
+          existing.transportType in TRANSPORT_TYPE_LABELS
+          ? TRANSPORT_TYPE_LABELS[existing.transportType as TransportTypeCode]
+          : existing.transportType ?? null,
+        r.transportType ? (TRANSPORT_TYPE_LABELS[r.transportType] ?? r.transportType) : null
+      )
+    }
+    if (r.readyDate !== undefined) {
+      // Дата форматирована с обеих сторон (приход строкой 'yyyy-mm-dd'
+      // из API — показываем как и колонку Date: дд.мм.гггг)
+      pushDiff(
+        ROUTE_DIFF_LABELS.readyDate,
+        existing.readyDate ? fmtDiffDate(existing.readyDate) : null,
+        r.readyDate ? fmtDiffDate(r.readyDate) : null
+      )
+    }
+    if (r.weightKg !== undefined) {
+      pushDiff(ROUTE_DIFF_LABELS.weightKg, existing.weightKg ?? null, r.weightKg ?? null)
+    }
+    if (r.volumeM3 !== undefined) {
+      pushDiff(ROUTE_DIFF_LABELS.volumeM3, existing.volumeM3 ?? null, r.volumeM3 ?? null)
+    }
+    if (r.placesCount !== undefined) {
+      pushDiff(ROUTE_DIFF_LABELS.placesCount, existing.placesCount ?? null, r.placesCount ?? null)
     }
   }
 
@@ -167,8 +304,10 @@ export function mergeLeadCargo(
   for (const [k, v] of Object.entries(oldObj)) {
     if (!known.has(k)) kept[k] = v
   }
-  const merged = { ...kept, ...(newCargo ?? {}) }
-  return Object.keys(merged).length ? merged : null
+  // v: 1 — маркер версии анкеты-rest (P1-03); перезаписывается сверху,
+  // если пришёл с телом запроса. Только версия без содержимого = NULL.
+  const merged = { ...kept, ...(newCargo ?? {}), v: 1 }
+  return Object.keys(merged).length > 1 ? merged : null
 }
 
 // Окно правки анкеты (P1-02): new/calculated. won — история (правится

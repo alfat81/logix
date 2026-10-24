@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
+import { TRANSPORT_TYPE_CODES, TRANSPORT_TYPE_LABELS } from '@/lib/route-fields'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { formatPhoneInput, normalizePhone } from '@/lib/phone'
 import {
@@ -87,6 +88,12 @@ export function OrdersList() {
   const [assignedFilter, setAssignedFilter] = useState<'all' | 'mine' | 'unassigned'>('all')
   const [q, setQ] = useState('')
   const debouncedQ = useDebouncedValue(q, 400)
+  // P1-03: фильтры направления и типа («Китай → Москва, Море»)
+  const [originFilter, setOriginFilter] = useState('')
+  const [destinationFilter, setDestinationFilter] = useState('')
+  const debouncedOrigin = useDebouncedValue(originFilter, 400)
+  const debouncedDestination = useDebouncedValue(destinationFilter, 400)
+  const [transportFilter, setTransportFilter] = useState('all')
   // Счётчик версий: сброс списка после создания заявки без копирования
   // load-логики в обработчик.
   const [version, setVersion] = useState(0)
@@ -119,13 +126,17 @@ export function OrdersList() {
       if (sort !== 'newest') params.set('sort', sort)
       if (statusFilter !== 'all') params.set('status', statusFilter)
       if (assignedFilter !== 'all') params.set('assigned', assignedFilter)
+      // P1-03: направление и тип перевозки
+      if (debouncedOrigin.trim()) params.set('origin', debouncedOrigin.trim())
+      if (debouncedDestination.trim()) params.set('destination', debouncedDestination.trim())
+      if (transportFilter !== 'all') params.set('transport', transportFilter)
       if (skip) params.set('skip', String(skip))
       const res = await fetch(`/api/admin/orders?${params.toString()}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Ошибка загрузки')
       return data
     },
-    [debouncedQ, sort, statusFilter, assignedFilter]
+    [debouncedQ, sort, statusFilter, assignedFilter, debouncedOrigin, debouncedDestination, transportFilter]
   )
 
   // Сброс списка: новый поиск/сортировка/таб или версия после создания.
@@ -489,6 +500,50 @@ export function OrdersList() {
         >
           Без ответственного
         </Button>
+      </div>
+
+      {/* P1-03: фильтры направления и типа перевозки */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          className="w-44"
+          placeholder="Откуда (страна/город)"
+          value={originFilter}
+          onChange={(e) => setOriginFilter(e.target.value)}
+        />
+        <span className="text-muted-foreground text-sm">→</span>
+        <Input
+          className="w-44"
+          placeholder="Куда (страна/город)"
+          value={destinationFilter}
+          onChange={(e) => setDestinationFilter(e.target.value)}
+        />
+        <Select value={transportFilter} onValueChange={setTransportFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Тип: любой</SelectItem>
+            {TRANSPORT_TYPE_CODES.map((t) => (
+              <SelectItem key={t} value={t}>
+                {TRANSPORT_TYPE_LABELS[t]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {(originFilter || destinationFilter || transportFilter !== 'all') && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setOriginFilter('')
+              setDestinationFilter('')
+              setTransportFilter('all')
+            }}
+          >
+            <X className="size-4" />
+            Сбросить
+          </Button>
+        )}
       </div>
 
       {loading ? (

@@ -54,13 +54,12 @@ import {
   type BrokerEstimateRow,
 } from '@/components/admin/BrokerLinksSection'
 import {
-  buildLeadCargo,
+  buildLeadPayload,
   cargoFormFromData,
   EMPTY_LEAD_CARGO_FORM,
   QUOTE_PRIORITY_FITS,
   QUOTE_PRIORITY_FIT_LABELS,
   TRANSPORT_TYPES,
-  readLeadCargo,
   type LeadCargoForm,
   type QuotePriorityFit,
 } from '@/lib/leads'
@@ -110,7 +109,17 @@ type OrderFull = {
   // Ж1: лид-источник (заявки без лида — leadId null, Б3)
   leadId: string | null
   // P1-01: ответственный менеджер (null = не назначена)
-  assignee: { id: string; name: string } | null
+    // P1-03: маршрут/метрики — колонки
+  originCity?: string | null
+  originCountry?: string | null
+  destinationCity?: string | null
+  destinationCountry?: string | null
+  transportType?: string | null
+  readyDate?: string | null
+  weightKg?: string | number | null
+  volumeM3?: string | number | null
+  placesCount?: number | null
+assignee: { id: string; name: string } | null
   // Д: лид-источник несёт брокеров расчёта с оценками (перенос в
   // заявку при конвертации В4 — оценка живёт на связи лида)
   lead: {
@@ -300,18 +309,19 @@ export default function OrderPage() {
 
   // ── Ж1: диалоги правки груза и условий ───────────────────
   const openCargoEdit = () => {
-    // readLeadCargo — толерантное чтение: чужая форма Json не уронит
-    // форму правки (известные ключи подтянутся, остальные потеряются
-    // при замене — бланк и есть источник правды после сохранения)
-    setCargoForm(cargoFormFromData(readLeadCargo(order?.cargoInfo)))
+    // P1-03: форма собирается из колонок маршрута + cargoInfo-rest
+    // (cargoFormFromData — толерантно к чужой форме Json)
+    setCargoForm(cargoFormFromData(order ?? {}))
     setCargoOpen(true)
   }
 
   const saveCargo = async () => {
     setSavingCargo(true)
     try {
-      // buildLeadCargo сам отбрасывает пустые поля; null = очистить
-      await patchOrder({ cargoInfo: buildLeadCargo(cargoForm) })
+      // buildLeadPayload: маршрут/метрики → route (колонки),
+      // остальное бланка → cargoInfo (v: 1); null = очистить
+      const { route, cargo } = buildLeadPayload(cargoForm)
+      await patchOrder({ route, cargoInfo: cargo })
       setCargoOpen(false)
     } finally {
       setSavingCargo(false)
@@ -606,6 +616,7 @@ export default function OrderPage() {
         </CardHeader>
         <CardContent>
           <CargoGroups
+            route={order}
             cargoInfo={order.cargoInfo}
             emptyText="Груз и маршрут не заполнены — у заявки без лида бланк пуст, заполните правкой"
           />

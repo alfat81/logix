@@ -12,6 +12,8 @@ import {
   type CargoProfile,
 } from '@/lib/order-constants'
 import { CargoInfoSchema, QuoteSnapshotSchema } from '@/lib/leads'
+import { RouteFieldsSchema, readyDateInput } from '@/lib/route-fields'
+import { buildLeadEditDiff } from '@/lib/lead-edit'
 import { getIncompleteMandatoryStages } from '@/lib/orders'
 import {
   allowedOrderTransitionsLabeled,
@@ -133,6 +135,8 @@ const PatchOrderSchema = z.object({
   // Форма бланка груза — свободный объект (ключи проверяет UI,
   // сервер — толерантен, как и у лида в В2)
   cargoInfo: CargoInfoSchema.nullable().optional(),
+  // P1-03: маршрут/метрики — колонки (Ж1: правится вместе с грузом)
+  route: RouteFieldsSchema.optional(),
   // Условия сделки — снимок варианта расчёта (структура — lib/leads.ts)
   quoteSnapshot: QuoteSnapshotSchema.optional(),
   // P1-05: перекрытие незавершённого ядра при завершении — только
@@ -292,6 +296,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
                   : (data.cargoInfo as unknown as Prisma.InputJsonObject),
             }
           : {}),
+        // P1-03: маршрут/метрики — колонки (undefined = не трогаем,
+        // null = очистить; прямые свойства — без спредов-союзов)
+        originCity: data.route?.originCity,
+        originCountry: data.route?.originCountry,
+        destinationCity: data.route?.destinationCity,
+        destinationCountry: data.route?.destinationCountry,
+        transportType: data.route?.transportType,
+        readyDate: data.route ? readyDateInput(data.route.readyDate) : undefined,
+        weightKg: data.route?.weightKg,
+        volumeM3: data.route?.volumeM3,
+        placesCount: data.route?.placesCount,
         ...(data.quoteSnapshot !== undefined
           ? {
               quoteSnapshot:
@@ -322,10 +337,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         description: statusDescription,
       })
     }
-    if (data.cargoInfo !== undefined) {
+    if (data.cargoInfo !== undefined || data.route !== undefined) {
+      // P1-03: журнал с дифом «Поле: старое → новое» (общий код с лидом)
+      const cargoDiffs = buildLeadEditDiff(existing, {
+        cargoInfo: data.cargoInfo,
+        route: data.route,
+      })
       events.push({
         type: 'order_cargo_changed',
-        description: data.cargoInfo === null ? 'Груз и маршрут сняты' : 'Обновлены груз и маршрут',
+        description: cargoDiffs.length
+          ? cargoDiffs.join('; ')
+          : 'Груз и маршрут сняты',
       })
     }
     if (data.quoteSnapshot !== undefined) {

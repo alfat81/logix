@@ -3,6 +3,11 @@ import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { CreateLeadSchema, LEAD_STATUSES } from '@/lib/leads'
+import {
+  readyDateInput,
+  TRANSPORT_TYPE_CODES,
+  type TransportTypeCode,
+} from '@/lib/route-fields'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { logActivity, employeeActor } from '@/lib/activity'
 
@@ -43,6 +48,24 @@ export async function GET(req: NextRequest) {
     // ответственного (в т.ч. запросы из кабинета И1)
     if (assigned === 'mine') conds.push({ assignedToId: auth.employee.id })
     if (assigned === 'unassigned') conds.push({ assignedToId: null })
+    // P1-03: фильтры направления и типа (ILIKE по стране И городу)
+    const origin = req.nextUrl.searchParams.get('origin') ?? ''
+    const destination = req.nextUrl.searchParams.get('destination') ?? ''
+    const transport = req.nextUrl.searchParams.get('transport') ?? ''
+    if (transport && !(TRANSPORT_TYPE_CODES as readonly string[]).includes(transport)) {
+      return NextResponse.json(
+        { error: 'Неизвестный тип перевозки (transport)' },
+        { status: 400 }
+      )
+    }
+    const ci = (v: string) => ({ contains: v, mode: 'insensitive' as const })
+    if (origin) {
+      conds.push({ OR: [{ originCity: ci(origin) }, { originCountry: ci(origin) }] })
+    }
+    if (destination) {
+      conds.push({ OR: [{ destinationCity: ci(destination) }, { destinationCountry: ci(destination) }] })
+    }
+    if (transport) conds.push({ transportType: transport as TransportTypeCode })
     const where: Prisma.LeadWhereInput = conds.length ? { AND: conds } : {}
 
     const leads = await db.lead.findMany({
@@ -124,8 +147,25 @@ export async function POST(req: NextRequest) {
           ? { rawContact: data.rawContact as unknown as Prisma.InputJsonObject }
           : {}),
         ...(data.cargoInfo
-          ? { cargoInfo: data.cargoInfo as unknown as Prisma.InputJsonObject }
+          ? {
+              // v: 1 — маркер версии анкеты-rest, ставит сервер (P1-03)
+              cargoInfo: {
+                ...(data.cargoInfo as Record<string, unknown>),
+                v: 1,
+              } as unknown as Prisma.InputJsonObject,
+            }
           : {}),
+        // P1-03: маршрут/метрики — колонки (undefined = остаётся NULL,
+        // прямые свойства — без спредов-союзов)
+        originCity: data.route?.originCity,
+        originCountry: data.route?.originCountry,
+        destinationCity: data.route?.destinationCity,
+        destinationCountry: data.route?.destinationCountry,
+        transportType: data.route?.transportType,
+        readyDate: data.route ? readyDateInput(data.route.readyDate) : undefined,
+        weightKg: data.route?.weightKg,
+        volumeM3: data.route?.volumeM3,
+        placesCount: data.route?.placesCount,
       },
       include: {
         customer: { select: { id: true, name: true, phone: true } },

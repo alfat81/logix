@@ -26,12 +26,13 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
+import { TRANSPORT_TYPE_CODES, TRANSPORT_TYPE_LABELS } from '@/lib/route-fields'
 import { CargoFormFields } from '@/components/admin/CargoGroups'
 import {
   LEAD_STATUSES,
   LEAD_STATUS_LABELS,
   EMPTY_LEAD_CARGO_FORM,
-  buildLeadCargo,
+  buildLeadPayload,
   readLeadCargo,
   type LeadStatus,
   type LeadCargoForm,
@@ -102,6 +103,21 @@ export function LeadsList() {
   // Анкета груза — поля типового бланка заявки (В5).
   const [cargo, setCargo] = useState<LeadCargoForm>({ ...EMPTY_LEAD_CARGO_FORM })
 
+  // P1-03: фильтры направления и типа (текст — с локальным debounce)
+  const [originFilter, setOriginFilter] = useState('')
+  const [destinationFilter, setDestinationFilter] = useState('')
+  const [debouncedOrigin, setDebouncedOrigin] = useState('')
+  const [debouncedDestination, setDebouncedDestination] = useState('')
+  const [transportFilter, setTransportFilter] = useState('all')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedOrigin(originFilter), 400)
+    return () => clearTimeout(t)
+  }, [originFilter])
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedDestination(destinationFilter), 400)
+    return () => clearTimeout(t)
+  }, [destinationFilter])
+
   const loadLeads = useCallback(async () => {
     setLoading(true)
     try {
@@ -109,6 +125,10 @@ export function LeadsList() {
       if (statusFilter !== 'all') params.set('status', statusFilter)
       if (assignedFilter !== 'all') params.set('assigned', assignedFilter)
       if (sort !== 'newest') params.set('sort', sort)
+      // P1-03: направление и тип перевозки
+      if (debouncedOrigin.trim()) params.set('origin', debouncedOrigin.trim())
+      if (debouncedDestination.trim()) params.set('destination', debouncedDestination.trim())
+      if (transportFilter !== 'all') params.set('transport', transportFilter)
       const res = await fetch(`/api/admin/leads?${params.toString()}`)
       const data = await readApiResponse<{ leads: LeadRow[]; error?: string }>(res)
       if (!res.ok) throw new Error(data.error || 'Ошибка загрузки')
@@ -122,7 +142,7 @@ export function LeadsList() {
     } finally {
       setLoading(false)
     }
-  }, [statusFilter, assignedFilter, sort, toast])
+  }, [statusFilter, assignedFilter, sort, toast, debouncedOrigin, debouncedDestination, transportFilter])
 
   useEffect(() => {
     loadLeads()
@@ -167,7 +187,8 @@ export function LeadsList() {
             ...(contactEmail.trim() ? { email: contactEmail.trim() } : {}),
           }
         : undefined
-      const cargoInfo = buildLeadCargo(cargo)
+      // P1-03: форма → route (колонки) + cargoInfo-rest
+      const { route, cargo: cargoInfo } = buildLeadPayload(cargo)
 
       const res = await fetch('/api/admin/leads', {
         method: 'POST',
@@ -175,6 +196,7 @@ export function LeadsList() {
         body: JSON.stringify({
           ...(isNewContact ? { rawContact: raw } : { customerId }),
           ...(cargoInfo ? { cargoInfo } : {}),
+          route,
         }),
       })
       const data = await readApiResponse<{ error?: string }>(res)
@@ -349,6 +371,45 @@ export function LeadsList() {
             <SelectItem value="stale">Давно без движения</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      {/* P1-03: фильтры направления и типа перевозки */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          className="w-44"
+          placeholder="Откуда (страна/город)"
+          value={originFilter}
+          onChange={(e) => setOriginFilter(e.target.value)}
+        />
+        <span className="text-muted-foreground text-sm">→</span>
+        <Input
+          className="w-44"
+          placeholder="Куда (страна/город)"
+          value={destinationFilter}
+          onChange={(e) => setDestinationFilter(e.target.value)}
+        />
+        <Select value={transportFilter} onValueChange={setTransportFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Тип: любой</SelectItem>
+            {TRANSPORT_TYPE_CODES.map((t) => (
+              <SelectItem key={t} value={t}>
+                {TRANSPORT_TYPE_LABELS[t]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {(originFilter || destinationFilter || transportFilter !== 'all') && (
+          <Button size="sm" variant="ghost" onClick={() => {
+            setOriginFilter('')
+            setDestinationFilter('')
+            setTransportFilter('all')
+          }}>
+            Сбросить
+          </Button>
+        )}
       </div>
 
       {loading ? (

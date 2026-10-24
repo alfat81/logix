@@ -26,7 +26,7 @@ import {
 } from '@/components/client/ClientBadges'
 import {
   EMPTY_LEAD_CARGO_FORM,
-  buildLeadCargo,
+  buildLeadPayload,
   readLeadCargo,
   type LeadCargoForm,
   type LeadStatus,
@@ -126,8 +126,11 @@ export function ClientHome() {
   }, [loadOrders, loadLeads])
 
   const handleCreate = async () => {
-    const cargoInfo = buildLeadCargo(cargo)
-    if (!cargoInfo) {
+    // P1-03: форма → route (колонки) + cargoInfo-rest; непусто —
+    // хотя бы одно поле маршрута или анкеты
+    const { route, cargo: cargoInfo } = buildLeadPayload(cargo)
+    const hasRoute = Object.values(route).some((v) => v != null)
+    if (!cargoInfo && !hasRoute) {
       toast({
         title: 'Заполните хотя бы одно поле анкеты',
         description: 'Менеджеру нужно понимать, что и куда везти',
@@ -140,7 +143,7 @@ export function ClientHome() {
       const res = await fetch('/api/client/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cargoInfo }),
+        body: JSON.stringify({ cargoInfo, route }),
       })
       const data = await readApiResponse<{ error?: string }>(res)
       if (!res.ok) throw new Error(data.error || 'Не удалось отправить запрос')

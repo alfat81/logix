@@ -112,6 +112,22 @@ export type CreateOrderInput = {
   // null/undefined = поля не заданы (ручные заявки из Б3).
   cargoInfo?: Prisma.InputJsonValue | null
   quoteSnapshot?: Prisma.InputJsonValue | null
+  // P1-03: маршрут/метрики — снимок колонок лида (convert) в колонки
+  // заявки; готовые к записи значения (readyDate уже Date). Ручные
+  // заявки (Б3) создаются без груза — PATCH заполнит позже.
+  route?:
+    | {
+        originCity?: string | null
+        originCountry?: string | null
+        destinationCity?: string | null
+        destinationCountry?: string | null
+        transportType?: string | null
+        readyDate?: Date | null
+        weightKg?: Prisma.Decimal | number | null
+        volumeM3?: Prisma.Decimal | number | null
+        placesCount?: number | null
+      }
+    | null
   // P1-01: ответственный менеджер. Ручная заявка (Б3) — создатель;
   // конвертация В4 — ответственный лида (без него — конвертер).
   // null/undefined = не назначена (совместимо с обоими путями).
@@ -166,6 +182,20 @@ export async function createOrderWithStages(
           // иначе колонки остаются NULL (ручные заявки, правка — PATCH).
           ...(input.cargoInfo != null ? { cargoInfo: input.cargoInfo } : {}),
           ...(input.quoteSnapshot != null ? { quoteSnapshot: input.quoteSnapshot } : {}),
+          // P1-03: маршрут/метрики — снимок колонок лида (undefined-safe)
+          ...(input.route
+            ? {
+                originCity: input.route.originCity,
+                originCountry: input.route.originCountry,
+                destinationCity: input.route.destinationCity,
+                destinationCountry: input.route.destinationCountry,
+                transportType: input.route.transportType as never | undefined,
+                readyDate: input.route.readyDate,
+                weightKg: input.route.weightKg,
+                volumeM3: input.route.volumeM3,
+                placesCount: input.route.placesCount,
+              }
+            : {}),
           // P1-01: ответственный — только когда есть кто назначать
           // (иначе колонка остаётся NULL и лид попадает в «Без ответственного»).
           ...(input.assignedToId ? { assignedToId: input.assignedToId } : {}),

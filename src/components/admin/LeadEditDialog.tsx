@@ -26,9 +26,8 @@ import { readApiResponse } from '@/lib/api-client'
 import { CargoFormFields } from '@/components/admin/CargoGroups'
 import {
   EMPTY_LEAD_CARGO_FORM,
-  buildLeadCargo,
+  buildLeadPayload,
   cargoFormFromData,
-  readLeadCargo,
   type LeadCargoForm,
   type RawContact,
 } from '@/lib/leads'
@@ -43,7 +42,7 @@ export function LeadEditDialog({
   leadId,
   hasCustomer,
   initialContact,
-  initialCargo,
+  initialRow,
   onSaved,
 }: {
   open: boolean
@@ -51,7 +50,7 @@ export function LeadEditDialog({
   leadId: string
   hasCustomer: boolean
   initialContact: RawContact | null
-  initialCargo: unknown
+  initialRow: Record<string, unknown>
   onSaved: () => void
 }) {
   const { toast } = useToast()
@@ -68,8 +67,9 @@ export function LeadEditDialog({
         ? { name: initialContact.name, phone: initialContact.phone ?? '', email: initialContact.email ?? '' }
         : { ...EMPTY_CONTACT }
     )
-    setCargo(cargoFormFromData(readLeadCargo(initialCargo)))
-  }, [open, initialContact, initialCargo])
+    // P1-03: форма — из колонок маршрута + cargoInfo-rest лида
+    setCargo(cargoFormFromData(initialRow))
+  }, [open, initialContact, initialRow])
 
   const save = async () => {
     if (!hasCustomer && !contact.name.trim()) {
@@ -79,10 +79,10 @@ export function LeadEditDialog({
     setSaving(true)
     try {
       const body: Record<string, unknown> = {
-        // Груз отправляем всегда: buildLeadCargo отбрасывает пустые поля,
-        // null = «очистить анкету груза» (сервер сохранит неизвестные
-        // ключи старого Json и запишет diff в журнал).
-        cargoInfo: buildLeadCargo(cargo),
+        // P1-03: форма → route (колонки) + cargoInfo-rest. Груз отправляем
+        // всегда: пустые поля очищают (null), неизвестные ключи старого
+        // Json сервер сохранит, diff уйдёт в журнал.
+        ...buildLeadPayload(cargo),
       }
       if (!hasCustomer) {
         body.rawContact = {

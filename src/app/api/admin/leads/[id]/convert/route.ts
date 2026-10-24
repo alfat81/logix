@@ -237,6 +237,18 @@ export async function POST(req: NextRequest, { params }: Params) {
       // границе, что в POST лида (В2). null = анкета не заполнялась,
       // копировать нечего.
       cargoInfo: (lead.cargoInfo as Prisma.InputJsonObject | null) ?? undefined,
+      // P1-03: маршрут/метрики — снимок колонок лида в колонки заявки
+      route: {
+        originCity: lead.originCity,
+        originCountry: lead.originCountry,
+        destinationCity: lead.destinationCity,
+        destinationCountry: lead.destinationCountry,
+        transportType: lead.transportType,
+        readyDate: lead.readyDate,
+        weightKg: lead.weightKg,
+        volumeM3: lead.volumeM3,
+        placesCount: lead.placesCount,
+      },
       quoteSnapshot,
     })
     if ('error' in result) {

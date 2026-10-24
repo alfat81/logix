@@ -12,6 +12,7 @@
 """
 import os
 import json, urllib.request, urllib.error, uuid, threading, sys
+from urllib.parse import quote as urlquote
 from http.cookiejar import CookieJar
 B=os.environ.get('BASE_URL','http://localhost:3000')
 AM='POST'
@@ -55,7 +56,7 @@ chk('выход гасит только свою сессию (E0-06/E0-08)',s==
 s,d=a.r('GET','/api/admin/legal-entities'); le=(d.get('legalEntities') or d.get('items') or d) if isinstance(d,dict) else d
 leid=(le[0]['id'] if isinstance(le,list) else None); chk('юрлицо из сида',leid,d)
 # lead with raw contact
-s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'ООО Ромб '+u,'phone':'8 (999) '+str(base)[:3]+'-'+str(base)[3:5]+'-'+str(base)[5:7]},'cargoInfo':{'origin':'Шанхай','destination':'Москва','weightKg':1200}}); chk('создание лида',s in(200,201),(s,d))
+s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'ООО Ромб '+u,'phone':'8 (999) '+str(base)[:3]+'-'+str(base)[3:5]+'-'+str(base)[5:7]},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':1200},'cargoInfo':{'note':'заметка'}}); chk('создание лида',s in(200,201),(s,d))
 lead=(d.get('lead') or d); lid=lead['id']
 # --- P1-01: ответственный менеджер ---
 s,d=a.r('GET','/api/auth/employee/me'); aid=(d.get('employee') or {}).get('id'); chk('P1-01: id текущего сотрудника (me)',bool(aid),(s,d))
@@ -82,15 +83,29 @@ chk('P1-01: снятый лид в «Без ответственного»',lid 
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':bid2}); chk('P1-01: возврат ответственного B',s==200,(s,d))
 s,d=a.r('GET','/api/admin/leads?sort=stale'); chk('P1-01: сортировка «давно без движения» (лиды)',s==200,(s,str(d)[:100]))
 # --- P1-02: редактирование анкеты лида ---
-s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'cargoInfo':{'weightKg':1450}}); chk('P1-02: правка груза → 200',s==200,(s,d))
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'route':{'weightKg':1450}}); chk('P1-02: правка груза → 200',s==200,(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); L=d.get('lead',d); acts=L.get('activities',[])
 chk('[ПРИЁМКА P1-02] diff в журнале «Вес: 1 200 → 1 450»',bool(acts) and acts[0]['type']=='lead_edited' and 'Вес: 1 200 → 1 450' in acts[0]['description'],(acts[0] if acts else None))
-chk('P1-02: неизвестные ключи cargoInfo сохранены',all(k in (L.get('cargoInfo') or {}) for k in ('origin','destination')),(L.get('cargoInfo')))
-s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'cargoInfo':{'weightKg':1450}}); chk('P1-02: правка без изменений → 400',s==400,s)
+chk('P1-02: неизвестные ключи cargoInfo сохранены + v:1',(L.get('cargoInfo') or {}).get('note')=='заметка' and (L.get('cargoInfo') or {}).get('v')==1,(L.get('cargoInfo')))
+chk('P1-03: маршрут-колонки после создания',L.get('originCity')=='Шанхай' and L.get('destinationCity')=='Москва',(L.get('originCity'),L.get('destinationCity')))
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'route':{'weightKg':1450}}); chk('P1-02: правка без изменений → 400',s==400,s)
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{}); chk('P1-02: пустой PATCH → 400',s==400,s)
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'rawContact':{'name':'Евгений '+u,'phone':ph(base+5),'email':'test@test.ru'}}); chk('P1-02: правка контактов (лид без клиента) → 200',s==200,(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); L=d.get('lead',d); acts=L.get('activities',[])
 chk('P1-02: diff контактов в журнале (Контакт/Телефон)',bool(acts) and acts[0]['type']=='lead_edited' and 'Контакт:' in acts[0]['description'] and 'Телефон:' in acts[0]['description'],(acts[0] if acts else None))
+# --- P1-03: маршрут и груз — поля, а не только JSON ---
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'route':{'originCountry':'Китай','transportType':'sea','readyDate':'2026-11-01'}}); chk('P1-03: правка маршрута → 200',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid}'); L=d.get('lead',d); acts=L.get('activities',[])
+chk('P1-03: diff маршрута в журнале (Откуда/Тип/Дата)',bool(acts) and acts[0]['type']=='lead_edited' and 'Откуда: Шанхай → Китай, Шанхай' in acts[0]['description'] and 'Тип перевозки: — → Море' in acts[0]['description'] and 'Дата отправления: — → 01.11.2026' in acts[0]['description'],(acts[0] if acts else None))
+chk('P1-03: колонки после правки',L.get('originCountry')=='Китай' and L.get('transportType')=='sea' and str(L.get('readyDate',''))[:10]=='2026-11-01',(L.get('originCountry'),L.get('transportType'),L.get('readyDate')))
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'route':{'weightKg':-5}}); chk('P1-03: отрицательный вес → 400',s==400,s)
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'route':{'transportType':'самолёт'}}); chk('P1-03: неизвестный тип → 400',s==400,s)
+s,d=a.r('GET',f"/api/admin/leads?origin={urlquote('Китай')}"); ids=[x['id'] for x in d.get('leads',[])]
+chk('P1-03: фильтр лидов «Китай»',lid in ids,len(ids))
+s,d=a.r('GET','/api/admin/leads?transport=sea'); ids=[x['id'] for x in d.get('leads',[])]
+chk('P1-03: фильтр лидов «Море»',lid in ids,len(ids))
+s,d=a.r('GET','/api/admin/leads?transport=auto'); ids=[x['id'] for x in d.get('leads',[])]
+chk('P1-03: фильтр лидов «Авто» пуст',lid not in ids,len(ids))
 s,d=a.r('POST',f'/api/admin/leads/{lid}/convert',{'legalEntityId':leid}); chk('конвертация без варианта → 409',s==409,(s,d))
 s,d=a.r('POST',f'/api/admin/leads/{lid}/options',{'description':'Море+ЖД','transportModes':['Море','ЖД'],'priceEstimate':450000,'etaDays':45,'priorityFit':'cost'}); chk('вариант расчёта 1',s in(200,201),(s,d))
 s,d=a.r('POST',f'/api/admin/leads/{lid}/options',{'description':'Авиа','priceEstimate':1200000,'etaDays':7,'priorityFit':'speed','isSelected':True}); chk('вариант 2 isSelected',s in(200,201),(s,d))
@@ -132,12 +147,27 @@ chk('снимок цены перенесён',(O.get('quoteSnapshot') or {}).ge
 # --- P1-01: ответственный на заявке ---
 chk('P1-01: конвертация переносит ответственного в заявку',(O.get('assignee') or {}).get('id')==bid2,O.get('assignee'))
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':aid}); chk('P1-01: смена ответственного won-лида → 409',s==409,s)
-s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'cargoInfo':{'weightKg':1500}}); chk('P1-02: правка анкеты won-лида → 409',s==409,s)
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'route':{'weightKg':1500}}); chk('P1-02: правка анкеты won-лида → 409',s==409,s)
 s,d=a.r('PATCH',f'/api/admin/orders/{oid}',{'assignedToId':aid}); chk('P1-01: смена ответственного заявки → 200',s==200,(s,d))
 s,d=a.r('GET',f'/api/admin/orders/{oid}'); O2=d.get('order',d); oacts=O2.get('activities',[])
 chk('P1-01: смена ответственного заявки в журнале',bool(oacts) and oacts[0]['type']=='order_assignee_changed' and 'Менеджер B' in oacts[0]['description'],(oacts[0] if oacts else None))
 s,d=bb.r('GET','/api/admin/orders?assigned=mine'); oids=[x['id'] for x in d.get('orders',[])]
 chk('P1-01: B не видит заявку в «Мои» после переназначения',oid not in oids,len(oids))
+# --- P1-03: снимок маршрута в заявке + фильтры + печатная форма ---
+s,d=a.r('GET',f'/api/admin/orders/{oid}'); O=d.get('order',d)
+chk('P1-03: конвертация переносит маршрут в заявку',O.get('originCountry')=='Китай' and O.get('destinationCity')=='Москва' and O.get('transportType')=='sea',(O.get('originCountry'),O.get('destinationCity'),O.get('transportType')))
+chk('P1-03: вес/дата в заявке',float(O.get('weightKg'))==1450 and str(O.get('readyDate',''))[:10]=='2026-11-01',(O.get('weightKg'),O.get('readyDate')))
+s,d=a.r('GET',f"/api/admin/orders?origin={urlquote('Китай')}&destination={urlquote('Москва')}&transport=sea"); oids2=[x['id'] for x in d.get('orders',[])]
+chk('[ПРИЁМКА P1-03] фильтр заявок «Китай → Москва, Море»',oid in oids2,len(oids2))
+s,d=a.r('GET','/api/admin/orders?transport=rail'); oids2=[x['id'] for x in d.get('orders',[])]
+chk('P1-03: фильтр заявок «ЖД» пуст',oid not in oids2,len(oids2))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid}',{'route':{'placesCount':4,'volumeM3':2.5}}); chk('P1-03: правка маршрута заявки → 200',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid}'); O=d.get('order',d); oacts=O.get('activities',[])
+chk('P1-03: diff маршрута заявки в журнале',bool(oacts) and oacts[0]['type']=='order_cargo_changed' and 'Мест: — → 4' in oacts[0]['description'] and 'Объём: — → 2,5' in oacts[0]['description'],(oacts[0] if oacts else None))
+s,d=a.r('GET',f'/admin/orders/{oid}/print')
+html=d.decode('utf-8','ignore') if isinstance(d,(bytes,bytearray)) else str(d)
+chk('P1-03: печатная форма п.3 «Море»',s==200 and 'Море' in html,(s,len(html)))
+chk('P1-03: печатная форма п.17/20 «Шанхай»/«Москва»',s==200 and 'Шанхай' in html and 'Москва' in html,(s,))
 s,d=a.r('GET','/api/admin/orders?sort=stale'); chk('P1-01: сортировка «давно без движения» (заявки)',s==200,(s,str(d)[:100]))
 s,d=a.r('GET',f'/api/admin/orders/{oid}/documents'); docs=d.get('documents',d) if isinstance(d,dict) else d
 chk('документы перенесены на заявку',isinstance(docs,list) and len(docs)>=2,(s,str(d)[:200]))
@@ -194,8 +224,9 @@ s,d=c.r('GET','/api/client/leads'); cleads=[x for x in (d.get('leads') or []) if
 chk('P1-02: у клиента есть новые запросы',len(cleads)>0,len(cleads))
 clid2=cleads[0]['id']
 s,d=c.r('GET',f'/api/client/leads/{clid2}'); chk('P1-02: canEdit=true до вариантов',(d.get('lead',d)).get('canEdit')==True,d)
-s,d=c.r('PATCH',f'/api/client/leads/{clid2}',{'cargoInfo':{'weightKg':2222,'from':'Стамбул'}}); chk('P1-02: клиент правит запрос до вариантов → 200',s==200,(s,d))
-s,d=c.r('GET',f'/api/client/leads/{clid2}'); chk('P1-02: правка клиента видна в анкете',(d.get('lead',d).get('cargoInfo') or {}).get('weightKg')==2222,d)
+s,d=c.r('PATCH',f'/api/client/leads/{clid2}',{'route':{'weightKg':2222,'originCity':'Стамбул'}}); chk('P1-02: клиент правит запрос до вариантов → 200',s==200,(s,d))
+s,d=c.r('GET',f'/api/client/leads/{clid2}'); L2=d.get('lead',d)
+chk('P1-02: правка клиента видна в колонках',float(L2.get('weightKg'))==2222 and L2.get('originCity')=='Стамбул',(L2.get('weightKg'),L2.get('originCity')))
 s,d=c2c.r('PATCH',f'/api/client/leads/{clid2}',{'cargoInfo':{'weightKg':1}}); chk('P1-02: чужой клиент не правит запрос (IDOR)',s in(403,404),s)
 s,d=a.r('GET',f'/api/admin/leads/{clid2}'); L=d.get('lead',d); acts=L.get('activities',[])
 chk('P1-02: правка клиента в журнале лида (актёр — клиент)',bool(acts) and acts[0]['type']=='lead_edited' and acts[0]['actorType']=='client',(acts[0] if acts else None))

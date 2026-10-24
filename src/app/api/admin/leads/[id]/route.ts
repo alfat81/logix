@@ -8,6 +8,7 @@ import {
   mergeLeadCargo,
   isLeadAnketaEditable,
 } from '@/lib/lead-edit'
+import { readyDateInput } from '@/lib/route-fields'
 import { checkLeadTransition } from '@/lib/status-machine'
 import { apiErrorResponse } from '@/lib/api-errors'
 import {
@@ -95,7 +96,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         { status: 400 }
       )
     }
-    const { status, lostReason, assignedToId, rawContact, cargoInfo } = parsed.data
+    const { status, lostReason, assignedToId, rawContact, cargoInfo, route } = parsed.data
 
     const existing = await db.lead.findUnique({
       where: { id },
@@ -112,10 +113,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       )
     }
 
-    // ── Правка анкеты (P1-02): окно new/calculated ──
+    // ── Правка анкеты (P1-02/P1-03): окно new/calculated ──
     // Контакты правятся только у лида БЕЗ клиента: у связанного клиента
     // контакты живут в справочнике Customer (их правка — не здесь).
-    const editingAnketa = rawContact !== undefined || cargoInfo !== undefined
+    const editingAnketa =
+      rawContact !== undefined || cargoInfo !== undefined || route !== undefined
     let editDescription: string | null = null
     // undefined = груз в этом PATCH не менялся; null = очистить известные поля
     let mergedCargo: Record<string, unknown> | null | undefined = undefined
@@ -132,7 +134,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           { status: 409 }
         )
       }
-      const diffs = buildLeadEditDiff(existing, { rawContact, cargoInfo })
+      const diffs = buildLeadEditDiff(existing, { rawContact, cargoInfo, route })
       if (!diffs.length && status === undefined && assignedToId === undefined) {
         return NextResponse.json({ error: 'Анкета не изменилась' }, { status: 400 })
       }
@@ -256,6 +258,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             : mergedCargo === null
               ? Prisma.DbNull
               : (mergedCargo as unknown as Prisma.InputJsonObject),
+        // P1-03: маршрут/метрики — колонки. Прямые свойства (undefined =
+        // «не трогать», null = очистить) — без условных спредов: союз
+        // типов от спредов ломал вывод TS на большом data-объекте.
+        originCity: route?.originCity,
+        originCountry: route?.originCountry,
+        destinationCity: route?.destinationCity,
+        destinationCountry: route?.destinationCountry,
+        transportType: route?.transportType,
+        readyDate: route ? readyDateInput(route.readyDate) : undefined,
+        weightKg: route?.weightKg,
+        volumeM3: route?.volumeM3,
+        placesCount: route?.placesCount,
       },
       include: {
         customer: { select: { id: true, name: true, phone: true } },

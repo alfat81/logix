@@ -163,6 +163,19 @@ model Order {
   // ручных операций в БД; история назначений живёт в Activity-снимках.
   assignedToId  String?
 
+  // ─── P1-03: маршрут и груз — те же колонки, что на Lead (см. там) ──
+  // Заявка — источник правды после конвертации: копируется с лида
+  // снимком (convert), правится PATCH (Ж1) вместе с cargoInfo.
+  originCity         String?
+  originCountry      String?
+  destinationCity    String?
+  destinationCountry String?
+  transportType      TransportType?
+  readyDate          DateTime?
+  weightKg           Decimal? @db.Decimal(12, 3)
+  volumeM3           Decimal? @db.Decimal(10, 3)
+  placesCount        Int?
+
   contract    Contract             @relation(fields: [contractId], references: [id])
   legalEntity LegalEntity          @relation(fields: [legalEntityId], references: [id])
   customer    Customer             @relation(fields: [customerId], references: [id])
@@ -183,6 +196,9 @@ model Order {
   @@index([customerId])
   @@index([assignedToId])
   @@index([updatedAt])
+  @@index([transportType])
+  @@index([originCountry])
+  @@index([destinationCountry])
 }
 
 model OrderStageCatalog {
@@ -234,6 +250,18 @@ model OrderStageInstance {
 // Lead/QuoteOption добавлены с Дорожкой В; Order получил опциональную
 // ссылку leadId (ручные заявки без лида — законны, null).
 
+// P1-03: тип перевозки — справочник колонок (не Json): по нему
+// фильтруются списки («Китай → Москва, Море») и заполняется печатная
+// форма (бланк п.3). Коды английские (стабильные в API/фильтрах),
+// русские подписи — в lib/route-fields.ts (TRANSPORT_TYPE_LABELS).
+enum TransportType {
+  auto
+  rail
+  sea
+  air
+  multimodal
+}
+
 model Lead {
   id String @id @default(cuid())
   // Клиент опционален: лид рождается на этапе запроса, когда клиента
@@ -276,6 +304,24 @@ model Lead {
   // история назначений живёт в Activity-снимках.
   assignedToId String?
 
+  // ─── P1-03: маршрут и груз — поля, а не только JSON ─────────────
+  // Структурированные поля бланка: фильтры списков, сортировки и
+  // печатная форма (п.3/17/18/20) читают колонки; cargoInfo хранит
+  // «остальное» (v: 1). Миграция переносит из Json: from/to (первая
+  // запятая = граница «страна, город»), transportType (словарь
+  // Авиа→air…), shipDate → readyDate, вес/объём/места — и удаляет эти
+  // ключи из Json. Decimal — точность весов/объёмов (P1-04 принесёт
+  // Decimal и деньгам — D19/RULES 2.15).
+  originCity         String?
+  originCountry      String?
+  destinationCity    String?
+  destinationCountry String?
+  transportType      TransportType?
+  readyDate          DateTime?
+  weightKg           Decimal? @db.Decimal(12, 3)
+  volumeM3           Decimal? @db.Decimal(10, 3)
+  placesCount        Int?
+
   customer Customer?      @relation(fields: [customerId], references: [id])
   assignee Employee?      @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   options  QuoteOption[]
@@ -295,6 +341,9 @@ model Lead {
   @@index([customerId])
   @@index([updatedAt])
   @@index([assignedToId])
+  @@index([transportType])
+  @@index([originCountry])
+  @@index([destinationCountry])
 }
 
 model QuoteOption {

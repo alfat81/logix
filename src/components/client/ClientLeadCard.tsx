@@ -21,9 +21,8 @@ import { DocumentsSection } from '@/components/documents/DocumentsSection'
 import { ClientLeadStatusBadge } from '@/components/client/ClientBadges'
 import {
   EMPTY_LEAD_CARGO_FORM,
-  buildLeadCargo,
+  buildLeadPayload,
   cargoFormFromData,
-  readLeadCargo,
   type LeadCargoForm,
   type LeadStatus,
 } from '@/lib/leads'
@@ -40,6 +39,16 @@ type ClientLeadDetail = {
   status: LeadStatus
   createdAt: string
   cargoInfo: Record<string, unknown> | null
+  // P1-03: маршрут/метрики — колонки (карточка + форма правки)
+  originCity?: string | null
+  originCountry?: string | null
+  destinationCity?: string | null
+  destinationCountry?: string | null
+  transportType?: string | null
+  readyDate?: string | null
+  weightKg?: string | number | null
+  volumeM3?: string | number | null
+  placesCount?: number | null
   order: { id: string; number: string } | null
   // P1-02: правка открыта до первого варианта расчёта
   canEdit?: boolean
@@ -61,7 +70,8 @@ export function ClientLeadCard() {
 
   useEffect(() => {
     if (editOpen && lead) {
-      setCargo(cargoFormFromData(readLeadCargo(lead.cargoInfo)))
+      // P1-03: форма — из колонок маршрута + cargoInfo-rest
+      setCargo(cargoFormFromData(lead))
     }
   }, [editOpen, lead])
 
@@ -97,7 +107,7 @@ export function ClientLeadCard() {
       const res = await fetch(`/api/client/leads/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cargoInfo: buildLeadCargo(cargo) }),
+        body: JSON.stringify(buildLeadPayload(cargo)),
       })
       const data = await readApiResponse<{ message?: string; error?: string }>(res)
       if (!res.ok) throw new Error(data.error || 'Не удалось сохранить запрос')
@@ -192,6 +202,7 @@ export function ClientLeadCard() {
             </p>
           )}
           <CargoGroups
+            route={lead}
             cargoInfo={lead.cargoInfo}
             emptyText="Анкета не заполнялась — запрос зарегистрирован без подробностей"
           />

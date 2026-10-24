@@ -1,4 +1,12 @@
 import { z } from 'zod'
+import {
+  parseRouteText,
+  joinRouteText,
+  RouteFieldsSchema,
+  TRANSPORT_FORM_TO_CODE,
+  TRANSPORT_TYPE_LABELS,
+  type TransportTypeCode,
+} from '@/lib/route-fields'
 
 // Константы статусов и zod-схемы лидов — файл БЕЗ серверных зависимостей
 // (db и т.п.): его импортируют и API-роуты, и будущий UI воронки (В5).
@@ -69,7 +77,7 @@ export const TRANSPORT_TYPES = ['Авиа', 'Авто', 'ЖД', 'Море', 'М�
 export type TransportType = (typeof TRANSPORT_TYPES)[number]
 
 // Состояние формы анкеты в UI: все поля — строки (числа парсятся при
-// сборке в buildLeadCargo), '' = «не заполнено», Да/Нет — 'yes'|'no'.
+// сборке в buildLeadPayload), '' = «не заполнено», Да/Нет — 'yes'|'no'.
 export type LeadCargoForm = {
   // Маршрут (бланк п.3, 17, 20, 4, 18)
   transportType: string
@@ -151,32 +159,59 @@ export const LEAD_CARGO_LABELS: Record<keyof LeadCargoForm, string> = {
   consigneeAddress: 'Адрес',
 }
 
-// Сборка cargoInfo из формы: пустые строки отбрасываются, числа
-// парсятся с запятой или точкой (бланк: «19,00»), некорректное/≤0 —
-// просто не включается и не блокирует создание; Да/Нет → true/false.
-// null — ни одного содержательного поля (cargoInfo не отправляется).
-export function buildLeadCargo(form: LeadCargoForm): Record<string, unknown> | null {
+// Сборка тела POST/PATCH из формы: маршрут/метрики уходят в route
+// (колонки P1-03), «остальное» бланка — в cargo (Json, v: 1). Пустые
+// строки отбрасываются, числа парсятся с запятой или точкой, Да/Нет →
+// true/false. route всегда полный (null = очистить поле — диф в журнале
+// пустое против пустого не пишет), cargo null = очистить анкету-rest.
+export type LeadCargoPayload = {
+  route: {
+    originCity?: string | null
+    originCountry?: string | null
+    destinationCity?: string | null
+    destinationCountry?: string | null
+    transportType?: TransportTypeCode | null
+    readyDate?: string | null
+    weightKg?: number | null
+    volumeM3?: number | null
+    placesCount?: number | null
+  }
+  cargo: Record<string, unknown> | null
+}
+
+export function buildLeadPayload(form: LeadCargoForm): LeadCargoPayload {
   const s = (v: string): string | undefined => v.trim() || undefined
-  const num = (v: string): number | undefined => {
+  const num = (v: string): number | null => {
     const t = v.trim().replace(',', '.')
-    if (!t) return undefined
+    if (!t) return null
     const n = Number(t)
-    return Number.isFinite(n) && n > 0 ? n : undefined
+    return Number.isFinite(n) && n > 0 ? n : null
   }
   const bool = (v: string): boolean | undefined =>
     v === 'yes' ? true : v === 'no' ? false : undefined
 
-  const cargo: Record<string, unknown> = {
-    transportType: s(form.transportType),
-    from: s(form.from),
-    to: s(form.to),
-    routeNote: s(form.routeNote),
-    shipDate: s(form.shipDate),
-    cargoName: s(form.cargoName),
-    hsCode: s(form.hsCode),
-    placesCount: num(form.placesCount),
+  const origin = parseRouteText(form.from)
+  const dest = parseRouteText(form.to)
+  const shipDate = /^\d{4}-\d{2}-\d{2}$/.test(form.shipDate.trim())
+    ? form.shipDate.trim()
+    : null
+
+  const route: LeadCargoPayload['route'] = {
+    originCity: origin.city,
+    originCountry: origin.country,
+    destinationCity: dest.city,
+    destinationCountry: dest.country,
+    transportType: TRANSPORT_FORM_TO_CODE[form.transportType.trim()] ?? null,
+    readyDate: shipDate,
     weightKg: num(form.weightKg),
     volumeM3: num(form.volumeM3),
+    placesCount: num(form.placesCount),
+  }
+
+  const cargo: Record<string, unknown> = {
+    routeNote: s(form.routeNote),
+    cargoName: s(form.cargoName),
+    hsCode: s(form.hsCode),
     packaging: s(form.packaging),
     cargoValue: s(form.cargoValue),
     dangerous: bool(form.dangerous),
@@ -189,11 +224,12 @@ export function buildLeadCargo(form: LeadCargoForm): Record<string, unknown> | n
     consigneeName: s(form.consigneeName),
     consigneeInn: s(form.consigneeInn),
     consigneeAddress: s(form.consigneeAddress),
+    v: 1,
   }
   for (const k of Object.keys(cargo)) {
     if (cargo[k] === undefined) delete cargo[k]
   }
-  return Object.keys(cargo).length ? cargo : null
+  return { route, cargo: Object.keys(cargo).length > 1 ? cargo : null }
 }
 
 // Типизированное чтение cargoInfo в карточке: лиды со старой или
@@ -207,28 +243,71 @@ export function readLeadCargo(cargoInfo: unknown): LeadCargoData {
     : {}
 }
 
-// Обратный разбор cargoInfo в состояние формы (Ж1: правка груза
-// ЗАЯВКИ). Снимок с лида хранится в тех же ключах, что и форма, но
-// значения типизированы (числа/булевы) — форма же работает строками
-// ('' = «не заполнено», 'yes'/'no' = Да/Нет). Даты оставляем только
-// в формате date-input (yyyy-mm-dd), прочие строки не трогаем.
-export function cargoFormFromData(data: LeadCargoData): LeadCargoForm {
+// Обратный разбор в состояние формы (Ж1: правка груза ЗАЯВКИ, правка
+// анкеты лида P1-02, диалоги). Источник — колонки P1-03 (маршрут и
+// метрики: Decimal приходит строкой — толерантно) + cargoInfo-rest.
+// Легаси-ключи Json (from/origin/…) — fallback, если колонки пусты
+// (старые данные до миграции/ручные вставки). Форма работает строками
+// ('' = «не заполнено», 'yes'/'no' = Да/Нет), даты — yyyy-mm-dd.
+export function cargoFormFromData(row: {
+  cargoInfo?: unknown
+  originCity?: unknown
+  originCountry?: unknown
+  destinationCity?: unknown
+  destinationCountry?: unknown
+  transportType?: unknown
+  readyDate?: Date | string | null
+  weightKg?: unknown
+  volumeM3?: unknown
+  placesCount?: unknown
+}): LeadCargoForm {
   const s = (v: unknown): string => (typeof v === 'string' ? v : '')
-  const n = (v: unknown): string =>
-    typeof v === 'number' && Number.isFinite(v) ? String(v) : ''
+  const n = (v: unknown): string => {
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v)
+    if (typeof v === 'string' && v.trim() && Number.isFinite(Number(v))) return String(Number(v))
+    return ''
+  }
   const b = (v: unknown): string => (v === true ? 'yes' : v === false ? 'no' : '')
-  const shipDate = s(data.shipDate)
+  const data: LeadCargoData = readLeadCargo(row.cargoInfo)
+
+  // Маршрут: колонки (первичный источник), fallback — легаси Json
+  const fromCols = joinRouteText(row.originCountry, row.originCity)
+  const toCols = joinRouteText(row.destinationCountry, row.destinationCity)
+  const legacy = data as Record<string, unknown>
+  const from =
+    fromCols || joinRouteText(null, s(data.from) || s(legacy.origin))
+  const to = toCols || joinRouteText(null, s(data.to) || s(legacy.destination))
+
+  // Тип перевозки: код колонки → подпись формы; fallback — Json-строка
+  const code = typeof row.transportType === 'string' ? row.transportType : ''
+  const transportType =
+    (code in TRANSPORT_TYPE_LABELS
+      ? TRANSPORT_TYPE_LABELS[code as TransportTypeCode]
+      : '') || s(data.transportType)
+
+  // Дата: Date → yyyy-mm-dd; строка-дата → как есть (если в формате)
+  let shipDate = ''
+  if (row.readyDate instanceof Date && !Number.isNaN(row.readyDate.getTime())) {
+    shipDate = row.readyDate.toISOString().slice(0, 10)
+  } else if (typeof row.readyDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(row.readyDate)) {
+    shipDate = row.readyDate.slice(0, 10)
+  }
+  if (!shipDate) {
+    const legacy = s(data.shipDate)
+    shipDate = /^\d{4}-\d{2}-\d{2}$/.test(legacy) ? legacy : ''
+  }
+
   return {
-    transportType: s(data.transportType),
-    from: s(data.from),
-    to: s(data.to),
+    transportType,
+    from,
+    to,
     routeNote: s(data.routeNote),
-    shipDate: /^\d{4}-\d{2}-\d{2}$/.test(shipDate) ? shipDate : '',
+    shipDate,
     cargoName: s(data.cargoName),
     hsCode: s(data.hsCode),
-    placesCount: n(data.placesCount),
-    weightKg: n(data.weightKg),
-    volumeM3: n(data.volumeM3),
+    placesCount: n(row.placesCount),
+    weightKg: n(row.weightKg),
+    volumeM3: n(row.volumeM3),
     packaging: s(data.packaging),
     cargoValue: s(data.cargoValue),
     dangerous: b(data.dangerous),
@@ -249,6 +328,8 @@ export const CreateLeadSchema = z
     customerId: z.string().min(1).optional(),
     rawContact: RawContactSchema.optional(),
     cargoInfo: CargoInfoSchema.optional(),
+    // P1-03: маршрут/метрики — колонки (см. lib/route-fields.ts)
+    route: RouteFieldsSchema.optional(),
   })
   .refine((d) => d.customerId || d.rawContact, {
     message: 'Укажите существующего клиента (customerId) или контакты (rawContact)',
@@ -257,10 +338,10 @@ export type CreateLeadInput = z.infer<typeof CreateLeadSchema>
 
 // PATCH лида — смена статуса (+ причина при отказе), ответственного
 // (P1-01: assignedToId nullable — null снимает назначение) и/или правка
-// анкеты (P1-02: rawContact/cargoInfo — окно new/calculated проверяет
-// роут; cargoInfo — полная замена известных полей, неизвестные ключи
-// сохраняет mergeLeadCargo). Пустое обновление — 400: молчаливый 200
-// плодит «ничего не изменилось» без следа в журнале.
+// анкеты (P1-02/P1-03: rawContact/cargoInfo/route — окно new/calculated
+// проверяет роут; cargoInfo — полная замена известных полей-rest,
+// неизвестные ключи сохраняет mergeLeadCargo). Пустое обновление — 400:
+// молчаливый 200 плодит «ничего не изменилось» без следа в журнале.
 export const PatchLeadSchema = z
   .object({
     status: z
@@ -273,18 +354,20 @@ export const PatchLeadSchema = z
     // Существование и активность сотрудника проверяет роут (справочник
     // живёт короче истории — проверка на момент действия).
     assignedToId: z.string().min(1).nullable().optional(),
-    // P1-02: анкета — контакты (только у лида без клиента) и/или груз.
+    // P1-02/P1-03: анкета — контакты, груз-rest и маршрут-колонки.
     rawContact: RawContactSchema.optional(),
     cargoInfo: CargoInfoSchema.optional(),
+    route: RouteFieldsSchema.optional(),
   })
   .refine(
     (d) =>
       d.status !== undefined ||
       d.assignedToId !== undefined ||
       d.rawContact !== undefined ||
-      d.cargoInfo !== undefined,
+      d.cargoInfo !== undefined ||
+      d.route !== undefined,
     {
-      message: 'Нечего обновлять: укажите статус, assignedToId, rawContact или cargoInfo',
+      message: 'Нечего обновлять: укажите статус, assignedToId, rawContact, cargoInfo или route',
     }
   )
 export type PatchLeadInput = z.infer<typeof PatchLeadSchema>

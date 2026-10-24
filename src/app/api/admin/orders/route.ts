@@ -8,6 +8,7 @@ import { createOrderWithStages, findOrCreateCustomer, summarizeOrderStages, toda
 import { normalizePhone } from '@/lib/phone'
 import { logActivity, employeeActor } from '@/lib/activity'
 import { parseListQuery, ciContains } from '@/lib/list-query'
+import { TRANSPORT_TYPE_CODES, type TransportTypeCode } from '@/lib/route-fields'
 import { apiErrorResponse } from '@/lib/api-errors'
 
 // ─── GET /api/admin/orders — список заявок (Ж4: рабочий инструмент) ───
@@ -70,6 +71,14 @@ export async function GET(req: NextRequest) {
   }
   const { q, sort, take, skip } = parsed
 
+  // P1-03: фильтры направления и типа («Китай → Москва, Море»)
+  const origin = req.nextUrl.searchParams.get('origin') ?? ''
+  const destination = req.nextUrl.searchParams.get('destination') ?? ''
+  const transport = req.nextUrl.searchParams.get('transport') ?? ''
+  if (transport && !(TRANSPORT_TYPE_CODES as readonly string[]).includes(transport)) {
+    return NextResponse.json({ error: 'Неизвестный тип перевозки (transport)' }, { status: 400 })
+  }
+
   try {
     // Поиск — только по заявке и её клиенту: номер, ТН ВЭД, имя, телефон.
     const search: Prisma.OrderWhereInput | undefined = q
@@ -88,6 +97,25 @@ export async function GET(req: NextRequest) {
     // P1-01: mine — «заявку веду я»; unassigned — разбор без ответственного
     if (assigned === 'mine') conds.push({ assignedToId: auth.employee.id })
     if (assigned === 'unassigned') conds.push({ assignedToId: null })
+    // P1-03: фильтры по направлению и типу («Китай → Москва, Море»):
+    // направление — ILIKE и по стране, и по городу (свободный ввод)
+    if (origin) {
+      conds.push({
+        OR: [
+          { originCity: ciContains(origin) },
+          { originCountry: ciContains(origin) },
+        ],
+      })
+    }
+    if (destination) {
+      conds.push({
+        OR: [
+          { destinationCity: ciContains(destination) },
+          { destinationCountry: ciContains(destination) },
+        ],
+      })
+    }
+    if (transport) conds.push({ transportType: transport as TransportTypeCode })
     if (search) conds.push(search)
     const where: Prisma.OrderWhereInput = conds.length ? { AND: conds } : {}
 

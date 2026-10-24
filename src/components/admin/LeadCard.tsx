@@ -75,6 +75,16 @@ type LeadFull = {
   rawContact: { name: string; phone?: string; email?: string } | null
   cargoInfo: Record<string, unknown> | null
   customer: { id: string; name: string; phone: string | null; email: string | null } | null
+  // P1-03: маршрут/метрики — колонки
+  originCity?: string | null
+  originCountry?: string | null
+  destinationCity?: string | null
+  destinationCountry?: string | null
+  transportType?: string | null
+  readyDate?: string | null
+  weightKg?: string | number | null
+  volumeM3?: string | number | null
+  placesCount?: number | null
   // P1-01: ответственный менеджер (null = не назначен — кабинетный запрос)
   assignee: { id: string; name: string } | null
   options: QuoteOptionRow[]
@@ -493,6 +503,7 @@ export function LeadCard() {
           {/* Пустая анкета / чужие ключи / группы бланка — решает сам
               CargoGroups (единый показ для лида и заявки, Ж1) */}
           <CargoGroups
+            route={lead}
             cargoInfo={lead.cargoInfo}
             emptyText="Анкета груза не заполнена (запрос зарегистрирован без подробностей)"
           />
@@ -660,7 +671,7 @@ export function LeadCard() {
         leadId={lead.id}
         hasCustomer={!!lead.customer}
         initialContact={lead.customer ? null : lead.rawContact}
-        initialCargo={lead.cargoInfo}
+        initialRow={lead}
         onSaved={load}
       />
 

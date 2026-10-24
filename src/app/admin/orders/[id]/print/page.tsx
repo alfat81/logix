@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
 import { getEmployeeByToken, SESSION_COOKIE } from '@/lib/auth'
+import { TRANSPORT_TYPE_LABELS, joinRouteText } from '@/lib/route-fields'
 import { readLeadCargo } from '@/lib/leads'
 import { requisitesInn } from '@/lib/requisite-fields'
 import { OrderPrintToolbar } from '@/components/admin/OrderPrintToolbar'
@@ -90,14 +91,31 @@ export default async function OrderPrintPage({
     ? q.transportModes.filter((m): m is string => typeof m === 'string')
     : []
 
-  // Тип перевозки: из анкеты (бланк) либо из видов транспорта варианта
-  const transportType =
-    s(cargo.transportType) || (quoteModes.length > 0 ? quoteModes.join(', ') : '')
+  // P1-03: тип/маршрут — из колонок заявки; легаси-ключи Json — fallback
+  // (данные до миграции), последний fallback — виды транспорта варианта
+  const transportLabel =
+    typeof order.transportType === 'string' &&
+    order.transportType in TRANSPORT_TYPE_LABELS
+      ? TRANSPORT_TYPE_LABELS[order.transportType as keyof typeof TRANSPORT_TYPE_LABELS]
+      : ''
+  const originText = joinRouteText(order.originCountry, order.originCity) || s(cargo.from)
+  const destinationText =
+    joinRouteText(order.destinationCountry, order.destinationCity) || s(cargo.to)
 
-  // Маршрут: подробная строка бланка либо «откуда — куда»
+  // Тип перевозки: из колонок (бланк п.3) либо из видов транспорта варианта
+  const transportType =
+    transportLabel || s(cargo.transportType) || (quoteModes.length > 0 ? quoteModes.join(', ') : '')
+
+  // Маршрут: подробная строка бланка либо «откуда — куда» из колонок
   const route =
-    s(cargo.routeNote) ||
-    [s(cargo.from), s(cargo.to)].filter(Boolean).join(' — ')
+    s(cargo.routeNote) || [originText, destinationText].filter(Boolean).join(' — ')
+
+  // Готовность к отгрузке (п.18): колонка readyDate → дд.мм.гггг
+  const readyDateText = order.readyDate
+    ? (order.readyDate instanceof Date
+        ? order.readyDate.toLocaleDateString('ru-RU')
+        : String(order.readyDate).slice(0, 10))
+    : s(cargo.shipDate)
 
   // Исполнитель заявки от клиента (п.27): контакт из анкеты лида,
   // fallback — контакты клиента из справочника
@@ -288,14 +306,14 @@ export default async function OrderPrintPage({
               <tr>
                 <td className="num">17</td>
                 <th className="label">Пункт отправления</th>
-                <td>{s(cargo.from)}</td>
+                <td>{originText}</td>
               </tr>
               <tr>
                 <td className="num">18</td>
                 <th className="label">
                   Предварительная дата отправления
                 </th>
-                <td>{s(cargo.shipDate)}</td>
+                <td>{readyDateText}</td>
               </tr>
               <tr>
                 <td className="num">19</td>
@@ -305,7 +323,7 @@ export default async function OrderPrintPage({
               <tr>
                 <td className="num">20</td>
                 <th className="label">Пункт прибытия</th>
-                <td>{s(cargo.to)}</td>
+                <td>{destinationText}</td>
               </tr>
               <tr>
                 <td className="num">21</td>

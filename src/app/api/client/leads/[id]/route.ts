@@ -8,6 +8,7 @@ import {
   mergeLeadCargo,
   ClientLeadEditSchema,
 } from '@/lib/lead-edit'
+import { readyDateInput } from '@/lib/route-fields'
 import { logActivity, clientActor } from '@/lib/activity'
 
 type Params = { params: Promise<{ id: string }> }
@@ -28,6 +29,16 @@ const CLIENT_LEAD_DETAIL_SELECT = {
   status: true,
   createdAt: true,
   cargoInfo: true,
+  // P1-03: маршрут/метрики — колонки (карточка + diff правки)
+  originCity: true,
+  originCountry: true,
+  destinationCity: true,
+  destinationCountry: true,
+  transportType: true,
+  readyDate: true,
+  weightKg: true,
+  volumeM3: true,
+  placesCount: true,
   order: { select: { id: true, number: true } },
   _count: { select: { options: true } },
 } as const
@@ -76,7 +87,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         { status: 400 }
       )
     }
-    const { cargoInfo } = parsed.data
+    const { cargoInfo, route } = parsed.data
 
     const lead = await db.lead.findFirst({
       where: { id, customerId: auth.client.id },
@@ -96,7 +107,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       )
     }
 
-    const diffs = buildLeadEditDiff(lead, { cargoInfo })
+    const diffs = buildLeadEditDiff(lead, { cargoInfo, route })
     if (!diffs.length) {
       return NextResponse.json({ error: 'Запрос не изменился' }, { status: 400 })
     }
@@ -112,6 +123,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           merged === null
             ? Prisma.DbNull
             : (merged as unknown as Prisma.InputJsonObject),
+        // P1-03: маршрут/метрики — колонки (undefined = не трогаем)
+        originCity: route?.originCity,
+        originCountry: route?.originCountry,
+        destinationCity: route?.destinationCity,
+        destinationCountry: route?.destinationCountry,
+        transportType: route?.transportType,
+        readyDate: route ? readyDateInput(route.readyDate) : undefined,
+        weightKg: route?.weightKg,
+        volumeM3: route?.volumeM3,
+        placesCount: route?.placesCount,
       },
     })
     await logActivity({ leadId: id }, clientActor(auth.client), 'lead_edited', description)
