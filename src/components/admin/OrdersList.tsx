@@ -29,6 +29,7 @@ import { useToast } from '@/hooks/use-toast'
 import { TRANSPORT_TYPE_CODES, TRANSPORT_TYPE_LABELS } from '@/lib/route-fields'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { formatPhoneInput, normalizePhone } from '@/lib/phone'
+import { ORDER_BADGE_VARIANTS } from '@/lib/status-badges'
 import {
   ORDER_STATUSES,
   ORDER_STATUS_LABELS,
@@ -607,10 +608,10 @@ export function OrdersList() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground tabular-nums">
                   Этапы: {o.stagesDone}/{o.stagesTotal}
                   {o.stagesProblem > 0 && (
-                    <Badge variant="destructive">{o.stagesProblem} пробл.</Badge>
+                  <Badge variant="delay">{o.stagesProblem} пробл.</Badge>
                   )}
                   {/* Ж4: просрочка — незавершённый этап с планом раньше сегодня */}
-                  {o.overdue && <Badge variant="destructive">Просрочка</Badge>}
+                  {o.overdue && <Badge variant="delay">Просрочка</Badge>}
                 </div>
                 <OrderStatusBadge status={o.status} />
               </Card>
@@ -629,16 +630,9 @@ export function OrdersList() {
 }
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
-  const map: Record<OrderStatus, string> = {
-    calculating: 'bg-muted text-muted-foreground',
-    confirmed: 'bg-info text-info-foreground',
-    in_progress: 'bg-warning text-warning-foreground',
-    completed: 'bg-success text-success-foreground',
-    cancelled: 'bg-destructive text-destructive-foreground',
-  }
+  // P1-19 (BRANDBOOK §3.2): бейдж-«таблетка» по варианту из единой
+  // точки маппинга; текст — тот же словарь ORDER_STATUS_LABELS.
   return (
-    <Badge className={`${map[status]} border-transparent`} variant="outline">
-      {ORDER_STATUS_LABELS[status]}
-    </Badge>
+    <Badge variant={ORDER_BADGE_VARIANTS[status]}>{ORDER_STATUS_LABELS[status]}</Badge>
   )
 }

@@ -320,11 +320,11 @@ export function ContractorPoolSection({
                   {c._count.stages > 0 ? `${c._count.stages} этап(ов) назначено` : 'без назначений'}
                 </div>
                 {c.isActive ? (
-                  <Badge className="bg-success text-success-foreground border-transparent" variant="outline">
+                  <Badge variant="delivered">
                     в пуле
                   </Badge>
                 ) : (
-                  <Badge className="bg-destructive text-destructive-foreground border-transparent" variant="outline">
+                  <Badge variant="version">
                     исключён
                   </Badge>
                 )}
@@ -343,11 +343,11 @@ export function ContractorPoolSection({
               <DialogTitle className="flex flex-wrap items-center gap-2">
                 {current.companyName}
                 {current.isActive ? (
-                  <Badge className="bg-success text-success-foreground border-transparent" variant="outline">
+                  <Badge variant="delivered">
                     в пуле
                   </Badge>
                 ) : (
-                  <Badge className="bg-destructive text-destructive-foreground border-transparent" variant="outline">
+                  <Badge variant="version">
                     исключён
                   </Badge>
                 )}

@@ -234,8 +234,8 @@ export function CustomerCard() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground tabular-nums">
                   Этапы: {o.stagesDone}/{o.stagesTotal}
-                  {o.stagesProblem > 0 && <Badge variant="destructive">{o.stagesProblem} пробл.</Badge>}
-                  {o.overdue && <Badge variant="destructive">Просрочка</Badge>}
+                  {o.stagesProblem > 0 && <Badge variant="delay">{o.stagesProblem} пробл.</Badge>}
+                  {o.overdue && <Badge variant="delay">Просрочка</Badge>}
                 </div>
                 <OrderStatusBadge status={o.status as OrderStatus} />
               </Card>

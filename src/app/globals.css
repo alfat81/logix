@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Дизайн-токены Logix — BRANDBOOK.md v1.1 (D22, RULES 2.14).
+/* Дизайн-токены Logix — BRANDBOOK.md v1.2 (D22/D24, RULES 2.14).
    Структура — стандартный набор shadcn/ui (перенесена с платформы
    APEX Moto осознанно: подход, не цвета). Палитра — брендбук §1.1:
    Ivory (фон приложения), Sand (сайдбар, вторичные заливки),
@@ -47,7 +47,8 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-border: var(--sidebar-border);
   /* Статусные бейджи §3.2 — варианты ui/badge.tsx (transit/delay/
-     delivered/version); применение в списках — этап C (P1-19). */
+     delivered/pending/version); применяются этапом C (P1-19) через
+     lib/status-badges.ts. */
   --color-status-transit-bg: var(--status-transit-bg);
   --color-status-transit-fg: var(--status-transit-fg);
   --color-status-delay-bg: var(--status-delay-bg);
@@ -56,6 +57,8 @@
   --color-status-delivered-fg: var(--status-delivered-fg);
   --color-status-version-bg: var(--status-version-bg);
   --color-status-version-fg: var(--status-version-fg);
+  --color-status-pending-bg: var(--status-pending-bg);
+  --color-status-pending-fg: var(--status-pending-fg);
   /* Брендбук §5.1/§6: карточки 12px (--radius-lg), кнопки 8px
      (--radius-sm); поля ввода — 10px (--radius-md). */
   --radius-sm: calc(var(--radius) - 4px);
@@ -115,7 +118,9 @@
   --sidebar-foreground: var(--ink);
   --sidebar-border: var(--border-sand);
 
-  /* Статусные бейджи §3.2 (варианты badge.tsx; применение — этап C) */
+  /* Статусные бейджи §3.2 (варианты badge.tsx; применяются этапом C,
+     маппинг домена — lib/status-badges.ts). ОЖИДАНИЕ — v1.2 (D24,
+     §8.6: контраст Coral на #FCEBEA — вопрос открыт, значение с макета). */
   --status-transit-bg: #FCEBEA;
   --status-transit-fg: var(--brick);
   --status-delay-bg: var(--coral);
@@ -124,10 +129,12 @@
   --status-delivered-fg: #3F7A4C;
   --status-version-bg: #F1EAD9;
   --status-version-fg: #6B6455;
+  --status-pending-bg: #FCEBEA;
+  --status-pending-fg: var(--coral);
 }
 
 /* ─── Тёмная тема (токены готовы, переключатель — позже; вне скоупа
-       брендбука v1.1 — он задаёт только светлую тему) ────────── */
+       брендбука — он задаёт только светлую тему) ────────── */
 .dark {
   --background: oklch(0.14 0.01 220);
   --foreground: oklch(0.95 0.004 210);

@@ -6,6 +6,7 @@ import { Loader2, Plus, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { LEAD_BADGE_VARIANTS } from '@/lib/status-badges'
 import {
   Dialog,
   DialogContent,
@@ -484,15 +485,9 @@ export function LeadsList() {
 }
 
 export function LeadStatusBadge({ status }: { status: LeadStatus }) {
-  const map: Record<LeadStatus, string> = {
-    new: 'bg-info text-info-foreground',
-    calculated: 'bg-warning text-warning-foreground',
-    won: 'bg-success text-success-foreground',
-    lost: 'bg-destructive text-destructive-foreground',
-  }
+  // P1-19 (BRANDBOOK §3.2): «таблетка» из единой точки маппинга
+  // lib/status-badges.ts; текст — тот же словарь LEAD_STATUS_LABELS.
   return (
-    <Badge className={`${map[status]} border-transparent`} variant="outline">
-      {LEAD_STATUS_LABELS[status]}
-    </Badge>
+    <Badge variant={LEAD_BADGE_VARIANTS[status]}>{LEAD_STATUS_LABELS[status]}</Badge>
   )
 }

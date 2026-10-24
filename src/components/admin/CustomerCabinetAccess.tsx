@@ -106,11 +106,11 @@ export function CustomerCabinetAccess({
           <div className="text-sm font-medium flex items-center gap-2">
             Доступ в кабинет клиента
             {hasCabinetAccess ? (
-              <Badge className="bg-success text-success-foreground border-transparent" variant="outline">
+              <Badge variant="delivered">
                 Выдан
               </Badge>
             ) : (
-              <Badge variant="outline">Не выдан</Badge>
+              <Badge variant="version">Не выдан</Badge>
             )}
           </div>
           <div className="text-xs text-muted-foreground">

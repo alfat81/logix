@@ -19,14 +19,16 @@ const badgeVariants = cva(
           "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         /* Статусные варианты BRANDBOOK §3.2: полное скругление
            («таблетка»), текст ЗАГЛАВНЫМИ, размер xs (базовый), без
-           иконок. Цвета — токены --status-* в globals.css; применение
-           в списках — этап C (P1-19). */
+           иконок. Цвета — токены --status-* в globals.css; маппинг
+           статусов домена — lib/status-badges.ts (этап C, P1-19). */
         transit:
           "border-transparent rounded-full uppercase bg-status-transit-bg text-status-transit-fg [a&]:hover:bg-status-transit-bg",
         delay:
           "border-transparent rounded-full uppercase bg-status-delay-bg text-status-delay-fg [a&]:hover:bg-status-delay-bg",
         delivered:
           "border-transparent rounded-full uppercase bg-status-delivered-bg text-status-delivered-fg [a&]:hover:bg-status-delivered-bg",
+        pending:
+          "border-transparent rounded-full uppercase bg-status-pending-bg text-status-pending-fg [a&]:hover:bg-status-pending-bg",
         version:
           "border-transparent rounded-full uppercase bg-status-version-bg text-status-version-fg [a&]:hover:bg-status-version-bg",
       },

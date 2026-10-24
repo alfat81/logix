@@ -13,11 +13,12 @@ import {
   type OrderStatus,
   type StageStatus,
 } from '@/lib/order-constants'
+import { ORDER_BADGE_VARIANTS, STAGE_BADGE_VARIANTS } from '@/lib/status-badges'
 
-// Список «своих» заявок портала (Г4). Бейджи — локальные копии
-// раскраски кабинета менеджера (OrdersList/admin): ту же палитру
-// держим сознательно без общего импорта, чтобы портал подрядчика не
-// срастался с кабинетом сотрудников раньше времени (три кабинета —
+// Список «своих» заявок портала (Г4). Бейджи — варианты BRANDBOOK
+// §3.2 из общей точки lib/status-badges.ts (P1-19): визуальный язык
+// единый по брендбуку (D22/D23), при этом логика портала подрядчика
+// не срастается с кабинетом сотрудников (три кабинета —
 // три судьбы, роадмап раздел 1).
 
 type MyStage = {
@@ -121,30 +122,15 @@ export function ContractorOrdersList() {
 }
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
-  const map: Record<OrderStatus, string> = {
-    calculating: 'bg-muted text-muted-foreground',
-    confirmed: 'bg-info text-info-foreground',
-    in_progress: 'bg-warning text-warning-foreground',
-    completed: 'bg-success text-success-foreground',
-    cancelled: 'bg-destructive text-destructive-foreground',
-  }
+  // P1-19 (BRANDBOOK §3.2): вариант — из общей точки lib/status-badges.ts.
   return (
-    <Badge className={`${map[status]} border-transparent`} variant="outline">
-      {ORDER_STATUS_LABELS[status]}
-    </Badge>
+    <Badge variant={ORDER_BADGE_VARIANTS[status]}>{ORDER_STATUS_LABELS[status]}</Badge>
   )
 }
 
 export function StageStatusBadge({ status }: { status: StageStatus }) {
-  const map: Record<StageStatus, string> = {
-    not_started: 'bg-muted text-muted-foreground',
-    in_progress: 'bg-warning text-warning-foreground',
-    done: 'bg-success text-success-foreground',
-    problem: 'bg-destructive text-destructive-foreground',
-  }
+  // P1-19 (BRANDBOOK §3.2): вариант — из общей точки lib/status-badges.ts.
   return (
-    <Badge variant="outline" className={`${map[status]} border-transparent`}>
-      {STAGE_STATUS_LABELS[status]}
-    </Badge>
+    <Badge variant={STAGE_BADGE_VARIANTS[status]}>{STAGE_STATUS_LABELS[status]}</Badge>
   )
 }

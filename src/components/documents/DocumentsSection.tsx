@@ -282,7 +282,8 @@ export function DocumentsSection({
                       Внутренний
                     </Badge>
                   )}
-                  <Badge variant="outline" className="text-xs">
+                  {/* Версионность (§2.2/§3.2): тег версии — «таблетка» V x.y */}
+                  <Badge variant="version" className="text-xs">
                     v{doc.currentVersion}
                   </Badge>
                 </div>
