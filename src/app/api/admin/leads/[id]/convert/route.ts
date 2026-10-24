@@ -216,7 +216,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     // Дальше заявка — источник правды: правки лида её не меняют.
     const quoteSnapshot: Prisma.InputJsonObject = {
       description: selected.description,
-      priceEstimate: selected.priceEstimate,
+      // P1-04: цена с валютой и меткой НДС (cost в снимок не попадает —
+      // наружу себестоимость не выходит, RULES 2.15). Decimal → число
+      // для JSON-снимка: только транспорт, без арифметики.
+      price: selected.price.toNumber(),
+      currency: selected.currency,
+      vatMode: selected.vatMode,
       etaDays: selected.etaDays,
       priorityFit: selected.priorityFit,
       ...(Array.isArray(selected.transportModes)

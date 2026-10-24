@@ -37,6 +37,7 @@ import {
   type LeadStatus,
   type LeadCargoForm,
 } from '@/lib/leads'
+import { formatMoney, isCurrencyCode } from '@/lib/money'
 
 // ─── Типы ответов API (узкая выжимка, всё как в роутах В2/В3) ──
 
@@ -44,7 +45,10 @@ type QuoteOptionRow = {
   id: string
   description: string
   transportModes: string[] | null
-  priceEstimate: number
+  // P1-04: Decimal приходит строкой; валюта/НДС — метки
+  price: string
+  currency: string
+  vatMode: string
   etaDays: number
   priorityFit: string
   isSelected: boolean
@@ -67,7 +71,6 @@ type LeadRow = {
 type CustomerRow = { id: string; name: string; phone: string | null }
 
 const fmtDate = (iso: string): string => new Date(iso).toLocaleDateString('ru-RU')
-const fmtMoney = (n: number): string => new Intl.NumberFormat('ru-RU').format(n) + ' ₽'
 
 // Что показывать в строке списка: контакты лида — это клиент из
 // справочника (customerId) либо сырые rawContact (В1: до конвертации
@@ -451,7 +454,7 @@ export function LeadsList() {
                     {l.options.length > 0 ? (
                       <>
                         {l.options.length} вар.
-                        {selected && <span className="text-foreground font-medium"> · {fmtMoney(selected.priceEstimate)}</span>}
+                        {selected && <span className="text-foreground font-medium"> · {formatMoney(selected.price, isCurrencyCode(selected.currency) ? selected.currency : 'RUB')}</span>}
                       </>
                     ) : (
                       'без расчёта'

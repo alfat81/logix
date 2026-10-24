@@ -77,7 +77,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
                   data.transportModes as unknown as Prisma.InputJsonArray,
               }
             : {}),
-          ...(data.priceEstimate !== undefined ? { priceEstimate: data.priceEstimate } : {}),
+          // P1-04: цена/валюта/НДС; costEstimate: null — очистить
+          // себестоимость (не передан — не трогаем)
+          ...(data.price !== undefined ? { price: data.price } : {}),
+          ...(data.currency !== undefined ? { currency: data.currency } : {}),
+          ...(data.vatMode !== undefined ? { vatMode: data.vatMode } : {}),
+          ...(data.costEstimate !== undefined ? { costEstimate: data.costEstimate } : {}),
+          ...(data.costCurrency !== undefined ? { costCurrency: data.costCurrency } : {}),
           ...(data.etaDays !== undefined ? { etaDays: data.etaDays } : {}),
           ...(data.priorityFit !== undefined ? { priorityFit: data.priorityFit } : {}),
           ...(data.isSelected !== undefined ? { isSelected: data.isSelected } : {}),
@@ -100,7 +106,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       const fieldsTouched =
         data.description !== undefined ||
         data.transportModes !== undefined ||
-        data.priceEstimate !== undefined ||
+        data.price !== undefined ||
+        data.currency !== undefined ||
+        data.vatMode !== undefined ||
+        data.costEstimate !== undefined ||
+        data.costCurrency !== undefined ||
         data.etaDays !== undefined ||
         data.priorityFit !== undefined
       if (fieldsTouched) {

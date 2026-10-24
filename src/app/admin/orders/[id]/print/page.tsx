@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
+import { formatMoney, isCurrencyCode, isVatMode, VAT_MODE_LABELS } from '@/lib/money'
 import { getEmployeeByToken, SESSION_COOKIE } from '@/lib/auth'
 import { TRANSPORT_TYPE_LABELS, joinRouteText } from '@/lib/route-fields'
 import { readLeadCargo } from '@/lib/leads'
@@ -25,6 +26,11 @@ export const dynamic = 'force-dynamic'
 type QuoteSnapshotData = {
   description?: string
   transportModes?: string[]
+  // P1-04: цена с валютой/НДС; priceEstimate — легаси-ключ снимков
+  // до миграции (рубли) — читается как RUB-фолбэк
+  price?: number | string
+  currency?: string
+  vatMode?: string
   priceEstimate?: number
   etaDays?: number
 }
@@ -37,7 +43,7 @@ function fmtRuDate(d: Date | null | undefined): string {
 }
 
 function fmtMoney(n: number): string {
-  return `${new Intl.NumberFormat('ru-RU').format(n)} ₽`
+  return formatMoney(n, 'RUB')
 }
 
 function fmtNum(v: unknown): string {
@@ -85,7 +91,19 @@ export default async function OrderPrintPage({
   // Снимок условий сделки (Ж1): толерантный разбор — поля опциональны
   const q = (order.quoteSnapshot ?? {}) as QuoteSnapshotData
   const quoteDescription = typeof q.description === 'string' ? q.description : ''
-  const quotePrice = typeof q.priceEstimate === 'number' ? q.priceEstimate : null
+  // P1-04: цена — новый ключ price (число/строка Decimal) либо легаси
+  // priceEstimate (рубли до миграции); валюта/НДС — с дефолтами
+  const rawPrice = q.price ?? q.priceEstimate
+  const quotePrice =
+    typeof rawPrice === 'string'
+      ? Number.isFinite(Number(rawPrice))
+        ? Number(rawPrice)
+        : null
+      : typeof rawPrice === 'number'
+        ? rawPrice
+        : null
+  const quoteCurrency = isCurrencyCode(q.currency) ? q.currency : 'RUB'
+  const quoteVat = isVatMode(q.vatMode) ? VAT_MODE_LABELS[q.vatMode] : ''
   const quoteEta = typeof q.etaDays === 'number' ? q.etaDays : null
   const quoteModes = Array.isArray(q.transportModes)
     ? q.transportModes.filter((m): m is string => typeof m === 'string')
@@ -344,6 +362,12 @@ export default async function OrderPrintPage({
                   {quotePrice !== null ? (
                     <>
                       {fmtMoney(quotePrice)}
+                      {/* P1-04: валюта (формат formatMoney) и метка НДС —
+                          та же цена, что в UI и БД (RULES 2.15) */}
+                      {quoteCurrency !== 'RUB' && (
+                        <span className="multi-line">Валюта цены: {quoteCurrency}. </span>
+                      )}
+                      {quoteVat && <span className="multi-line">{quoteVat}. </span>}
                       <span className="multi-line">Условия оплаты: </span>
                     </>
                   ) : (

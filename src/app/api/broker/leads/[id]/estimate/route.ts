@@ -5,6 +5,7 @@ import { requireBroker } from '@/lib/broker-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { logActivity, brokerActor } from '@/lib/activity'
 import { BrokerEstimateSchema, readPermits } from '@/lib/brokers'
+import { formatMoney } from '@/lib/money'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -71,7 +72,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const duty = estimate.customsDutyEstimate
     const permits = readPermits(estimate.requiredPermits)
     const parts: string[] = []
-    parts.push(duty !== null ? `платежи: ${new Intl.NumberFormat('ru-RU').format(duty)} ₽` : 'платежи: не указаны')
+    // P1-04: Decimal → строка → formatMoney (единственная точка
+    // форматирования, RULES 2.15)
+    parts.push(
+      duty !== null ? `платежи: ${formatMoney(duty.toString(), 'RUB')}` : 'платежи: не указаны',
+    )
     parts.push(permits.length > 0 ? `разрешительные документы: ${permits.length}` : 'разрешительные документы: не указаны')
     await logActivity(
       { leadId: id },

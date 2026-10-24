@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { formatMoney, moneyAmount } from '@/lib/money'
 
 // ─── Брокеры: константы, схемы и проекции (Дорожка Д, роадмап 5а) ──
 // Клиент-безопасный файл по образцу lib/contractors.ts (Г) и
@@ -101,13 +102,10 @@ const PermitListSchema = z
   .max(PERMIT_MAX_COUNT, `Слишком много пунктов — до ${PERMIT_MAX_COUNT}`)
 
 export const BrokerEstimateSchema = z.object({
-  // Целые рубли, как priceEstimate (В3): копейки в B2B-расчётах не
-  // значатся. 0 допустим (льготные категории ТН ВЭД), null — «сумма
-  // пока неизвестна».
-  customsDutyEstimate: z
-    .number()
-    .int('Таможенные платежи — целое число (руб.)')
-    .min(0, 'Таможенные платежи не могут быть отрицательными')
+  // P1-04: Decimal по RULES 2.15 (все деньги — Decimal, до 2 знаков
+  // после запятой). Валюта — RUB по природе платежа. 0 допустим
+  // (льготные категории ТН ВЭД), null — «сумма пока неизвестна».
+  customsDutyEstimate: moneyAmount('Таможенные платежи', { allowZero: true })
     .nullable()
     .optional(),
   requiredPermits: PermitListSchema.nullable().optional(),
@@ -123,10 +121,12 @@ export function readPermits(value: unknown): string[] {
 }
 
 // Строка «₽ / не указана» для UI обеих сторон (админка и портал).
-export function fmtDuty(n: number | null | undefined): string {
-  return typeof n === 'number' && Number.isFinite(n)
-    ? new Intl.NumberFormat('ru-RU').format(n) + ' ₽'
-    : 'сумма не указана'
+// P1-04: форматирование — только через formatMoney (RULES 2.15).
+// Decimal из API приходит строкой/числом — formatMoney понимает оба.
+export function fmtDuty(n: number | string | null | undefined): string {
+  return n === null || n === undefined || n === ''
+    ? 'сумма не указана'
+    : formatMoney(n, 'RUB')
 }
 
 // Пометка «штатный/привлечённый» для списков.

@@ -24,7 +24,8 @@ import { readPermits, fmtDuty, BROKER_KIND_LABELS } from '@/lib/brokers'
 // конвертации В4).
 
 export type BrokerEstimateRow = {
-  customsDutyEstimate: number | null
+  // P1-04: Decimal из API приходит строкой (раньше — число)
+  customsDutyEstimate: number | string | null
   requiredPermits: unknown
   notes: string | null
   createdAt: string

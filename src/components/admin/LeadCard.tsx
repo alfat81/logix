@@ -7,7 +7,6 @@ import {
   ArrowRight,
   Loader2,
   Pencil,
-  Plus,
   Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -37,6 +36,8 @@ import { LeadStatusBadge } from '@/components/admin/LeadsList'
 import { Breadcrumbs } from '@/components/admin/Breadcrumbs'
 import { AssigneeField } from '@/components/admin/AssigneeField'
 import { LeadEditDialog } from '@/components/admin/LeadEditDialog'
+import { QuoteOptionsSection } from '@/components/admin/QuoteOptionsSection'
+import type { QuoteOptionRow } from '@/components/admin/QuoteOptionsSection'
 import { CargoGroups } from '@/components/admin/CargoGroups'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
@@ -46,25 +47,11 @@ import {
   type BrokerLinkRow,
 } from '@/components/admin/BrokerLinksSection'
 import {
-  QUOTE_PRIORITY_FITS,
-  QUOTE_PRIORITY_FIT_LABELS,
-  TRANSPORT_TYPES,
   readLeadCargo,
   type LeadStatus,
-  type QuotePriorityFit,
 } from '@/lib/leads'
 
 // ─── Типы ответов API (В2/В3/В4) ────────────────────────────────
-
-type QuoteOptionRow = {
-  id: string
-  description: string
-  transportModes: string[] | null
-  priceEstimate: number
-  etaDays: number
-  priorityFit: string
-  isSelected: boolean
-}
 
 type LeadFull = {
   id: string
@@ -99,25 +86,8 @@ type LeadFull = {
 type LegalEntityRow = { id: string; name: string }
 
 const fmtDate = (iso: string): string => new Date(iso).toLocaleDateString('ru-RU')
-const fmtMoney = (n: number): string => new Intl.NumberFormat('ru-RU').format(n) + ' ₽'
 
 const INCOTERMS = ['EXW', 'FCA', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP', 'FAS', 'FOB', 'CFR', 'CIF']
-
-type OptionForm = {
-  description: string
-  priceEstimate: string
-  etaDays: string
-  priorityFit: string
-  modes: string[]
-}
-
-const EMPTY_OPTION_FORM: OptionForm = {
-  description: '',
-  priceEstimate: '',
-  etaDays: '',
-  priorityFit: 'cost',
-  modes: [],
-}
 
 export function LeadCard() {
   const { id } = useParams<{ id: string }>()
@@ -126,12 +96,6 @@ export function LeadCard() {
 
   const [lead, setLead] = useState<LeadFull | null>(null)
   const [loading, setLoading] = useState(true)
-
-  // Вариант расчёта: добавление/правка в одном диалоге
-  const [optionOpen, setOptionOpen] = useState(false)
-  const [editingOptionId, setEditingOptionId] = useState<string | null>(null)
-  const [optionForm, setOptionForm] = useState<OptionForm>({ ...EMPTY_OPTION_FORM })
-  const [savingOption, setSavingOption] = useState(false)
 
   // Конвертация (В4)
   const [convertOpen, setConvertOpen] = useState(false)
@@ -215,104 +179,6 @@ export function LeadCard() {
     const ok = await patchLead({ status: 'lost', lostReason: lostReason.trim() })
     setLosing(false)
     if (ok) setLostOpen(false)
-  }
-
-  const openAddOption = () => {
-    setEditingOptionId(null)
-    setOptionForm({ ...EMPTY_OPTION_FORM })
-    setOptionOpen(true)
-  }
-
-  const openEditOption = (o: QuoteOptionRow) => {
-    setEditingOptionId(o.id)
-    setOptionForm({
-      description: o.description,
-      priceEstimate: String(o.priceEstimate),
-      etaDays: String(o.etaDays),
-      priorityFit: o.priorityFit,
-      modes: Array.isArray(o.transportModes)
-        ? o.transportModes.filter((m): m is string => typeof m === 'string')
-        : [],
-    })
-    setOptionOpen(true)
-  }
-
-  const saveOption = async () => {
-    const description = optionForm.description.trim()
-    const price = Number(optionForm.priceEstimate.replace(',', '.'))
-    const eta = Number(optionForm.etaDays.replace(',', '.'))
-    if (!description) {
-      toast({ title: 'Опишите вариант расчёта', variant: 'destructive' })
-      return
-    }
-    if (!Number.isInteger(price) || price <= 0) {
-      toast({ title: 'Стоимость — целое число рублей, больше нуля', variant: 'destructive' })
-      return
-    }
-    if (!Number.isInteger(eta) || eta <= 0) {
-      toast({ title: 'Срок — целое число дней, больше нуля', variant: 'destructive' })
-      return
-    }
-    setSavingOption(true)
-    try {
-      const body = {
-        description,
-        priceEstimate: price,
-        etaDays: eta,
-        priorityFit: optionForm.priorityFit,
-        ...(optionForm.modes.length ? { transportModes: optionForm.modes } : {}),
-      }
-      const res = editingOptionId
-        ? await fetch(`/api/admin/options/${editingOptionId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          })
-        : await fetch(`/api/admin/leads/${id}/options`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          })
-      const data = await readApiResponse<{ message?: string; error?: string }>(res)
-      if (!res.ok) throw new Error(data.error || 'Не удалось сохранить вариант')
-      toast({ title: data.message || 'Вариант расчёта сохранён' })
-      setOptionOpen(false)
-      load()
-    } catch (e) {
-      toast({
-        title: 'Ошибка',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
-      })
-    } finally {
-      setSavingOption(false)
-    }
-  }
-
-  const selectOption = async (o: QuoteOptionRow) => {
-    const res = await fetch(`/api/admin/options/${o.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isSelected: true }),
-    })
-    const data = await readApiResponse<{ message?: string; error?: string }>(res)
-    if (!res.ok) {
-      toast({ title: data.error || 'Ошибка', variant: 'destructive' })
-      return
-    }
-    toast({ title: 'Вариант выбран' })
-    load()
-  }
-
-  const deleteOption = async (o: QuoteOptionRow) => {
-    const res = await fetch(`/api/admin/options/${o.id}`, { method: 'DELETE' })
-    const data = await readApiResponse<{ message?: string; error?: string }>(res)
-    if (!res.ok) {
-      toast({ title: data.error || 'Не удалось удалить вариант', variant: 'destructive' })
-      return
-    }
-    toast({ title: data.message || 'Вариант удалён' })
-    load()
   }
 
   const openConvert = () => {
@@ -535,95 +401,14 @@ export function LeadCard() {
         />
       )}
 
-      {/* ── Варианты расчёта (В3) ──────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Варианты расчёта</h2>
-        {!isWon && (
-          <Button size="sm" variant="outline" onClick={openAddOption}>
-            <Plus className="size-4" />
-            Добавить вариант
-          </Button>
-        )}
-      </div>
-
-      {lead.options.length === 0 ? (
-        <Card className="p-8 text-center text-muted-foreground text-sm">
-          Вариантов пока нет. Первый добавленный вариант переведёт лид в «Рассчитан».
-        </Card>
-      ) : (
-        <div className="grid gap-2">
-          {lead.options.map((o) => {
-            const modes = Array.isArray(o.transportModes)
-              ? o.transportModes.filter((m): m is string => typeof m === 'string')
-              : []
-            return (
-              <Card
-                key={o.id}
-                className={
-                  o.isSelected ? 'p-4 border-primary border-2' : 'p-4 border-l-4 border-l-transparent'
-                }
-              >
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <div className="min-w-52 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium">{o.description}</span>
-                      {o.isSelected && (
-                        <Badge className="bg-primary text-primary-foreground border-transparent">
-                          Выбран
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-2 mt-1">
-                      {modes.length > 0 && (
-                        <span className="flex gap-1">
-                          {modes.map((m) => (
-                            <Badge key={m} variant="outline" className="text-xxs">
-                              {m}
-                            </Badge>
-                          ))}
-                        </span>
-                      )}
-                      <span>срок: {o.etaDays} дн.</span>
-                      <span>· ориентир: {QUOTE_PRIORITY_FIT_LABELS[o.priorityFit as QuotePriorityFit] ?? o.priorityFit}</span>
-                    </div>
-                  </div>
-                  <div className="font-semibold tabular-nums whitespace-nowrap">
-                    {fmtMoney(o.priceEstimate)}
-                  </div>
-                  {!isWon && (
-                    <div className="flex items-center gap-1">
-                      {!o.isSelected && (
-                        <Button variant="outline" size="sm" onClick={() => selectOption(o)}>
-                          Выбрать
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8"
-                        onClick={() => openEditOption(o)}
-                        title="Править вариант"
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 text-destructive hover:text-destructive"
-                        onClick={() => deleteOption(o)}
-                        title="Удалить вариант"
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )
-          })}
-        </div>
-      )}
-
+      {/* ── Варианты расчёта (В3) — секция вынесена в компонент
+          (P1-04: деньги — валюта/НДС/себестоимость) ────────────── */}
+      <QuoteOptionsSection
+        leadId={String(id)}
+        options={lead.options}
+        disabled={isWon}
+        onChanged={load}
+      />
       {/* ── Конвертация / заявка (В4) ──────────────────────────── */}
       {lead.order ? (
         <Card className="p-4 flex flex-wrap items-center gap-4 border-success/50 bg-success/5">
@@ -674,103 +459,6 @@ export function LeadCard() {
         initialRow={lead}
         onSaved={load}
       />
-
-      {/* Диалог: вариант расчёта (добавление/правка) */}
-      <Dialog open={optionOpen} onOpenChange={setOptionOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingOptionId ? 'Править вариант расчёта' : 'Вариант расчёта'}</DialogTitle>
-            <DialogDescription>
-              Один способ доставки: маршрут/условия, транспорт, стоимость и срок.
-              Выбрать можно будет после сохранения.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="opt-desc">Описание</Label>
-              <Textarea
-                id="opt-desc"
-                rows={2}
-                placeholder="Например: Авиа Пекин → Шереметьево, прямой рейс"
-                value={optionForm.description}
-                onChange={(e) => setOptionForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Виды транспорта</Label>
-              <div className="flex flex-wrap gap-2">
-                {TRANSPORT_TYPES.map((t) => {
-                  const active = optionForm.modes.includes(t)
-                  return (
-                    <Button
-                      key={t}
-                      type="button"
-                      size="sm"
-                      variant={active ? 'default' : 'outline'}
-                      onClick={() =>
-                        setOptionForm((f) => ({
-                          ...f,
-                          modes: active ? f.modes.filter((m) => m !== t) : [...f.modes, t],
-                        }))
-                      }
-                    >
-                      {t}
-                    </Button>
-                  )
-                })}
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="grid gap-2">
-                <Label htmlFor="opt-price">Цена, ₽</Label>
-                <Input
-                  id="opt-price"
-                  inputMode="numeric"
-                  placeholder="150000"
-                  value={optionForm.priceEstimate}
-                  onChange={(e) =>
-                    setOptionForm((f) => ({ ...f, priceEstimate: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="opt-eta">Срок, дней</Label>
-                <Input
-                  id="opt-eta"
-                  inputMode="numeric"
-                  placeholder="12"
-                  value={optionForm.etaDays}
-                  onChange={(e) => setOptionForm((f) => ({ ...f, etaDays: e.target.value }))}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Ориентир</Label>
-                <Select
-                  value={optionForm.priorityFit}
-                  onValueChange={(v) => setOptionForm((f) => ({ ...f, priorityFit: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {QUOTE_PRIORITY_FITS.map((f) => (
-                      <SelectItem key={f} value={f}>
-                        {QUOTE_PRIORITY_FIT_LABELS[f]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={saveOption} disabled={savingOption}>
-              {savingOption && <Loader2 className="size-4 animate-spin" />}
-              {editingOptionId ? 'Сохранить' : 'Добавить'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* ── Диалог: конвертация в заявку (В4) ──────────────────── */}
       <Dialog open={convertOpen} onOpenChange={setConvertOpen}>

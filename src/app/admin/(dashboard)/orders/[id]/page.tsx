@@ -64,6 +64,19 @@ import {
   type QuotePriorityFit,
 } from '@/lib/leads'
 import {
+  CURRENCIES,
+  CURRENCY_LABELS,
+  VAT_MODES,
+  VAT_MODE_LABELS,
+  formatMoney,
+  formatMoneyWithVat,
+  isCurrencyCode,
+  isVatMode,
+  parseMoneyInput,
+  type CurrencyCode,
+  type VatModeCode,
+} from '@/lib/money'
+import {
   ORDER_STATUSES,
   ORDER_STATUS_LABELS,
   STAGE_STATUSES,
@@ -142,10 +155,15 @@ assignee: { id: string; name: string } | null
 }
 
 // Снимок условий (структура — QuoteSnapshotSchema в lib/leads.ts);
-// чтение толерантное: неизвестных/отсутствующих полец просто нет
+// чтение толерантное: неизвестных/отсутствующих полей просто нет.
+// P1-04: цена с валютой и меткой НДС; priceEstimate — легаси-ключ
+// снимков до миграции (рубли), читается как RUB-фолбэк.
 type QuoteSnapshot = {
   description?: string
   transportModes?: string[] | null
+  price?: number | string
+  currency?: string
+  vatMode?: string
   priceEstimate?: number
   etaDays?: number
   priorityFit?: string
@@ -155,7 +173,9 @@ type QuoteSnapshot = {
 // сохранении), приоритет '' = не указан ('none' в селекте).
 type QuoteForm = {
   description: string
-  priceEstimate: string
+  price: string
+  currency: string
+  vatMode: string
   etaDays: string
   priorityFit: string
   modes: string[]
@@ -163,22 +183,38 @@ type QuoteForm = {
 
 const EMPTY_QUOTE_FORM: QuoteForm = {
   description: '',
-  priceEstimate: '',
+  price: '',
+  currency: 'RUB',
+  vatMode: 'WITHOUT_VAT',
   etaDays: '',
   priorityFit: '',
   modes: [],
 }
 
-const fmtMoney = (n: number): string => new Intl.NumberFormat('ru-RU').format(n) + ' ₽'
+// Число из снимка: новый ключ price (число или строка Decimal) либо
+// легаси priceEstimate (рубли)
+function snapshotPrice(snap: QuoteSnapshot): number | null {
+  const raw = snap?.price ?? snap?.priceEstimate
+  const n = typeof raw === 'string' ? Number(raw) : raw
+  return typeof n === 'number' && Number.isFinite(n) ? n : null
+}
+
+function snapshotCurrency(snap: QuoteSnapshot): CurrencyCode {
+  return snap && isCurrencyCode(snap.currency) ? snap.currency : 'RUB'
+}
+
+function snapshotVat(snap: QuoteSnapshot): VatModeCode | null {
+  return snap && isVatMode(snap.vatMode) ? snap.vatMode : null
+}
 
 // Предзаполнение формы из снимка (замена — целиком, пустое = снято)
 function quoteFormFromSnapshot(snap: QuoteSnapshot): QuoteForm {
+  const p = snapshotPrice(snap)
   return {
     description: typeof snap?.description === 'string' ? snap.description : '',
-    priceEstimate:
-      typeof snap?.priceEstimate === 'number' && Number.isFinite(snap.priceEstimate)
-        ? String(snap.priceEstimate)
-        : '',
+    price: p === null ? '' : String(p),
+    currency: snapshotCurrency(snap),
+    vatMode: snapshotVat(snap) ?? 'WITHOUT_VAT',
     etaDays:
       typeof snap?.etaDays === 'number' && Number.isFinite(snap.etaDays)
         ? String(snap.etaDays)
@@ -335,12 +371,13 @@ export default function OrderPage() {
 
   const saveQuote = async () => {
     const description = quoteForm.description.trim()
-    const price = quoteForm.priceEstimate.trim()
-      ? Number(quoteForm.priceEstimate.replace(',', '.'))
-      : null
+    const price = quoteForm.price.trim() ? parseMoneyInput(quoteForm.price) : null
     const eta = quoteForm.etaDays.trim() ? Number(quoteForm.etaDays.replace(',', '.')) : null
-    if (price !== null && (!Number.isInteger(price) || price <= 0)) {
-      toast({ title: 'Стоимость — целое число рублей, больше нуля', variant: 'destructive' })
+    if (quoteForm.price.trim() && price === null) {
+      toast({
+        title: 'Цена — число, больше нуля, до 2 знаков после запятой',
+        variant: 'destructive',
+      })
       return
     }
     if (eta !== null && (!Number.isInteger(eta) || eta <= 0)) {
@@ -354,7 +391,9 @@ export default function OrderPage() {
         ? {
             ...(description ? { description } : {}),
             ...(quoteForm.modes.length ? { transportModes: quoteForm.modes } : {}),
-            ...(price !== null ? { priceEstimate: price } : {}),
+            ...(price !== null
+              ? { price, currency: quoteForm.currency, vatMode: quoteForm.vatMode }
+              : {}),
             ...(eta !== null ? { etaDays: eta } : {}),
             ...(quoteForm.priorityFit ? { priorityFit: quoteForm.priorityFit } : {}),
           }
@@ -641,7 +680,7 @@ export default function OrderPage() {
           {order.quoteSnapshot &&
           Boolean(
             order.quoteSnapshot.description ||
-              order.quoteSnapshot.priceEstimate != null ||
+              snapshotPrice(order.quoteSnapshot) != null ||
               order.quoteSnapshot.etaDays != null ||
               order.quoteSnapshot.priorityFit ||
               (Array.isArray(order.quoteSnapshot.transportModes) &&
@@ -675,11 +714,18 @@ export default function OrderPage() {
                   )}
                 </div>
               </div>
-              {order.quoteSnapshot.priceEstimate != null && (
-                <div className="font-semibold tabular-nums whitespace-nowrap">
-                  {fmtMoney(order.quoteSnapshot.priceEstimate)}
-                </div>
-              )}
+              {(() => {
+                const snap = order.quoteSnapshot
+                const p = snapshotPrice(snap)
+                if (p === null || !snap) return null
+                const cur = snapshotCurrency(snap)
+                const vat = snapshotVat(snap)
+                return (
+                  <div className="font-semibold tabular-nums whitespace-nowrap">
+                    {vat ? formatMoneyWithVat(p, cur, vat) : formatMoney(p, cur)}
+                  </div>
+                )
+              })()}
             </div>
           ) : (
             <span className="text-muted-foreground text-sm">
@@ -1004,16 +1050,52 @@ export default function OrderPage() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="grid gap-2">
-                <Label htmlFor="snap-price">Цена, ₽</Label>
+                <Label htmlFor="snap-price">Цена клиенту</Label>
                 <Input
                   id="snap-price"
-                  inputMode="numeric"
+                  inputMode="decimal"
                   placeholder="150000"
-                  value={quoteForm.priceEstimate}
+                  value={quoteForm.price}
                   onChange={(e) =>
-                    setQuoteForm((f) => ({ ...f, priceEstimate: e.target.value }))
+                    setQuoteForm((f) => ({ ...f, price: e.target.value }))
                   }
                 />
+              </div>
+              <div className="grid gap-2">
+                <Label>Валюта</Label>
+                <Select
+                  value={quoteForm.currency}
+                  onValueChange={(v) => setQuoteForm((f) => ({ ...f, currency: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CURRENCIES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {CURRENCY_LABELS[c]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>НДС</Label>
+                <Select
+                  value={quoteForm.vatMode}
+                  onValueChange={(v) => setQuoteForm((f) => ({ ...f, vatMode: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VAT_MODES.map((v) => (
+                      <SelectItem key={v} value={v}>
+                        {VAT_MODE_LABELS[v]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="snap-eta">Срок, дней</Label>

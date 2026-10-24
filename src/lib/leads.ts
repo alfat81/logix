@@ -7,6 +7,7 @@ import {
   TRANSPORT_TYPE_LABELS,
   type TransportTypeCode,
 } from '@/lib/route-fields'
+import { CURRENCIES, VAT_MODES, moneyAmount } from '@/lib/money'
 
 // Константы статусов и zod-схемы лидов — файл БЕЗ серверных зависимостей
 // (db и т.п.): его импортируют и API-роуты, и будущий UI воронки (В5).
@@ -410,12 +411,14 @@ export const TransportModesSchema = z
 const QuoteOptionFieldsSchema = z.object({
   description: z.string().trim().min(1, 'Опишите вариант расчёта'),
   transportModes: TransportModesSchema.optional(),
-  // Деньги — целые рубли, как customsDutyEstimate/priceEstimate в схеме:
-  // копейки в B2B-расчётах не значатся, Int и в БД, и в API.
-  priceEstimate: z
-    .number()
-    .int('Стоимость — целое число (руб.)')
-    .positive('Стоимость должна быть больше нуля'),
+  // P1-04 (RULES 2.15, D19): цена клиенту + валюта + метка НДС;
+  // себестоимость (costEstimate) — отдельное поле, наружу не выходит.
+  // Все деньги — Decimal(14,2) в БД, до 2 знаков после запятой в API.
+  price: moneyAmount('Цена'),
+  currency: z.enum(CURRENCIES).default('RUB'),
+  vatMode: z.enum(VAT_MODES).default('WITHOUT_VAT'),
+  costEstimate: moneyAmount('Себестоимость').nullable().optional(),
+  costCurrency: z.enum(CURRENCIES).default('RUB'),
   etaDays: z.number().int('Срок — целое число дней').positive('Срок должен быть больше нуля (дней)'),
   priorityFit: z.enum(QUOTE_PRIORITY_FITS, {
     errorMap: () => ({ message: 'Неизвестный ориентир варианта (speed | cost | safety)' }),
@@ -448,11 +451,11 @@ export const QuoteSnapshotSchema = z
   .object({
     description: z.string().trim().min(1, 'Опишите условия').optional(),
     transportModes: TransportModesSchema.nullable().optional(),
-    priceEstimate: z
-      .number()
-      .int('Стоимость — целое число (руб.)')
-      .positive('Стоимость должна быть больше нуля')
-      .optional(),
+    // P1-04: цена с валютой и меткой НДС (cost в снимок не попадает —
+    // заявка и её проекции наружу себестоимость не показывают).
+    price: moneyAmount('Стоимость').optional(),
+    currency: z.enum(CURRENCIES).optional(),
+    vatMode: z.enum(VAT_MODES).optional(),
     etaDays: z.number().int('Срок — целое число дней').positive('Срок должен быть больше нуля (дней)').optional(),
     priorityFit: z.enum(QUOTE_PRIORITY_FITS, {
       errorMap: () => ({ message: 'Неизвестный ориентир (speed | cost | safety)' }),

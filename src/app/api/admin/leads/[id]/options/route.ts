@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { CreateQuoteOptionSchema, LEAD_STATUS_LABELS } from '@/lib/leads'
+import { formatMoneyWithVat } from '@/lib/money'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { logActivity, employeeActor } from '@/lib/activity'
 
@@ -85,7 +86,13 @@ export async function POST(req: NextRequest, { params }: Params) {
                   data.transportModes as unknown as Prisma.InputJsonArray,
               }
             : {}),
-          priceEstimate: data.priceEstimate,
+          // P1-04: цена + валюта + НДС-метка; себестоимость — раздельно
+          // (D19), в ленту не пишется (RULES 2.15).
+          price: data.price,
+          currency: data.currency,
+          vatMode: data.vatMode,
+          ...(data.costEstimate !== undefined ? { costEstimate: data.costEstimate } : {}),
+          costCurrency: data.costCurrency,
           etaDays: data.etaDays,
           priorityFit: data.priorityFit,
           isSelected: data.isSelected ?? false,
@@ -105,7 +112,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         { leadId: id },
         employeeActor(auth.employee),
         'option_added',
-        `Добавлен вариант расчёта: ${data.description} — ${new Intl.NumberFormat('ru-RU').format(data.priceEstimate)} ₽, ${data.etaDays} дн.` +
+        `Добавлен вариант расчёта: ${data.description} — ${formatMoneyWithVat(data.price, data.currency, data.vatMode)}, ${data.etaDays} дн.` +
           (becomesCalculated ? ` — лид посчитан: ${LEAD_STATUS_LABELS.calculated}` : ''),
         tx,
       )

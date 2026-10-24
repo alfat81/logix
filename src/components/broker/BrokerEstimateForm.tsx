@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { fmtDuty } from '@/lib/brokers'
+import { parseMoneyInput } from '@/lib/money'
 
 // ─── Форма оценки таможенных платежей (Д, роадмап 5а) ──────────────
 // Единственный write портала брокера: (а) ожидаемый размер платежей
@@ -20,7 +21,8 @@ import { fmtDuty } from '@/lib/brokers'
 // leadId). Сохранение — ПОЛНАЯ ЗАМЕНА (PUT): пустые поля обнуляются.
 
 export type BrokerEstimate = {
-  customsDutyEstimate: number | null
+  // P1-04: Decimal из API приходит строкой (раньше — число)
+  customsDutyEstimate: number | string | null
   requiredPermits: string[]
   notes: string | null
   updatedAt?: string
@@ -60,13 +62,14 @@ export function BrokerEstimateForm({
   const [saving, setSaving] = useState(false)
 
   // Предзаполнение при загрузке/обновлении оценки (props приходит из
-  // карточки — после сохранения родитель перечитает и вернёт свежую)
+  // карточки — после сохранения родитель перечитает и вернёт свежую).
+  // P1-04: Decimal приходит строкой — String() не нужен, но безвреден
   useEffect(() => {
     setForm({
       duty:
-        typeof estimate?.customsDutyEstimate === 'number'
-          ? String(estimate.customsDutyEstimate)
-          : '',
+        estimate?.customsDutyEstimate === null || estimate?.customsDutyEstimate === undefined
+          ? ''
+          : String(estimate.customsDutyEstimate),
       permits: estimate?.requiredPermits ?? [],
       permitDraft: '',
       notes: estimate?.notes ?? '',
@@ -84,10 +87,11 @@ export function BrokerEstimateForm({
   }
 
   const save = async () => {
-    const duty = form.duty.trim() ? Number(form.duty.replace(/\s/g, '').replace(',', '.')) : null
-    if (duty !== null && (!Number.isInteger(duty) || duty < 0)) {
+    // P1-04: Decimal — до 2 знаков после запятой (parseMoneyInput)
+    const duty = form.duty.trim() ? parseMoneyInput(form.duty) : null
+    if (form.duty.trim() && (duty === null || duty < 0)) {
       toast({
-        title: 'Таможенные платежи — целое число рублей, не меньше нуля',
+        title: 'Таможенные платежи — число, не меньше нуля, до 2 знаков',
         variant: 'destructive',
       })
       return

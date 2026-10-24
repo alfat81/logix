@@ -262,6 +262,26 @@ enum TransportType {
   multimodal
 }
 
+// P1-04 (деньги, RULES 2.15): все денежные поля — Decimal + код валюты;
+// float и «рубли по умолчанию» запрещены. Коды английские (стабильные
+// в API), русские подписи и знаки — в lib/money.ts (formatMoney —
+// единственная точка форматирования денег).
+enum Currency {
+  RUB
+  USD
+  EUR
+  CNY
+}
+
+// Режим НДС цены варианта (P1-04): метка цены, НЕ расчёт — маржа/НДС
+// не вычисляются и не отдаются наружу (D19, RULES 2.15). Подписи —
+// lib/money.ts (VAT_MODE_LABELS).
+enum VatMode {
+  WITH_VAT
+  WITHOUT_VAT
+  ZERO_VAT
+}
+
 model Lead {
   id String @id @default(cuid())
   // Клиент опционален: лид рождается на этапе запроса, когда клиента
@@ -355,7 +375,16 @@ model QuoteOption {
   leadId          String
   description     String
   transportModes  Json?
-  priceEstimate   Int
+  // P1-04 (D19, RULES 2.15): цена клиенту (с нашей наценкой) и
+  // себестоимость — РАЗДЕЛЬНЫЕ данные. Цена уходит в снимок заявки
+  // и клиентские проекции; costEstimate — только сотрудникам
+  // (наружу не выходит никогда, D3); маржа не вычисляется.
+  price           Decimal  @db.Decimal(14, 2)
+  currency        Currency @default(RUB)
+  vatMode         VatMode  @default(WITHOUT_VAT)
+  // Себестоимость (внутренняя, nullable — «ещё не посчитана»)
+  costEstimate    Decimal? @db.Decimal(14, 2)
+  costCurrency    Currency @default(RUB)
   etaDays         Int
   // Чем вариант лучше других: speed | cost | safety.
   priorityFit     String
@@ -584,9 +613,11 @@ model BrokerEstimate {
   // может только сам брокер (его заявление, не слово менеджера).
   id                  String   @id @default(cuid())
   leadBrokerId        String   @unique
-  // Целые рубли, как priceEstimate. Nullable — «посчитаю позже»:
+  // P1-04: Decimal по RULES 2.15 (все деньги — Decimal). Валюта —
+  // RUB по природе платежа (таможенные платежи РФ, ТК ЕАЭС) —
+  // отдельный код валюты не нужен. Nullable — «посчитаю позже»:
   // брокер может сначала сообщить список документов, а сумму потом.
-  customsDutyEstimate Int?
+  customsDutyEstimate Decimal? @db.Decimal(14, 2)
   // Список разрешительных документов (строки: «Сертификат
   // соответствия», «Лицензия Минпромторга»…). Json, а не связь со
   // справочником: разрешительная база по ТН ВЭД — Phase 2 (роадмап 6),
