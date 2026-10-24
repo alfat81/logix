@@ -15,14 +15,14 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { TRANSPORT_TYPE_CODES, TRANSPORT_TYPE_LABELS } from '@/lib/route-fields'
-import { cn } from '@/lib/utils'
 import {
-  ORDER_ACTIVE_STATUSES,
+  ORDER_STATUS_LABELS,
   type OrderStatus,
 } from '@/lib/order-constants'
 import { OrderCard, type OrderRow } from '@/components/admin/OrderCard'
 import { OrderCreateDialog } from '@/components/admin/OrderCreateDialog'
 import { OrdersToolbar } from '@/components/admin/OrdersToolbar'
+import { ListTabs, type ListTab } from '@/components/admin/ListTabs'
 
 // P1-19 (v0.3.0) — экспорт сохранён: OrderStatusBadge переезжает в
 // собственный файл (13 потребителей), реэкспорт не ломает импорты.
@@ -30,32 +30,27 @@ export { OrderStatusBadge } from '@/components/admin/OrderStatusBadge'
 
 // ─── Список заявок (Ж4) — эталонный паттерн ─────────────────────────
 // v0.3.1 (BRANDBOOK §4.2–4.3, референс-макет D24): шапка раздела —
-// заголовок + табы-группы (активный — Ink/Medium с подчёркиванием
-// Coral, неактивные — приглушённые) + поиск с лупой + главное действие
-// Coral «Новая заявка»; карточки — анатомия §4.3 (OrderCard: номер,
-// маршрут, клиент, ETA, степпер, задержка). Детальные статус-кнопки
-// заменены группами: домен паузы не имеет (IA-решение в отчёте);
-// API ?status=<один статус> сохранён для совместимости (e2e).
-// Фильтры P1-01/P1-03 (ответственный, направление, тип) — вторичные
-// строки под табами, без изменений.
+// заголовок + табы + поиск с лупой + главное действие Coral «Новая
+// заявка»; карточки — анатомия §4.3 (OrderCard: номер, маршрут,
+// клиент, ETA, степпер, задержка).
+// v0.4.0 (D25 — решение владельца): табы ПО-СТАТУСНЫЕ — Все / Расчёт /
+// Согласование / В работе / Завершённые / Отменённые (ORDER_STATUSES),
+// вместо групп v0.3.1. Число у таба — распределение найденного (API
+// counts по тому же поиску). Группа «active» в API сохранена — ею
+// пользуются счётчики навигации §4.1 (layout) и e2e. Фильтры
+// P1-01/P1-03 (ответственный, направление, тип) — без изменений.
 
 type OrdersPage = { orders: OrderRow[]; hasMore: boolean; counts: Record<'all' | OrderStatus, number> }
 
-// Табы-группы шапки §4.2: ключ → подпись; счётчик группы считается
-// клиентски из counts по статусам (API отдаёт распределение найденного).
-const STATUS_TABS: Array<{ key: 'all' | 'active' | 'completed' | 'cancelled'; label: string }> = [
+// v0.4.0: табы по статусам (D25). Ключ таба = ключ API ?status=.
+const STATUS_TABS: Array<ListTab & { key: 'all' | OrderStatus }> = [
   { key: 'all', label: 'Все' },
-  { key: 'active', label: 'Активные' },
+  { key: 'calculating', label: 'Расчёт' },
+  { key: 'confirmed', label: 'Согласование' },
+  { key: 'in_progress', label: 'В работе' },
   { key: 'completed', label: 'Завершённые' },
   { key: 'cancelled', label: 'Отменённые' },
 ]
-
-function groupCount(counts: OrdersPage['counts'] | null, key: string): number | null {
-  if (!counts) return null
-  if (key === 'all') return counts.all
-  if (key === 'active') return ORDER_ACTIVE_STATUSES.reduce((n, s) => n + counts[s], 0)
-  return counts[key as OrderStatus]
-}
 
 export function OrdersList() {
   const { toast } = useToast()
@@ -65,8 +60,8 @@ export function OrdersList() {
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
-  // Таб-группа статуса (§4.2): 'all' не шлётся в API, группы — ?status=
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed' | 'cancelled'>('all')
+  // Таб статуса (v0.4.0, D25): 'all' не шлётся в API, статусы — ?status=
+  const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all')
   const [sort, setSort] = useState('newest')
   // P1-01: фильтр ответственного («Мои / Все / Без ответственного»)
   const [assignedFilter, setAssignedFilter] = useState<'all' | 'mine' | 'unassigned'>('all')
@@ -157,32 +152,16 @@ export function OrdersList() {
         <OrderCreateDialog onCreated={() => setVersion((v) => v + 1)} />
       </div>
 
-      {/* §4.2 табы-фильтры: активный — Ink/Medium, подчёркивание Coral;
-          неактивные — приглушённые. Число — распределение найденного
-          (та же семантика, что была у статусных кнопок). */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b pb-1">
-        {STATUS_TABS.map((t) => {
-          const n = groupCount(counts, t.key)
-          const active = statusFilter === t.key
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setStatusFilter(t.key)}
-              aria-current={active ? 'true' : undefined}
-              className={cn(
-                '-mb-1 border-b-2 pb-1.5 text-sm transition-colors',
-                active
-                  ? 'border-primary font-medium text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {t.label}
-              {n !== null && <span className="ml-1.5 tabular-nums text-muted-foreground">{n}</span>}
-            </button>
-          )
-        })}
-      </div>
+      {/* v0.4.0 (§4.2, D25): табы по статусам — числа из API counts;
+          активный — Ink/Medium, подчёркивание Coral (ListTabs). */}
+      <ListTabs
+        tabs={STATUS_TABS.map((t) => ({
+          ...t,
+          count: counts ? counts[t.key] : null,
+        }))}
+        active={statusFilter}
+        onChange={(k) => setStatusFilter(k as 'all' | OrderStatus)}
+      />
 
       {/* Ж4: поиск + сортировка (эталонный паттерн списка) */}
       <OrdersToolbar q={q} onQChange={setQ} sort={sort} onSortChange={setSort} />
@@ -267,7 +246,7 @@ export function OrdersList() {
             ? `Ничего не найдено по «${q}».`
             : statusFilter === 'all'
               ? 'Заявок пока нет — создайте первую.'
-              : `В группе «${STATUS_TABS.find((t) => t.key === statusFilter)?.label}» заявок нет.`}
+              : `Заявок в статусе «${ORDER_STATUS_LABELS[statusFilter]}» нет.`}
         </Card>
       ) : (
         <div className="flex flex-col gap-2">

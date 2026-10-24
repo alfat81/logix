@@ -211,6 +211,21 @@ if rows:
     chk('v0.3.1: имя просроченного этапа в списке',row.get('overdue') is True and bool(row.get('overdueStage')),(row.get('overdue'),row.get('overdueStage')))
     chk('v0.3.1: этапы степпера в ответе списка',len(row.get('stages',[]))>=6 and all(set(x)>={'code','name','status'} for x in row.get('stages',[])),len(row.get('stages',[])))
 s,d=a.r('GET','/api/admin/orders?status=bogus'); chk('v0.3.1: неизвестная группа статуса → 400',s==400,s)
+# --- v0.4.0 (D25): по-статусные табы заявок + counts/?q= лидов ---
+s,d=a.r('GET','/api/admin/orders?status=in_progress'); v4rows=[x for x in d.get('orders',[]) if x['id']==oid]
+chk('v0.4.0: одиночный статус in_progress содержит заявку',s==200 and len(v4rows)==1,(s,len(d.get('orders',[]))))
+chk('v0.4.0: по-статусный фильтр — только in_progress',all(x['status']=='in_progress' for x in d.get('orders',[])),[x['status'] for x in d.get('orders',[])][:8])
+s,d=a.r('GET','/api/admin/leads'); lcounts=d.get('counts') or {}
+chk('v0.4.0: counts лидов в ответе',s==200 and set(lcounts)>={'all','new','calculated','won','lost'},lcounts)
+chk('v0.4.0: counts.all = сумма по статусам',lcounts.get('all')==sum(lcounts.get(k,0) for k in ('new','calculated','won','lost')),lcounts)
+uq=u[:8]
+s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'Грузчик '+uq,'phone':'+86 130 '+str(base)},'route':{'originCity':'Сургут','destinationCity':'Тюмень'},'cargoInfo':{'cargoName':'Стекло закалённое '+uq}})
+chk('v0.4.0: лид для поиска создан',s in(200,201),(s,d)); qlid=(d.get('lead') or d)['id']
+s,d=a.r('GET',f"/api/admin/leads?q={urlquote('Грузчик '+uq)}"); qids=[x['id'] for x in d.get('leads',[])]
+chk('v0.4.0: поиск ?q= по rawContact.name (Json) находит лид',s==200 and qlid in qids,(s,len(qids)))
+s,d=a.r('GET',f"/api/admin/leads?q={urlquote('Стекло закалённое '+uq)}"); qids2=[x['id'] for x in d.get('leads',[])]
+chk('v0.4.0: поиск ?q= по cargoInfo.cargoName (Json) находит лид',s==200 and qlid in qids2,(s,len(qids2)))
+s,d=a.r('GET',f"/api/admin/leads?q={urlquote('такого-нет-никогда')}"); chk('v0.4.0: поиск без результатов — пустой список и нули',s==200 and d.get('leads')==[] and (d.get('counts') or {}).get('all')==0,(s,d.get('counts')))
 # contractor
 s,d=a.r('POST','/api/admin/contractor-leads',{'companyName':'Перевозчик '+u}); chk('кандидат-подрядчик',s in(200,201),(s,d)); clid=(d.get('contractorLead') or d.get('lead') or d)['id']
 cph=ph(base+2); s,d=a.r('PATCH',f'/api/admin/contractor-leads/{clid}',{'status':'contracted','phone':cph,'password':'contr-pass-1'}); chk('подрядчик рождён',s in(200,201),(s,d))

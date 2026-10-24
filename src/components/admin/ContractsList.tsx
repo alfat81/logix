@@ -21,6 +21,11 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value'
 // клиенту и юрлицу; сортировка; «Показать ещё». Создания вручную
 // нет: договор рождается автоматически при первой заявке пары
 // клиент+юрлицо (роадмап 8.2). Клиент в строке — ссылка на карточку.
+// v0.4.0 (BRANDBOOK §4.3): карточка — анатомия заявки без степпера
+// (по аналогии, решение владельца): строка 1 — номер (tabular,
+// приглушённый), строка 2 — клиент Bold (ссылка), строка 3 — юрлицо
+// и подпись приглушённая; правый блок — счётчик заявок (как
+// ETA-блок).
 
 const PAGE_TAKE = 20
 
@@ -162,24 +167,30 @@ export function ContractsList() {
       ) : (
         <div className="grid gap-2">
           {contracts.map((c) => (
-            <Card key={c.id} className="p-4 flex flex-wrap items-center gap-x-6 gap-y-1">
-              <div className="font-mono font-semibold text-lg min-w-20">№{c.number}</div>
-              <div className="min-w-40 flex-1">
-                <Link
-                  href={`/admin/customers/${c.customer.id}`}
-                  className="text-sm font-medium truncate hover:underline"
-                >
-                  {c.customer.name}
-                </Link>
-                <div className="text-xs text-muted-foreground truncate">
-                  {c.legalEntity.name} ·{' '}
-                  {c.signedAt
-                    ? `подписан ${new Date(c.signedAt).toLocaleDateString('ru-RU')}`
-                    : 'ещё не подписан'}
+            <Card key={c.id} className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-muted-foreground text-sm tabular-nums">№{c.number}</div>
+                  <div className="truncate font-semibold">
+                    <Link
+                      href={`/admin/customers/${c.customer.id}`}
+                      className="hover:underline"
+                    >
+                      {c.customer.name}
+                    </Link>
+                  </div>
+                  <div className="truncate text-sm text-muted-foreground">
+                    {c.legalEntity.name} ·{' '}
+                    {c.signedAt
+                      ? `подписан ${new Date(c.signedAt).toLocaleDateString('ru-RU')}`
+                      : 'ещё не подписан'}
+                  </div>
                 </div>
-              </div>
-              <div className="text-sm text-muted-foreground tabular-nums">
-                Заявок: <span className="text-foreground">{c.ordersCount}</span>
+                <div className="shrink-0 text-right">
+                  <div className="text-sm font-semibold tabular-nums">
+                    Заявок: {c.ordersCount}
+                  </div>
+                </div>
               </div>
             </Card>
           ))}

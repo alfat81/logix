@@ -1,23 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
-import { Loader2, Plus, Users } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { LEAD_BADGE_VARIANTS } from '@/lib/status-badges'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -26,331 +13,133 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
+import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { readApiResponse } from '@/lib/api-client'
 import { TRANSPORT_TYPE_CODES, TRANSPORT_TYPE_LABELS } from '@/lib/route-fields'
-import { CargoFormFields } from '@/components/admin/CargoGroups'
-import {
-  LEAD_STATUSES,
-  LEAD_STATUS_LABELS,
-  EMPTY_LEAD_CARGO_FORM,
-  buildLeadPayload,
-  readLeadCargo,
-  type LeadStatus,
-  type LeadCargoForm,
-} from '@/lib/leads'
-import { formatMoney, isCurrencyCode } from '@/lib/money'
+import { LEAD_STATUS_LABELS, type LeadStatus } from '@/lib/leads'
+import { LeadListCard, type LeadRow } from '@/components/admin/LeadListCard'
+import { LeadCreateDialog } from '@/components/admin/LeadCreateDialog'
+import { LeadsToolbar } from '@/components/admin/LeadsToolbar'
+import { ListTabs, type ListTab } from '@/components/admin/ListTabs'
 
-// ─── Типы ответов API (узкая выжимка, всё как в роутах В2/В3) ──
+// P1-19 (v0.3.0) — экспорт сохранён: LeadStatusBadge живёт в
+// собственном файле (v0.4.0), реэкспорт не ломает импорты
+// (LeadCard, CustomerCard, GlobalSearch).
+export { LeadStatusBadge } from '@/components/admin/LeadStatusBadge'
 
-type QuoteOptionRow = {
-  id: string
-  description: string
-  transportModes: string[] | null
-  // P1-04: Decimal приходит строкой; валюта/НДС — метки
-  price: string
-  currency: string
-  vatMode: string
-  etaDays: number
-  priorityFit: string
-  isSelected: boolean
-}
+// ─── Список лидов (В5) — паттерн эталона Ж4 ────────────────────────
+// v0.4.0 (BRANDBOOK §4.2–4.3, D25 — решение владельца): шапка раздела
+// как у заявок — заголовок + главное действие Coral «Новый лид», табы
+// ПО-СТАТУСНЫЕ с числами (API counts — распределение найденного по
+// тому же поиску), поиск с лупой (LeadsToolbar, API ?q=); карточки —
+// анатомия §4.3 без степпера (LeadListCard). Лид номера не имеет:
+// идентификатор карточки — дата создания. Фильтры P1-01 (ответ-
+// ственный, «давно без движения») и P1-03 (направление, тип) — без
+// изменений. Состав таблицы счётчиков зеркалит заявки.
 
-type LeadRow = {
-  id: string
-  status: LeadStatus
-  createdAt: string
-  source: string
-  rawContact: { name: string; phone?: string; email?: string } | null
-  cargoInfo: Record<string, unknown> | null
-  customer: { id: string; name: string; phone: string | null } | null
-  // P1-01: ответственный менеджер (null = не назначен)
-  assignee: { id: string; name: string } | null
-  options: QuoteOptionRow[]
-  order: { id: string; number: string } | null
-}
+type LeadsPage = { leads: LeadRow[]; counts: Record<'all' | LeadStatus, number> }
 
-type CustomerRow = { id: string; name: string; phone: string | null }
-
-const fmtDate = (iso: string): string => new Date(iso).toLocaleDateString('ru-RU')
-
-// Что показывать в строке списка: контакты лида — это клиент из
-// справочника (customerId) либо сырые rawContact (В1: до конвертации
-// клиента может ещё не быть).
-function contactOf(lead: LeadRow): { name: string; phone: string } {
-  if (lead.customer) {
-    return { name: lead.customer.name, phone: lead.customer.phone ?? '' }
-  }
-  return { name: lead.rawContact?.name ?? 'Без контактов', phone: lead.rawContact?.phone ?? '' }
-}
+// v0.4.0: табы по статусам воронки (D25). Ключ таба = ключ API ?status=.
+const STATUS_TABS: Array<ListTab & { key: 'all' | LeadStatus }> = [
+  { key: 'all', label: 'Все' },
+  { key: 'new', label: 'Новые' },
+  { key: 'calculated', label: 'Рассчитанные' },
+  { key: 'won', label: 'Выигранные' },
+  { key: 'lost', label: 'Отказ' },
+]
 
 export function LeadsList() {
   const { toast } = useToast()
 
   const [leads, setLeads] = useState<LeadRow[]>([])
+  const [counts, setCounts] = useState<LeadsPage['counts'] | null>(null)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<'all' | LeadStatus>('all')
   // P1-01: фильтр ответственного и сортировка «давно без движения»
   const [assignedFilter, setAssignedFilter] = useState<'all' | 'mine' | 'unassigned'>('all')
-  const [sort, setSort] = useState<'newest' | 'stale'>('newest')
-
-  const [customers, setCustomers] = useState<CustomerRow[]>([])
-  const [createOpen, setCreateOpen] = useState(false)
-  const [creating, setCreating] = useState(false)
-
-  // Клиентская часть: либо существующий (customerId), либо сырые
-  // контакты rawContact (В1/В2: лид рождается до заведения клиента).
-  const [isNewContact, setIsNewContact] = useState(true)
-  const [customerId, setCustomerId] = useState('')
-  const [contactName, setContactName] = useState('')
-  const [contactPhone, setContactPhone] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
-  // Анкета груза — поля типового бланка заявки (В5).
-  const [cargo, setCargo] = useState<LeadCargoForm>({ ...EMPTY_LEAD_CARGO_FORM })
-
+  const [sort, setSort] = useState('newest')
+  // v0.4.0: поиск §4.2 (API ?q= — клиент, контакты, телефон, груз)
+  const [q, setQ] = useState('')
+  const debouncedQ = useDebouncedValue(q, 400)
   // P1-03: фильтры направления и типа (текст — с локальным debounce)
   const [originFilter, setOriginFilter] = useState('')
   const [destinationFilter, setDestinationFilter] = useState('')
-  const [debouncedOrigin, setDebouncedOrigin] = useState('')
-  const [debouncedDestination, setDebouncedDestination] = useState('')
+  const debouncedOrigin = useDebouncedValue(originFilter, 400)
+  const debouncedDestination = useDebouncedValue(destinationFilter, 400)
   const [transportFilter, setTransportFilter] = useState('all')
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedOrigin(originFilter), 400)
-    return () => clearTimeout(t)
-  }, [originFilter])
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedDestination(destinationFilter), 400)
-    return () => clearTimeout(t)
-  }, [destinationFilter])
+  // Счётчик версий: сброс списка после создания лида в диалоге.
+  const [version, setVersion] = useState(0)
+  // Страж гонок: применяем только последний ответ.
+  const reqId = useRef(0)
 
-  const loadLeads = useCallback(async () => {
+  const fetchLeads = useCallback(async (): Promise<LeadsPage> => {
+    const params = new URLSearchParams()
+    if (debouncedQ) params.set('q', debouncedQ)
+    if (statusFilter !== 'all') params.set('status', statusFilter)
+    if (assignedFilter !== 'all') params.set('assigned', assignedFilter)
+    if (sort !== 'newest') params.set('sort', sort)
+    // P1-03: направление и тип перевозки
+    if (debouncedOrigin.trim()) params.set('origin', debouncedOrigin.trim())
+    if (debouncedDestination.trim()) params.set('destination', debouncedDestination.trim())
+    if (transportFilter !== 'all') params.set('transport', transportFilter)
+    const res = await fetch(`/api/admin/leads?${params.toString()}`)
+    const data = await readApiResponse<LeadsPage & { error?: string }>(res)
+    if (!res.ok) throw new Error(data.error || 'Ошибка загрузки')
+    return data
+  }, [debouncedQ, statusFilter, assignedFilter, sort, debouncedOrigin, debouncedDestination, transportFilter])
+
+  useEffect(() => {
+    const id = ++reqId.current
     setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (statusFilter !== 'all') params.set('status', statusFilter)
-      if (assignedFilter !== 'all') params.set('assigned', assignedFilter)
-      if (sort !== 'newest') params.set('sort', sort)
-      // P1-03: направление и тип перевозки
-      if (debouncedOrigin.trim()) params.set('origin', debouncedOrigin.trim())
-      if (debouncedDestination.trim()) params.set('destination', debouncedDestination.trim())
-      if (transportFilter !== 'all') params.set('transport', transportFilter)
-      const res = await fetch(`/api/admin/leads?${params.toString()}`)
-      const data = await readApiResponse<{ leads: LeadRow[]; error?: string }>(res)
-      if (!res.ok) throw new Error(data.error || 'Ошибка загрузки')
-      setLeads(data.leads)
-    } catch (e) {
-      toast({
-        title: 'Не удалось загрузить лиды',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
+    fetchLeads()
+      .then((data) => {
+        if (id !== reqId.current) return
+        setLeads(data.leads)
+        setCounts(data.counts)
       })
-    } finally {
-      setLoading(false)
-    }
-  }, [statusFilter, assignedFilter, sort, toast, debouncedOrigin, debouncedDestination, transportFilter])
-
-  useEffect(() => {
-    loadLeads()
-  }, [loadLeads])
-
-  // Справочник клиентов — один раз при первом открытии диалога
-  useEffect(() => {
-    if (!createOpen || customers.length) return
-    fetch('/api/admin/customers')
-      .then((r) => r.json())
-      .then((d) => setCustomers(d.customers ?? []))
-      .catch(() => {})
-  }, [createOpen, customers.length])
-
-  const resetForm = () => {
-    setCustomerId('')
-    setContactName('')
-    setContactPhone('')
-    setContactEmail('')
-    setIsNewContact(true)
-    setCargo({ ...EMPTY_LEAD_CARGO_FORM })
-  }
-
-  const handleCreate = async () => {
-    if (isNewContact && !contactName.trim()) {
-      toast({ title: 'Укажите имя контакта', variant: 'destructive' })
-      return
-    }
-    if (!isNewContact && !customerId) {
-      toast({ title: 'Выберите клиента из справочника', variant: 'destructive' })
-      return
-    }
-    setCreating(true)
-    try {
-      // rawContact — черновик: телефон не нормализуем (бывают
-      // иностранные +86…, В1), пустые email не отправляем вовсе
-      // (серверная zod-схема проверит формат непустого).
-      const raw = isNewContact
-        ? {
-            name: contactName.trim(),
-            ...(contactPhone.trim() ? { phone: contactPhone.trim() } : {}),
-            ...(contactEmail.trim() ? { email: contactEmail.trim() } : {}),
-          }
-        : undefined
-      // P1-03: форма → route (колонки) + cargoInfo-rest
-      const { route, cargo: cargoInfo } = buildLeadPayload(cargo)
-
-      const res = await fetch('/api/admin/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...(isNewContact ? { rawContact: raw } : { customerId }),
-          ...(cargoInfo ? { cargoInfo } : {}),
-          route,
-        }),
+      .catch((e) => {
+        if (id !== reqId.current) return
+        toast({
+          title: 'Не удалось загрузить лиды',
+          description: e instanceof Error ? e.message : '',
+          variant: 'destructive',
+        })
       })
-      const data = await readApiResponse<{ error?: string }>(res)
-      if (!res.ok) throw new Error(data.error || 'Не удалось создать лид')
-
-      toast({ title: 'Лид создан', description: 'Статус: Новый' })
-      setCreateOpen(false)
-      resetForm()
-      loadLeads()
-    } catch (e) {
-      toast({
-        title: 'Ошибка создания',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
+      .finally(() => {
+        if (id === reqId.current) setLoading(false)
       })
-    } finally {
-      setCreating(false)
-    }
-  }
+  }, [fetchLeads, version, toast])
 
   return (
-    <div className="grid gap-4">
+    <div className="flex flex-col gap-4">
+      {/* §4.2 шапка списка: заголовок Bold + главное действие Coral */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Лиды</h1>
-          <p className="text-sm text-muted-foreground">
-            Воронка запросов: анкета по бланку → варианты расчёта → заявка (Дорожка В)
-          </p>
-        </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="size-4" />
-              Новый лид
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Новый лид</DialogTitle>
-              <DialogDescription>
-                Анкета — по типовой заявке клиента: заполняйте по мере наличия
-                данных, все поля груза необязательны. Клиент в справочнике
-                родится сам при конвертации в заявку.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-5">
-              {/* ── Клиент / контакты ─────────────────────────── */}
-              <div className="grid gap-2">
-                <Label>Клиент</Label>
-                {isNewContact ? (
-                  <div className="grid gap-2">
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Контактное лицо или компания"
-                        value={contactName}
-                        onChange={(e) => setContactName(e.target.value)}
-                      />
-                      <Button type="button" variant="outline" onClick={() => setIsNewContact(false)}>
-                        Из списка
-                      </Button>
-                    </div>
-                    <Input
-                      type="tel"
-                      placeholder="Телефон — не обязателен (можно иностранный)"
-                      value={contactPhone}
-                      onChange={(e) => setContactPhone(e.target.value)}
-                    />
-                    <Input
-                      type="email"
-                      placeholder="Email — не обязателен"
-                      value={contactEmail}
-                      onChange={(e) => setContactEmail(e.target.value)}
-                    />
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <Select value={customerId} onValueChange={setCustomerId}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Выберите клиента" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <div className="max-h-64 overflow-y-auto">
-                          {customers.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.name}
-                              {c.phone ? ` · ${c.phone}` : ''}
-                            </SelectItem>
-                          ))}
-                        </div>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setIsNewContact(true)
-                        setCustomerId('')
-                      }}
-                    >
-                      <Users className="size-4" />
-                      Новый
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {/* ── Анкета груза: общий бланк (CargoFormFields, Ж1 —
-                  та же форма правки груза у заявки) ───────────── */}
-              <CargoFormFields form={cargo} onChange={setCargo} />
-            </div>
-            <DialogFooter>
-              <Button onClick={handleCreate} disabled={creating}>
-                {creating && <Loader2 className="size-4 animate-spin" />}
-                Создать лид
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <h1 className="text-2xl font-semibold tracking-tight">Лиды</h1>
+        <LeadCreateDialog onCreated={() => setVersion((v) => v + 1)} />
       </div>
 
-      {/* Табы по статусам воронки (роадмап 8.1 + В2: ?status=) */}
+      {/* v0.4.0 (§4.2, D25): по-статусные табы — числа из API counts;
+          активный — Ink/Medium, подчёркивание Coral (ListTabs). */}
+      <ListTabs
+        tabs={STATUS_TABS.map((t) => ({
+          ...t,
+          count: counts ? counts[t.key] : null,
+        }))}
+        active={statusFilter}
+        onChange={(k) => setStatusFilter(k as 'all' | LeadStatus)}
+      />
+
+      {/* §4.2: поиск + сортировка (эталонный паттерн списка) */}
+      <LeadsToolbar q={q} onQChange={setQ} sort={sort} onSortChange={setSort} />
+
+      {/* P1-01: фильтр ответственного (Мои / Все / Без ответственного) */}
       <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant={statusFilter === 'all' ? 'default' : 'outline'}
-          onClick={() => setStatusFilter('all')}
-        >
-          Все
-        </Button>
-        {LEAD_STATUSES.map((s) => (
-          <Button
-            key={s}
-            size="sm"
-            variant={statusFilter === s ? 'default' : 'outline'}
-            onClick={() => setStatusFilter(s)}
-          >
-            {LEAD_STATUS_LABELS[s]}
-          </Button>
-        ))}
-      </div>
-
-      {/* P1-01: фильтр ответственного + сортировка «давно без движения» */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">Ответственный:</span>
         <Button
           size="sm"
           variant={assignedFilter === 'all' ? 'default' : 'outline'}
           onClick={() => setAssignedFilter('all')}
         >
-          Все
+          Ответственный: все
         </Button>
         <Button
           size="sm"
@@ -366,15 +155,6 @@ export function LeadsList() {
         >
           Без ответственного
         </Button>
-        <Select value={sort} onValueChange={(v) => setSort(v as 'newest' | 'stale')}>
-          <SelectTrigger className="w-56 ml-auto">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="newest">Сначала новые</SelectItem>
-            <SelectItem value="stale">Давно без движения</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* P1-03: фильтры направления и типа перевозки */}
@@ -406,11 +186,16 @@ export function LeadsList() {
           </SelectContent>
         </Select>
         {(originFilter || destinationFilter || transportFilter !== 'all') && (
-          <Button size="sm" variant="ghost" onClick={() => {
-            setOriginFilter('')
-            setDestinationFilter('')
-            setTransportFilter('all')
-          }}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setOriginFilter('')
+              setDestinationFilter('')
+              setTransportFilter('all')
+            }}
+          >
+            <X className="size-4" />
             Сбросить
           </Button>
         )}
@@ -423,71 +208,19 @@ export function LeadsList() {
         </div>
       ) : leads.length === 0 ? (
         <Card className="p-8 text-center text-muted-foreground text-sm">
-          {statusFilter === 'all'
-            ? 'Лидов пока нет — создайте первый запрос.'
-            : `Лидов со статусом «${LEAD_STATUS_LABELS[statusFilter]}» нет.`}
+          {q
+            ? `Ничего не найдено по «${q}».`
+            : statusFilter === 'all'
+              ? 'Лидов пока нет — создайте первый запрос.'
+              : `Лидов в статусе «${LEAD_STATUS_LABELS[statusFilter]}» нет.`}
         </Card>
       ) : (
-        <div className="grid gap-2">
-          {leads.map((l) => {
-            const contact = contactOf(l)
-            const c = readLeadCargo(l.cargoInfo)
-            const cargoName = typeof c.cargoName === 'string' && c.cargoName ? c.cargoName : ''
-            const from = typeof c.from === 'string' && c.from ? c.from : ''
-            const to = typeof c.to === 'string' && c.to ? c.to : ''
-            const selected = l.options.find((o) => o.isSelected)
-            return (
-              <Link key={l.id} href={`/admin/leads/${l.id}`} className="block group">
-                <Card className="p-4 flex flex-wrap items-center gap-x-6 gap-y-2 transition-colors group-hover:border-ring">
-                  <div className="min-w-44 flex-1">
-                    <div className="font-medium truncate">{contact.name}</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {contact.phone || 'без телефона'} · {fmtDate(l.createdAt)}
-                    </div>
-                  </div>
-                  <div className="min-w-52 flex-1">
-                    <div className="text-sm truncate">{cargoName || <span className="text-muted-foreground">Груз не указан</span>}</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {from || to ? `${from || '—'} → ${to || '—'}` : 'Маршрут не указан'}
-                    </div>
-                  </div>
-                  <div className="text-sm text-muted-foreground tabular-nums whitespace-nowrap">
-                    {l.options.length > 0 ? (
-                      <>
-                        {l.options.length} вар.
-                        {selected && <span className="text-foreground font-medium"> · {formatMoney(selected.price, isCurrencyCode(selected.currency) ? selected.currency : 'RUB')}</span>}
-                      </>
-                    ) : (
-                      'без расчёта'
-                    )}
-                  </div>
-                  {/* P1-01: колонка ответственного в списке */}
-                  <div className="min-w-28">
-                    <div className="text-xs text-muted-foreground">Ответственный</div>
-                    <div className="text-sm truncate">
-                      {l.assignee?.name ?? <span className="text-muted-foreground">—</span>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <LeadStatusBadge status={l.status} />
-                    {/* И1: запрос пришёл из клиентского кабинета — менеджеру
-                        видно происхождение до открытия карточки */}
-                    {l.source === 'cabinet' && <Badge variant="outline">Кабинет</Badge>}
-                  </div>
-                </Card>
-              </Link>
-            )
-          })}
+        <div className="flex flex-col gap-2">
+          {leads.map((l) => (
+            <LeadListCard key={l.id} lead={l} />
+          ))}
         </div>
       )}
     </div>
-  )
-}
-
-export function LeadStatusBadge({ status }: { status: LeadStatus }) {
-  // P1-19 (BRANDBOOK §3.2): «таблетка» из единой точки маппинга
-  // lib/status-badges.ts; текст — тот же словарь LEAD_STATUS_LABELS.
-  return (
-    <Badge variant={LEAD_BADGE_VARIANTS[status]}>{LEAD_STATUS_LABELS[status]}</Badge>
   )
 }

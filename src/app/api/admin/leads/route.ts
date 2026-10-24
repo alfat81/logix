@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
-import { CreateLeadSchema, LEAD_STATUSES } from '@/lib/leads'
+import { CreateLeadSchema, LEAD_STATUSES, type LeadStatus } from '@/lib/leads'
 import {
   readyDateInput,
   TRANSPORT_TYPE_CODES,
@@ -10,16 +10,24 @@ import {
 } from '@/lib/route-fields'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { logActivity, employeeActor } from '@/lib/activity'
+import { ciContains } from '@/lib/list-query'
 
 // ─── GET /api/admin/leads — список лидов (В2) ─────────────────
 // Query:
-//   ?status=new|calculated|won|lost — фильтр по статусу воронки (табы В5)
+//   ?status=new|calculated|won|lost — фильтр по статусу воронки (табы В5;
+//   v0.4.0 — табы по-статусные §4.2, D25)
+//   ?q= поиск: имя/телефон клиента, контакты rawContact (Json), название
+//   груза cargoInfo.cargoName (Json) — v0.4.0 (BRANDBOOK §4.2, эталон Ж4)
 //   ?assigned=mine|unassigned|all — фильтр ответственного (P1-01):
 //     mine = только мои, unassigned = без ответственного, all = умолчание
 //   ?sort=newest|stale — newest (умолчание) свежие сверху; stale —
 //     «давно без движения» (updatedAt asc, P1-01)
 // Свежие сверху; состав include — как в карточке лида, чтобы списку
 // и табам хватило одного запроса.
+// v0.4.0: counts — распределение по статусам, считается по ТОМУ ЖЕ
+// поиску, но без фильтров таба/ответственного/направления (та же
+// семантика, что у заявок: табы показывают распределение найденного,
+// а не всей базы).
 const LEAD_ASSIGNED_FILTERS = ['mine', 'unassigned', 'all'] as const
 const LEAD_LIST_SORTS = ['newest', 'stale'] as const
 
@@ -44,6 +52,11 @@ export async function GET(req: NextRequest) {
   try {
     const conds: Prisma.LeadWhereInput[] = []
     if (status) conds.push({ status })
+    // v0.4.0: поиск ?q= — по клиенту из справочника, сырым контактам
+    // (Json rawContact) и названию груза (Json cargoInfo). Лид без номера:
+    // менеджер ищет «кто» и «что везём». Json-фильтры — Postgres-only,
+    // без mode регистр не важен только для колонок — для Json строки
+    // ищем как есть (как в карточке: первое знакомство с лидом).
     // P1-01: mine — «лид веду я»; unassigned — разбор входящих без
     // ответственного (в т.ч. запросы из кабинета И1)
     if (assigned === 'mine') conds.push({ assignedToId: auth.employee.id })
@@ -58,6 +71,20 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       )
     }
+    const q = req.nextUrl.searchParams.get('q')?.trim() ?? ''
+    const search: Prisma.LeadWhereInput | undefined = q
+      ? {
+          OR: [
+            { customer: { name: ciContains(q) } },
+            { customer: { phone: ciContains(q) } },
+            { rawContact: { path: ['name'], string_contains: q } },
+            { rawContact: { path: ['phone'], string_contains: q } },
+            { cargoInfo: { path: ['cargoName'], string_contains: q } },
+          ],
+        }
+      : undefined
+    if (search) conds.push(search)
+
     const ci = (v: string) => ({ contains: v, mode: 'insensitive' as const })
     if (origin) {
       conds.push({ OR: [{ originCity: ci(origin) }, { originCountry: ci(origin) }] })
@@ -68,20 +95,45 @@ export async function GET(req: NextRequest) {
     if (transport) conds.push({ transportType: transport as TransportTypeCode })
     const where: Prisma.LeadWhereInput = conds.length ? { AND: conds } : {}
 
-    const leads = await db.lead.findMany({
-      where,
-      // stale — «давно без движения»: старое изменение сверху (P1-01);
-      // id — стабильный tie-break, чтобы страницы не дрожали
-      orderBy: sort === 'stale' ? [{ updatedAt: 'asc' }, { id: 'asc' }] : [{ createdAt: 'desc' }, { id: 'asc' }],
-      include: {
-        customer: { select: { id: true, name: true, phone: true } },
-        assignee: { select: { id: true, name: true } },
-        options: { orderBy: { createdAt: 'asc' } },
-        order: { select: { id: true, number: true } },
-      },
-    })
+    const [leads, grouped] = await Promise.all([
+      db.lead.findMany({
+        where,
+        // stale — «давно без движения»: старое изменение сверху (P1-01);
+        // id — стабильный tie-break, чтобы страницы не дрожали
+        orderBy:
+          sort === 'stale'
+            ? [{ updatedAt: 'asc' }, { id: 'asc' }]
+            : [{ createdAt: 'desc' }, { id: 'asc' }],
+        include: {
+          customer: { select: { id: true, name: true, phone: true } },
+          assignee: { select: { id: true, name: true } },
+          options: { orderBy: { createdAt: 'asc' } },
+          order: { select: { id: true, number: true } },
+        },
+      }),
+      // Счётчики без фильтров таба/ответственного/направления —
+      // семантика заявок (v0.4.0, §4.2).
+      db.lead.groupBy({
+        by: ['status'],
+        where: search,
+        _count: { _all: true },
+      }),
+    ])
 
-    return NextResponse.json({ leads })
+    const counts: Record<'all' | LeadStatus, number> = {
+      all: 0,
+      new: 0,
+      calculated: 0,
+      won: 0,
+      lost: 0,
+    }
+    for (const g of grouped) {
+      const n = g._count._all
+      counts[g.status as LeadStatus] = n
+      counts.all += n
+    }
+
+    return NextResponse.json({ leads, counts })
   } catch (e) {
     return apiErrorResponse(e, 'leads GET', 'Не удалось загрузить лиды')
   }

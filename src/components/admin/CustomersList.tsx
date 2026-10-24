@@ -2,21 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ChevronRight, Loader2, Search, UserPlus, X } from 'lucide-react'
+import { Loader2, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -26,12 +15,18 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
-import { formatPhoneInput } from '@/lib/phone'
+import { CustomerCreateDialog } from '@/components/admin/CustomerCreateDialog'
 
 // ─── Список клиентов (Ж6а) — эталонный паттерн Ж4 ──────────────
 // Поиск ?q= (имя, телефон с вариантами набора, email, комментарий),
 // сортировка, «Показать ещё», счётчик найденного. Строка ведёт в
 // карточку клиента: договоры, заявки, лиды.
+// v0.4.0 (BRANDBOOK §4.3): карточка — анатомия заявки без степпера
+// (по аналогии, решение владельца): строка 1 — дата (tabular,
+// приглушённая; номера у клиента нет), строка 2 — имя Bold,
+// строка 3 — контакты приглушённая; правый блок — счётчики сделок
+// (заявки — как ETA-блок, договоры/лиды — caption). Диалог создания —
+// CustomerCreateDialog (резка под лимит 300, RULES 2.14).
 
 const PAGE_TAKE = 20
 
@@ -50,6 +45,8 @@ type CustomerRow = {
 
 type CustomersPage = { customers: CustomerRow[]; hasMore: boolean; counts: { all: number } }
 
+const fmtDate = (iso: string): string => new Date(iso).toLocaleDateString('ru-RU')
+
 export function CustomersList() {
   const { toast } = useToast()
 
@@ -66,13 +63,6 @@ export function CustomersList() {
   const [version, setVersion] = useState(0)
   // Страж гонок: применяем только последний ответ.
   const reqId = useRef(0)
-
-  const [createOpen, setCreateOpen] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
-  const [comment, setComment] = useState('')
 
   // take шлём ВСЕГДА: роут различает список и легаси-справочник для
   // диалога создания заявки по наличию параметров (см. комментарий
@@ -133,44 +123,6 @@ export function CustomersList() {
     }
   }
 
-  const handleCreate = async () => {
-    if (!name.trim()) {
-      toast({ title: 'Укажите имя клиента', variant: 'destructive' })
-      return
-    }
-    setCreating(true)
-    try {
-      const res = await fetch('/api/admin/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          phone: phone || null,
-          email: email.trim() || null,
-          comment: comment.trim() || null,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Не удалось создать клиента')
-
-      toast({ title: `Клиент «${data.customer.name}» создан` })
-      setCreateOpen(false)
-      setName('')
-      setPhone('')
-      setEmail('')
-      setComment('')
-      setVersion((v) => v + 1)
-    } catch (e) {
-      toast({
-        title: 'Ошибка создания',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
-      })
-    } finally {
-      setCreating(false)
-    }
-  }
-
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -181,69 +133,7 @@ export function CustomersList() {
             {total !== null ? ` · всего: ${total}` : ''}
           </p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="size-4" />
-              Новый клиент
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Новый клиент</DialogTitle>
-              <DialogDescription>
-                Завести заранее — например, перед первым обращением. Клиент
-                также рождается сам при создании заявки или конвертации лида.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="cust-name">Имя или название</Label>
-                <Input
-                  id="cust-name"
-                  placeholder="ООО «Ромашка» или Иван"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="cust-phone">Телефон</Label>
-                <Input
-                  id="cust-phone"
-                  type="tel"
-                  placeholder="+7 (…) — не обязателен"
-                  value={phone}
-                  onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="cust-email">Email</Label>
-                <Input
-                  id="cust-email"
-                  type="email"
-                  placeholder="не обязателен"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="cust-comment">Комментарий</Label>
-                <Textarea
-                  id="cust-comment"
-                  placeholder="Например: возит из Китая, платит вовремя"
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={handleCreate} disabled={creating}>
-                {creating && <Loader2 className="size-4 animate-spin" />}
-                Создать
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <CustomerCreateDialog onCreated={() => setVersion((v) => v + 1)} />
       </div>
 
       {/* Паттерн Ж4: поиск с крестиком + сортировка */}
@@ -293,25 +183,26 @@ export function CustomersList() {
         <div className="grid gap-2">
           {customers.map((c) => (
             <Link key={c.id} href={`/admin/customers/${c.id}`} className="block group">
-              <Card className="p-4 flex flex-wrap items-center gap-x-6 gap-y-1 transition-colors group-hover:border-ring">
-                <div className="min-w-48 flex-1">
-                  <div className="font-medium truncate">{c.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {[c.phone, c.email].filter(Boolean).join(' · ') || 'Контактов нет'}
+              <Card className="p-4 transition-colors group-hover:border-ring">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-muted-foreground text-sm tabular-nums">
+                      с {fmtDate(c.createdAt)}
+                    </div>
+                    <div className="truncate font-semibold">{c.name}</div>
+                    <div className="truncate text-sm text-muted-foreground">
+                      {[c.phone, c.email].filter(Boolean).join(' · ') || 'Контактов нет'}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-sm font-semibold tabular-nums">
+                      Заявок: {c.ordersCount}
+                    </div>
+                    <div className="text-muted-foreground text-xs tabular-nums">
+                      Договоры: {c.contractsCount} · Лиды: {c.leadsCount}
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground tabular-nums">
-                  <span>
-                    Заявки: <span className="text-foreground">{c.ordersCount}</span>
-                  </span>
-                  <span>
-                    Договоры: <span className="text-foreground">{c.contractsCount}</span>
-                  </span>
-                  <span>
-                    Лиды: <span className="text-foreground">{c.leadsCount}</span>
-                  </span>
-                </div>
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
               </Card>
             </Link>
           ))}
