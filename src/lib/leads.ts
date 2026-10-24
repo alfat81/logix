@@ -31,6 +31,12 @@ export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
   lost: 'Отказ',
 }
 
+// v0.3.1 (BRANDBOOK §4.1): счётчик навигации у «Лидов» — активные,
+// т.е. ещё не вышедшие из воронки: won уезжает в заявку, lost закрыт.
+// Группа едина с ORDER_ACTIVE_STATUSES (lib/order-constants) по духу:
+// одно место знания о том, что считается «активным».
+export const LEAD_ACTIVE_STATUSES: readonly LeadStatus[] = ['new', 'calculated']
+
 // Источник лида (И1): 'manual' — создан менеджером (В2, дефолт схемы),
 // 'cabinet' — запрос из клиентского кабинета. Поле читают список и
 // карточка лида в админке (бейдж «Кабинет»: менеджеру видно, что

@@ -3,6 +3,9 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Container } from 'lucide-react'
 import { getEmployeeByToken, SESSION_COOKIE } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { ORDER_ACTIVE_STATUSES } from '@/lib/order-constants'
+import { LEAD_ACTIVE_STATUSES } from '@/lib/leads'
 import { LogoutButton } from '@/components/admin/LogoutButton'
 import { AdminNav } from '@/components/admin/AdminNav'
 import { GlobalSearch } from '@/components/admin/GlobalSearch'
@@ -23,6 +26,11 @@ import { GlobalSearch } from '@/components/admin/GlobalSearch'
 // (главная, лид) и при < 1280px складывается вниз. На мобильных (до md)
 // меню остаётся компактной полосой прокрутки под шапкой, 375px — без
 // выхода за экран.
+//
+// v0.3.1 (§4.1): счётчики навигации — числа активных сделок
+// (заявки/лиды по группам ACTIVE из lib) считает layout — один
+// серверный рендер, два быстрых count-запроса (масштаб D1: до 3
+// менеджеров, десятки сделок).
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const employee = await getEmployeeByToken((await cookies()).get(SESSION_COOKIE)?.value)
   if (!employee) {
@@ -32,6 +40,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Ж6в: меню фильтрует мастерские пункты (Сотрудники) — признак
   // читается здесь, один раз, из уже загруженной сессии.
   const isMaster = employee.roles.includes('master')
+
+  // §4.1: счётчики активных объектов у сделочных пунктов меню.
+  const [activeOrders, activeLeads] = await Promise.all([
+    db.order.count({ where: { status: { in: [...ORDER_ACTIVE_STATUSES] } } }),
+    db.lead.count({ where: { status: { in: [...LEAD_ACTIVE_STATUSES] } } }),
+  ])
 
   return (
     <div className="min-h-screen">
@@ -49,7 +63,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </Link>
           </div>
           <nav className="flex-1 overflow-y-auto py-4 px-3">
-            <AdminNav variant="sidebar" isMaster={isMaster} />
+            <AdminNav variant="sidebar" isMaster={isMaster} counts={{ '/admin/orders': activeOrders, '/admin/leads': activeLeads }} />
           </nav>
           <div className="border-t border-sidebar-border px-4 py-3 flex items-center gap-3 shrink-0">
             <span className="text-sm text-muted-foreground truncate">{employee.name}</span>

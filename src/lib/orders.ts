@@ -274,6 +274,11 @@ export type OrderStagesSummary = {
   stagesProblem: number
   nearestStage: StageView | null
   overdue: boolean
+  // v0.3.1 (BRANDBOOK §4.3): имя просроченного этапа для строки
+  // задержки на карточке списка — без него карточка могла бы показать
+  // просрочку не того этапа (просроченным может быть любой
+  // незавершённый, не только ближайший).
+  overdueStage: string | null
 }
 
 export function utcDayStart(date: Date): number {
@@ -297,6 +302,8 @@ export function summarizeOrderStages(
 ): OrderStagesSummary {
   const incomplete = stages.filter((s) => s.status !== 'done')
   const nearest = incomplete[0] ?? null
+  const overdueRow =
+    incomplete.find((s) => s.plannedDate !== null && s.plannedDate.getTime() < todayUtc) ?? null
   return {
     stagesTotal: stages.length,
     stagesDone: stages.length - incomplete.length,
@@ -310,8 +317,51 @@ export function summarizeOrderStages(
           contractorName: nearest.contractor?.companyName ?? null,
         }
       : null,
-    overdue: incomplete.some(
-      (s) => s.plannedDate !== null && s.plannedDate.getTime() < todayUtc
-    ),
+    overdue: overdueRow !== null,
+    overdueStage: overdueRow
+      ? stageNames.get(overdueRow.stageCode) ?? overdueRow.stageCode
+      : null,
+  }
+}
+
+// v0.3.1 (BRANDBOOK §4.3): ETA заявки — обещанная дата завершения.
+// Семантика: МАКСИМАЛЬНАЯ плановая дата среди незавершённых этапов
+// («когда закончится всё»), а не план ближайшего — просроченный ранний
+// этап не должен занижать ETA финала. Дат нет или всё завершено —
+// null (UI показывает «Даты не заданы»/«Доставлено»). Серверная
+// точка подсчёта — чтобы клиентская проекция и будущие кабинеты
+// считали одинаково (принцип единого код-пути, как summarize выше).
+export function calcOrderEta(
+  stages: Array<{ status: string; plannedDate: Date | null }>
+): Date | null {
+  let eta: Date | null = null
+  for (const s of stages) {
+    if (s.status === 'done' || s.plannedDate === null) continue
+    if (eta === null || s.plannedDate.getTime() > eta.getTime()) eta = s.plannedDate
+  }
+  return eta
+}
+
+// ─── Сортировки списка заявок (Ж4; v0.3.1 — переезд из роута, ──────
+// RULES 2.14: файл роута ≤ 300; построение orderBy — серверная
+// логика запросов, ей место в lib рядом с остальной логикой заявок).
+export const ORDER_SORTS = ['newest', 'oldest', 'number_asc', 'number_desc', 'stale'] as const
+
+export function orderOrderBy(sort: string): Prisma.OrderOrderByWithRelationInput[] {
+  switch (sort) {
+    case 'oldest':
+      return [{ createdAt: 'asc' }, { id: 'asc' }]
+    case 'stale':
+      // P1-01: «давно без движения» — старое изменение сверху; id —
+      // стабильный tie-break, чтобы страницы не дрожали
+      return [{ updatedAt: 'asc' }, { id: 'asc' }]
+    case 'number_asc':
+      // Составной номер «договор-порядковый» — сортируем по его частям,
+      // лексикографика «10-2 < 2-1» тут не нужна.
+      return [{ contract: { number: 'asc' } }, { numberInContract: 'asc' }, { id: 'asc' }]
+    case 'number_desc':
+      return [{ contract: { number: 'desc' } }, { numberInContract: 'desc' }, { id: 'asc' }]
+    default:
+      return [{ createdAt: 'desc' }, { id: 'asc' }]
   }
 }

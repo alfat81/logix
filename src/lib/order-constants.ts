@@ -23,6 +23,18 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   cancelled: 'Отменена',
 }
 
+// v0.3.1 (BRANDBOOK §4.2): табы-группы списка заявок. «Активные» —
+// заявки в расчёте/согласовании/работе; терминальные completed и
+// cancelled — отдельные табы. Макетные «Все / Активные / На паузе»
+// в домене нет паузы (§8.8-подход: состав табов задаёт информационная
+// архитектура) — фиксация в отчёте задачи v0.3.1. Группа едина для
+// API-фильтра ?status=active и счётчиков навигации (§4.1).
+export const ORDER_ACTIVE_STATUSES: readonly OrderStatus[] = [
+  'calculating',
+  'confirmed',
+  'in_progress',
+]
+
 // Статус этапа внутри заявки (роадмап, раздел 3): не начат → в работе →
 // завершён, плюс «проблема» для контроля.
 export const STAGE_STATUSES = ['not_started', 'in_progress', 'done', 'problem'] as const

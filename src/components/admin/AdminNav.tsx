@@ -18,13 +18,15 @@ import {
 
 // ─── Меню кабинета (Ж7) ─────────────────────────────────────────────
 // Клиентский компонент ради usePathname (активный пункт) — layout
-// остаётся серверным и просто рендерит <AdminNav isMaster={…}/>.
+// остаётся серверным и просто рендерит <AdminNav isMaster={…}/>
+// (v0.3.1 §4.1: и счётчики считает тоже layout — один серверный
+// запрос на пункт за рендер кабинета).
 //
-// Конфиг — единственное место, куда добавляются разделы (Ж6а —
-// Клиенты и Договоры; Ж6б — Юрлица и Этапы; Ж6в — Сотрудники):
-// masterOnly скрывает пункт у менеджера — управление учётками
-// целиком мастерская привилегия (право при этом защищает API,
-// скрытие пункта — удобство, не защита).
+// v0.3.1 (BRANDBOOK §4.1, макет D24): у пункта — счётчик активных
+// объектов: таблетка Coral с белым числом, tabular-nums; активный
+// пункт — плашка White (radius-sm), иконка и текст Coral, Medium.
+// Счётчики — только у сделочных разделов (Заявки/Лиды): там число
+// реально призыв к действию; в справочниках оно шум.
 
 type NavItem = {
   href: string
@@ -32,6 +34,8 @@ type NavItem = {
   icon: LucideIcon
   // Ж6в: пункт виден только мастеру (Сотрудники).
   masterOnly?: boolean
+  // §4.1: число активных объектов (приходит из layout, сервер).
+  count?: number
 }
 
 type NavSection = {
@@ -39,6 +43,11 @@ type NavSection = {
   title: string | null
   items: NavItem[]
 }
+
+// Счётчики навигации §4.1: числа активных сделок; layout заполняет
+// по ролям. Ключи — href разделов: конфиг меню остаётся единственным
+// местом знания о маршрутах.
+export type NavCounts = Partial<Record<'/admin/orders' | '/admin/leads', number>>
 
 const NAV_SECTIONS: NavSection[] = [
   {
@@ -75,9 +84,11 @@ function isActive(pathname: string, href: string): boolean {
 
 function itemClasses(active: boolean): string {
   const base =
-    'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors whitespace-nowrap'
+    'flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors whitespace-nowrap'
+  // §4.1: активный — плашка White (bg-card на Sand-панели, radius-sm),
+  // иконка и текст Coral (primary), шрифт Medium.
   return active
-    ? `${base} bg-accent text-accent-foreground font-medium`
+    ? `${base} bg-card text-primary font-medium`
     : `${base} text-muted-foreground hover:text-foreground hover:bg-accent/50`
 }
 
@@ -90,14 +101,21 @@ function itemClasses(active: boolean): string {
 export function AdminNav({
   variant = 'sidebar',
   isMaster,
+  counts,
 }: {
   variant?: 'sidebar' | 'strip'
   isMaster: boolean
+  // §4.1: счётчики активных объектов — приходит из серверного layout;
+  // в мобильном strip-варианте не рисуются (место дороже — Ж5).
+  counts?: NavCounts
 }) {
   const pathname = usePathname()
+  const withCounts = variant === 'sidebar' && counts !== undefined
   const visibleSections = NAV_SECTIONS.map((s) => ({
     ...s,
-    items: s.items.filter((i) => !i.masterOnly || isMaster),
+    items: s.items
+      .filter((i) => !i.masterOnly || isMaster)
+      .map((i) => ({ ...i, count: withCounts ? counts?.[i.href as keyof NavCounts] : undefined })),
   })).filter((s) => s.items.length > 0)
 
   if (variant === 'strip') {
@@ -123,9 +141,20 @@ export function AdminNav({
             </div>
           )}
           {section.items.map((item) => (
-            <Link key={item.href} href={item.href} className={itemClasses(isActive(pathname, item.href))}>
+            <Link
+              key={item.href}
+              href={item.href}
+              className={itemClasses(isActive(pathname, item.href))}
+              aria-current={isActive(pathname, item.href) ? 'page' : undefined}
+            >
               <item.icon className="size-4 shrink-0" />
               {item.label}
+              {item.count !== undefined && (
+                // §4.1: таблетка Coral с белым числом, tabular-nums.
+                <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium tabular-nums text-primary-foreground">
+                  {item.count}
+                </span>
+              )}
             </Link>
           ))}
         </div>

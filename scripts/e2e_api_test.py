@@ -195,6 +195,22 @@ s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{mand["id"]}',{'plannedDate':'2
 s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{mand["id"]}',{'actualDate':'2030-01-01T00:00:00.000Z'}); chk('[ЦЕЛЬ P1-06] фактическая дата в будущем отклоняется',s==400,s)
 s,d=a.r('PATCH',f'/api/admin/orders/{oid}',{'status':'completed'}); chk('[ЦЕЛЬ P1-05] «Завершена» при незавершённых этапах отклоняется',s in(400,409),s)
 s,d=a.r('PATCH',f'/api/admin/orders/{oid}',{'status':'in_progress'}); chk('возврат из completed в in_progress',s==200,(s,d))
+# --- v0.3.1 (BRANDBOOK §4.2–4.3): группы-табы списка, ETA, просрочка с именем этапа ---
+s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{st[1]["id"]}',{'plannedDate':'2027-01-10T00:00:00.000Z'}); chk('v0.3.1: план этапа 2 → 200',s==200,(s,d))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{st[2]["id"]}',{'plannedDate':'2026-10-01T00:00:00.000Z'}); chk('v0.3.1: план этапа 3 в прошлом → 200 (предупреждение, не ошибка)',s==200,(s,d))
+s,d=a.r('GET','/api/admin/orders?status=active'); acts=[x for x in d.get('orders',[]) if x['id']==oid]
+chk('v0.3.1: таб «Активные» содержит заявку in_progress',s==200 and len(acts)==1,(s,len(d.get('orders',[]))))
+chk('v0.3.1: группа active — только активные статусы',all(x['status'] in ('calculating','confirmed','in_progress') for x in d.get('orders',[])),[x['status'] for x in d.get('orders',[])][:8])
+s,d=a.r('GET','/api/admin/orders?status=completed'); cmp_=[x['id'] for x in d.get('orders',[])]
+chk('v0.3.1: таб «Завершённые» не содержит активную заявку',oid not in cmp_,len(cmp_))
+s,d=a.r('GET','/api/admin/orders'); rows=[x for x in d.get('orders',[]) if x['id']==oid]
+chk('v0.3.1: заявка на первой странице списка',len(rows)==1,(s,len(d.get('orders',[]))))
+if rows:
+    row=rows[0]
+    chk('v0.3.1: ETA списка — максимум плана незавершённых',row.get('etaDate')=='2027-01-10T00:00:00.000Z',row.get('etaDate'))
+    chk('v0.3.1: имя просроченного этапа в списке',row.get('overdue') is True and bool(row.get('overdueStage')),(row.get('overdue'),row.get('overdueStage')))
+    chk('v0.3.1: этапы степпера в ответе списка',len(row.get('stages',[]))>=6 and all(set(x)>={'code','name','status'} for x in row.get('stages',[])),len(row.get('stages',[])))
+s,d=a.r('GET','/api/admin/orders?status=bogus'); chk('v0.3.1: неизвестная группа статуса → 400',s==400,s)
 # contractor
 s,d=a.r('POST','/api/admin/contractor-leads',{'companyName':'Перевозчик '+u}); chk('кандидат-подрядчик',s in(200,201),(s,d)); clid=(d.get('contractorLead') or d.get('lead') or d)['id']
 cph=ph(base+2); s,d=a.r('PATCH',f'/api/admin/contractor-leads/{clid}',{'status':'contracted','phone':cph,'password':'contr-pass-1'}); chk('подрядчик рождён',s in(200,201),(s,d))

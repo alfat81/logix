@@ -3,11 +3,12 @@ import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
-import { ORDER_STATUSES, CARGO_PROFILES, type OrderStatus } from '@/lib/order-constants'
-import { createOrderWithStages, findOrCreateCustomer, summarizeOrderStages, todayUtcMidnight } from '@/lib/orders'
+import { ORDER_STATUSES, ORDER_ACTIVE_STATUSES, CARGO_PROFILES, type OrderStatus } from '@/lib/order-constants'
+import { createOrderWithStages, findOrCreateCustomer, summarizeOrderStages, calcOrderEta, todayUtcMidnight } from '@/lib/orders'
 import { normalizePhone } from '@/lib/phone'
 import { logActivity, employeeActor } from '@/lib/activity'
 import { parseListQuery, ciContains } from '@/lib/list-query'
+import { ORDER_SORTS, orderOrderBy } from '@/lib/orders'
 import { TRANSPORT_TYPE_CODES, type TransportTypeCode } from '@/lib/route-fields'
 import { apiErrorResponse } from '@/lib/api-errors'
 
@@ -17,7 +18,10 @@ import { apiErrorResponse } from '@/lib/api-errors'
 //   ?sort=   newest (умолчание) | oldest | number_asc | number_desc |
 //            stale («давно без движения», updatedAt asc — P1-01)
 //   ?take=&skip=  постраничность, ответ несёт hasMore
-//   ?status= фильтр-таб по статусу (роадмап 8.1 — статусы ручные)
+//   ?status= фильтр-таб по статусу (роадмап 8.1 — статусы ручные);
+//            v0.3.1 (BRANDBOOK §4.2): плюс группа «active» —
+//            calculating+confirmed+in_progress (таб «Активные»),
+//            состав группы — ORDER_ACTIVE_STATUSES (lib/order-constants)
 //   ?assigned=mine|unassigned|all — фильтр ответственного (P1-01)
 // Счётчики по статусам считаются по ТОМУ ЖЕ поиску, но без фильтра
 // таба: табы показывают распределение найденного («у Иванова 2 в
@@ -26,34 +30,16 @@ import { apiErrorResponse } from '@/lib/api-errors'
 // исполнитель этого этапа и отметка просрочки — незавершённый этап с
 // плановой датой раньше сегодняшней (то же правило вынесет на главный
 // экран Ж5 «Требует внимания» — здесь они рождаются).
-const ORDER_SORTS = ['newest', 'oldest', 'number_asc', 'number_desc', 'stale'] as const
+// Сортировки (?sort=) — lib/orders.ts (ORDER_SORTS/orderOrderBy);
+// v0.3.1 — переезд ради лимита 300 строк (RULES 2.14).
 const ORDER_ASSIGNED_FILTERS = ['mine', 'unassigned', 'all'] as const
-
-function orderOrderBy(sort: string): Prisma.OrderOrderByWithRelationInput[] {
-  switch (sort) {
-    case 'oldest':
-      return [{ createdAt: 'asc' }, { id: 'asc' }]
-    case 'stale':
-      // P1-01: «давно без движения» — старое изменение сверху; id —
-      // стабильный tie-break, чтобы страницы не дрожали
-      return [{ updatedAt: 'asc' }, { id: 'asc' }]
-    case 'number_asc':
-      // Составной номер «договор-порядковый» — сортируем по его частям,
-      // лексикографика «10-2 < 2-1» тут не нужна.
-      return [{ contract: { number: 'asc' } }, { numberInContract: 'asc' }, { id: 'asc' }]
-    case 'number_desc':
-      return [{ contract: { number: 'desc' } }, { numberInContract: 'desc' }, { id: 'asc' }]
-    default:
-      return [{ createdAt: 'desc' }, { id: 'asc' }]
-  }
-}
 
 export async function GET(req: NextRequest) {
   const auth = await requireEmployee(req)
   if (!auth.ok) return auth.response
 
   const status = req.nextUrl.searchParams.get('status')
-  if (status && !(ORDER_STATUSES as readonly string[]).includes(status)) {
+  if (status && !(ORDER_STATUSES as readonly string[]).includes(status) && status !== 'active') {
     return NextResponse.json({ error: 'Неизвестный статус заявки' }, { status: 400 })
   }
 
@@ -93,7 +79,9 @@ export async function GET(req: NextRequest) {
       : undefined
 
     const conds: Prisma.OrderWhereInput[] = []
-    if (status) conds.push({ status: status as OrderStatus })
+    // v0.3.1: статус ИЛИ группа «active» (BRANDBOOK §4.2 — таб «Активные»)
+    if (status === 'active') conds.push({ status: { in: [...ORDER_ACTIVE_STATUSES] } })
+    else if (status) conds.push({ status: status as OrderStatus })
     // P1-01: mine — «заявку веду я»; unassigned — разбор без ответственного
     if (assigned === 'mine') conds.push({ assignedToId: auth.employee.id })
     if (assigned === 'unassigned') conds.push({ assignedToId: null })
@@ -189,9 +177,26 @@ export async function GET(req: NextRequest) {
         customer: o.customer,
         contract: o.contract,
         legalEntity: o.legalEntity,
+        // P1-03: маршрут и тип — строка 2 карточки списка (§4.3)
+        originCity: o.originCity,
+        originCountry: o.originCountry,
+        destinationCity: o.destinationCity,
+        destinationCountry: o.destinationCountry,
+        transportType: o.transportType,
         // Ж6а: сводка этапов (ближайший/прогресс/просрочка) вынесена
         // в lib/orders.ts — её же показывает карточка клиента.
         ...summarizeOrderStages(o.stages, stageNames, todayUtc),
+        // v0.3.1 (BRANDBOOK §4.3): ETA — обещанная дата завершения
+        // (максимум плана незавершённых); считается в lib/orders.ts.
+        etaDate: calcOrderEta(o.stages)?.toISOString() ?? null,
+        // v0.3.1 (BRANDBOOK §4.3): этапы для степпера карточки списка
+        // (круги с иконками); короткие подписи и иконки — клиентская
+        // визуализация lib/stage-visuals.ts, сюда — только данные.
+        stages: o.stages.map((s) => ({
+          code: s.stageCode,
+          name: stageNames.get(s.stageCode) ?? s.stageCode,
+          status: s.status,
+        })),
       })),
       hasMore,
       counts,

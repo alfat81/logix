@@ -1,23 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { FilePlus2, Loader2, Search, Users, X } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -26,56 +13,51 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-import { TRANSPORT_TYPE_CODES, TRANSPORT_TYPE_LABELS } from '@/lib/route-fields'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
-import { formatPhoneInput, normalizePhone } from '@/lib/phone'
-import { ORDER_BADGE_VARIANTS } from '@/lib/status-badges'
+import { TRANSPORT_TYPE_CODES, TRANSPORT_TYPE_LABELS } from '@/lib/route-fields'
+import { cn } from '@/lib/utils'
 import {
-  ORDER_STATUSES,
-  ORDER_STATUS_LABELS,
-  CARGO_PROFILES,
-  CARGO_PROFILE_LABELS,
-  STAGE_STATUS_LABELS,
+  ORDER_ACTIVE_STATUSES,
   type OrderStatus,
-  type StageStatus,
 } from '@/lib/order-constants'
+import { OrderCard, type OrderRow } from '@/components/admin/OrderCard'
+import { OrderCreateDialog } from '@/components/admin/OrderCreateDialog'
+import { OrdersToolbar } from '@/components/admin/OrdersToolbar'
 
-// ─── Типы ответов API (узкая выжимка, всё как в роутах) ───────
+// P1-19 (v0.3.0) — экспорт сохранён: OrderStatusBadge переезжает в
+// собственный файл (13 потребителей), реэкспорт не ломает импорты.
+export { OrderStatusBadge } from '@/components/admin/OrderStatusBadge'
 
-type OrderRow = {
-  id: string
-  number: string
-  status: OrderStatus
-  incoterm: string | null
-  cargoProfile: string
-  createdAt: string
-  // P1-01: ответственный менеджер и маркер движения
-  assignee: { id: string; name: string } | null
-  updatedAt: string
-  customer: { id: string; name: string; phone: string | null }
-  contract: { id: string; number: number }
-  legalEntity: { id: string; name: string }
-  stagesTotal: number
-  stagesDone: number
-  stagesProblem: number
-  // Ж4: ближайший незавершённый этап (null — всё завершено) и просрочка
-  nearestStage: {
-    code: string
-    name: string
-    status: StageStatus
-    plannedDate: string | null
-    contractorName: string | null
-  } | null
-  overdue: boolean
-}
+// ─── Список заявок (Ж4) — эталонный паттерн ─────────────────────────
+// v0.3.1 (BRANDBOOK §4.2–4.3, референс-макет D24): шапка раздела —
+// заголовок + табы-группы (активный — Ink/Medium с подчёркиванием
+// Coral, неактивные — приглушённые) + поиск с лупой + главное действие
+// Coral «Новая заявка»; карточки — анатомия §4.3 (OrderCard: номер,
+// маршрут, клиент, ETA, степпер, задержка). Детальные статус-кнопки
+// заменены группами: домен паузы не имеет (IA-решение в отчёте);
+// API ?status=<один статус> сохранён для совместимости (e2e).
+// Фильтры P1-01/P1-03 (ответственный, направление, тип) — вторичные
+// строки под табами, без изменений.
 
 type OrdersPage = { orders: OrderRow[]; hasMore: boolean; counts: Record<'all' | OrderStatus, number> }
 
-type CustomerRow = { id: string; name: string; phone: string | null }
-type LegalEntityRow = { id: string; name: string }
+// Табы-группы шапки §4.2: ключ → подпись; счётчик группы считается
+// клиентски из counts по статусам (API отдаёт распределение найденного).
+const STATUS_TABS: Array<{ key: 'all' | 'active' | 'completed' | 'cancelled'; label: string }> = [
+  { key: 'all', label: 'Все' },
+  { key: 'active', label: 'Активные' },
+  { key: 'completed', label: 'Завершённые' },
+  { key: 'cancelled', label: 'Отменённые' },
+]
+
+function groupCount(counts: OrdersPage['counts'] | null, key: string): number | null {
+  if (!counts) return null
+  if (key === 'all') return counts.all
+  if (key === 'active') return ORDER_ACTIVE_STATUSES.reduce((n, s) => n + counts[s], 0)
+  return counts[key as OrderStatus]
+}
 
 export function OrdersList() {
-  const router = useRouter()
   const { toast } = useToast()
 
   const [orders, setOrders] = useState<OrderRow[]>([])
@@ -83,7 +65,8 @@ export function OrdersList() {
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all')
+  // Таб-группа статуса (§4.2): 'all' не шлётся в API, группы — ?status=
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed' | 'cancelled'>('all')
   const [sort, setSort] = useState('newest')
   // P1-01: фильтр ответственного («Мои / Все / Без ответственного»)
   const [assignedFilter, setAssignedFilter] = useState<'all' | 'mine' | 'unassigned'>('all')
@@ -101,22 +84,6 @@ export function OrdersList() {
   // Страж гонок: печатание/смена фильтров порождает запросы быстрее,
   // чем приходят ответы — применяем только последний.
   const reqId = useRef(0)
-
-  const [customers, setCustomers] = useState<CustomerRow[]>([])
-  const [legalEntities, setLegalEntities] = useState<LegalEntityRow[]>([])
-
-  const [createOpen, setCreateOpen] = useState(false)
-  const [creating, setCreating] = useState(false)
-  // Форма создания: клиент либо существующий (id), либо новый (имя+телефон)
-  const [customerId, setCustomerId] = useState<string>('')
-  const [customerName, setCustomerName] = useState('')
-  const [customerPhone, setCustomerPhone] = useState('')
-  const [customerEmail, setCustomerEmail] = useState('')
-  const [isNewCustomer, setIsNewCustomer] = useState(false)
-  const [legalEntityId, setLegalEntityId] = useState('')
-  const [incoterm, setIncoterm] = useState('none')
-  const [hsCode, setHsCode] = useState('')
-  const [cargoProfile, setCargoProfile] = useState('standard')
 
   // Чистая выборка страницы: зависит только от параметров — смена любого
   // из них пересоздаёт функцию и перезапускает эффект-сброс ниже.
@@ -182,301 +149,43 @@ export function OrdersList() {
     }
   }
 
-  // Справочники для диалога создания — грузим один раз при открытии
-  useEffect(() => {
-    if (!createOpen || customers.length || legalEntities.length) return
-    fetch('/api/admin/customers')
-      .then((r) => r.json())
-      .then((d) => setCustomers(d.customers ?? []))
-      .catch(() => {})
-    fetch('/api/admin/legal-entities')
-      .then((r) => r.json())
-      .then((d) => setLegalEntities(d.legalEntities ?? []))
-      .catch(() => {})
-  }, [createOpen, customers.length, legalEntities.length])
-
-  const handleCreate = async () => {
-    if (isNewCustomer && !customerName.trim()) {
-      toast({ title: 'Укажите имя клиента', variant: 'destructive' })
-      return
-    }
-    if (!isNewCustomer && !customerId) {
-      toast({ title: 'Выберите клиента', variant: 'destructive' })
-      return
-    }
-    if (!legalEntityId) {
-      toast({ title: 'Выберите юрлицо', variant: 'destructive' })
-      return
-    }
-    setCreating(true)
-    try {
-      const res = await fetch('/api/admin/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...(isNewCustomer
-            ? {
-                customerName: customerName.trim(),
-                customerPhone: customerPhone ? normalizePhone(customerPhone) : null,
-                customerEmail: customerEmail.trim() || null,
-              }
-            : { customerId }),
-          legalEntityId,
-          incoterm: incoterm === 'none' ? null : incoterm,
-          hsCode: hsCode.trim() || null,
-          cargoProfile,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Не удалось создать заявку')
-
-      toast({
-        title: `Заявка ${data.order.number} создана`,
-        description: 'Обязательные этапы подставлены автоматически',
-      })
-      setCreateOpen(false)
-      resetForm()
-      setVersion((v) => v + 1)
-      router.refresh()
-    } catch (e) {
-      toast({
-        title: 'Ошибка создания',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
-      })
-    } finally {
-      setCreating(false)
-    }
-  }
-
-  const resetForm = () => {
-    setCustomerId('')
-    setCustomerName('')
-    setCustomerPhone('')
-    setCustomerEmail('')
-    setIsNewCustomer(false)
-    setIncoterm('none')
-    setHsCode('')
-    setCargoProfile('standard')
-  }
-
   return (
-    <div className="grid gap-4">
+    <div className="flex flex-col gap-4">
+      {/* §4.2 шапка списка: заголовок Bold + главное действие Coral */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Заявки</h1>
-          <p className="text-sm text-muted-foreground">
-            Поиск по номеру, клиенту, телефону и ТН ВЭД; ближайший этап,
-            исполнитель и просрочка — по колонкам
-          </p>
-        </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <FilePlus2 className="size-4" />
-              Новая заявка
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Новая заявка</DialogTitle>
-              <DialogDescription>
-                Договор пары клиент+юрлицо подставится автоматически, обязательные
-                этапы — из каталога.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label>Клиент</Label>
-                {isNewCustomer ? (
-                  <div className="grid gap-2">
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Название или имя"
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsNewCustomer(false)}
-                      >
-                        Из списка
-                      </Button>
-                    </div>
-                    <Input
-                      type="tel"
-                      placeholder="Телефон +7 (…) — не обязателен"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(formatPhoneInput(e.target.value))}
-                    />
-                    <Input
-                      type="email"
-                      placeholder="Email — не обязателен"
-                      value={customerEmail}
-                      onChange={(e) => setCustomerEmail(e.target.value)}
-                    />
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <Select value={customerId} onValueChange={setCustomerId}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Выберите клиента" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <div className="max-h-64 overflow-y-auto">
-                          {customers.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.name}
-                              {c.phone ? ` · ${c.phone}` : ''}
-                            </SelectItem>
-                          ))}
-                        </div>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setIsNewCustomer(true)
-                        setCustomerId('')
-                      }}
-                    >
-                      <Users className="size-4" />
-                      Новый
-                    </Button>
-                  </div>
-                )}
-              </div>
+        <h1 className="text-2xl font-semibold tracking-tight">Заявки</h1>
+        <OrderCreateDialog onCreated={() => setVersion((v) => v + 1)} />
+      </div>
 
-              <div className="grid gap-2">
-                <Label>Наше юрлицо</Label>
-                <Select value={legalEntityId} onValueChange={setLegalEntityId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Юрлицо договора" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {legalEntities.map((le) => (
-                      <SelectItem key={le.id} value={le.id}>
-                        {le.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-2">
-                  <Label>Инкотермс</Label>
-                  <Select value={incoterm} onValueChange={setIncoterm}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">—</SelectItem>
-                      {['EXW', 'FCA', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP', 'FAS', 'FOB', 'CFR', 'CIF'].map(
-                        (t) => (
-                          <SelectItem key={t} value={t}>
-                            {t}
-                          </SelectItem>
-                        )
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label>Груз</Label>
-                  <Select value={cargoProfile} onValueChange={setCargoProfile}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CARGO_PROFILES.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {CARGO_PROFILE_LABELS[p]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="hsCode">Код ТН ВЭД</Label>
-                <Input
-                  id="hsCode"
-                  placeholder="Например, 8703 — необязательно"
-                  value={hsCode}
-                  onChange={(e) => setHsCode(e.target.value)}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={handleCreate} disabled={creating}>
-                {creating && <Loader2 className="size-4 animate-spin" />}
-                Создать
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      {/* §4.2 табы-фильтры: активный — Ink/Medium, подчёркивание Coral;
+          неактивные — приглушённые. Число — распределение найденного
+          (та же семантика, что была у статусных кнопок). */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b pb-1">
+        {STATUS_TABS.map((t) => {
+          const n = groupCount(counts, t.key)
+          const active = statusFilter === t.key
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setStatusFilter(t.key)}
+              aria-current={active ? 'true' : undefined}
+              className={cn(
+                '-mb-1 border-b-2 pb-1.5 text-sm transition-colors',
+                active
+                  ? 'border-primary font-medium text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {t.label}
+              {n !== null && <span className="ml-1.5 tabular-nums text-muted-foreground">{n}</span>}
+            </button>
+          )
+        })}
       </div>
 
       {/* Ж4: поиск + сортировка (эталонный паттерн списка) */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-56 flex-1">
-          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pr-8 pl-8"
-            placeholder="Номер, клиент, телефон, ТН ВЭД…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          {q && (
-            <button
-              type="button"
-              aria-label="Очистить поиск"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-              onClick={() => setQ('')}
-            >
-              <X className="size-4" />
-            </button>
-          )}
-        </div>
-        <Select value={sort} onValueChange={setSort}>
-          <SelectTrigger className="w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="newest">Сначала новые</SelectItem>
-            <SelectItem value="oldest">Сначала старые</SelectItem>
-            <SelectItem value="number_asc">№ по возрастанию</SelectItem>
-            <SelectItem value="number_desc">№ по убыванию</SelectItem>
-            <SelectItem value="stale">Давно без движения</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Фильтр по статусу (роадмап 8.1) со счётчиками найденного */}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant={statusFilter === 'all' ? 'default' : 'outline'}
-          onClick={() => setStatusFilter('all')}
-        >
-          Все{counts ? ` · ${counts.all}` : ''}
-        </Button>
-        {ORDER_STATUSES.map((s) => (
-          <Button
-            key={s}
-            size="sm"
-            variant={statusFilter === s ? 'default' : 'outline'}
-            onClick={() => setStatusFilter(s)}
-          >
-            {ORDER_STATUS_LABELS[s]}
-            {counts ? ` · ${counts[s]}` : ''}
-          </Button>
-        ))}
-      </div>
+      <OrdersToolbar q={q} onQChange={setQ} sort={sort} onSortChange={setSort} />
 
       {/* P1-01: фильтр ответственного (Мои / Все / Без ответственного) */}
       <div className="flex flex-wrap gap-2">
@@ -558,64 +267,12 @@ export function OrdersList() {
             ? `Ничего не найдено по «${q}».`
             : statusFilter === 'all'
               ? 'Заявок пока нет — создайте первую.'
-              : `Заявок со статусом «${ORDER_STATUS_LABELS[statusFilter]}» нет.`}
+              : `В группе «${STATUS_TABS.find((t) => t.key === statusFilter)?.label}» заявок нет.`}
         </Card>
       ) : (
-        <div className="grid gap-2">
+        <div className="flex flex-col gap-2">
           {orders.map((o) => (
-            <Link key={o.id} href={`/admin/orders/${o.id}`} className="block group">
-              <Card className="p-4 flex flex-wrap items-center gap-x-6 gap-y-2 transition-colors group-hover:border-ring">
-                <div className="font-mono font-semibold text-lg min-w-20">{o.number}</div>
-                <div className="min-w-40 flex-1">
-                  <div className="font-medium truncate">{o.customer.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {o.legalEntity.name} · договор {o.contract.number}
-                    {o.incoterm ? ` · ${o.incoterm}` : ''}
-                  </div>
-                </div>
-                {/* Ж4: ближайший этап с планом и статусом */}
-                <div className="min-w-44">
-                  <div className="text-xs text-muted-foreground">Ближайший этап</div>
-                  <div className="text-sm font-medium truncate">
-                    {o.nearestStage ? o.nearestStage.name : 'Все этапы завершены'}
-                  </div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {o.nearestStage
-                      ? `${STAGE_STATUS_LABELS[o.nearestStage.status] ?? o.nearestStage.status}${
-                          o.nearestStage.plannedDate
-                            ? ' · план ' + new Date(o.nearestStage.plannedDate).toLocaleDateString('ru-RU')
-                            : ''
-                        }`
-                      : '—'}
-                  </div>
-                </div>
-                {/* Ж4: исполнитель ближайшего этапа */}
-                <div className="min-w-32">
-                  <div className="text-xs text-muted-foreground">Исполнитель</div>
-                  <div className="text-sm truncate">
-                    {o.nearestStage?.contractorName ?? (
-                      <span className="text-muted-foreground">— не назначен</span>
-                    )}
-                  </div>
-                </div>
-                {/* P1-01: колонка ответственного в списке */}
-                <div className="min-w-28">
-                  <div className="text-xs text-muted-foreground">Ответственный</div>
-                  <div className="text-sm truncate">
-                    {o.assignee?.name ?? <span className="text-muted-foreground">—</span>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground tabular-nums">
-                  Этапы: {o.stagesDone}/{o.stagesTotal}
-                  {o.stagesProblem > 0 && (
-                  <Badge variant="delay">{o.stagesProblem} пробл.</Badge>
-                  )}
-                  {/* Ж4: просрочка — незавершённый этап с планом раньше сегодня */}
-                  {o.overdue && <Badge variant="delay">Просрочка</Badge>}
-                </div>
-                <OrderStatusBadge status={o.status} />
-              </Card>
-            </Link>
+            <OrderCard key={o.id} order={o} />
           ))}
           {hasMore && (
             <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
@@ -626,13 +283,5 @@ export function OrdersList() {
         </div>
       )}
     </div>
-  )
-}
-
-export function OrderStatusBadge({ status }: { status: OrderStatus }) {
-  // P1-19 (BRANDBOOK §3.2): бейдж-«таблетка» по варианту из единой
-  // точки маппинга; текст — тот же словарь ORDER_STATUS_LABELS.
-  return (
-    <Badge variant={ORDER_BADGE_VARIANTS[status]}>{ORDER_STATUS_LABELS[status]}</Badge>
   )
 }

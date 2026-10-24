@@ -60,6 +60,9 @@ body {
 }
 
 .toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: var(--brick);
   color: var(--destructive-foreground);
   border: none;
