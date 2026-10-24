@@ -282,7 +282,11 @@ export function LeadCard() {
       : []
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-6">
+      {/* P1-18 (BRANDBOOK §4): рабочая область 1fr + правая панель
+          «Детали/Журнал» 320px. При < 1280px панель складывается вниз,
+          порядок DOM не меняется. */}
+      <div className="space-y-4 min-w-0">
       {/* Ж7: крошки вместо кнопки «назад» — путь виден целиком
           (Главная / Лиды / текущий лид), паттерн карточки заявки. */}
       <Breadcrumbs
@@ -438,16 +442,23 @@ export function LeadCard() {
         </div>
       ) : null}
 
-      {/* ── Ж3: внутренняя заметка — пишется в ленту, видна только
-          сотрудникам (подрядчику/клиенту isInternal не отдаётся) ── */}
-      <NoteForm targetType="lead" targetId={String(id)} onAdded={load} />
+      </div>
 
-      {/* ── Ж2: лента событий — хроника лида (создание, варианты,
-          статусы, конвертация) ─────────────────────────────── */}
-      <ActivityFeed
-        activities={lead.activities}
-        emptyText="Событий пока нет — журнал начнётся с первого действия"
-      />
+      {/* P1-18: правая панель «Детали/Журнал» (BRANDBOOK §4, 320px):
+          заметка (Ж3) + лента (Ж2). Sticky на xl — контекст не
+          теряется при длинной анкете; на < xl — блок внизу. */}
+      <aside className="space-y-4 min-w-0 xl:sticky xl:top-14">
+        {/* Ж3: внутренняя заметка — пишется в ленту, видна только
+            сотрудникам (подрядчику/клиенту isInternal не отдаётся) */}
+        <NoteForm targetType="lead" targetId={String(id)} onAdded={load} />
+
+        {/* Ж2: лента событий — хроника лида (создание, варианты,
+            статусы, конвертация) */}
+        <ActivityFeed
+          activities={lead.activities}
+          emptyText="Событий пока нет — журнал начнётся с первого действия"
+        />
+      </aside>
 
       {/* ── P1-02: диалог правки анкеты (контакты + груз) ── */}
       <LeadEditDialog
