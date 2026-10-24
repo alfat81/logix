@@ -53,7 +53,7 @@ export default function Home() {
             </div>
           </div>
           <div className="hidden md:grid gap-4">
-            <div className="rounded-xl border bg-card p-5 flex items-start gap-4">
+            <div className="rounded-lg border bg-card p-5 flex items-start gap-4">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
                 <Truck className="size-5" />
               </span>
@@ -65,7 +65,7 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <div className="rounded-xl border bg-card p-5 flex items-start gap-4">
+            <div className="rounded-lg border bg-card p-5 flex items-start gap-4">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
                 <Ship className="size-5" />
               </span>

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.8] — Фаза 1: брендбук, этап A — токены и шрифт (P1-17, 24.10.2026)
+
+### UI-токены брендбука (P1-17, BRANDBOOK v1.1 §1/§3/§5/§6, D22)
+- `globals.css` — палитра §1.1 как CSS-токены: Ivory `#FDFBF7` (фон приложения), Sand `#FAF3E0` (вторичные заливки; сайдбар-токены — потребит этап B), Coral `#F28C8C` (основные действия → `--primary`), Brick `#D95D39` (ошибки/критичное → `--destructive`), Ink `#2B2A26` (текст), Border-Sand `#E5DCC5` (рамки → `--border`/`--input`), White — фон карточек/поповеров (контраст с Ivory, §5.2). Статусные пары §3.2 — токены `--status-*` (transit/delay/delivered/version). Новые hex — только в `globals.css` (RULES 2.14).
+- Шрифт §1.2: IBM Plex Sans 400/500/700 (latin + cyrillic, `display: swap`) через `next/font/google` в `layout.tsx` → `--font-sans`, fallback — system-ui.
+- Радиусы §5.1/§6: `--radius: 12px` — карточки (`card`, тосты, лендинг → `rounded-lg`), кнопки 8px (`button` → `rounded-sm`), поля 10px (`--radius-md`).
+- `ui/button.tsx` §3.1: вторичное действие — прозрачный фон, текст Ink, рамка 1px Border-Sand; primary/destructive — Coral/Brick через токены.
+- `ui/badge.tsx` §3.2: статусные варианты `transit`/`delay`/`delivered`/`version` («таблетка», ЗАГЛАВНЫМИ, xs, без иконок); применение в списках — этап C (P1-19).
+- Repaint без перестройки структуры: тексты и локаторы не менялись — e2e зелёное без правок. Без миграций, без новых зависимостей.
+
+### Проверки
+- tsc / eslint / build — зелёные; vitest 25/25; e2e **131/131** (PostgreSQL 16).
+- Сверка с брендбуком (RULES 2.14, D23): применимо §1.1, §1.2, §3.1, §3.2, §5.1–5.5, §6; файлы ≤ 300 строк (макс. 173 — `globals.css`); hex вне `globals.css` отсутствуют.
+
 ## [0.2.7] — Фаза 1: деньги — валюта, НДС, себестоимость (P1-04, 24.10.2026)
 
 ### Деньги (P1-04, RULES 2.15, D19)

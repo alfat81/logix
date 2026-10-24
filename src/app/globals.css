@@ -1,18 +1,21 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Дизайн-токены Logix. Структура — стандартный набор shadcn/ui
-   (перенесена с платформы APEX Moto осознанно: подход, не цвета),
-   палитра — своя: глубокий тил как фирменный, нейтральный графит
-   для остального, семантические цвета статусов вместо прямых
-   цветов Tailwind по всему коду (success/warning/info/destructive),
-   плюс text-xxs для микро-бейджей, которых нет в стандартной шкале. */
+/* Дизайн-токены Logix — BRANDBOOK.md v1.1 (D22, RULES 2.14).
+   Структура — стандартный набор shadcn/ui (перенесена с платформы
+   APEX Moto осознанно: подход, не цвета). Палитра — брендбук §1.1:
+   Ivory (фон приложения), Sand (сайдбар, вторичные заливки),
+   Coral (основные действия), Brick (ошибки/критичное), Ink (текст),
+   Border-Sand (рамки вторичных действий); статусные пары — §3.2.
+   Новые hex — ТОЛЬКО в этом файле (RULES 2.14). */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  /* Брендбук §1.2: IBM Plex Sans подключается в layout.tsx через
+     next/font/google и привязывается к --font-sans; fallback — system-ui. */
+  --font-sans: var(--font-ibm-plex), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -31,14 +34,30 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* Семантические цвета статусов этапов/заявок. Используются вместо
-     Tailwind-палитры (bg-green-500 и т.п.) — тема управляет в одном месте. */
+  /* Семантические цвета статусов этапов/заявок — значения из палитры
+     брендбука (§1.1). Управляются в одном месте, не Tailwind-палитра. */
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  /* Сайдбар — Sand (BRANDBOOK §4); потребляется этапом B (P1-18). */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  /* Статусные бейджи §3.2 — варианты ui/badge.tsx (transit/delay/
+     delivered/version); применение в списках — этап C (P1-19). */
+  --color-status-transit-bg: var(--status-transit-bg);
+  --color-status-transit-fg: var(--status-transit-fg);
+  --color-status-delay-bg: var(--status-delay-bg);
+  --color-status-delay-fg: var(--status-delay-fg);
+  --color-status-delivered-bg: var(--status-delivered-bg);
+  --color-status-delivered-fg: var(--status-delivered-fg);
+  --color-status-version-bg: var(--status-version-bg);
+  --color-status-version-fg: var(--status-version-fg);
+  /* Брендбук §5.1/§6: карточки 12px (--radius-lg), кнопки 8px
+     (--radius-sm); поля ввода — 10px (--radius-md). */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -48,40 +67,67 @@
   --text-xxs--line-height: 1rem;
 }
 
-/* ─── Светлая тема ────────────────────────────────────────── */
+/* ─── Светлая тема — BRANDBOOK §1.1 ───────────────────────── */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.985 0.002 200);
-  --foreground: oklch(0.20 0.015 220);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.20 0.015 220);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.20 0.015 220);
-  /* Фирменный — глубокий морской тил */
-  --primary: oklch(0.47 0.085 195);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.94 0.005 210);
-  --secondary-foreground: oklch(0.25 0.015 220);
-  --muted: oklch(0.955 0.004 210);
-  --muted-foreground: oklch(0.50 0.015 220);
-  --accent: oklch(0.94 0.02 195);
-  --accent-foreground: oklch(0.32 0.05 195);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.90 0.006 210);
-  --input: oklch(0.92 0.006 210);
-  --ring: oklch(0.47 0.085 195);
-  /* Статусы: зелёный = завершено, янтарный = в работе/внимание,
-     синий = информационный, красный = проблема. */
-  --success: oklch(0.62 0.16 150);
-  --success-foreground: oklch(0.99 0 0);
-  --warning: oklch(0.75 0.16 75);
-  --warning-foreground: oklch(0.22 0.05 75);
-  --info: oklch(0.55 0.13 235);
-  --info-foreground: oklch(0.99 0 0);
+  /* Сырые брендовые токены (§6) */
+  --ivory: #FDFBF7;
+  --sand: #FAF3E0;
+  --coral: #F28C8C;
+  --brick: #D95D39;
+  --ink: #2B2A26;
+  --border-sand: #E5DCC5;
+
+  --radius: 0.75rem; /* 12px — карточки (§5.1); кнопки 8px = --radius-sm */
+
+  /* Маппинг shadcn → брендбук (§6) */
+  --background: var(--ivory);
+  --foreground: var(--ink);
+  --card: #FFFFFF; /* White — фон всех форм, контраст с Ivory (§5.2) */
+  --card-foreground: var(--ink);
+  --popover: #FFFFFF;
+  --popover-foreground: var(--ink);
+  --primary: var(--coral); /* основное действие — Coral (§3.1, §5.4) */
+  --primary-foreground: #FFFFFF;
+  --secondary: var(--sand); /* вторичные заливки — Sand */
+  --secondary-foreground: var(--ink);
+  --muted: #F1EAD9; /* мягкая тёплая заливка (§3.2, фон V-бейджа) */
+  --muted-foreground: #6B6455; /* вторичный текст (§3.2, текст V-бейджа) */
+  --accent: #FCEBEA; /* мягкий коралловый тинт (§3.2, фон «В ПУТИ») */
+  --accent-foreground: var(--brick);
+  --destructive: var(--brick); /* ошибки/критичные задержки (§5.3) */
+  --destructive-foreground: #FFFFFF;
+  --border: var(--border-sand); /* рамки вторичных действий (§5.5) */
+  --input: var(--border-sand);
+  --ring: var(--coral);
+
+  /* Семантика статусов — значения из брендбука: success = Success §1.1,
+     warning = Coral («ЗАДЕРЖКА» §3.2), info = нейтральный тёплый серый
+     (§3.2, текст V-бейджа). Точная раскладка бейджей — этап C. */
+  --success: #3F7A4C;
+  --success-foreground: #FFFFFF;
+  --warning: var(--coral);
+  --warning-foreground: #FFFFFF;
+  --info: #6B6455;
+  --info-foreground: #FFFFFF;
+
+  /* Сайдбар (§4: Sand) — потребляется этапом B (P1-18) */
+  --sidebar: var(--sand);
+  --sidebar-foreground: var(--ink);
+  --sidebar-border: var(--border-sand);
+
+  /* Статусные бейджи §3.2 (варианты badge.tsx; применение — этап C) */
+  --status-transit-bg: #FCEBEA;
+  --status-transit-fg: var(--brick);
+  --status-delay-bg: var(--coral);
+  --status-delay-fg: #FFFFFF;
+  --status-delivered-bg: #E6F1E4;
+  --status-delivered-fg: #3F7A4C;
+  --status-version-bg: #F1EAD9;
+  --status-version-fg: #6B6455;
 }
 
-/* ─── Тёмная тема (токены готовы, переключатель — позже) ──── */
+/* ─── Тёмная тема (токены готовы, переключатель — позже; вне скоупа
+       брендбука v1.1 — он задаёт только светлую тему) ────────── */
 .dark {
   --background: oklch(0.14 0.01 220);
   --foreground: oklch(0.95 0.004 210);
