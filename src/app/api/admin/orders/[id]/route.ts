@@ -12,6 +12,12 @@ import {
   type CargoProfile,
 } from '@/lib/order-constants'
 import { CargoInfoSchema, QuoteSnapshotSchema } from '@/lib/leads'
+import { getIncompleteMandatoryStages } from '@/lib/orders'
+import {
+  allowedOrderTransitionsLabeled,
+  checkOrderTransition,
+  TERMINAL_ORDER_STATUSES,
+} from '@/lib/status-machine'
 import {
   logActivity,
   employeeActor,
@@ -99,13 +105,19 @@ export async function GET(req: NextRequest, { params }: Params) {
         isMandatory: mandatoryByCode.get(s.stageCode) ?? false,
         name: nameByCode.get(s.stageCode) ?? s.stageCode,
       })),
+      // P1-05: UI показывает только допустимые переходы — подписи
+      // рядом с кодами, чтобы кнопки рендерились без словаря.
+      allowedTransitions: allowedOrderTransitionsLabeled(order.status as OrderStatus),
     },
   })
 }
 
 // ─── PATCH /api/admin/orders/[id] — ручная смена статуса и полей ──
 // Статус заявки переводит менеджер осознанно (роадмап 8.1), переходы
-// не ограничены матрицей — MVP сознательно без автоматики.
+// ограничены матрицей lib/status-machine.ts (P1-05): вперёд по цепочке
+// (перепрыгнуть «Согласование» можно), отмена — из любого
+// не-терминального, возврат из терминальных — только мастер с причиной.
+// Завершение — при готовом обязательном ядре либо перекрытием мастера.
 // Ж1: cargoInfo и quoteSnapshot — суть заявки (груз и условия сделки).
 // Семантика — ПОЛНАЯ ЗАМЕНА: UI присылает форму целиком (предзаполненную
 // текущими значениями), null = очистить поле. Заявки без лида (Б3)
@@ -122,6 +134,12 @@ const PatchOrderSchema = z.object({
   cargoInfo: CargoInfoSchema.nullable().optional(),
   // Условия сделки — снимок варианта расчёта (структура — lib/leads.ts)
   quoteSnapshot: QuoteSnapshotSchema.optional(),
+  // P1-05: перекрытие незавершённого ядра при завершении — только
+  // мастер, с обязательным комментарием (уходит в журнал заявки).
+  override: z.boolean().optional(),
+  overrideComment: z.string().trim().min(1).max(500).optional(),
+  // P1-05: причина возврата из терминального статуса — только мастер.
+  reason: z.string().trim().min(1).max(500).optional(),
 })
 
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -146,6 +164,77 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const existing = await db.order.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'Заявка не найдена' }, { status: 404 })
+    }
+
+    // ── Статусная машина (P1-05) ──────────────────────────
+    // Переходы — только по матрице lib/status-machine.ts (свобода MVP
+    // «переходы не ограничены» отменена задачей P1-05).
+    const isMaster = auth.employee.roles.includes('master')
+    if (data.status) {
+      // Повторная установка того же статуса — явная 400 (тот же
+      // контракт, что у лида В2): молчаливый 200 плодит в ленте
+      // бессмысленные записи «В работе → В работе».
+      if (data.status === existing.status) {
+        return NextResponse.json(
+          { error: `Статус заявки уже: ${ORDER_STATUS_LABELS[data.status as OrderStatus]}` },
+          { status: 400 }
+        )
+      }
+      const from = existing.status as OrderStatus
+      const to = data.status as OrderStatus
+      const transition = checkOrderTransition(from, to)
+      if (!transition.ok) {
+        return NextResponse.json({ error: transition.error }, { status: transition.status })
+      }
+
+      // Завершение: обязательные этапы (по актуальному каталогу)
+      // должны быть «Завершён». Перекрытие — осознанное решение
+      // мастера с комментарием, оно попадает в журнал — не молчаливый обход.
+      if (to === 'completed') {
+        const incomplete = await getIncompleteMandatoryStages(id)
+        if (incomplete.length > 0) {
+          if (data.override && !isMaster) {
+            return NextResponse.json(
+              { error: 'Перекрытие завершения доступно только мастеру' },
+              { status: 403 }
+            )
+          }
+          if (data.override && !data.overrideComment) {
+            return NextResponse.json(
+              { error: 'Укажите комментарий перекрытия (overrideComment) — он попадёт в журнал заявки' },
+              { status: 400 }
+            )
+          }
+          if (!data.override) {
+            return NextResponse.json(
+              {
+                error: `Заявку нельзя завершить: не завершены обязательные этапы — ${incomplete
+                  .map((s) => `«${s.name}»`)
+                  .join(', ')}. Мастер может перекрыть: override=true + overrideComment`,
+                incompleteMandatoryStages: incomplete,
+              },
+              { status: 409 }
+            )
+          }
+        }
+      }
+
+      // Возврат из терминального («Завершена»/«Отменена») — только
+      // мастеру и только с причиной (уходит в журнал заявки).
+      if (TERMINAL_ORDER_STATUSES.includes(from)) {
+        if (!isMaster) {
+          return NextResponse.json(
+            { error: 'Возврат из терминального статуса доступен только мастеру' },
+            { status: 403 }
+          )
+        }
+        if (!data.reason) {
+          return NextResponse.json(
+            { error: 'Укажите причину возврата (reason) — она попадёт в журнал заявки' },
+            { status: 400 }
+          )
+        }
+      }
     }
 
     const order = await db.order.update({
@@ -184,9 +273,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // existing (взят до update), новый статус уже применён выше.
     const events: Array<{ type: ActivityType; description: string }> = []
     if (data.status) {
+      let statusDescription = `Статус заявки: ${
+        ORDER_STATUS_LABELS[existing.status as OrderStatus] ?? existing.status
+      } → ${ORDER_STATUS_LABELS[data.status]}`
+      // P1-05: осознанные обходы/возвраты — в ленте с «почему».
+      if (data.overrideComment) statusDescription += ` — перекрытие мастером: ${data.overrideComment}`
+      else if (data.reason) statusDescription += ` — причина: ${data.reason}`
       events.push({
         type: 'order_status_changed',
-        description: `Статус заявки: ${ORDER_STATUS_LABELS[existing.status as OrderStatus] ?? existing.status} → ${ORDER_STATUS_LABELS[data.status]}`,
+        description: statusDescription,
       })
     }
     if (data.cargoInfo !== undefined) {

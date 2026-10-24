@@ -188,6 +188,28 @@ export async function isStageMandatory(stageCode: string): Promise<boolean> {
   return stage?.isMandatory ?? false
 }
 
+// ─── Готовность обязательного ядра к завершению заявки (P1-05) ──
+// Обязательные (по АКТУАЛЬНОМУ каталогу, не по снимку) этапы, которые
+// ещё не «Завершён». Пустой список = заявку можно завершать; непустой
+// — завершение отклоняется, мастер может перекрыть с комментарием
+// (решение о перекрытии принимает роут PATCH заявки — там роль и журнал).
+export async function getIncompleteMandatoryStages(
+  orderId: string
+): Promise<Array<{ stageCode: string; name: string }>> {
+  const catalog = await db.orderStageCatalog.findMany({
+    where: { isMandatory: true },
+    select: { code: true, name: true },
+    orderBy: { order: 'asc' },
+  })
+  if (catalog.length === 0) return []
+  const stages = await db.orderStageInstance.findMany({
+    where: { orderId, stageCode: { in: catalog.map((c) => c.code) } },
+    select: { stageCode: true, status: true },
+  })
+  const doneCodes = new Set(stages.filter((s) => s.status === 'done').map((s) => s.stageCode))
+  return catalog.filter((c) => !doneCodes.has(c.code)).map((c) => ({ stageCode: c.code, name: c.name }))
+}
+
 // ─── Сводка этапов для списковых проекций заявки (Ж4 → Ж6а) ─────
 // Ближайший этап / прогресс / просрочка считаются одинаково в списке
 // заявок (Ж4) и в карточке клиента (Ж6а) — один код-путь вместо копий.
@@ -217,12 +239,15 @@ export type OrderStagesSummary = {
   overdue: boolean
 }
 
+export function utcDayStart(date: Date): number {
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+}
+
 // Граница «сегодня» по UTC: плановые даты приходят UTC-полуночью
 // (UI шлёт T00:00:00.000Z), локальная таймзона сервера не должна
 // сдвигать день (то же правило — в роуте orders GET и Ж5 attention).
 export function todayUtcMidnight(): number {
-  const now = new Date()
-  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  return utcDayStart(new Date())
 }
 
 // Этапы заявки (по sequence asc) → сводка: первый незавершённый этап

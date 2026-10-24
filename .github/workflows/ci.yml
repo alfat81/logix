@@ -30,6 +30,8 @@ jobs:
         run: bunx tsc --noEmit
       - name: ESLint
         run: bun run lint
+      - name: Unit-тесты (vitest)
+        run: bun run test
       - name: Сборка
         run: bun run build
 

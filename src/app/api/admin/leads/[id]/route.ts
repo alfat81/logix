@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { PatchLeadSchema, LEAD_STATUS_LABELS, type LeadStatus } from '@/lib/leads'
+import { checkLeadTransition } from '@/lib/status-machine'
 import { apiErrorResponse } from '@/lib/api-errors'
 import {
   logActivity,
@@ -107,6 +108,35 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       )
     }
 
+    // ── Матрица переходов лида (P1-05, lib/status-machine.ts) ──
+    const transition = checkLeadTransition(existing.status as LeadStatus, status as LeadStatus)
+    if (!transition.ok) {
+      return NextResponse.json({ error: transition.error }, { status: transition.status })
+    }
+
+    // Ручной перевод new→calculated — только при ≥1 варианте расчёта
+    // (порог воронки из В3; находка аудита №7: «Рассчитан» без вариантов
+    // обесценивал статус и ломал фильтры). Автомат из В3 — POST вариантов
+    // — этот порог выполняет всегда, здесь защита от ручного обхода.
+    if (existing.status === 'new' && status === 'calculated') {
+      const optionsCount = await db.quoteOption.count({ where: { leadId: id } })
+      if (optionsCount === 0) {
+        return NextResponse.json(
+          { error: 'Нельзя перевести в «Рассчитан» без варианта расчёта — сначала добавьте вариант' },
+          { status: 409 }
+        )
+      }
+    }
+
+    // lost→new — возврат из терминального: только мастер (как у заявки).
+    // Причина отказа сохраняется в журнале — поле чистится при возврате.
+    if (existing.status === 'lost' && !auth.employee.roles.includes('master')) {
+      return NextResponse.json(
+        { error: 'Возврат из «Отказа» доступен только мастеру' },
+        { status: 403 }
+      )
+    }
+
     const lead = await db.lead.update({
       where: { id },
       data: {
@@ -135,7 +165,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       status === 'lost'
         ? `Статус: ${prevLabel} → ${LEAD_STATUS_LABELS[status]} — причина: ${lostReason}`
         : existing.status === 'lost'
-          ? `Возвращён в работу: ${prevLabel} → ${LEAD_STATUS_LABELS[status]}`
+          ? // P1-05: причина отказа не теряется — уходит в журнал вместе с возвратом.
+            `Возвращён в работу: ${prevLabel} → ${LEAD_STATUS_LABELS[status]} — причина отказа: ${existing.lostReason ?? 'не указана'}`
           : `Статус: ${prevLabel} → ${LEAD_STATUS_LABELS[status]}`
     await logActivity(
       { leadId: id },

@@ -3,14 +3,15 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { STAGE_STATUSES, STAGE_STATUS_LABELS, type StageStatus } from '@/lib/order-constants'
-import { isStageMandatory } from '@/lib/orders'
+import { isStageMandatory, todayUtcMidnight, utcDayStart } from '@/lib/orders'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { logActivity, employeeActor, fmtRuDate, type ActivityType } from '@/lib/activity'
 
 type Params = { params: Promise<{ id: string; stageId: string }> }
 
 // ─── PATCH /api/admin/orders/[id]/stages/[stageId] ────────────
-// Смена статуса этапа, дат план/факт, перестановка порядка,
+// Смена статуса этапа, дат план/факт (факт — не в будущем, план в
+// прошлом — предупреждение: P1-06), перестановка порядка,
 // назначение/смена/снятие подрядчика-исполнителя (Г3). Порядок можно
 // менять только у необязательных этапов (роадмап, раздел 3: «порядок
 // среди последних — на его усмотрение»).
@@ -47,6 +48,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const stage = await db.orderStageInstance.findFirst({ where: { id: stageId, orderId: id } })
     if (!stage) {
       return NextResponse.json({ error: 'Этап не найден в этой заявке' }, { status: 404 })
+    }
+
+    // ── Валидация дат (P1-06) ──────────────────────────
+    // Факт не может быть в будущем: опечатка «2030» не должна ломать
+    // сводку просрочки и доверие к печатной форме. Граница «сегодня»
+    // — по UTC-дню (правило todayUtcMidnight, даты приходят UTC-полуночью;
+    // любой момент сегодняшнего дня — валиден).
+    if (data.actualDate) {
+      const actual = new Date(data.actualDate)
+      if (utcDayStart(actual) > todayUtcMidnight()) {
+        return NextResponse.json(
+          { error: 'Фактическая дата не может быть в будущем' },
+          { status: 400 }
+        )
+      }
+    }
+    // Плановая дата в прошлом — предупреждение, НЕ ошибка (P1-06):
+    // менеджер может осознанно фиксировать отстающий план, но ответ
+    // подсветит этот момент (UI покажет предупреждение из warnings).
+    const warnings: string[] = []
+    if (data.plannedDate && utcDayStart(new Date(data.plannedDate)) < todayUtcMidnight()) {
+      warnings.push('Плановая дата этапа — в прошлом: проверьте, не нужно ли её актуализировать')
     }
 
     // Перестановка — только для необязательных: порядок обязательного
@@ -172,6 +195,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({
       stage: updated,
       message: parts.join('; '),
+      ...(warnings.length > 0 ? { warnings } : {}),
     })
   } catch (e) {
     return apiErrorResponse(e, 'stage PATCH', 'Не удалось обновить этап')
