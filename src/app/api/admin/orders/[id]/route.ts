@@ -38,6 +38,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     where: { id },
     include: {
       customer: true,
+      assignee: { select: { id: true, name: true } },
       contract: { include: { legalEntity: { select: { id: true, name: true } } } },
       legalEntity: { select: { id: true, name: true } },
       // Ж1: лид-источник — карточка заявки ведёт к истории запроса
@@ -140,6 +141,10 @@ const PatchOrderSchema = z.object({
   overrideComment: z.string().trim().min(1).max(500).optional(),
   // P1-05: причина возврата из терминального статуса — только мастер.
   reason: z.string().trim().min(1).max(500).optional(),
+  // P1-01: смена ответственного (null — снять). Существование и
+  // активность сотрудника проверяет роут; повторная установка того же —
+  // 400 (тот же контракт, что у статуса).
+  assignedToId: z.string().min(1).nullable().optional(),
 })
 
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -161,9 +166,40 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Нечего обновлять' }, { status: 400 })
     }
 
-    const existing = await db.order.findUnique({ where: { id } })
+    const existing = await db.order.findUnique({
+      where: { id },
+      include: { assignee: { select: { id: true, name: true } } },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Заявка не найдена' }, { status: 404 })
+    }
+
+    // ── Ответственный (P1-01): валидация до update ──
+    let newAssigneeName: string | null = null
+    if (data.assignedToId !== undefined) {
+      if ((existing.assignedToId ?? null) === data.assignedToId) {
+        const sameName = data.assignedToId === null ? 'не назначен' : (existing.assignee?.name ?? data.assignedToId)
+        return NextResponse.json(
+          { error: `Ответственный уже: ${sameName}` },
+          { status: 400 }
+        )
+      }
+      if (data.assignedToId !== null) {
+        const target = await db.employee.findUnique({
+          where: { id: data.assignedToId },
+          select: { name: true, isActive: true },
+        })
+        if (!target) {
+          return NextResponse.json({ error: 'Сотрудник не найден' }, { status: 400 })
+        }
+        if (!target.isActive) {
+          return NextResponse.json(
+            { error: `Сотрудник «${target.name}» деактивирован — назначить нельзя` },
+            { status: 400 }
+          )
+        }
+        newAssigneeName = target.name
+      }
     }
 
     // ── Статусная машина (P1-05) ──────────────────────────
@@ -264,6 +300,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
                   : (data.quoteSnapshot as unknown as Prisma.InputJsonObject),
             }
           : {}),
+        // P1-01: ответственный — id или null (снять)
+        ...(data.assignedToId !== undefined ? { assignedToId: data.assignedToId } : {}),
       },
     })
 
@@ -295,6 +333,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         type: 'order_quote_changed',
         description:
           data.quoteSnapshot === null ? 'Условия сделки сняты' : 'Обновлены условия сделки',
+      })
+    }
+    // P1-01: смена ответственного — отдельная запись в хронике
+    if (data.assignedToId !== undefined) {
+      const prevName = existing.assignee?.name ?? null
+      events.push({
+        type: 'order_assignee_changed',
+        description:
+          data.assignedToId === null
+            ? `Ответственный снят: ${prevName ?? '—'}`
+            : prevName
+              ? `Ответственный: ${prevName} → ${newAssigneeName}`
+              : `Назначен ответственный: ${newAssigneeName}`,
       })
     }
     const fields: string[] = []

@@ -35,6 +35,7 @@ import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { LeadStatusBadge } from '@/components/admin/LeadsList'
 import { Breadcrumbs } from '@/components/admin/Breadcrumbs'
+import { AssigneeField } from '@/components/admin/AssigneeField'
 import { CargoGroups } from '@/components/admin/CargoGroups'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
@@ -73,6 +74,8 @@ type LeadFull = {
   rawContact: { name: string; phone?: string; email?: string } | null
   cargoInfo: Record<string, unknown> | null
   customer: { id: string; name: string; phone: string | null; email: string | null } | null
+  // P1-01: ответственный менеджер (null = не назначен — кабинетный запрос)
+  assignee: { id: string; name: string } | null
   options: QuoteOptionRow[]
   order: { id: string; number: string; status: string } | null
   // Д: брокеры расчёта с оценками таможенных платежей (оценка — на
@@ -440,6 +443,14 @@ export function LeadCard() {
           )}
         </div>
       </div>
+
+      {/* P1-01: ответственный менеджер — смена PATCH'ем с записью в журнал
+          (у мастера — выбор из справочника, у менеджера — read-only) */}
+      <AssigneeField
+        value={lead.assignee?.id ?? null}
+        currentName={lead.assignee?.name ?? null}
+        onSave={(employeeId) => patchLead({ assignedToId: employeeId })}
+      />
 
       {lead.status === 'lost' && lead.lostReason && (
         <Card className="p-3 text-sm border-destructive/40 bg-destructive/5">

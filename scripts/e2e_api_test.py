@@ -57,6 +57,30 @@ leid=(le[0]['id'] if isinstance(le,list) else None); chk('юрлицо из си
 # lead with raw contact
 s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'ООО Ромб '+u,'phone':'8 (999) '+str(base)[:3]+'-'+str(base)[3:5]+'-'+str(base)[5:7]},'cargoInfo':{'origin':'Шанхай','destination':'Москва','weightKg':1200}}); chk('создание лида',s in(200,201),(s,d))
 lead=(d.get('lead') or d); lid=lead['id']
+# --- P1-01: ответственный менеджер ---
+s,d=a.r('GET','/api/auth/employee/me'); aid=(d.get('employee') or {}).get('id'); chk('P1-01: id текущего сотрудника (me)',bool(aid),(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid}'); L=d.get('lead',d)
+chk('P1-01: лид при создании получает ответственного-создателя',(L.get('assignee') or {}).get('id')==aid,L.get('assignee'))
+b2ph=ph(base+4)
+s,d=a.r('POST','/api/admin/employees',{'name':'Менеджер B '+u,'phone':b2ph,'password':'manager-pass-1','roles':['manager']}); chk('P1-01: менеджер B создан',s in(200,201),(s,d)); bid2=(d.get('employee') or d)['id']
+bb=C(); s,_=bb.r('POST','/api/auth/employee/login',{'phone':b2ph,'password':'manager-pass-1'})
+chk('P1-01: менеджер B вошёл',s==200,s)
+s,d=bb.r('GET','/api/admin/leads?assigned=mine'); ids=[x['id'] for x in d.get('leads',[])]
+chk('[ПРИЁМКА P1-01] менеджер B не видит лид A в фильтре «Мои»',lid not in ids,len(ids))
+s,d=a.r('GET','/api/admin/leads?assigned=unassigned'); ids=[x['id'] for x in d.get('leads',[])]
+chk('P1-01: новый лид не в «Без ответственного»',lid not in ids,len(ids))
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':'nonexistent-id'}); chk('P1-01: несуществующий сотрудник → 400',s==400,s)
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':bid2}); chk('P1-01: смена ответственного → 200',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid}'); L=d.get('lead',d); acts=L.get('activities',[])
+chk('P1-01: смена ответственного в журнале лида',bool(acts) and acts[0]['type']=='lead_assignee_changed' and 'Менеджер B' in acts[0]['description'],(acts[0] if acts else None))
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':bid2}); chk('P1-01: повторное назначение того же → 400',s==400,s)
+s,d=bb.r('GET','/api/admin/leads?assigned=mine'); ids=[x['id'] for x in d.get('leads',[])]
+chk('P1-01: B видит лид в «Мои» после назначения',lid in ids,len(ids))
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':None}); chk('P1-01: снятие ответственного → 200',s==200,(s,d))
+s,d=a.r('GET','/api/admin/leads?assigned=unassigned'); ids=[x['id'] for x in d.get('leads',[])]
+chk('P1-01: снятый лид в «Без ответственного»',lid in ids,len(ids))
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':bid2}); chk('P1-01: возврат ответственного B',s==200,(s,d))
+s,d=a.r('GET','/api/admin/leads?sort=stale'); chk('P1-01: сортировка «давно без движения» (лиды)',s==200,(s,str(d)[:100]))
 s,d=a.r('POST',f'/api/admin/leads/{lid}/convert',{'legalEntityId':leid}); chk('конвертация без варианта → 409',s==409,(s,d))
 s,d=a.r('POST',f'/api/admin/leads/{lid}/options',{'description':'Море+ЖД','transportModes':['Море','ЖД'],'priceEstimate':450000,'etaDays':45,'priorityFit':'cost'}); chk('вариант расчёта 1',s in(200,201),(s,d))
 s,d=a.r('POST',f'/api/admin/leads/{lid}/options',{'description':'Авиа','priceEstimate':1200000,'etaDays':7,'priorityFit':'speed','isSelected':True}); chk('вариант 2 isSelected',s in(200,201),(s,d))
@@ -93,6 +117,15 @@ chk('параллельная конвертация: один клиент на
 s,d=a.r('GET',f'/api/admin/orders/{oid}'); O=d.get('order',d)
 chk('обязательные этапы подставлены',len(O.get('stages',[]))>=6,len(O.get('stages',[])))
 chk('снимок цены перенесён',(O.get('quoteSnapshot') or {}).get('priceEstimate')==1200000,O.get('quoteSnapshot'))
+# --- P1-01: ответственный на заявке ---
+chk('P1-01: конвертация переносит ответственного в заявку',(O.get('assignee') or {}).get('id')==bid2,O.get('assignee'))
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':aid}); chk('P1-01: смена ответственного won-лида → 409',s==409,s)
+s,d=a.r('PATCH',f'/api/admin/orders/{oid}',{'assignedToId':aid}); chk('P1-01: смена ответственного заявки → 200',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid}'); O2=d.get('order',d); oacts=O2.get('activities',[])
+chk('P1-01: смена ответственного заявки в журнале',bool(oacts) and oacts[0]['type']=='order_assignee_changed' and 'Менеджер B' in oacts[0]['description'],(oacts[0] if oacts else None))
+s,d=bb.r('GET','/api/admin/orders?assigned=mine'); oids=[x['id'] for x in d.get('orders',[])]
+chk('P1-01: B не видит заявку в «Мои» после переназначения',oid not in oids,len(oids))
+s,d=a.r('GET','/api/admin/orders?sort=stale'); chk('P1-01: сортировка «давно без движения» (заявки)',s==200,(s,str(d)[:100]))
 s,d=a.r('GET',f'/api/admin/orders/{oid}/documents'); docs=d.get('documents',d) if isinstance(d,dict) else d
 chk('документы перенесены на заявку',isinstance(docs,list) and len(docs)>=2,(s,str(d)[:200]))
 st=O['stages']; mand=st[0]

@@ -7,9 +7,17 @@ import { apiErrorResponse } from '@/lib/api-errors'
 import { logActivity, employeeActor } from '@/lib/activity'
 
 // ─── GET /api/admin/leads — список лидов (В2) ─────────────────
-// Query: ?status=new|calculated|won|lost — фильтр по статусу воронки
-// (табы В5). Свежие сверху; состав include — как в карточке лида,
-// чтобы списку и табам хватило одного запроса.
+// Query:
+//   ?status=new|calculated|won|lost — фильтр по статусу воронки (табы В5)
+//   ?assigned=mine|unassigned|all — фильтр ответственного (P1-01):
+//     mine = только мои, unassigned = без ответственного, all = умолчание
+//   ?sort=newest|stale — newest (умолчание) свежие сверху; stale —
+//     «давно без движения» (updatedAt asc, P1-01)
+// Свежие сверху; состав include — как в карточке лида, чтобы списку
+// и табам хватило одного запроса.
+const LEAD_ASSIGNED_FILTERS = ['mine', 'unassigned', 'all'] as const
+const LEAD_LIST_SORTS = ['newest', 'stale'] as const
+
 export async function GET(req: NextRequest) {
   const auth = await requireEmployee(req)
   if (!auth.ok) return auth.response
@@ -19,12 +27,32 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Неизвестный статус лида' }, { status: 400 })
   }
 
+  const assigned = req.nextUrl.searchParams.get('assigned') ?? 'all'
+  if (!(LEAD_ASSIGNED_FILTERS as readonly string[]).includes(assigned)) {
+    return NextResponse.json({ error: 'Неизвестный фильтр ответственного (assigned)' }, { status: 400 })
+  }
+  const sort = req.nextUrl.searchParams.get('sort') ?? 'newest'
+  if (!(LEAD_LIST_SORTS as readonly string[]).includes(sort)) {
+    return NextResponse.json({ error: 'Неизвестная сортировка' }, { status: 400 })
+  }
+
   try {
+    const conds: Prisma.LeadWhereInput[] = []
+    if (status) conds.push({ status })
+    // P1-01: mine — «лид веду я»; unassigned — разбор входящих без
+    // ответственного (в т.ч. запросы из кабинета И1)
+    if (assigned === 'mine') conds.push({ assignedToId: auth.employee.id })
+    if (assigned === 'unassigned') conds.push({ assignedToId: null })
+    const where: Prisma.LeadWhereInput = conds.length ? { AND: conds } : {}
+
     const leads = await db.lead.findMany({
-      where: status ? { status } : undefined,
-      orderBy: { createdAt: 'desc' },
+      where,
+      // stale — «давно без движения»: старое изменение сверху (P1-01);
+      // id — стабильный tie-break, чтобы страницы не дрожали
+      orderBy: sort === 'stale' ? [{ updatedAt: 'asc' }, { id: 'asc' }] : [{ createdAt: 'desc' }, { id: 'asc' }],
       include: {
         customer: { select: { id: true, name: true, phone: true } },
+        assignee: { select: { id: true, name: true } },
         options: { orderBy: { createdAt: 'asc' } },
         order: { select: { id: true, number: true } },
       },
@@ -84,6 +112,10 @@ export async function POST(req: NextRequest) {
     const lead = await db.lead.create({
       data: {
         status: 'new',
+        // P1-01: при создании ответственный — текущий сотрудник (кто
+        // принял запрос, тот и ведёт). Запрос из кабинета (И1) создаётся
+        // другим роутом без сотрудника — рождается «Без ответственного».
+        assignedToId: auth.employee.id,
         ...(data.customerId ? { customerId: data.customerId } : {}),
         // zod-объекты шире Prisma.InputJsonObject — явный каст на
         // границе (тот же приём, что transportModes в В3); без поля
@@ -97,6 +129,7 @@ export async function POST(req: NextRequest) {
       },
       include: {
         customer: { select: { id: true, name: true, phone: true } },
+        assignee: { select: { id: true, name: true } },
         options: { orderBy: { createdAt: 'asc' } },
         order: { select: { id: true, number: true } },
       },

@@ -30,6 +30,11 @@ model Employee {
   createdAt    DateTime @default(now())
 
   sessions     EmployeeSession[]
+  // P1-01: назначение ответственным менеджером (обратные связи
+  // Lead/Order). Назначение НЕ блокирует деактивацию — проверка
+  // isActive живёт в API смены ответственного.
+  assignedLeads  Lead[]  @relation("LeadAssignee")
+  assignedOrders Order[] @relation("OrderAssignee")
 }
 
 model EmployeeSession {
@@ -145,11 +150,24 @@ model Order {
   cargoInfo     Json?
   quoteSnapshot Json?
   createdAt     DateTime @default(now())
+  // P1-01: дата последнего изменения — маркер «заявка без движения»
+  // (сортировка «давно без движения», фильтры внимания). @default(now())
+  // обязателен: непустая таблица на миграции получает честную точку
+  // отсчёта (тот же приём, что updatedAt у Lead — Ж5).
+  updatedAt     DateTime @default(now()) @updatedAt
+  // P1-01: ответственный менеджер заявки. Конвертация В4 переносит с
+  // лида (без ответственного на лиде — тот, кто конвертировал); ручная
+  // заявка Б3 — создатель. null = не назначена (например, запрос из
+  // кабинета, конвертированный «в общий котёл»). SetNull — как у
+  // подрядчика на этапе: API-удаления сотрудника нет, страховка от
+  // ручных операций в БД; история назначений живёт в Activity-снимках.
+  assignedToId  String?
 
   contract    Contract             @relation(fields: [contractId], references: [id])
   legalEntity LegalEntity          @relation(fields: [legalEntityId], references: [id])
   customer    Customer             @relation(fields: [customerId], references: [id])
   lead        Lead?                @relation(fields: [leadId], references: [id])
+  assignee    Employee?            @relation("OrderAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   stages      OrderStageInstance[]
   activities  Activity[]
   // Д (роадмап 5а): брокеры заявки — полная видимость сделки целиком,
@@ -163,6 +181,8 @@ model Order {
   @@unique([contractId, numberInContract])
   @@index([status])
   @@index([customerId])
+  @@index([assignedToId])
+  @@index([updatedAt])
 }
 
 model OrderStageCatalog {
@@ -249,8 +269,15 @@ model Lead {
   // чтобы «движением» считалась и работа с вариантами без смены
   // статуса.
   updatedAt  DateTime @default(now()) @updatedAt
+  // P1-01: ответственный менеджер лида. При создании (В2) — текущий
+  // сотрудник; запрос из кабинета (И1) рождается без ответственного.
+  // null = не назначен / снят. SetNull — как у подрядчика на этапе:
+  // API-удаления сотрудника нет, страховка от ручных операций в БД;
+  // история назначений живёт в Activity-снимках.
+  assignedToId String?
 
   customer Customer?      @relation(fields: [customerId], references: [id])
+  assignee Employee?      @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   options  QuoteOption[]
   order    Order?
   activities Activity[]
@@ -267,6 +294,7 @@ model Lead {
   @@index([status])
   @@index([customerId])
   @@index([updatedAt])
+  @@index([assignedToId])
 }
 
 model QuoteOption {

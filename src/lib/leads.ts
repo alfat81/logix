@@ -255,16 +255,28 @@ export const CreateLeadSchema = z
   })
 export type CreateLeadInput = z.infer<typeof CreateLeadSchema>
 
-// PATCH лида — только смена статуса (+ причина при отказе). Состав полей
+// PATCH лида — смена статуса (+ причина при отказе) и/или ответственного
+// (P1-01: assignedToId nullable — null снимает назначение). Состав полей
 // лида (rawContact/cargoInfo/customerId) через этот роут не меняется:
 // анкета — черновик запроса, ошибки в нём правятся пересозданием лида
-// или рождаются заново при конвертации (В4).
-export const PatchLeadSchema = z.object({
-  status: z.enum(LEAD_STATUSES, {
-    errorMap: () => ({ message: 'Неизвестный статус лида' }),
-  }),
-  lostReason: z.string().trim().min(1, 'Укажите причину отказа').optional(),
-})
+// или рождаются заново при конвертации (В4). Пустое обновление — 400:
+// молчаливый 200 плодит «ничего не изменилось» без следа в журнале.
+export const PatchLeadSchema = z
+  .object({
+    status: z
+      .enum(LEAD_STATUSES, {
+        errorMap: () => ({ message: 'Неизвестный статус лида' }),
+      })
+      .optional(),
+    lostReason: z.string().trim().min(1, 'Укажите причину отказа').optional(),
+    // P1-01: id сотрудника (строка) или null = снять ответственного.
+    // Существование и активность сотрудника проверяет роут (справочник
+    // живёт короче истории — проверка на момент действия).
+    assignedToId: z.string().min(1).nullable().optional(),
+  })
+  .refine((d) => d.status !== undefined || d.assignedToId !== undefined, {
+    message: 'Нечего обновлять: укажите статус или assignedToId',
+  })
 export type PatchLeadInput = z.infer<typeof PatchLeadSchema>
 
 // ─── Конвертация лида в заявку (В4) ─────────────────────────────────

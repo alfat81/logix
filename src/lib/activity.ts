@@ -15,6 +15,8 @@ export const ACTIVITY_TYPES = [
   // воронка лидов
   'lead_created',
   'lead_status_changed',
+  // P1-01: смена ответственного менеджера лида (назначение/переназначение/снятие)
+  'lead_assignee_changed',
   'lead_converted',
   'option_added',
   'option_updated',
@@ -23,6 +25,8 @@ export const ACTIVITY_TYPES = [
   // заявки
   'order_created',
   'order_status_changed',
+  // P1-01: смена ответственного менеджера заявки
+  'order_assignee_changed',
   'order_cargo_changed',
   'order_quote_changed',
   'order_fields_changed',

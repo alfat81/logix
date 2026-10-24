@@ -13,9 +13,11 @@ import { apiErrorResponse } from '@/lib/api-errors'
 // ─── GET /api/admin/orders — список заявок (Ж4: рабочий инструмент) ───
 // Эталонный паттерн списка (принцип 2 очереди) — его копируют Ж5/Ж6:
 //   ?q=      поиск по номеру, имени клиента, телефону клиента, ТН ВЭД
-//   ?sort=   newest (умолчание) | oldest | number_asc | number_desc
+//   ?sort=   newest (умолчание) | oldest | number_asc | number_desc |
+//            stale («давно без движения», updatedAt asc — P1-01)
 //   ?take=&skip=  постраничность, ответ несёт hasMore
 //   ?status= фильтр-таб по статусу (роадмап 8.1 — статусы ручные)
+//   ?assigned=mine|unassigned|all — фильтр ответственного (P1-01)
 // Счётчики по статусам считаются по ТОМУ ЖЕ поиску, но без фильтра
 // таба: табы показывают распределение найденного («у Иванова 2 в
 // работе, 1 в расчёте»), а не всей базы.
@@ -23,12 +25,17 @@ import { apiErrorResponse } from '@/lib/api-errors'
 // исполнитель этого этапа и отметка просрочки — незавершённый этап с
 // плановой датой раньше сегодняшней (то же правило вынесет на главный
 // экран Ж5 «Требует внимания» — здесь они рождаются).
-const ORDER_SORTS = ['newest', 'oldest', 'number_asc', 'number_desc'] as const
+const ORDER_SORTS = ['newest', 'oldest', 'number_asc', 'number_desc', 'stale'] as const
+const ORDER_ASSIGNED_FILTERS = ['mine', 'unassigned', 'all'] as const
 
 function orderOrderBy(sort: string): Prisma.OrderOrderByWithRelationInput[] {
   switch (sort) {
     case 'oldest':
       return [{ createdAt: 'asc' }, { id: 'asc' }]
+    case 'stale':
+      // P1-01: «давно без движения» — старое изменение сверху; id —
+      // стабильный tie-break, чтобы страницы не дрожали
+      return [{ updatedAt: 'asc' }, { id: 'asc' }]
     case 'number_asc':
       // Составной номер «договор-порядковый» — сортируем по его частям,
       // лексикографика «10-2 < 2-1» тут не нужна.
@@ -47,6 +54,11 @@ export async function GET(req: NextRequest) {
   const status = req.nextUrl.searchParams.get('status')
   if (status && !(ORDER_STATUSES as readonly string[]).includes(status)) {
     return NextResponse.json({ error: 'Неизвестный статус заявки' }, { status: 400 })
+  }
+
+  const assigned = req.nextUrl.searchParams.get('assigned') ?? 'all'
+  if (!(ORDER_ASSIGNED_FILTERS as readonly string[]).includes(assigned)) {
+    return NextResponse.json({ error: 'Неизвестный фильтр ответственного (assigned)' }, { status: 400 })
   }
 
   const parsed = parseListQuery(req.nextUrl.searchParams, {
@@ -73,6 +85,9 @@ export async function GET(req: NextRequest) {
 
     const conds: Prisma.OrderWhereInput[] = []
     if (status) conds.push({ status: status as OrderStatus })
+    // P1-01: mine — «заявку веду я»; unassigned — разбор без ответственного
+    if (assigned === 'mine') conds.push({ assignedToId: auth.employee.id })
+    if (assigned === 'unassigned') conds.push({ assignedToId: null })
     if (search) conds.push(search)
     const where: Prisma.OrderWhereInput = conds.length ? { AND: conds } : {}
 
@@ -86,6 +101,7 @@ export async function GET(req: NextRequest) {
         skip,
         include: {
           customer: { select: { id: true, name: true, phone: true } },
+          assignee: { select: { id: true, name: true } },
           contract: { select: { id: true, number: true } },
           legalEntity: { select: { id: true, name: true } },
           // Все этапы с малым селектом: по ним считаются И прогресс
@@ -139,6 +155,9 @@ export async function GET(req: NextRequest) {
         incoterm: o.incoterm,
         cargoProfile: o.cargoProfile,
         createdAt: o.createdAt,
+        // P1-01: ответственный и маркер движения — колонки списка
+        assignee: o.assignee,
+        updatedAt: o.updatedAt,
         customer: o.customer,
         contract: o.contract,
         legalEntity: o.legalEntity,
@@ -205,6 +224,9 @@ export async function POST(req: NextRequest) {
       incoterm: data.incoterm || null,
       hsCode: data.hsCode || null,
       cargoProfile: data.cargoProfile,
+      // P1-01: при создании ответственный — текущий сотрудник (кто
+      // завёл заявку, тот и ведёт)
+      assignedToId: auth.employee.id,
     })
     if ('error' in result) {
       return NextResponse.json({ error: result.error }, { status: result.status })

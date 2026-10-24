@@ -45,6 +45,7 @@ import { OrderStatusBadge } from '@/components/admin/OrdersList'
 import { CargoGroups, CargoFormFields } from '@/components/admin/CargoGroups'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
 import { Breadcrumbs } from '@/components/admin/Breadcrumbs'
+import { AssigneeField } from '@/components/admin/AssigneeField'
 import { NoteForm } from '@/components/admin/NoteForm'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
 import {
@@ -108,6 +109,8 @@ type OrderFull = {
   quoteSnapshot: QuoteSnapshot | null
   // Ж1: лид-источник (заявки без лида — leadId null, Б3)
   leadId: string | null
+  // P1-01: ответственный менеджер (null = не назначена)
+  assignee: { id: string; name: string } | null
   // Д: лид-источник несёт брокеров расчёта с оценками (перенос в
   // заявку при конвертации В4 — оценка живёт на связи лида)
   lead: {
@@ -288,10 +291,11 @@ export default function OrderPage() {
     const data = await readApiResponse<{ message?: string; error?: string }>(res)
     if (!res.ok) {
       toast({ title: data.error || 'Ошибка', variant: 'destructive' })
-      return
+      return false
     }
     toast({ title: data.message || 'Обновлено' })
     load()
+    return true
   }
 
   // ── Ж1: диалоги правки груза и условий ───────────────────
@@ -534,6 +538,14 @@ export default function OrderPage() {
           </Select>
         </div>
       </div>
+
+      {/* P1-01: ответственный менеджер — смена PATCH'ем с записью в журнал
+          (у мастера — выбор из справочника, у менеджера — read-only) */}
+      <AssigneeField
+        value={order.assignee?.id ?? null}
+        currentName={order.assignee?.name ?? null}
+        onSave={(employeeId) => patchOrder({ assignedToId: employeeId })}
+      />
 
       <Card>
         <CardHeader className="pb-3">

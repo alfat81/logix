@@ -47,6 +47,9 @@ type OrderRow = {
   incoterm: string | null
   cargoProfile: string
   createdAt: string
+  // P1-01: ответственный менеджер и маркер движения
+  assignee: { id: string; name: string } | null
+  updatedAt: string
   customer: { id: string; name: string; phone: string | null }
   contract: { id: string; number: number }
   legalEntity: { id: string; name: string }
@@ -80,6 +83,8 @@ export function OrdersList() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all')
   const [sort, setSort] = useState('newest')
+  // P1-01: фильтр ответственного («Мои / Все / Без ответственного»)
+  const [assignedFilter, setAssignedFilter] = useState<'all' | 'mine' | 'unassigned'>('all')
   const [q, setQ] = useState('')
   const debouncedQ = useDebouncedValue(q, 400)
   // Счётчик версий: сброс списка после создания заявки без копирования
@@ -113,13 +118,14 @@ export function OrdersList() {
       if (debouncedQ) params.set('q', debouncedQ)
       if (sort !== 'newest') params.set('sort', sort)
       if (statusFilter !== 'all') params.set('status', statusFilter)
+      if (assignedFilter !== 'all') params.set('assigned', assignedFilter)
       if (skip) params.set('skip', String(skip))
       const res = await fetch(`/api/admin/orders?${params.toString()}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Ошибка загрузки')
       return data
     },
-    [debouncedQ, sort, statusFilter]
+    [debouncedQ, sort, statusFilter, assignedFilter]
   )
 
   // Сброс списка: новый поиск/сортировка/таб или версия после создания.
@@ -433,6 +439,7 @@ export function OrdersList() {
             <SelectItem value="oldest">Сначала старые</SelectItem>
             <SelectItem value="number_asc">№ по возрастанию</SelectItem>
             <SelectItem value="number_desc">№ по убыванию</SelectItem>
+            <SelectItem value="stale">Давно без движения</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -457,6 +464,31 @@ export function OrdersList() {
             {counts ? ` · ${counts[s]}` : ''}
           </Button>
         ))}
+      </div>
+
+      {/* P1-01: фильтр ответственного (Мои / Все / Без ответственного) */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant={assignedFilter === 'all' ? 'default' : 'outline'}
+          onClick={() => setAssignedFilter('all')}
+        >
+          Ответственный: все
+        </Button>
+        <Button
+          size="sm"
+          variant={assignedFilter === 'mine' ? 'default' : 'outline'}
+          onClick={() => setAssignedFilter('mine')}
+        >
+          Мои
+        </Button>
+        <Button
+          size="sm"
+          variant={assignedFilter === 'unassigned' ? 'default' : 'outline'}
+          onClick={() => setAssignedFilter('unassigned')}
+        >
+          Без ответственного
+        </Button>
       </div>
 
       {loading ? (
@@ -508,6 +540,13 @@ export function OrdersList() {
                     {o.nearestStage?.contractorName ?? (
                       <span className="text-muted-foreground">— не назначен</span>
                     )}
+                  </div>
+                </div>
+                {/* P1-01: колонка ответственного в списке */}
+                <div className="min-w-28">
+                  <div className="text-xs text-muted-foreground">Ответственный</div>
+                  <div className="text-sm truncate">
+                    {o.assignee?.name ?? <span className="text-muted-foreground">—</span>}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground tabular-nums">

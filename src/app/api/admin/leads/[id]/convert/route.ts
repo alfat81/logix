@@ -229,6 +229,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       incoterm: incoterm || null,
       hsCode: hsCode || null,
       leadId: lead.id,
+      // P1-01: ответственный переносится с лида (конвертировал тот же,
+      // кто вёл расчёт). У лида без ответственного (запрос из кабинета,
+      // И1) заявку ведет тот, кто её создал конвертацией.
+      assignedToId: lead.assignedToId ?? auth.employee.id,
       // JsonValue из базы шире InputJsonValue — тот же явный каст на
       // границе, что в POST лида (В2). null = анкета не заполнялась,
       // копировать нечего.
@@ -312,6 +316,7 @@ async function loadLeadCard(id: string) {
     where: { id },
     include: {
       customer: { select: { id: true, name: true, phone: true, email: true } },
+      assignee: { select: { id: true, name: true } },
       options: { orderBy: { createdAt: 'asc' } },
       order: { select: { id: true, number: true, status: true } },
       brokers: {

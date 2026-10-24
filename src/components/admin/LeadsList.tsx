@@ -57,6 +57,8 @@ type LeadRow = {
   rawContact: { name: string; phone?: string; email?: string } | null
   cargoInfo: Record<string, unknown> | null
   customer: { id: string; name: string; phone: string | null } | null
+  // P1-01: ответственный менеджер (null = не назначен)
+  assignee: { id: string; name: string } | null
   options: QuoteOptionRow[]
   order: { id: string; number: string } | null
 }
@@ -82,6 +84,9 @@ export function LeadsList() {
   const [leads, setLeads] = useState<LeadRow[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<'all' | LeadStatus>('all')
+  // P1-01: фильтр ответственного и сортировка «давно без движения»
+  const [assignedFilter, setAssignedFilter] = useState<'all' | 'mine' | 'unassigned'>('all')
+  const [sort, setSort] = useState<'newest' | 'stale'>('newest')
 
   const [customers, setCustomers] = useState<CustomerRow[]>([])
   const [createOpen, setCreateOpen] = useState(false)
@@ -97,31 +102,31 @@ export function LeadsList() {
   // Анкета груза — поля типового бланка заявки (В5).
   const [cargo, setCargo] = useState<LeadCargoForm>({ ...EMPTY_LEAD_CARGO_FORM })
 
-  const loadLeads = useCallback(
-    async (status: 'all' | LeadStatus) => {
-      setLoading(true)
-      try {
-        const url = status === 'all' ? '/api/admin/leads' : `/api/admin/leads?status=${status}`
-        const res = await fetch(url)
-        const data = await readApiResponse<{ leads: LeadRow[]; error?: string }>(res)
-        if (!res.ok) throw new Error(data.error || 'Ошибка загрузки')
-        setLeads(data.leads)
-      } catch (e) {
-        toast({
-          title: 'Не удалось загрузить лиды',
-          description: e instanceof Error ? e.message : '',
-          variant: 'destructive',
-        })
-      } finally {
-        setLoading(false)
-      }
-    },
-    [toast]
-  )
+  const loadLeads = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (statusFilter !== 'all') params.set('status', statusFilter)
+      if (assignedFilter !== 'all') params.set('assigned', assignedFilter)
+      if (sort !== 'newest') params.set('sort', sort)
+      const res = await fetch(`/api/admin/leads?${params.toString()}`)
+      const data = await readApiResponse<{ leads: LeadRow[]; error?: string }>(res)
+      if (!res.ok) throw new Error(data.error || 'Ошибка загрузки')
+      setLeads(data.leads)
+    } catch (e) {
+      toast({
+        title: 'Не удалось загрузить лиды',
+        description: e instanceof Error ? e.message : '',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter, assignedFilter, sort, toast])
 
   useEffect(() => {
-    loadLeads(statusFilter)
-  }, [statusFilter, loadLeads])
+    loadLeads()
+  }, [loadLeads])
 
   // Справочник клиентов — один раз при первом открытии диалога
   useEffect(() => {
@@ -178,7 +183,7 @@ export function LeadsList() {
       toast({ title: 'Лид создан', description: 'Статус: Новый' })
       setCreateOpen(false)
       resetForm()
-      loadLeads(statusFilter)
+      loadLeads()
     } catch (e) {
       toast({
         title: 'Ошибка создания',
@@ -311,6 +316,41 @@ export function LeadsList() {
         ))}
       </div>
 
+      {/* P1-01: фильтр ответственного + сортировка «давно без движения» */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Ответственный:</span>
+        <Button
+          size="sm"
+          variant={assignedFilter === 'all' ? 'default' : 'outline'}
+          onClick={() => setAssignedFilter('all')}
+        >
+          Все
+        </Button>
+        <Button
+          size="sm"
+          variant={assignedFilter === 'mine' ? 'default' : 'outline'}
+          onClick={() => setAssignedFilter('mine')}
+        >
+          Мои
+        </Button>
+        <Button
+          size="sm"
+          variant={assignedFilter === 'unassigned' ? 'default' : 'outline'}
+          onClick={() => setAssignedFilter('unassigned')}
+        >
+          Без ответственного
+        </Button>
+        <Select value={sort} onValueChange={(v) => setSort(v as 'newest' | 'stale')}>
+          <SelectTrigger className="w-56 ml-auto">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">Сначала новые</SelectItem>
+            <SelectItem value="stale">Давно без движения</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
           <Loader2 className="size-4 animate-spin" />
@@ -355,6 +395,13 @@ export function LeadsList() {
                     ) : (
                       'без расчёта'
                     )}
+                  </div>
+                  {/* P1-01: колонка ответственного в списке */}
+                  <div className="min-w-28">
+                    <div className="text-xs text-muted-foreground">Ответственный</div>
+                    <div className="text-sm truncate">
+                      {l.assignee?.name ?? <span className="text-muted-foreground">—</span>}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <LeadStatusBadge status={l.status} />

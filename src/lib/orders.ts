@@ -112,6 +112,10 @@ export type CreateOrderInput = {
   // null/undefined = поля не заданы (ручные заявки из Б3).
   cargoInfo?: Prisma.InputJsonValue | null
   quoteSnapshot?: Prisma.InputJsonValue | null
+  // P1-01: ответственный менеджер. Ручная заявка (Б3) — создатель;
+  // конвертация В4 — ответственный лида (без него — конвертер).
+  // null/undefined = не назначена (совместимо с обоими путями).
+  assignedToId?: string | null
 }
 
 // Номер заявки — составной «<договор>-<порядковый>» (Б4): первая заявка
@@ -162,6 +166,9 @@ export async function createOrderWithStages(
           // иначе колонки остаются NULL (ручные заявки, правка — PATCH).
           ...(input.cargoInfo != null ? { cargoInfo: input.cargoInfo } : {}),
           ...(input.quoteSnapshot != null ? { quoteSnapshot: input.quoteSnapshot } : {}),
+          // P1-01: ответственный — только когда есть кто назначать
+          // (иначе колонка остаётся NULL и лид попадает в «Без ответственного»).
+          ...(input.assignedToId ? { assignedToId: input.assignedToId } : {}),
           stages: {
             create: mandatoryStages.map((s) => ({
               stageCode: s.code,
