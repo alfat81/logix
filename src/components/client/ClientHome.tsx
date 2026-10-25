@@ -2,37 +2,20 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { CalendarDays, ChevronRight, Loader2, PackageOpen, Plus, Send } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { CalendarDays, ChevronRight, Loader2, PackageOpen } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
-// Анкета груза — общий бланк заявки (lib/leads: константы и сборка
-// общие для всех порталов). Компонент живёт в admin/, но это доменная
-// форма документа, а не «хром» кабинета менеджера — клиент заполняет
-// её у себя, в отличие от бейджей (те копируются, см. ClientBadges).
-import { CargoFormFields } from '@/components/admin/CargoGroups'
+import { ClientLeadCreateDialog } from '@/components/client/ClientLeadCreateDialog'
 import {
   ClientLeadStatusBadge,
   ClientOrderStatusBadge,
 } from '@/components/client/ClientBadges'
 import {
-  EMPTY_LEAD_CARGO_FORM,
-  buildLeadPayload,
   readLeadCargo,
-  type LeadCargoForm,
   type LeadStatus,
 } from '@/lib/leads'
 import type { OrderStatus, StageStatus } from '@/lib/order-constants'
-import { CLIENT_LEAD_DAILY_LIMIT } from '@/lib/client-constants'
 
 // ─── Главная клиентского кабинета (И1) ──────────────────────────────
 // Две секции: «Мои заявки» (статусы этапов — главное, ради чего
@@ -40,6 +23,9 @@ import { CLIENT_LEAD_DAILY_LIMIT } from '@/lib/client-constants'
 // заявку + создание нового запроса). Всё только чтение, кроме
 // создания запроса; никаких подрядчиков, ставок и цен — решение
 // вопроса №1 от 14.10.2026.
+//
+// v0.5.0 (P1-22): диалог создания запроса — выезд в
+// ClientLeadCreateDialog (резка под лимит 300, RULES 2.14).
 
 type ClientStage = {
   id: string
@@ -84,10 +70,6 @@ export function ClientHome() {
   const [orders, setOrders] = useState<ClientOrder[] | null>(null)
   const [leads, setLeads] = useState<ClientLead[] | null>(null)
 
-  const [createOpen, setCreateOpen] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [cargo, setCargo] = useState<LeadCargoForm>({ ...EMPTY_LEAD_CARGO_FORM })
-
   const loadOrders = useCallback(async () => {
     try {
       const res = await fetch('/api/client/orders')
@@ -124,44 +106,6 @@ export function ClientHome() {
     loadOrders()
     loadLeads()
   }, [loadOrders, loadLeads])
-
-  const handleCreate = async () => {
-    // P1-03: форма → route (колонки) + cargoInfo-rest; непусто —
-    // хотя бы одно поле маршрута или анкеты
-    const { route, cargo: cargoInfo } = buildLeadPayload(cargo)
-    const hasRoute = Object.values(route).some((v) => v != null)
-    if (!cargoInfo && !hasRoute) {
-      toast({
-        title: 'Заполните хотя бы одно поле анкеты',
-        description: 'Менеджеру нужно понимать, что и куда везти',
-        variant: 'destructive',
-      })
-      return
-    }
-    setCreating(true)
-    try {
-      const res = await fetch('/api/client/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cargoInfo, route }),
-      })
-      const data = await readApiResponse<{ error?: string }>(res)
-      if (!res.ok) throw new Error(data.error || 'Не удалось отправить запрос')
-
-      toast({ title: 'Запрос отправлен', description: 'Менеджер свяжется с вами по расчёту' })
-      setCreateOpen(false)
-      setCargo({ ...EMPTY_LEAD_CARGO_FORM })
-      loadLeads()
-    } catch (e) {
-      toast({
-        title: 'Ошибка отправки',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
-      })
-    } finally {
-      setCreating(false)
-    }
-  }
 
   return (
     <div className="grid gap-8">
@@ -232,32 +176,7 @@ export function ClientHome() {
               Запросы становятся заявками после согласования условий с менеджером.
             </p>
           </div>
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus className="size-4" />
-              Новый запрос
-            </Button>
-            <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Новый запрос на расчёт</DialogTitle>
-                <DialogDescription>
-                  Заполните анкету по бланку заявки — что везём, откуда и куда.
-                  Все поля необязательны, но чем полнее анкета, тем точнее расчёт.
-                  Менеджер увидит запрос сразу и свяжется с вами. В сутки можно
-                  отправить до {CLIENT_LEAD_DAILY_LIMIT} запросов.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-5">
-                <CargoFormFields form={cargo} onChange={setCargo} />
-              </div>
-              <DialogFooter>
-                <Button onClick={handleCreate} disabled={creating}>
-                  {creating ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                  Отправить запрос
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <ClientLeadCreateDialog onCreated={loadLeads} />
         </div>
 
         {leads === null ? (

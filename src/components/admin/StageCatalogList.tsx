@@ -1,30 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  ArrowDown,
-  ArrowUp,
-  Loader2,
-  Pencil,
-  Plus,
-  ShieldCheck,
-  ShieldOff,
-} from 'lucide-react'
+import { ArrowDown, ArrowUp, Loader2, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
+import { StageCreateDialog } from './stagecatalog/StageCreateDialog'
+import { StageEditDialog } from './stagecatalog/StageEditDialog'
+import { MANDATORY_WARNING, type StageRow } from './stagecatalog/types'
 
 // ─── Каталог этапов (Ж6б) ──────────────────────────────────────
 // Справочник типовых этапов заявки. Три операции прямо из формули-
@@ -44,20 +28,9 @@ import { useToast } from '@/hooks/use-toast'
 // новку обязательных в новые заявки и список добавления этапа; имя
 // читается заявками lookup'ом — правка названия отразится во всех
 // существующих заявках сразу (без пересчёта их sequence).
-
-type StageRow = {
-  id: string
-  code: string
-  name: string
-  order: number
-  isMandatory: boolean
-}
-
-// Текст предупреждения — один и для кнопки в диалоге правки, и для
-// блока подтверждения (чтобы формулировка не расползалась).
-const MANDATORY_WARNING =
-  'Защита пересчитывается по текущему значению справочника: обязательные этапы станет нельзя удалить из всех существующих заявок, снятие обязательности — разрешит удаление. В уже созданные заявки новый обязательный этап сам не добавится: он подставляется только в новые.'
-
+//
+// v0.5.0 (P1-22): диалоги создания/правки — выезд в stagecatalog/
+// (резка под лимит 300, RULES 2.14).
 export function StageCatalogList({ isMaster }: { isMaster: boolean }) {
   const { toast } = useToast()
 
@@ -67,21 +40,8 @@ export function StageCatalogList({ isMaster }: { isMaster: boolean }) {
   const [version, setVersion] = useState(0)
   const reqId = useRef(0)
 
-  // ── Диалог создания
-  const [createOpen, setCreateOpen] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [createName, setCreateName] = useState('')
-  const [createCode, setCreateCode] = useState('')
-  const [createMandatory, setCreateMandatory] = useState(false)
-
-  // ── Диалог правки
+  // Диалог правки (форма живёт в диалоге)
   const [editRow, setEditRow] = useState<StageRow | null>(null)
-  const [savingName, setSavingName] = useState(false)
-  const [editName, setEditName] = useState('')
-  // Подтверждение смены флага: показывается в диалоге правки вместо
-  // мгновенного PATCH — предупреждение из формулировки задачи.
-  const [confirmFlag, setConfirmFlag] = useState(false)
-  const [savingFlag, setSavingFlag] = useState(false)
 
   const reload = useCallback(() => {
     const id = ++reqId.current
@@ -136,122 +96,6 @@ export function StageCatalogList({ isMaster }: { isMaster: boolean }) {
     }
   }
 
-  // ── Создание ──────────────────────────────────────────────────
-  const handleCreate = async () => {
-    if (!createName.trim()) {
-      toast({ title: 'Укажите название этапа', variant: 'destructive' })
-      return
-    }
-    setCreating(true)
-    try {
-      const res = await fetch('/api/admin/stage-catalog', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: createName.trim(),
-          ...(createCode.trim() ? { code: createCode.trim() } : {}),
-          ...(createMandatory ? { isMandatory: true } : {}),
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Не удалось создать этап')
-
-      toast({
-        title: `Этап «${data.stage.name}» создан`,
-        description: `Код: ${data.stage.code} · новый этап в конце списка`,
-      })
-      setCreateOpen(false)
-      setCreateName('')
-      setCreateCode('')
-      setCreateMandatory(false)
-      setVersion((v) => v + 1)
-    } catch (e) {
-      toast({
-        title: 'Ошибка создания',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
-      })
-    } finally {
-      setCreating(false)
-    }
-  }
-
-  // ── Правка имени ──────────────────────────────────────────────
-  const openEdit = (row: StageRow) => {
-    setEditRow(row)
-    setEditName(row.name)
-    setConfirmFlag(false)
-  }
-
-  const handleSaveName = async () => {
-    if (!editRow) return
-    if (!editName.trim()) {
-      toast({ title: 'Укажите название этапа', variant: 'destructive' })
-      return
-    }
-    if (editName.trim() === editRow.name) {
-      setEditRow(null)
-      return
-    }
-    setSavingName(true)
-    try {
-      const res = await fetch(`/api/admin/stage-catalog/${editRow.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editName.trim() }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Не удалось сохранить этап')
-
-      toast({
-        title: `Этап переименован в «${data.stage.name}»`,
-        description: 'Название читается заявками из справочника — обновится во всех карточках.',
-      })
-      setEditRow(null)
-      setVersion((v) => v + 1)
-    } catch (e) {
-      toast({
-        title: 'Ошибка сохранения',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
-      })
-    } finally {
-      setSavingName(false)
-    }
-  }
-
-  // ── Смена флага обязательности (мастер, с подтверждением) ─────
-  const handleToggleMandatory = async () => {
-    if (!editRow) return
-    setSavingFlag(true)
-    try {
-      const res = await fetch(`/api/admin/stage-catalog/${editRow.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isMandatory: !editRow.isMandatory }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Не удалось изменить флаг')
-
-      toast({
-        title: data.stage.isMandatory
-          ? `Этап «${data.stage.name}» теперь обязательный`
-          : `С обязательности «${data.stage.name}» снят флаг`,
-        description: MANDATORY_WARNING,
-      })
-      setEditRow(null)
-      setVersion((v) => v + 1)
-    } catch (e) {
-      toast({
-        title: 'Ошибка изменения флага',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
-      })
-    } finally {
-      setSavingFlag(false)
-    }
-  }
-
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -262,76 +106,7 @@ export function StageCatalogList({ isMaster }: { isMaster: boolean }) {
             меняется во всех заявках сразу
           </p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="size-4" />
-              Новый этап
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Новый этап каталога</DialogTitle>
-              <DialogDescription>
-                Новый этап добавляется в конец списка (порядок потом меняется стрелками)
-                и становится доступен менеджерам для добавления в заявки.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="stage-name">Название</Label>
-                <Input
-                  id="stage-name"
-                  placeholder="Например: Сертификация товара"
-                  value={createName}
-                  onChange={(e) => setCreateName(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="stage-code">Код</Label>
-                <Input
-                  id="stage-code"
-                  placeholder="оставьте пустым — сгенерируем"
-                  value={createCode}
-                  onChange={(e) => setCreateCode(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Технический идентификатор для связи с заявками: латиница, цифры и
-                  подчёркивание (например, warehouse_storage). После создания не меняется.
-                </p>
-              </div>
-              <div className="grid gap-2">
-                <Label>Обязательность</Label>
-                <Button
-                  type="button"
-                  variant={createMandatory ? 'default' : 'outline'}
-                  aria-pressed={createMandatory}
-                  disabled={!isMaster}
-                  onClick={() => setCreateMandatory((v) => !v)}
-                  className="justify-start"
-                >
-                  {createMandatory ? (
-                    <ShieldCheck className="size-4" />
-                  ) : (
-                    <ShieldOff className="size-4" />
-                  )}
-                  {createMandatory ? 'Обязательный — подставится в каждую новую заявку' : 'Необязательный — добавляется вручную'}
-                </Button>
-                {!isMaster && (
-                  <p className="text-xs text-muted-foreground">
-                    Обязательным этап делает только мастер — сразу при создании или позже.
-                  </p>
-                )}
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={handleCreate} disabled={creating}>
-                {creating && <Loader2 className="size-4 animate-spin" />}
-                Создать
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <StageCreateDialog isMaster={isMaster} onCreated={() => setVersion((v) => v + 1)} />
       </div>
 
       {loading ? (
@@ -381,7 +156,7 @@ export function StageCatalogList({ isMaster }: { isMaster: boolean }) {
                 </div>
                 <div className="text-xs text-muted-foreground font-mono truncate">{row.code}</div>
               </div>
-              <Button variant="outline" size="sm" onClick={() => openEdit(row)}>
+              <Button variant="outline" size="sm" onClick={() => setEditRow(row)}>
                 <Pencil className="size-4" />
                 Править
               </Button>
@@ -390,89 +165,15 @@ export function StageCatalogList({ isMaster }: { isMaster: boolean }) {
         </div>
       )}
 
-      {/* ── Диалог правки: имя + флаг обязательности ── */}
-      <Dialog open={editRow !== null} onOpenChange={(open) => !open && setEditRow(null)}>
-        <DialogContent className="sm:max-w-md">
-          {editRow && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Правка этапа</DialogTitle>
-                <DialogDescription>
-                  Код <span className="font-mono">{editRow.code}</span> неизменен — по нему
-                  заявки ссылаются на этап.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="stage-edit-name">Название</Label>
-                  <Input
-                    id="stage-edit-name"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Отражается во всех существующих заявках (справочник читается живым
-                    lookup'ом, не снимком).
-                  </p>
-                </div>
-
-                <div className="grid gap-2 rounded-md border p-3">
-                  <Label>Обязательность</Label>
-                  {!confirmFlag ? (
-                    <>
-                      <Button
-                        variant="outline"
-                        disabled={!isMaster}
-                        onClick={() => setConfirmFlag(true)}
-                        className="justify-start"
-                      >
-                        {editRow.isMandatory ? (
-                          <ShieldOff className="size-4" />
-                        ) : (
-                          <ShieldCheck className="size-4" />
-                        )}
-                        {editRow.isMandatory
-                          ? 'Снять обязательность'
-                          : 'Сделать обязательным'}
-                      </Button>
-                      {!isMaster ? (
-                        <p className="text-xs text-muted-foreground">
-                          Флаг обязательности меняет только мастер.
-                        </p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">{MANDATORY_WARNING}</p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-sm">{MANDATORY_WARNING}</p>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => setConfirmFlag(false)}
-                          disabled={savingFlag}
-                        >
-                          Отмена
-                        </Button>
-                        <Button onClick={handleToggleMandatory} disabled={savingFlag}>
-                          {savingFlag && <Loader2 className="size-4 animate-spin" />}
-                          Подтвердить
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-              <DialogFooter>
-                <Button onClick={handleSaveName} disabled={savingName || savingFlag}>
-                  {savingName && <Loader2 className="size-4 animate-spin" />}
-                  Сохранить название
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <StageEditDialog
+        row={editRow}
+        isMaster={isMaster}
+        onClose={() => setEditRow(null)}
+        onSaved={() => {
+          setEditRow(null)
+          setVersion((v) => v + 1)
+        }}
+      />
     </div>
   )
 }
