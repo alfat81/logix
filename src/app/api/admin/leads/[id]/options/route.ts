@@ -47,13 +47,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       include: { order: { select: { id: true, number: true } } },
     })
     if (!lead) {
-      return NextResponse.json({ error: 'Лид не найден' }, { status: 404 })
+      return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
     // «won» — терминальный (В2): лид сконвертирован в заявку, варианты
     // расчёта зафиксированы историей сделки. Правка истории — не через API.
     if (lead.status === 'won' || lead.order) {
       return NextResponse.json(
-        { error: 'Лид конвертирован в заявку — варианты расчёта зафиксированы' },
+        { error: 'Запрос конвертирован в заявку — варианты расчёта зафиксированы' },
         { status: 409 }
       )
     }
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         employeeActor(auth.employee),
         'option_added',
         `Добавлен вариант расчёта: ${data.description} — ${formatMoneyWithVat(data.price, data.currency, data.vatMode)}, ${data.etaDays} дн.` +
-          (becomesCalculated ? ` — лид посчитан: ${LEAD_STATUS_LABELS.calculated}` : ''),
+          (becomesCalculated ? ` — запрос посчитан: ${LEAD_STATUS_LABELS.calculated}` : ''),
         tx,
       )
       return created
@@ -136,7 +136,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         lead: updatedLead,
         ...(becomesCalculated
           ? {
-              message: `Добавлен вариант расчёта — статус лида: ${LEAD_STATUS_LABELS.calculated}`,
+              message: `Добавлен вариант расчёта — статус запроса: ${LEAD_STATUS_LABELS.calculated}`,
             }
           : { message: 'Вариант расчёта добавлен' }),
       },

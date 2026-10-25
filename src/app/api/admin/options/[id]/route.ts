@@ -52,7 +52,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // правка истории, не через API.
     if (lead && (lead.status === 'won' || lead.order)) {
       return NextResponse.json(
-        { error: 'Лид конвертирован в заявку — варианты расчёта зафиксированы' },
+        { error: 'Запрос конвертирован в заявку — варианты расчёта зафиксированы' },
         { status: 409 }
       )
     }
@@ -165,7 +165,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     })
     if (lead && (lead.status === 'won' || lead.order)) {
       return NextResponse.json(
-        { error: 'Лид конвертирован в заявку — варианты расчёта зафиксированы' },
+        { error: 'Запрос конвертирован в заявку — варианты расчёта зафиксированы' },
         { status: 409 }
       )
     }

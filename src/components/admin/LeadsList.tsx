@@ -100,7 +100,7 @@ export function LeadsList() {
       .catch((e) => {
         if (id !== reqId.current) return
         toast({
-          title: 'Не удалось загрузить лиды',
+          title: 'Не удалось загрузить запросы',
           description: e instanceof Error ? e.message : '',
           variant: 'destructive',
         })
@@ -114,7 +114,7 @@ export function LeadsList() {
     <div className="flex flex-col gap-4">
       {/* §4.2 шапка списка: заголовок Bold + главное действие Coral */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Лиды</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Запросы</h1>
         <LeadCreateDialog onCreated={() => setVersion((v) => v + 1)} />
       </div>
 
@@ -211,8 +211,8 @@ export function LeadsList() {
           {q
             ? `Ничего не найдено по «${q}».`
             : statusFilter === 'all'
-              ? 'Лидов пока нет — создайте первый запрос.'
-              : `Лидов в статусе «${LEAD_STATUS_LABELS[statusFilter]}» нет.`}
+              ? 'Запросов пока нет — создайте первый.'
+              : `Запросов в статусе «${LEAD_STATUS_LABELS[statusFilter]}» нет.`}
         </Card>
       ) : (
         <div className="flex flex-col gap-2">

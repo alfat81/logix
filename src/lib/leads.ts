@@ -353,7 +353,7 @@ export const PatchLeadSchema = z
   .object({
     status: z
       .enum(LEAD_STATUSES, {
-        errorMap: () => ({ message: 'Неизвестный статус лида' }),
+        errorMap: () => ({ message: 'Неизвестный статус запроса' }),
       })
       .optional(),
     lostReason: z.string().trim().min(1, 'Укажите причину отказа').optional(),

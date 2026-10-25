@@ -105,7 +105,7 @@ export function QuoteOptionsSection({
 
       {options.length === 0 ? (
         <Card className="p-8 text-center text-muted-foreground text-sm">
-          Вариантов пока нет. Первый добавленный вариант переведёт лид в «Рассчитан».
+          Вариантов пока нет. Первый добавленный вариант переведёт запрос в «Рассчитан».
         </Card>
       ) : (
         <div className="grid gap-2">

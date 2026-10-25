@@ -27,11 +27,11 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       select: { status: true, order: { select: { id: true } } },
     })
     if (!lead) {
-      return NextResponse.json({ error: 'Лид не найден' }, { status: 404 })
+      return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
     if (lead.status === 'won' || lead.order) {
       return NextResponse.json(
-        { error: 'Лид конвертирован в заявку — связь с брокером перенесена в заявку' },
+        { error: 'Запрос конвертирован в заявку — связь с брокером перенесена в заявку' },
         { status: 409 }
       )
     }
@@ -41,7 +41,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       include: { broker: { select: { id: true, companyName: true } } },
     })
     if (!link) {
-      return NextResponse.json({ error: 'Брокер не подключён к этому лиду' }, { status: 404 })
+      return NextResponse.json({ error: 'Брокер не подключён к этому запросу' }, { status: 404 })
     }
 
     await db.leadBroker.delete({ where: { id: link.id } })

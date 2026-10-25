@@ -56,33 +56,33 @@ chk('выход гасит только свою сессию (E0-06/E0-08)',s==
 s,d=a.r('GET','/api/admin/legal-entities'); le=(d.get('legalEntities') or d.get('items') or d) if isinstance(d,dict) else d
 leid=(le[0]['id'] if isinstance(le,list) else None); chk('юрлицо из сида',leid,d)
 # lead with raw contact
-s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'ООО Ромб '+u,'phone':'8 (999) '+str(base)[:3]+'-'+str(base)[3:5]+'-'+str(base)[5:7]},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':1200},'cargoInfo':{'note':'заметка'}}); chk('создание лида',s in(200,201),(s,d))
+s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'ООО Ромб '+u,'phone':'8 (999) '+str(base)[:3]+'-'+str(base)[3:5]+'-'+str(base)[5:7]},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':1200},'cargoInfo':{'note':'заметка'}}); chk('создание запроса',s in(200,201),(s,d))
 lead=(d.get('lead') or d); lid=lead['id']
 # --- P1-01: ответственный менеджер ---
 s,d=a.r('GET','/api/auth/employee/me'); aid=(d.get('employee') or {}).get('id'); chk('P1-01: id текущего сотрудника (me)',bool(aid),(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); L=d.get('lead',d)
-chk('P1-01: лид при создании получает ответственного-создателя',(L.get('assignee') or {}).get('id')==aid,L.get('assignee'))
+chk('P1-01: запрос при создании получает ответственного-создателя',(L.get('assignee') or {}).get('id')==aid,L.get('assignee'))
 b2ph=ph(base+4)
 s,d=a.r('POST','/api/admin/employees',{'name':'Менеджер B '+u,'phone':b2ph,'password':'manager-pass-1','roles':['manager']}); chk('P1-01: менеджер B создан',s in(200,201),(s,d)); bid2=(d.get('employee') or d)['id']
 bb=C(); s,_=bb.r('POST','/api/auth/employee/login',{'phone':b2ph,'password':'manager-pass-1'})
 chk('P1-01: менеджер B вошёл',s==200,s)
 s,d=bb.r('GET','/api/admin/leads?assigned=mine'); ids=[x['id'] for x in d.get('leads',[])]
-chk('[ПРИЁМКА P1-01] менеджер B не видит лид A в фильтре «Мои»',lid not in ids,len(ids))
+chk('[ПРИЁМКА P1-01] менеджер B не видит запрос A в фильтре «Мои»',lid not in ids,len(ids))
 s,d=a.r('GET','/api/admin/leads?assigned=unassigned'); ids=[x['id'] for x in d.get('leads',[])]
-chk('P1-01: новый лид не в «Без ответственного»',lid not in ids,len(ids))
+chk('P1-01: новый запрос не в «Без ответственного»',lid not in ids,len(ids))
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':'nonexistent-id'}); chk('P1-01: несуществующий сотрудник → 400',s==400,s)
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':bid2}); chk('P1-01: смена ответственного → 200',s==200,(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); L=d.get('lead',d); acts=L.get('activities',[])
-chk('P1-01: смена ответственного в журнале лида',bool(acts) and acts[0]['type']=='lead_assignee_changed' and 'Менеджер B' in acts[0]['description'],(acts[0] if acts else None))
+chk('P1-01: смена ответственного в журнале запроса',bool(acts) and acts[0]['type']=='lead_assignee_changed' and 'Менеджер B' in acts[0]['description'],(acts[0] if acts else None))
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':bid2}); chk('P1-01: повторное назначение того же → 400',s==400,s)
 s,d=bb.r('GET','/api/admin/leads?assigned=mine'); ids=[x['id'] for x in d.get('leads',[])]
-chk('P1-01: B видит лид в «Мои» после назначения',lid in ids,len(ids))
+chk('P1-01: B видит запрос в «Мои» после назначения',lid in ids,len(ids))
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':None}); chk('P1-01: снятие ответственного → 200',s==200,(s,d))
 s,d=a.r('GET','/api/admin/leads?assigned=unassigned'); ids=[x['id'] for x in d.get('leads',[])]
-chk('P1-01: снятый лид в «Без ответственного»',lid in ids,len(ids))
+chk('P1-01: снятый запрос в «Без ответственного»',lid in ids,len(ids))
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':bid2}); chk('P1-01: возврат ответственного B',s==200,(s,d))
-s,d=a.r('GET','/api/admin/leads?sort=stale'); chk('P1-01: сортировка «давно без движения» (лиды)',s==200,(s,str(d)[:100]))
-# --- P1-02: редактирование анкеты лида ---
+s,d=a.r('GET','/api/admin/leads?sort=stale'); chk('P1-01: сортировка «давно без движения» (запросы)',s==200,(s,str(d)[:100]))
+# --- P1-02: редактирование анкеты запроса ---
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'route':{'weightKg':1450}}); chk('P1-02: правка груза → 200',s==200,(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); L=d.get('lead',d); acts=L.get('activities',[])
 chk('[ПРИЁМКА P1-02] diff в журнале «Вес: 1 200 → 1 450»',bool(acts) and acts[0]['type']=='lead_edited' and 'Вес: 1 200 → 1 450' in acts[0]['description'],(acts[0] if acts else None))
@@ -90,7 +90,7 @@ chk('P1-02: неизвестные ключи cargoInfo сохранены + v:1
 chk('P1-03: маршрут-колонки после создания',L.get('originCity')=='Шанхай' and L.get('destinationCity')=='Москва',(L.get('originCity'),L.get('destinationCity')))
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'route':{'weightKg':1450}}); chk('P1-02: правка без изменений → 400',s==400,s)
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{}); chk('P1-02: пустой PATCH → 400',s==400,s)
-s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'rawContact':{'name':'Евгений '+u,'phone':ph(base+5),'email':'test@test.ru'}}); chk('P1-02: правка контактов (лид без клиента) → 200',s==200,(s,d))
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'rawContact':{'name':'Евгений '+u,'phone':ph(base+5),'email':'test@test.ru'}}); chk('P1-02: правка контактов (запрос без клиента) → 200',s==200,(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); L=d.get('lead',d); acts=L.get('activities',[])
 chk('P1-02: diff контактов в журнале (Контакт/Телефон)',bool(acts) and acts[0]['type']=='lead_edited' and 'Контакт:' in acts[0]['description'] and 'Телефон:' in acts[0]['description'],(acts[0] if acts else None))
 # --- P1-03: маршрут и груз — поля, а не только JSON ---
@@ -101,16 +101,16 @@ chk('P1-03: колонки после правки',L.get('originCountry')=='К�
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'route':{'weightKg':-5}}); chk('P1-03: отрицательный вес → 400',s==400,s)
 s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'route':{'transportType':'самолёт'}}); chk('P1-03: неизвестный тип → 400',s==400,s)
 s,d=a.r('GET',f"/api/admin/leads?origin={urlquote('Китай')}"); ids=[x['id'] for x in d.get('leads',[])]
-chk('P1-03: фильтр лидов «Китай»',lid in ids,len(ids))
+chk('P1-03: фильтр запросов «Китай»',lid in ids,len(ids))
 s,d=a.r('GET','/api/admin/leads?transport=sea'); ids=[x['id'] for x in d.get('leads',[])]
-chk('P1-03: фильтр лидов «Море»',lid in ids,len(ids))
+chk('P1-03: фильтр запросов «Море»',lid in ids,len(ids))
 s,d=a.r('GET','/api/admin/leads?transport=auto'); ids=[x['id'] for x in d.get('leads',[])]
-chk('P1-03: фильтр лидов «Авто» пуст',lid not in ids,len(ids))
+chk('P1-03: фильтр запросов «Авто» пуст',lid not in ids,len(ids))
 s,d=a.r('POST',f'/api/admin/leads/{lid}/convert',{'legalEntityId':leid}); chk('конвертация без варианта → 409',s==409,(s,d))
 s,d=a.r('POST',f'/api/admin/leads/{lid}/options',{'description':'Море+ЖД','transportModes':['Море','ЖД'],'price':450000,'currency':'RUB','vatMode':'WITHOUT_VAT','costEstimate':380000,'etaDays':45,'priorityFit':'cost'}); chk('вариант расчёта 1 (P1-04: цена+валюта+НДС+себестоимость)',s in(200,201),(s,d))
 s,d=a.r('POST',f'/api/admin/leads/{lid}/options',{'description':'Авиа','price':1200000,'currency':'RUB','vatMode':'WITH_VAT','etaDays':7,'priorityFit':'speed','isSelected':True}); chk('вариант 2 isSelected',s in(200,201),(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); L=d.get('lead',d); sel=[o for o in L.get('options',[]) if o['isSelected']]
-chk('ровно один выбранный вариант',len(sel)==1,[o['isSelected'] for o in L.get('options',[])]); chk('статус лида calculated',L.get('status')=='calculated',L.get('status'))
+chk('ровно один выбранный вариант',len(sel)==1,[o['isSelected'] for o in L.get('options',[])]); chk('статус запроса calculated',L.get('status')=='calculated',L.get('status'))
 s,d=a.r('POST',f'/api/admin/leads/{lid}/options',{'description':'X','price':-5,'etaDays':0,'priorityFit':'cost'}); chk('отрицательная цена → 400',s==400,s)
 # --- P1-04: деньги — Decimal, валюта, НДС, себестоимость ---
 s,d=a.r('POST',f'/api/admin/leads/{lid}/options',{'description':'X','price':1.234,'etaDays':5,'priorityFit':'cost'}); chk('P1-04: цена с 3 знаками → 400',s==400,s)
@@ -129,11 +129,11 @@ s,d=a.r('GET',f'/api/admin/leads/{lid}'); acts=L.get('activities',[])
 chk('P1-04: лента — цена с НДС-меткой («1 200 000 ₽ · с НДС»)',bool(acts) and any('1\u00a0200\u00a0000 ₽ · с НДС' in x['description'] for x in acts),[x['description'] for x in acts[:3]])
 # broker
 bph=ph(base+1); s,d=a.r('POST','/api/admin/brokers',{'companyName':'Брокер '+u,'phone':bph,'password':'broker-pass-1'}); chk('создание брокера',s in(200,201),(s,d)); bid=(d.get('broker') or d)['id']
-s,d=a.r('POST',f'/api/admin/leads/{lid}/brokers',{'brokerId':bid}); chk('брокер подключён к лиду',s in(200,201),(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{lid}/brokers',{'brokerId':bid}); chk('брокер подключён к запросу',s in(200,201),(s,d))
 s,d=a.r('POST',f'/api/admin/leads/{lid}/brokers',{'brokerId':bid}); chk('повторное подключение → 409',s==409,s)
 # document on lead (internal + public)
 body,ct=multipart({'type':'invoice','title':'Инвойс '+u,'isInternal':'false'},'inv.pdf',b'%PDF-1.4 test',"application/pdf")
-s,d=a.r('POST',f'/api/admin/leads/{lid}/documents',raw=body,ct=ct); chk('загрузка документа на лид',s in(200,201),(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{lid}/documents',raw=body,ct=ct); chk('загрузка документа на запрос',s in(200,201),(s,d))
 body,ct=multipart({'type':'contract','title':'Тариф подрядчика '+u,'isInternal':'true'},'tariff.pdf',b'%PDF-1.4 secret',"application/pdf")
 s,d=a.r('POST',f'/api/admin/leads/{lid}/documents',raw=body,ct=ct); chk('загрузка внутреннего документа',s in(200,201),(s,d))
 body,ct=multipart({'type':'other','title':'html'},'x.html',b'<script>alert(1)</script>',"text/html")
@@ -152,7 +152,7 @@ codes=sorted(r[0] for r in res); chk('параллельная конверта�
 order=[r[1] for r in res if r[0]==201][0]['order'] if codes.count(201) else None
 oid=order['id']; print('ORDER',order)
 s,d=a.r('GET','/api/admin/customers?limit=200'); cl=d.get('customers',d) if isinstance(d,dict) else d
-# P1-02: контакты лида правлены (rawContact.phone = ph(base+5)) — клиент
+# P1-02: контакты запроса правлены (rawContact.phone = ph(base+5)) — клиент
 # при конвертации рождается уже с НИМ; дедупликация смотрит на него
 conv_phone='+7999%07d'%(base+5)
 chk('параллельная конвертация: один клиент на телефон (без дублей)',sum(1 for x in cl if x.get('phone')==conv_phone)==1,[x.get('phone') for x in cl if x.get('phone')==conv_phone])
@@ -162,8 +162,8 @@ chk('снимок цены перенесён',(O.get('quoteSnapshot') or {}).ge
 chk('P1-04: снимок несёт валюту и НДС',(O.get('quoteSnapshot') or {}).get('currency')=='RUB' and (O.get('quoteSnapshot') or {}).get('vatMode')=='WITH_VAT' and 'costEstimate' not in (O.get('quoteSnapshot') or {}),O.get('quoteSnapshot'))
 # --- P1-01: ответственный на заявке ---
 chk('P1-01: конвертация переносит ответственного в заявку',(O.get('assignee') or {}).get('id')==bid2,O.get('assignee'))
-s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':aid}); chk('P1-01: смена ответственного won-лида → 409',s==409,s)
-s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'route':{'weightKg':1500}}); chk('P1-02: правка анкеты won-лида → 409',s==409,s)
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'assignedToId':aid}); chk('P1-01: смена ответственного won-запроса → 409',s==409,s)
+s,d=a.r('PATCH',f'/api/admin/leads/{lid}',{'route':{'weightKg':1500}}); chk('P1-02: правка анкеты won-запроса → 409',s==409,s)
 s,d=a.r('PATCH',f'/api/admin/orders/{oid}',{'assignedToId':aid}); chk('P1-01: смена ответственного заявки → 200',s==200,(s,d))
 s,d=a.r('GET',f'/api/admin/orders/{oid}'); O2=d.get('order',d); oacts=O2.get('activities',[])
 chk('P1-01: смена ответственного заявки в журнале',bool(oacts) and oacts[0]['type']=='order_assignee_changed' and 'Менеджер B' in oacts[0]['description'],(oacts[0] if oacts else None))
@@ -211,20 +211,20 @@ if rows:
     chk('v0.3.1: имя просроченного этапа в списке',row.get('overdue') is True and bool(row.get('overdueStage')),(row.get('overdue'),row.get('overdueStage')))
     chk('v0.3.1: этапы степпера в ответе списка',len(row.get('stages',[]))>=6 and all(set(x)>={'code','name','status'} for x in row.get('stages',[])),len(row.get('stages',[])))
 s,d=a.r('GET','/api/admin/orders?status=bogus'); chk('v0.3.1: неизвестная группа статуса → 400',s==400,s)
-# --- v0.4.0 (D25): по-статусные табы заявок + counts/?q= лидов ---
+# --- v0.4.0 (D25): по-статусные табы заявок + counts/?q= запросов ---
 s,d=a.r('GET','/api/admin/orders?status=in_progress'); v4rows=[x for x in d.get('orders',[]) if x['id']==oid]
 chk('v0.4.0: одиночный статус in_progress содержит заявку',s==200 and len(v4rows)==1,(s,len(d.get('orders',[]))))
 chk('v0.4.0: по-статусный фильтр — только in_progress',all(x['status']=='in_progress' for x in d.get('orders',[])),[x['status'] for x in d.get('orders',[])][:8])
 s,d=a.r('GET','/api/admin/leads'); lcounts=d.get('counts') or {}
-chk('v0.4.0: counts лидов в ответе',s==200 and set(lcounts)>={'all','new','calculated','won','lost'},lcounts)
+chk('v0.4.0: counts запросов в ответе',s==200 and set(lcounts)>={'all','new','calculated','won','lost'},lcounts)
 chk('v0.4.0: counts.all = сумма по статусам',lcounts.get('all')==sum(lcounts.get(k,0) for k in ('new','calculated','won','lost')),lcounts)
 uq=u[:8]
 s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'Грузчик '+uq,'phone':'+86 130 '+str(base)},'route':{'originCity':'Сургут','destinationCity':'Тюмень'},'cargoInfo':{'cargoName':'Стекло закалённое '+uq}})
-chk('v0.4.0: лид для поиска создан',s in(200,201),(s,d)); qlid=(d.get('lead') or d)['id']
+chk('v0.4.0: запрос для поиска создан',s in(200,201),(s,d)); qlid=(d.get('lead') or d)['id']
 s,d=a.r('GET',f"/api/admin/leads?q={urlquote('Грузчик '+uq)}"); qids=[x['id'] for x in d.get('leads',[])]
-chk('v0.4.0: поиск ?q= по rawContact.name (Json) находит лид',s==200 and qlid in qids,(s,len(qids)))
+chk('v0.4.0: поиск ?q= по rawContact.name (Json) находит запрос',s==200 and qlid in qids,(s,len(qids)))
 s,d=a.r('GET',f"/api/admin/leads?q={urlquote('Стекло закалённое '+uq)}"); qids2=[x['id'] for x in d.get('leads',[])]
-chk('v0.4.0: поиск ?q= по cargoInfo.cargoName (Json) находит лид',s==200 and qlid in qids2,(s,len(qids2)))
+chk('v0.4.0: поиск ?q= по cargoInfo.cargoName (Json) находит запрос',s==200 and qlid in qids2,(s,len(qids2)))
 s,d=a.r('GET',f"/api/admin/leads?q={urlquote('такого-нет-никогда')}"); chk('v0.4.0: поиск без результатов — пустой список и нули',s==200 and d.get('leads')==[] and (d.get('counts') or {}).get('all')==0,(s,d.get('counts')))
 # contractor
 s,d=a.r('POST','/api/admin/contractor-leads',{'companyName':'Перевозчик '+u}); chk('кандидат-подрядчик',s in(200,201),(s,d)); clid=(d.get('contractorLead') or d.get('lead') or d)['id']
@@ -284,7 +284,7 @@ s,d=c.r('GET',f'/api/client/leads/{clid2}'); L2=d.get('lead',d)
 chk('P1-02: правка клиента видна в колонках',float(L2.get('weightKg'))==2222 and L2.get('originCity')=='Стамбул',(L2.get('weightKg'),L2.get('originCity')))
 s,d=c2c.r('PATCH',f'/api/client/leads/{clid2}',{'cargoInfo':{'weightKg':1}}); chk('P1-02: чужой клиент не правит запрос (IDOR)',s in(403,404),s)
 s,d=a.r('GET',f'/api/admin/leads/{clid2}'); L=d.get('lead',d); acts=L.get('activities',[])
-chk('P1-02: правка клиента в журнале лида (актёр — клиент)',bool(acts) and acts[0]['type']=='lead_edited' and acts[0]['actorType']=='client',(acts[0] if acts else None))
+chk('P1-02: правка клиента в журнале запроса (актёр — клиент)',bool(acts) and acts[0]['type']=='lead_edited' and acts[0]['actorType']=='client',(acts[0] if acts else None))
 s,d=c.r('PATCH',f'/api/client/leads/{lid}',{'cargoInfo':{'weightKg':3333}}); chk('P1-02: клиент не правит запрос после вариантов → 409',s==409,s)
 s,d=a.r('GET',f'/api/admin/orders/{oid}/documents'); docs=d.get('documents',d)
 vid=[x for x in docs if x['isInternal']][0]['versions'][0]['id']

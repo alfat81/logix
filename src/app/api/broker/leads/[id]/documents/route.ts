@@ -34,7 +34,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       },
     })
     if (!link || link.lead.order) {
-      return NextResponse.json({ error: 'Лид не найден' }, { status: 404 })
+      return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
 
     const documents = await db.document.findMany({
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       select: { id: true, lead: { select: { order: { select: { id: true } } } } },
     })
     if (!link || link.lead.order) {
-      return NextResponse.json({ error: 'Лид не найден' }, { status: 404 })
+      return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
 
     const parsed = await parseDocumentCreateForm(req)

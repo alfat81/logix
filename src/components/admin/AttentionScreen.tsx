@@ -120,7 +120,7 @@ export function AttentionScreen() {
         </div>
       </div>
       <p className="text-sm text-muted-foreground -mt-2">
-        Просроченные этапы, проблемы, неназначенные исполнители и лиды без движения —
+        Просроченные этапы, проблемы, неназначенные исполнители и запросы без движения —
         всё, что ждёт реакции. Список заявок живёт в разделе «Заявки».
       </p>
 
@@ -129,14 +129,14 @@ export function AttentionScreen() {
           <CheckCircle2 className="size-8 text-success mx-auto mb-3" />
           <div className="font-medium">Всё под контролем</div>
           <div className="text-sm text-muted-foreground mt-1">
-            Ни просрочек, ни проблем, ни зависших лидов. Хорошая работа.
+            Ни просрочек, ни проблем, ни зависших запросов. Хорошая работа.
           </div>
           <div className="flex justify-center gap-2 mt-4">
             <Button size="sm" variant="outline" asChild>
               <Link href="/admin/orders">К заявкам</Link>
             </Button>
             <Button size="sm" variant="outline" asChild>
-              <Link href="/admin/leads">К лидам</Link>
+              <Link href="/admin/leads">К запросам</Link>
             </Button>
           </div>
         </Card>
@@ -269,7 +269,7 @@ function StaleLeadsSection({ count, rows }: { count: number; rows: LeadAttention
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <PauseCircle className="size-4 text-muted-foreground" />
-          Лиды без движения
+          Запросы без движения
           <Badge variant="outline" className="bg-muted text-muted-foreground">
             {count}
           </Badge>
@@ -301,7 +301,7 @@ function StaleLeadsSection({ count, rows }: { count: number; rows: LeadAttention
           <div className="text-xs text-muted-foreground text-center pt-1">
             И ещё {hidden} —{' '}
             <Link href="/admin/leads" className="underline underline-offset-2">
-              открыть список лидов
+              открыть список запросов
             </Link>
           </div>
         )}

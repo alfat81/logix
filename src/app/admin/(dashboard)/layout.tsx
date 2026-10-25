@@ -106,7 +106,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
           <footer className="border-t">
             <div className="px-4 md:px-6 h-12 flex items-center text-sm text-muted-foreground">
-              Logix MVP · рабочее место менеджера: заявки · лиды · подрядчики
+              Logix MVP · рабочее место менеджера: заявки · запросы · подрядчики
             </div>
           </footer>
         </div>

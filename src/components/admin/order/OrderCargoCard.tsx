@@ -95,7 +95,7 @@ export function OrderCargoCard({
           <CargoGroups
             route={route}
             cargoInfo={cargoInfo}
-            emptyText="Груз и маршрут не заполнены — у заявки без лида бланк пуст, заполните правкой"
+            emptyText="Груз и маршрут не заполнены — у заявки без запроса бланк пуст, заполните правкой"
           />
         </CardContent>
       </Card>

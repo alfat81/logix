@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 
   const status = req.nextUrl.searchParams.get('status')
   if (status && !(LEAD_STATUSES as readonly string[]).includes(status)) {
-    return NextResponse.json({ error: 'Неизвестный статус лида' }, { status: 400 })
+    return NextResponse.json({ error: 'Неизвестный статус запроса' }, { status: 400 })
   }
 
   const assigned = req.nextUrl.searchParams.get('assigned') ?? 'all'
@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ leads, counts })
   } catch (e) {
-    return apiErrorResponse(e, 'leads GET', 'Не удалось загрузить лиды')
+    return apiErrorResponse(e, 'leads GET', 'Не удалось загрузить запросы')
   }
 }
 
@@ -233,14 +233,14 @@ export async function POST(req: NextRequest) {
       employeeActor(auth.employee),
       'lead_created',
       customerName
-        ? `Лид создан — клиент: ${customerName}`
+        ? `Запрос создан — клиент: ${customerName}`
         : contactName
-          ? `Лид создан — контакт: ${contactName}`
-          : 'Лид создан',
+          ? `Запрос создан — контакт: ${contactName}`
+          : 'Запрос создан',
     )
 
-    return NextResponse.json({ lead, message: 'Лид создан' }, { status: 201 })
+    return NextResponse.json({ lead, message: 'Запрос создан' }, { status: 201 })
   } catch (e) {
-    return apiErrorResponse(e, 'leads POST', 'Не удалось создать лид')
+    return apiErrorResponse(e, 'leads POST', 'Не удалось создать запрос')
   }
 }

@@ -36,7 +36,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const lead = await db.lead.findUnique({ where: { id }, select: { id: true } })
     if (!lead) {
-      return NextResponse.json({ error: 'Лид не найден' }, { status: 404 })
+      return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
 
     const note = await db.$transaction(async (tx) => {

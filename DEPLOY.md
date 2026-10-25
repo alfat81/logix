@@ -275,7 +275,7 @@ SQL Editor вручную для сложных миграций). Vercel сам
 | Локально всё работает, на Vercel — ошибки Prisma про отсутствующие поля | Забыли `db:push` против прод-базы после изменения схемы | Выполнить `bun run db:push` с прод `DATABASE_URL` |
 | Долгий отклик API | Регион функций не совпадает с регионом Neon | Проверить `vercel.json` (`regions`) и регион Neon-проекта — должны совпадать или быть соседними |
 | `too many connections` от Neon под нагрузкой | Используется Direct-строка подключения вместо Pooled | В Neon Console переключиться на Pooled connection string |
-| Страница открывается, а API отдаёт 500 (например, «Лиды») | Обновили код из zip, но не выполнили `db:push` — в базе нет таблиц новой дорожки (Д добавила таблицы брокеров: `Broker`, `BrokerSession`, `LeadBroker`, `OrderBroker`, `BrokerEstimate`) | `bun run db:push` + перезапустить `bun run dev` (раздел 3.1) |
+| Страница открывается, а API отдаёт 500 (например, «Запросы») | Обновили код из zip, но не выполнили `db:push` — в базе нет таблиц новой дорожки (Д добавила таблицы брокеров: `Broker`, `BrokerSession`, `LeadBroker`, `OrderBroker`, `BrokerEstimate`) | `bun run db:push` + перезапустить `bun run dev` (раздел 3.1) |
 
 ---
 

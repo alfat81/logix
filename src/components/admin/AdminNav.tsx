@@ -58,7 +58,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Сделки',
     items: [
       { href: '/admin/orders', label: 'Заявки', icon: ClipboardList },
-      { href: '/admin/leads', label: 'Лиды', icon: Inbox },
+      { href: '/admin/leads', label: 'Запросы', icon: Inbox },
     ],
   },
   {

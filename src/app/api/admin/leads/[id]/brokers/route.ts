@@ -49,14 +49,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       select: { id: true, status: true, order: { select: { id: true } } },
     })
     if (!lead) {
-      return NextResponse.json({ error: 'Лид не найден' }, { status: 404 })
+      return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
     // Симметрия с вариантами расчёта (В3): won — терминальный, лид
     // с заявкой — уже история сделки; подключение к расчёту, которого
     // больше нет, — ошибка сценария, а не тишина.
     if (lead.status === 'won' || lead.order) {
       return NextResponse.json(
-        { error: 'Лид конвертирован в заявку — подключайте брокера к заявке' },
+        { error: 'Запрос конвертирован в заявку — подключайте брокера к заявке' },
         { status: 409 }
       )
     }
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     })
     if (duplicate) {
       return NextResponse.json(
-        { error: `Брокер «${broker.companyName}» уже подключён к этому лиду` },
+        { error: `Брокер «${broker.companyName}» уже подключён к этому запросу` },
         { status: 409 }
       )
     }

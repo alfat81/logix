@@ -26,9 +26,9 @@ const fmt = (d: Date): string =>
 // Человеческое имя типа — словарь из lib/activity (снимок на UI-уровне,
 // полный словарь живёт там: P1-13 сведёт форматтеры).
 const TYPE_LABEL: Record<string, string> = {
-  lead_created: 'Лид создан',
-  lead_edited: 'Лид правлен',
-  lead_status_changed: 'Статус лида',
+  lead_created: 'Запрос создан',
+  lead_edited: 'Запрос правлен',
+  lead_status_changed: 'Статус запроса',
   lead_assignee_changed: 'Ответственный',
   lead_broker_attached: 'Брокер подключён',
   lead_broker_detached: 'Брокер откреплён',
@@ -89,7 +89,7 @@ export function SideActivityFeed({ items }: { items: SideActivityItem[] }) {
                     <>
                       {' · '}
                       <Link href={`/admin/leads/${a.leadId}`} className="underline-offset-2 hover:underline">
-                        лид
+                        запрос
                       </Link>
                     </>
                   )}

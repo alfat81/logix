@@ -196,14 +196,14 @@ export default function OrderPage() {
         {order.lead && (
           <Card className="p-4 flex flex-wrap items-center gap-4 border-success/50 bg-success/5">
             <div className="flex-1">
-              <div className="font-medium">Конвертирована из лида от {fmtDate(order.lead.createdAt)}</div>
+              <div className="font-medium">Конвертирована из запроса от {fmtDate(order.lead.createdAt)}</div>
               <div className="text-sm text-muted-foreground">
-                Груз и условия скопированы снимком — заявка живёт независимо от лида
+                Груз и условия скопированы снимком — заявка живёт независимо от запроса
               </div>
             </div>
             <Button variant="outline" asChild>
               <Link href={`/admin/leads/${order.lead.id}`}>
-                Лид-источник
+                Запрос-источник
                 <ArrowRight className="size-4" />
               </Link>
             </Button>

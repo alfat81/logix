@@ -43,7 +43,7 @@ export function LeadCard() {
     try {
       const res = await fetch(`/api/admin/leads/${id}`)
       if (res.status === 404) {
-        toast({ title: 'Лид не найден', variant: 'destructive' })
+        toast({ title: 'Запрос не найден', variant: 'destructive' })
         router.replace('/admin/leads')
         return
       }
@@ -52,7 +52,7 @@ export function LeadCard() {
       setLead(data.lead)
     } catch (e) {
       toast({
-        title: 'Не удалось загрузить лид',
+        title: 'Не удалось загрузить запрос',
         description: e instanceof Error ? e.message : '',
         variant: 'destructive',
       })
@@ -107,12 +107,12 @@ export function LeadCard() {
         <Breadcrumbs
           items={[
             { label: 'Главная', href: '/admin' },
-            { label: 'Лиды', href: '/admin/leads' },
-            { label: `Лид от ${fmtDate(lead.createdAt)}` },
+            { label: 'Запросы', href: '/admin/leads' },
+            { label: `Запрос от ${fmtDate(lead.createdAt)}` },
           ]}
         />
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">Лид от {fmtDate(lead.createdAt)}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Запрос от {fmtDate(lead.createdAt)}</h1>
           <LeadStatusBadge status={lead.status} />
           {/* И1: запрос из клиентского кабинета */}
           {lead.source === 'cabinet' && <Badge variant="outline">Кабинет</Badge>}
@@ -186,7 +186,7 @@ export function LeadCard() {
             <div className="flex-1">
               <div className="font-medium">Конвертирован в заявку</div>
               <div className="text-sm text-muted-foreground">
-                Воронка завершена — история лида зафиксирована
+                Воронка завершена — история запроса зафиксирована
               </div>
             </div>
             <Button asChild>

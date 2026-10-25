@@ -77,8 +77,8 @@ export function LeadStatusControls({
     try {
       const res = await fetch(`/api/admin/leads/${leadId}`, { method: 'DELETE' })
       const data = await readApiResponse<{ message?: string; error?: string }>(res)
-      if (!res.ok) throw new Error(data.error || 'Не удалось удалить лид')
-      toast({ title: data.message || 'Лид удалён' })
+      if (!res.ok) throw new Error(data.error || 'Не удалось удалить запрос')
+      toast({ title: data.message || 'Запрос удалён' })
       router.push('/admin/leads')
     } catch (e) {
       toast({
@@ -115,7 +115,7 @@ export function LeadStatusControls({
           size="icon"
           className="size-8 text-destructive hover:text-destructive"
           onClick={() => setDeleteOpen(true)}
-          title="Удалить лид"
+          title="Удалить запрос"
         >
           <Trash2 className="size-4" />
         </Button>
@@ -125,7 +125,7 @@ export function LeadStatusControls({
       <Dialog open={lostOpen} onOpenChange={setLostOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Отказ по лиду</DialogTitle>
+            <DialogTitle>Отказ по запросу</DialogTitle>
             <DialogDescription>
               Причина обязательна — она останется в истории воронки (уход
               из отказа её очистит).
@@ -150,11 +150,11 @@ export function LeadStatusControls({
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Удалить лид?</DialogTitle>
+            <DialogTitle>Удалить запрос?</DialogTitle>
             <DialogDescription>
-              Лид будет удалён вместе с его вариантами расчёта
+              Запрос будет удалён вместе с его вариантами расчёта
               {optionsCount > 0 ? ` (${optionsCount} шт.)` : ''}. Действие
-              необратимо; лид с заявкой удалить нельзя.
+              необратимо; запрос с заявкой удалить нельзя.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

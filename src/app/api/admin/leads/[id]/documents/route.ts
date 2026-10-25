@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       select: { id: true },
     })
     if (!lead) {
-      return NextResponse.json({ error: 'Лид не найден' }, { status: 404 })
+      return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
 
     const documents = await db.document.findMany({
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       select: { id: true, status: true, order: { select: { id: true, number: true } } },
     })
     if (!lead) {
-      return NextResponse.json({ error: 'Лид не найден' }, { status: 404 })
+      return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
     if (lead.order) {
       return NextResponse.json(

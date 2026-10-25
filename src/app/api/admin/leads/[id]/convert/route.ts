@@ -107,14 +107,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
     })
     if (!lead) {
-      return NextResponse.json({ error: 'Лид не найден' }, { status: 404 })
+      return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
 
     // ── Повторная конвертация / самозавершение ──
     if (lead.order) {
       if (lead.status === 'won') {
         return NextResponse.json(
-          { error: `Лид уже конвертирован в заявку №${lead.order.number}` },
+          { error: `Запрос уже конвертирован в заявку №${lead.order.number}` },
           { status: 409 }
         )
       }
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           order: lead.order,
           lead: repaired,
           customerBorn: false,
-          message: `Конвертация завершена — заявка №${lead.order.number}, статус лида: ${LEAD_STATUS_LABELS.won}`,
+          message: `Конвертация завершена — заявка №${lead.order.number}, статус запроса: ${LEAD_STATUS_LABELS.won}`,
         },
         { status: 201 }
       )
@@ -141,13 +141,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       // Через API недостижимо (won ставит только этот роут, уже со связью),
       // но защита дешёвая и терминальность won — инвариант.
       return NextResponse.json(
-        { error: 'Лид уже конвертирован в заявку — статус терминальный' },
+        { error: 'Запрос уже конвертирован в заявку — статус терминальный' },
         { status: 409 }
       )
     }
     if (lead.status === 'lost') {
       return NextResponse.json(
-        { error: 'Лид в отказе — сначала верните его в работу (PATCH status), затем конвертируйте' },
+        { error: 'Запрос в отказе — сначала верните его в работу (PATCH status), затем конвертируйте' },
         { status: 409 }
       )
     }
@@ -182,7 +182,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       const raw = RawContactSchema.safeParse(lead.rawContact)
       if (!raw.success) {
         return NextResponse.json(
-          { error: 'Анкета лида (rawContact) некорректна — нет контактов для заведения клиента' },
+          { error: 'Анкета запроса (rawContact) некорректна — нет контактов для заведения клиента' },
           { status: 400 }
         )
       }
@@ -266,7 +266,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       })
       if (fresh?.order) {
         return NextResponse.json(
-          { error: `Лид уже конвертирован в заявку №${fresh.order.number}` },
+          { error: `Запрос уже конвертирован в заявку №${fresh.order.number}` },
           { status: 409 }
         )
       }
@@ -304,7 +304,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       { orderId: result.id },
       employeeActor(auth.employee),
       'order_created',
-      `Заявка №${result.number} создана конвертацией из лида — груз и условия скопированы снимком` +
+      `Заявка №${result.number} создана конвертацией из запроса — груз и условия скопированы снимком` +
         (carriedBrokers > 0 ? `, брокеры видимости: ${carriedBrokers}` : '') +
         (carriedDocs > 0 ? `, документы: ${carriedDocs}` : ''),
     )
@@ -315,12 +315,12 @@ export async function POST(req: NextRequest, { params }: Params) {
         order: { id: result.id, number: result.number },
         lead: updatedLead,
         customerBorn: customer.created,
-        message: `Заявка №${result.number} создана — статус лида: ${LEAD_STATUS_LABELS.won}`,
+        message: `Заявка №${result.number} создана — статус запроса: ${LEAD_STATUS_LABELS.won}`,
       },
       { status: 201 }
     )
   } catch (e) {
-    return apiErrorResponse(e, 'lead convert', 'Не удалось конвертировать лид в заявку')
+    return apiErrorResponse(e, 'lead convert', 'Не удалось конвертировать запрос в заявку')
   }
 }
 

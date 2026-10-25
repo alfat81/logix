@@ -248,10 +248,10 @@ export function CustomerCard() {
       <div className="grid gap-2">
         <SectionTitle count={leads.length}>
           <Inbox className="size-4 text-muted-foreground" />
-          Лиды
+          Запросы
         </SectionTitle>
         {leads.length === 0 ? (
-          <Card className="p-4 text-sm text-muted-foreground">Лидов от этого клиента пока нет.</Card>
+          <Card className="p-4 text-sm text-muted-foreground">Запросов от этого клиента пока нет.</Card>
         ) : (
           leads.map((l) => (
             <Link key={l.id} href={`/admin/leads/${l.id}`} className="block group">

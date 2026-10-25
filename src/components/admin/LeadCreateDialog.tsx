@@ -102,9 +102,9 @@ export function LeadCreateDialog({ onCreated }: { onCreated: () => void }) {
         }),
       })
       const data = await readApiResponse<{ error?: string }>(res)
-      if (!res.ok) throw new Error(data.error || 'Не удалось создать лид')
+      if (!res.ok) throw new Error(data.error || 'Не удалось создать запрос')
 
-      toast({ title: 'Лид создан', description: 'Статус: Новый' })
+      toast({ title: 'Запрос создан', description: 'Статус: Новый' })
       setOpen(false)
       resetForm()
       onCreated()
@@ -124,12 +124,12 @@ export function LeadCreateDialog({ onCreated }: { onCreated: () => void }) {
       <DialogTrigger asChild>
         <Button>
           <Plus className="size-4" />
-          Новый лид
+          Новый запрос
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Новый лид</DialogTitle>
+          <DialogTitle>Новый запрос</DialogTitle>
           <DialogDescription>
             Анкета — по типовой заявке клиента: заполняйте по мере наличия
             данных, все поля груза необязательны. Клиент в справочнике
@@ -204,7 +204,7 @@ export function LeadCreateDialog({ onCreated }: { onCreated: () => void }) {
         <DialogFooter>
           <Button onClick={handleCreate} disabled={creating}>
             {creating && <Loader2 className="size-4 animate-spin" />}
-            Создать лид
+            Создать запрос
           </Button>
         </DialogFooter>
       </DialogContent>

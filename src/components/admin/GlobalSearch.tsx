@@ -121,7 +121,7 @@ export function GlobalSearch() {
       <Input
         className="pr-8 pl-8"
         placeholder="Поиск: номер, клиент, телефон…"
-        aria-label="Глобальный поиск по заявкам и лидам"
+        aria-label="Глобальный поиск по заявкам и запросам"
         value={q}
         onChange={(e) => {
           setQ(e.target.value)
@@ -185,7 +185,7 @@ export function GlobalSearch() {
               {results.leads.length > 0 && (
                 <>
                   <div className="mt-1 px-3 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Лиды
+                    Запросы
                   </div>
                   {results.leads.map((l) => (
                     <Link

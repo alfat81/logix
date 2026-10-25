@@ -199,7 +199,7 @@ export function CustomersList() {
                       Заявок: {c.ordersCount}
                     </div>
                     <div className="text-muted-foreground text-xs tabular-nums">
-                      Договоры: {c.contractsCount} · Лиды: {c.leadsCount}
+                      Договоры: {c.contractsCount} · Запросы: {c.leadsCount}
                     </div>
                   </div>
                 </div>

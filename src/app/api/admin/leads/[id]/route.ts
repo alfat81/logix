@@ -52,12 +52,12 @@ export async function GET(req: NextRequest, { params }: Params) {
       },
     })
     if (!lead) {
-      return NextResponse.json({ error: 'Лид не найден' }, { status: 404 })
+      return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
 
     return NextResponse.json({ lead })
   } catch (e) {
-    return apiErrorResponse(e, 'lead GET', 'Не удалось загрузить лид')
+    return apiErrorResponse(e, 'lead GET', 'Не удалось загрузить запрос')
   }
 }
 
@@ -103,12 +103,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       include: { assignee: { select: { id: true, name: true } } },
     })
     if (!existing) {
-      return NextResponse.json({ error: 'Лид не найден' }, { status: 404 })
+      return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
 
     if (existing.status === 'won') {
       return NextResponse.json(
-        { error: 'Лид уже конвертирован в заявку — статус терминальный' },
+        { error: 'Запрос уже конвертирован в заявку — статус терминальный' },
         { status: 409 }
       )
     }
@@ -124,13 +124,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (editingAnketa) {
       if (rawContact !== undefined && existing.customerId) {
         return NextResponse.json(
-          { error: 'У лида есть клиент из справочника — контакты правятся в карточке клиента' },
+          { error: 'У запроса есть клиент из справочника — контакты правятся в карточке клиента' },
           { status: 409 }
         )
       }
       if (!isLeadAnketaEditable(existing.status)) {
         return NextResponse.json(
-          { error: 'Анкета закрытого («Отказ») лида не правится — верните лид в работу (мастер)' },
+          { error: 'Анкета закрытого («Отказ») запроса не правится — верните запрос в работу (мастер)' },
           { status: 409 }
         )
       }
@@ -179,7 +179,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (status !== undefined) {
       if (status === existing.status) {
         return NextResponse.json(
-          { error: `Статус лида уже: ${LEAD_STATUS_LABELS[status]}` },
+          { error: `Статус запроса уже: ${LEAD_STATUS_LABELS[status]}` },
           { status: 400 }
         )
       }
@@ -325,16 +325,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const messageParts: string[] = []
-    if (status !== undefined) messageParts.push(`Статус лида: ${LEAD_STATUS_LABELS[status]}`)
+    if (status !== undefined) messageParts.push(`Статус запроса: ${LEAD_STATUS_LABELS[status]}`)
     if (assigneeMessage) messageParts.push(assigneeMessage)
     if (editDescription) messageParts.push('Анкета обновлена')
 
     return NextResponse.json({
       lead,
-      message: messageParts.join('; ') || 'Лид обновлён',
+      message: messageParts.join('; ') || 'Запрос обновлён',
     })
   } catch (e) {
-    return apiErrorResponse(e, 'lead PATCH', 'Не удалось обновить лид')
+    return apiErrorResponse(e, 'lead PATCH', 'Не удалось обновить запрос')
   }
 }
 
@@ -354,18 +354,18 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       include: { order: { select: { id: true } } },
     })
     if (!lead) {
-      return NextResponse.json({ error: 'Лид не найден' }, { status: 404 })
+      return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
     if (lead.order) {
       return NextResponse.json(
-        { error: 'Нельзя удалить лид, конвертированный в заявку' },
+        { error: 'Нельзя удалить запрос, конвертированный в заявку' },
         { status: 409 }
       )
     }
 
     await db.lead.delete({ where: { id } })
-    return NextResponse.json({ ok: true, message: 'Лид удалён' })
+    return NextResponse.json({ ok: true, message: 'Запрос удалён' })
   } catch (e) {
-    return apiErrorResponse(e, 'lead DELETE', 'Не удалось удалить лид')
+    return apiErrorResponse(e, 'lead DELETE', 'Не удалось удалить запрос')
   }
 }

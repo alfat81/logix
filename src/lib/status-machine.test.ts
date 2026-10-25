@@ -73,7 +73,7 @@ describe('Матрица переходов заявки (ORDER_TRANSITIONS)', (
   })
 })
 
-describe('Матрица переходов лида (LEAD_TRANSITIONS)', () => {
+describe('Матрица переходов запроса (LEAD_TRANSITIONS)', () => {
   it('полный перебор 4×4: разрешён ровно входящий в таблицу переход', () => {
     for (const from of LEAD_STATUSES) {
       for (const to of LEAD_STATUSES) {

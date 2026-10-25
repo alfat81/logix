@@ -238,7 +238,7 @@ export function BrokerLinksSection({
                   ) : (
                     <div className="text-xs text-muted-foreground border-t pt-2">
                       {targetType === 'order'
-                        ? 'Оценки нет: подключён после расчёта или без связи с лидом'
+                        ? 'Оценки нет: подключён после расчёта или без связи с запросом'
                         : 'Оценку платежей ещё не сообщал'}
                     </div>
                   )}
