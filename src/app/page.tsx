@@ -3,6 +3,14 @@ import { ArrowRight, Container, Ship, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { contractorPortalEnabled } from "@/lib/flags";
 
+// D31 (DF-00C): флаг заморозки читается в РАНТАЙМЕ, а не при сборке.
+// v0.5.5: без этой директивы Next пререндерит лендинг в статику и вшивает
+// значение флага в HTML на этапе build (CI гоняет build с флагом=true,
+// шаг заморозки перезапускает сервер с false — ссылка оставалась в кэше
+// сборки, e2e-заморозка 15/16). force-dynamic возвращает обещание
+// src/lib/flags.ts: смена env не требует пересборки.
+export const dynamic = "force-dynamic";
+
 // Корневая страница — минимальный фейс проекта. Куда grows: лендинг
 // с описанием сервиса (когда дойдёт очередь), сюда пока
 // приходит и проверяющий превью, и первый менеджер Logix.

@@ -1,0 +1,16 @@
+{
+  "task": "Фикс e2e-заморозки v0.5.5: лендинг читает CONTRACTOR_PORTAL_ENABLED в рантайме (force-dynamic), релиз v0.5.5",
+  "areas": [
+    "src/app/page.tsx — force-dynamic вместо статического пререндера (флаг вшивался при сборке)",
+    "документация: CHANGELOG, ROADMAP, релизные файлы v0.5.5"
+  ],
+  "globs": [
+    "src/app/page.tsx",
+    "CHANGELOG.md",
+    "docs/ROADMAP.md",
+    "package.json",
+    "docs/releases/RELEASE-NOTES-v0.5.5.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.5.5.md",
+    "docs/releases/SCOPE-v0.5.5.json"
+  ]
+}
