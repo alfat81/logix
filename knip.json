@@ -1,0 +1,16 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/app/**/{page,layout,route,loading,not-found,error}.ts*",
+    "src/app/api/**/route.ts",
+    "src/proxy.ts",
+    "scripts/seed.ts",
+    "scripts/set-master-password.ts",
+    "scripts/shadow-db.ts",
+    "src/lib/*.test.ts"
+  ],
+  "project": ["src/**/*.ts", "src/**/*.tsx", "scripts/*.ts"],
+  "ignoreDependencies": ["@types/bun", "tailwindcss", "tw-animate-css"],
+  "ignoreExportsUsedInFile": true,
+  "tags": ["-lint"]
+}

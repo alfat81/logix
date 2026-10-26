@@ -4,7 +4,7 @@ import { db } from './db'
 import { definePortal } from './portal-auth'
 
 // Кабинет сотрудника (А4/А5). Механизм сессий — lib/portal-auth.ts.
-// Правило с первого дня (урок APEX Moto): каждый write-роут явно
+// Правило с первого дня: каждый write-роут явно
 // передаёт { write: true } и, где уместно, { roles: [...] }. Сейчас
 // write ничего не блокирует (read-only ролей нет) — это маркер для
 // аудита: `rg "requireEmployee\(req\)"` находит роуты без опций.

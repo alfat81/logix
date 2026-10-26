@@ -40,7 +40,7 @@ EXCLUDE_DIRS = {
 # свои значения, а агентские секреты в архив попадать не должны.
 EXCLUDE_FILES = {
     ".env", ".env.local", ".env.production", "next.log", ".DS_Store",
-    "tsconfig.tsbuildinfo", "bun.lockb.tmp",
+    "tsconfig.tsbuildinfo", "bun.lockb.tmp", ".scope-baseline.json",
 }
 EXCLUDE_SUFFIXES = (".log", ".tsbuildinfo")
 # Исключение из исключения: пример env-переменных едет в архиве.
@@ -81,6 +81,16 @@ def main() -> int:
     args = parser.parse_args()
 
     version = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
+
+    # Гейт G3/G4 (DF-00B, D30): релиз не собирается при красном integrity/knip.
+    import subprocess
+    for gate in ("integrity_check.py", "knip_check.py"):
+        print(f"── Гейт: python3 scripts/{gate} ──")
+        r = subprocess.run([sys.executable, str(ROOT / "scripts" / gate)], cwd=ROOT)
+        if r.returncode != 0:
+            print(f"ОШИБКА: {gate} красный — архив не собирается (храповик, D30)")
+            return 1
+
     notes = RELEASES_DIR / f"RELEASE-NOTES-v{version}.md"
     instructions = RELEASES_DIR / f"RELEASE-INSTRUCTIONS-v{version}.md"
     missing = [str(p.relative_to(ROOT)) for p in (notes, instructions) if not p.exists()]

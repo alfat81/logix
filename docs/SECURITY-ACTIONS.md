@@ -7,9 +7,15 @@
 
 ## 1. Сразу (5 минут)
 
-- [ ] Сменить пароль мастера на проде:
-      `DATABASE_URL="<direct-строка Neon>" bun run set-master`
-      (новый пароль — из менеджера паролей, ≥ 16 символов).
+- [ ] Сменить пароль мастера на проде (PowerShell):
+      ```powershell
+      $env:DATABASE_URL = "<direct-строка Neon>"
+      # Ввод пароля скрытно (≥ 16 символов):
+      $secPass = Read-Host "Введите новый пароль мастера" -AsSecureString
+      $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secPass)
+      $env:MASTER_PASSWORD = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+      npm run set-master
+      ```
 - [ ] Если этот пароль использовался где-то ещё (почта, Neon, Vercel, GitHub) — сменить и там.
 - [ ] Сбросить все активные сессии: в Neon SQL Editor
       `DELETE FROM "EmployeeSession"; DELETE FROM "ContractorSession"; DELETE FROM "ClientSession"; DELETE FROM "BrokerSession";`
@@ -20,16 +26,17 @@
 
 Переписывает историю — все копии репозитория нужно будет склонировать заново.
 
-```bash
+PowerShell:
+```powershell
 pip install git-filter-repo
 git clone --mirror https://github.com/alfat81/logix.git logix-mirror
 cd logix-mirror
-git filter-repo --invert-paths \
-  --path check-master-pass.js \
-  --path-glob 'cmv*' \
+git filter-repo --invert-paths `
+  --path check-master-pass.js `
+  --path-glob 'cmv*' `
   --path ROADMAP-v3.14.md
 # вычистить строку пароля из всех оставшихся файлов истории:
-echo '<старый пароль>==>[удалено]' > ../replace.txt   # подставить старый пароль целиком
+"<старый пароль>==>[удалено]" | Out-File -Encoding ascii ../replace.txt
 git filter-repo --replace-text ../replace.txt
 git push --force --mirror
 ```

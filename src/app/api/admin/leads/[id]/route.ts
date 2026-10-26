@@ -69,7 +69,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 // Варианты расчёта (QuoteOption) уходят каскадом вместе с лидом
 // (onDelete: Cascade в схеме В1).
 export async function DELETE(req: NextRequest, { params }: Params) {
-  const auth = await requireEmployee(req, { write: true })
+  // P1-09 / DF-00: удаление лидов — только мастер
+  const auth = await requireEmployee(req, { roles: ['master'], write: true })
   if (!auth.ok) return auth.response
 
   const { id } = await params

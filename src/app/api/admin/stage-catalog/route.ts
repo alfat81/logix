@@ -51,7 +51,8 @@ const CreateStageSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const auth = await requireEmployee(req, { write: true })
+  // P1-09 / DF-00: управление каталогом этапов — только мастер
+  const auth = await requireEmployee(req, { roles: ['master'], write: true })
   if (!auth.ok) return auth.response
 
   try {
@@ -64,14 +65,6 @@ export async function POST(req: NextRequest) {
       )
     }
     const { name, isMandatory = false } = parsed.data
-
-    // Создание сразу обязательным — только мастер (см. комментарий роута).
-    if (isMandatory && !auth.employee.roles.includes('master')) {
-      return NextResponse.json(
-        { error: 'Обязательным этап делает только мастер' },
-        { status: 403 }
-      )
-    }
 
     let code = parsed.data.code ?? ''
     if (code === '') {

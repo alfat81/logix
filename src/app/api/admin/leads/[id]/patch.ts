@@ -62,6 +62,12 @@ export async function patchLead(
     }
 
     if (existing.status === 'won') {
+      if (!auth.employee.roles.includes('master')) {
+        return NextResponse.json(
+          { error: 'Возврат из терминального статуса («Выигран») доступен только мастеру' },
+          { status: 403 }
+        )
+      }
       return NextResponse.json(
         { error: 'Запрос уже конвертирован в заявку — статус терминальный' },
         { status: 409 }

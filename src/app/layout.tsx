@@ -14,8 +14,12 @@ const ibmPlexSans = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Logix",
-  description: "Платформа мультимодальной логистики",
+  title: "Logix — платформа мультимодальной логистики",
+  description: "Платформа мультимодальной логистики — рабочее место менеджера, воронка запросов, заявки, этапы и порталы для клиентов, подрядчиков и брокеров",
+  openGraph: {
+    title: "Logix — платформа мультимодальной логистики",
+    description: "Платформа мультимодальной логистики — рабочее место менеджера, воронка запросов, заявки, этапы и порталы для клиентов, подрядчиков и брокеров",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

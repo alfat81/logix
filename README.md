@@ -39,6 +39,13 @@ bun run dev                   # http://localhost:3000/admin/login
 bunx prisma validate && bunx tsc --noEmit && bun run lint && bun run build
 # сквозной API-тест — только на тестовой базе, при запущенном bun run start:
 ADMIN_PASSWORD=logix-master bun run test:e2e
+# гейты G3/G4 (DF-00B): целостность IC-01..IC-14 и неиспользуемое (храповики):
+python3 scripts/integrity_check.py && python3 scripts/knip_check.py
+# индекс проекта (G1) и контроль области изменений (G2):
+python3 scripts/inventory.py && python3 scripts/scope.py init   # снимок до начала задачи
+python3 scripts/scope.py check                                   # после: правки вне SCOPE-vX.Y.Z.json = красный
+# тесты самих проверок:
+python3 scripts/test_integrity.py
 ```
 
 Схема БД меняется только миграциями: `bun run db:migrate --name <задача>`.

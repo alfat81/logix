@@ -42,7 +42,8 @@ const PatchStageSchema = z
 type Params = { params: Promise<{ id: string }> }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const auth = await requireEmployee(req, { write: true })
+  // P1-09 / DF-00: управление каталогом этапов — только мастер
+  const auth = await requireEmployee(req, { roles: ['master'], write: true })
   if (!auth.ok) return auth.response
 
   const { id } = await params
@@ -56,15 +57,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       )
     }
     const { move, name, isMandatory } = parsed.data
-
-    // Флаг обязательности — только мастер (очередь, Ж6б; открытым
-    // вопросом №3 предложено «только мастер», пока других ролей нет).
-    if (isMandatory !== undefined && !auth.employee.roles.includes('master')) {
-      return NextResponse.json(
-        { error: 'Флаг обязательности меняет только мастер' },
-        { status: 403 }
-      )
-    }
 
     const stage = await db.orderStageCatalog.findUnique({ where: { id } })
     if (!stage) {
@@ -111,3 +103,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return apiErrorResponse(e, 'stage-catalog PATCH', 'Не удалось сохранить этап')
   }
 }
+
+// ─── DELETE /api/admin/stage-catalog/[id] — удалить этап (DF-00 / P1-09) ──
+export async function DELETE(req: NextRequest, { params }: Params) {
+  const auth = await requireEmployee(req, { roles: ['master'], write: true })
+  if (!auth.ok) return auth.response
+
+  const { id } = await params
+  try {
+    const stage = await db.orderStageCatalog.findUnique({ where: { id } })
+    if (!stage) return NextResponse.json({ error: 'Этап не найден в каталоге' }, { status: 404 })
+    if (stage.isMandatory) {
+      return NextResponse.json(
+        { error: 'Обязательный этап нельзя удалить из каталога' },
+        { status: 400 }
+      )
+    }
+    await db.orderStageCatalog.delete({ where: { id } })
+    return NextResponse.json({ ok: true, message: 'Этап удалён из каталога' })
+  } catch (e) {
+    return apiErrorResponse(e, 'stage-catalog DELETE', 'Не удалось удалить этап')
+  }
+}
+

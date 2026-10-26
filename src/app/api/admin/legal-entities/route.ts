@@ -144,7 +144,8 @@ const CreateLegalEntitySchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const auth = await requireEmployee(req, { write: true })
+  // P1-09 / DF-00: создание юрлиц — только мастер
+  const auth = await requireEmployee(req, { roles: ['master'], write: true })
   if (!auth.ok) return auth.response
 
   try {

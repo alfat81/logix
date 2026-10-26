@@ -110,7 +110,7 @@ export function OrderQuoteDialog({
           <DialogDescription>
             Согласованный способ доставки: описание, транспорт,
             стоимость и срок. У конвертированной заявки — снимок
-            выбранного варианта расчёта лида.
+            выбранного варианта расчёта запроса.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">

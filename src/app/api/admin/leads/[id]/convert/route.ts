@@ -16,41 +16,19 @@ import { carryBrokersToOrder, loadLeadCard } from './helpers'
 
 type Params = { params: Promise<{ id: string }> }
 
-// v0.5.0 (P1-22): хелперы переноса брокеров и загрузки карточки — выезд
-// в helpers.ts (резка под лимит 300, RULES 2.14).
-
-// ─── POST /api/admin/leads/[id]/convert — конвертация в заявку (В4) ──
+// ─── POST /api/admin/leads/[id]/convert — атомарная конвертация в заявку (В4 + DF-00) ──
 //
-// Финальный шаг воронки: выбранный вариант расчёта превращается в
-// заявку. Правила (очередь В4 + роадмап 8.2):
-//   • выбранного варианта НЕТ — 409: конвертировать нечего, заявка
-//     без согласованного расчёта — обход воронки;
-//   • клиент — из customerId лида, либо find-or-create из rawContact
-//     (нормализация телефона — единственный раз, в момент рождения
-//     Customer; номер, который не нормализуется — иностранный +86… —
-//     сохраняется как есть: потерять контакт клиента хуже, чем хранить
-//     ненормализованный);
-//   • юрлицо — обязательный осознанный выбор менеджера в теле запроса
-//     (договор рождается на пару клиент+юрлицо прозрачно, Б4);
-//   • заявка — существующим createOrderWithStages: обязательные этапы
-//     и номер «N-M» без изменений; связь Order.leadId ставится прямо
-//     при создании — @unique на leadId ловит гонку двойного клика;
-//     Ж1: вместе со связью копируются снимки — груз лида (cargoInfo)
-//     и выбранный вариант (quoteSnapshot);
-//   • затем lead.status=won (терминальный) и backfill customerId;
-//   • повторная конвертация — 409; лид в lost — 409 (отказ дал человек,
-//     человеку же и возвращать лид в работу PATCH'ем — «статус меняет
-//     человек», роадмап 8.1);
-//   • краш-окно «заявка создана, статус не дописан» закрывается
-//     самозавершением: следующий вызов видит связанную заявку без won
-//     и доводит статус до won тем же ответом (201), а не 409-тупиком.
+// Финальный шаг воронки: выбранный вариант расчёта превращается в заявку.
+// DF-00 (0.5.1): все действия (клиент, заявка, этапы, перевод лида в won,
+// перенос брокеров, перенос документов, логи в обе ленты) объединены в ОДНУ
+// интерактивную транзакцию db.$transaction с таймаутом 15с.
+// Ветка самовосстановления убрана: полусконвертированных лидов не бывает.
 export async function POST(req: NextRequest, { params }: Params) {
   const auth = await requireEmployee(req, { write: true })
   if (!auth.ok) return auth.response
 
   const { id } = await params
   try {
-    // Пустое/битое тело — 400, а не 500 (паттерн В3).
     let body: unknown
     try {
       body = await req.json()
@@ -77,36 +55,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
 
-    // ── Повторная конвертация / самозавершение ──
+    // Повторная конвертация — чистый 409
     if (lead.order) {
-      if (lead.status === 'won') {
-        return NextResponse.json(
-          { error: `Запрос уже конвертирован в заявку №${lead.order.number}` },
-          { status: 409 }
-        )
-      }
-      // Артефакт краш-окна: заявка связана (leadId ставится при создании),
-      // статус не дописан. Добиваем статус и отдаём тот же результат —
-      // лид не застревает в calculated без пути назад (PATCH won не умеет).
-      await db.lead.update({ where: { id }, data: { status: 'won' } })
-      // Д: догоняем и перенос брокеров — краш мог случиться и до него
-      await carryBrokersToOrder(id, lead.order.id)
-      // Е: документы лида переезжают в заявку тем же догоном
-      await carryDocumentsToOrder(id, lead.order.id)
-      const repaired = await loadLeadCard(id)
       return NextResponse.json(
-        {
-          order: lead.order,
-          lead: repaired,
-          customerBorn: false,
-          message: `Конвертация завершена — заявка №${lead.order.number}, статус запроса: ${LEAD_STATUS_LABELS.won}`,
-        },
-        { status: 201 }
+        { error: `Запрос уже конвертирован в заявку №${lead.order.number}` },
+        { status: 409 }
       )
     }
     if (lead.status === 'won') {
-      // Через API недостижимо (won ставит только этот роут, уже со связью),
-      // но защита дешёвая и терминальность won — инвариант.
       return NextResponse.json(
         { error: 'Запрос уже конвертирован в заявку — статус терминальный' },
         { status: 409 }
@@ -119,7 +75,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       )
     }
 
-    // ── Выбранный вариант ──
+    // Выбранный вариант
     const selected = lead.options.find((o) => o.isSelected)
     if (!selected) {
       return NextResponse.json(
@@ -128,7 +84,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       )
     }
 
-    // ── Юрлицо: проверка ДО побочных эффектов (клиент не рождается зря) ──
+    // Проверка юрлица
     const legalEntity = await db.legalEntity.findUnique({
       where: { id: legalEntityId },
       select: { id: true },
@@ -137,11 +93,20 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Юрлицо не найдено' }, { status: 404 })
     }
 
-    // ── Клиент: из лида или find-or-create из rawContact ──
-    // Под блокировкой строки лида (SELECT … FOR UPDATE): параллельные
-    // конвертации одного лида раньше рождали по клиенту каждая — дубли
-    // с одним телефоном, и вход в кабинет попадал на дубль без пароля.
-    // Второй запрос ждёт первого и берёт уже записанный customerId.
+    // Снимок выбранного расчёта для заявки
+    const quoteSnapshot: Prisma.InputJsonObject = {
+      description: selected.description,
+      price: selected.price.toNumber(),
+      currency: selected.currency,
+      vatMode: selected.vatMode,
+      etaDays: selected.etaDays,
+      priorityFit: selected.priorityFit,
+      ...(Array.isArray(selected.transportModes)
+        ? { transportModes: selected.transportModes.filter((m) => typeof m === 'string') }
+        : {}),
+    }
+
+    // Контакты для заведения клиента при отсутствии customerId
     let rawPhone: string | null = null
     let rawName = ''
     let rawEmail: string | null = null
@@ -154,135 +119,112 @@ export async function POST(req: NextRequest, { params }: Params) {
         )
       }
       rawName = raw.data.name
-      // Нормализация в момент рождения Customer: 8 900 555-01-02 →
-      // +79005550102 (дедупликация со справочником); +86… как есть
       rawPhone = raw.data.phone ? (normalizePhone(raw.data.phone) ?? raw.data.phone.trim()) : null
       rawEmail = raw.data.email ?? null
     }
-    const customer = await db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "Lead" WHERE id = ${id} FOR UPDATE`
-      const locked = await tx.lead.findUnique({ where: { id }, select: { customerId: true } })
-      const found = locked?.customerId
-        ? await findOrCreateCustomer({ customerId: locked.customerId }, tx)
-        : await findOrCreateCustomer({ name: rawName, phone: rawPhone, email: rawEmail }, tx)
-      // Backfill customerId ДО создания заявки: повторный заход после
-      // сбоя не заведёт дубль клиента
-      if (!('error' in found) && locked?.customerId !== found.id) {
-        await tx.lead.update({ where: { id }, data: { customerId: found.id } })
-      }
-      return found
-    })
-    if ('error' in customer) {
-      return NextResponse.json({ error: customer.error }, { status: customer.status })
-    }
 
-    // ── Заявка: существующий конвейер Б4 + связь с рождения записи ──
-    // Ж1: суть сделки копируется СНИМКАМИ — груз лида (cargoInfo как
-    // есть: форма бланка уже в нужных ключах) и выбранный вариант
-    // (quoteSnapshot: описание, виды транспорта, цена, срок, ориентир).
-    // Дальше заявка — источник правды: правки лида её не меняют.
-    const quoteSnapshot: Prisma.InputJsonObject = {
-      description: selected.description,
-      // P1-04: цена с валютой и меткой НДС (cost в снимок не попадает —
-      // наружу себестоимость не выходит, RULES 2.15). Decimal → число
-      // для JSON-снимка: только транспорт, без арифметики.
-      price: selected.price.toNumber(),
-      currency: selected.currency,
-      vatMode: selected.vatMode,
-      etaDays: selected.etaDays,
-      priorityFit: selected.priorityFit,
-      ...(Array.isArray(selected.transportModes)
-        ? { transportModes: selected.transportModes.filter((m) => typeof m === 'string') }
-        : {}),
-    }
-    const result = await createOrderWithStages({
-      customerId: customer.id,
-      legalEntityId,
-      incoterm: incoterm || null,
-      hsCode: hsCode || null,
-      leadId: lead.id,
-      // P1-01: ответственный переносится с лида (конвертировал тот же,
-      // кто вёл расчёт). У лида без ответственного (запрос из кабинета,
-      // И1) заявку ведет тот, кто её создал конвертацией.
-      assignedToId: lead.assignedToId ?? auth.employee.id,
-      // JsonValue из базы шире InputJsonValue — тот же явный каст на
-      // границе, что в POST лида (В2). null = анкета не заполнялась,
-      // копировать нечего.
-      cargoInfo: (lead.cargoInfo as Prisma.InputJsonObject | null) ?? undefined,
-      // P1-03: маршрут/метрики — снимок колонок лида в колонки заявки
-      route: {
-        originCity: lead.originCity,
-        originCountry: lead.originCountry,
-        destinationCity: lead.destinationCity,
-        destinationCountry: lead.destinationCountry,
-        transportType: lead.transportType,
-        readyDate: lead.readyDate,
-        weightKg: lead.weightKg,
-        volumeM3: lead.volumeM3,
-        placesCount: lead.placesCount,
-      },
-      quoteSnapshot,
-    })
-    if ('error' in result) {
-      // Гонка двойного клика: параллельный запрос успел создать заявку
-      // (leadId @unique → P2002 → retry-петля → ошибка). Перепроверяем
-      // связь: заявка уже есть — честный 409 вместо 500.
-      const fresh = await db.lead.findUnique({
-        where: { id },
-        select: { order: { select: { id: true, number: true } } },
-      })
-      if (fresh?.order) {
-        return NextResponse.json(
-          { error: `Запрос уже конвертирован в заявку №${fresh.order.number}` },
-          { status: 409 }
+    // ── Единая интерактивная транзакция DF-00 ─────────────────────────────
+    const result = await db.$transaction(
+      async (tx) => {
+        // Блокировка строки лида
+        await tx.$queryRaw`SELECT id FROM "Lead" WHERE id = ${id} FOR UPDATE`
+        const locked = await tx.lead.findUnique({
+          where: { id },
+          include: { order: { select: { id: true, number: true } } },
+        })
+        if (!locked) return { error: 'Запрос не найден', status: 404 }
+        if (locked.order || locked.status === 'won') {
+          return {
+            error: `Запрос уже конвертирован в заявку №${locked.order?.number ?? ''}`,
+            status: 409,
+          }
+        }
+
+        // 1. Клиент: find-or-create под блокировкой
+        const customer = locked.customerId
+          ? await findOrCreateCustomer({ customerId: locked.customerId }, tx)
+          : await findOrCreateCustomer({ name: rawName, phone: rawPhone, email: rawEmail }, tx)
+        if ('error' in customer) return customer
+
+        if (locked.customerId !== customer.id) {
+          await tx.lead.update({ where: { id }, data: { customerId: customer.id } })
+        }
+
+        // 2. Создание заявки с этапами (внутри блокируется строка Contract)
+        const orderRes = await createOrderWithStages(
+          {
+            customerId: customer.id,
+            legalEntityId,
+            incoterm: incoterm || null,
+            hsCode: hsCode || null,
+            leadId: locked.id,
+            assignedToId: locked.assignedToId ?? auth.employee.id,
+            cargoInfo: (locked.cargoInfo as Prisma.InputJsonObject | null) ?? undefined,
+            route: {
+              originCity: locked.originCity,
+              originCountry: locked.originCountry,
+              destinationCity: locked.destinationCity,
+              destinationCountry: locked.destinationCountry,
+              transportType: locked.transportType,
+              readyDate: locked.readyDate,
+              weightKg: locked.weightKg,
+              volumeM3: locked.volumeM3,
+              placesCount: locked.placesCount,
+            },
+            quoteSnapshot,
+          },
+          tx
         )
-      }
+        if ('error' in orderRes) return orderRes
+
+        // 3. Перевод лида в won
+        await tx.lead.update({ where: { id }, data: { status: 'won' } })
+
+        // 4. Перенос брокеров
+        const carriedBrokers = await carryBrokersToOrder(id, orderRes.id, tx)
+
+        // 5. Перенос документов
+        const carriedDocs = await carryDocumentsToOrder(id, orderRes.id, tx)
+
+        // 6. Аудит в обе ленты событий
+        await logActivity(
+          { leadId: id },
+          employeeActor(auth.employee),
+          'lead_converted',
+          `Сконвертирован в заявку №${orderRes.number}` +
+            (carriedBrokers > 0 ? ` — брокеры перенесены: ${carriedBrokers}` : '') +
+            (carriedDocs > 0 ? `, документы перенесены: ${carriedDocs}` : ''),
+          tx
+        )
+        await logActivity(
+          { orderId: orderRes.id },
+          employeeActor(auth.employee),
+          'order_created',
+          `Заявка №${orderRes.number} создана конвертацией из запроса — груз и условия скопированы снимком` +
+            (carriedBrokers > 0 ? `, брокеры видимости: ${carriedBrokers}` : '') +
+            (carriedDocs > 0 ? `, документы: ${carriedDocs}` : ''),
+          tx
+        )
+
+        return {
+          order: { id: orderRes.id, number: orderRes.number },
+          customerBorn: customer.created,
+        }
+      },
+      { timeout: 15000, maxWait: 5000 }
+    )
+
+    if ('error' in result) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }
-
-    // ── Финал: won. Отдельным быстрым апдейтом (не в общей транзакции
-    // с заказом — внутри retry-петли P2002 ловится и откатывается на
-    // Postgres некорректно); краш-окно закрывает самозавершение выше. ──
-    await db.lead.update({ where: { id }, data: { status: 'won' } })
-
-    // Д: брокеры расчёта переезжают в заявку — видимость не обнуляется
-    // и не сужается при переходе из расчёта в исполнение (роадмап 5а:
-    // «при win переносится автоматически, не заводится заново»)
-    const carriedBrokers = await carryBrokersToOrder(id, result.id)
-
-    // Е: документы лида (предварительный инвойс для расчёта и прочее)
-    // переезжают в заявку вместе со сделкой (роадмап 5) — обмен
-    // продолжается там, где начался, без перезагрузки файлов
-    const carriedDocs = await carryDocumentsToOrder(id, result.id)
-
-    // Ж2: журнал — конвертация пишет в ОБЕ ленты: событие лида
-    // («воронка завершена») и рождение заявки («откуда взялась»).
-    // Ссылка на номер в обе стороны — менеджер идёт по истории без
-    // догадок, с какой стороны ни зашёл бы.
-    await logActivity(
-      { leadId: id },
-      employeeActor(auth.employee),
-      'lead_converted',
-      `Сконвертирован в заявку №${result.number}` +
-        (carriedBrokers > 0 ? ` — брокеры перенесены: ${carriedBrokers}` : '') +
-        (carriedDocs > 0 ? `, документы перенесены: ${carriedDocs}` : ''),
-    )
-    await logActivity(
-      { orderId: result.id },
-      employeeActor(auth.employee),
-      'order_created',
-      `Заявка №${result.number} создана конвертацией из запроса — груз и условия скопированы снимком` +
-        (carriedBrokers > 0 ? `, брокеры видимости: ${carriedBrokers}` : '') +
-        (carriedDocs > 0 ? `, документы: ${carriedDocs}` : ''),
-    )
 
     const updatedLead = await loadLeadCard(id)
     return NextResponse.json(
       {
-        order: { id: result.id, number: result.number },
+        order: result.order,
         lead: updatedLead,
-        customerBorn: customer.created,
-        message: `Заявка №${result.number} создана — статус запроса: ${LEAD_STATUS_LABELS.won}`,
+        customerBorn: result.customerBorn,
+        message: `Заявка №${result.order.number} создана — статус запроса: ${LEAD_STATUS_LABELS.won}`,
       },
       { status: 201 }
     )

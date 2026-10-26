@@ -11,9 +11,9 @@
  * З1 (безопасность): против НЕ-локальной базы (PostgreSQL и др.) сид
  * ОТКАЗЫВАЕТСЯ создавать мастера, если не заданы MASTER_PHONE и
  * MASTER_PASSWORD, — пароль по умолчанию в бою недопустим (прямой
- * аналог admin123 из истории APEX Moto). Локальный режим — SQLite-
- * файл в DATABASE_URL (file:...) или флаг --dev — там значения
- * по умолчанию разрешены.
+ * аналог admin123 из истории предыдущего проекта). Режим --dev
+ * разрешён только при локальном DATABASE_URL (localhost/127.0.0.1) —
+ * там значения по умолчанию допустимы.
  */
 
 import { PrismaClient } from '@prisma/client'
@@ -55,19 +55,24 @@ function hashPassword(plain: string): string {
 }
 
 // ── З1: локальный режим и защита боевой базы от пароля по умолчанию ──
-// Локальный режим = явный флаг --dev ИЛИ SQLite-файл в DATABASE_URL
-// (префикс file:). Всё остальное (PostgreSQL и любые другие
-// провайдеры) — «боевой» режим: сид требует MASTER_PHONE и
-// MASTER_PASSWORD, иначе отказ до первого запроса к БД.
+// DF-00: SQLite (file:) убран полностью. Режим разработки (--dev) разрешён
+// ТОЛЬКО если хост базы данных — localhost или 127.0.0.1. Всё остальное —
+// боевой режим: сид требует MASTER_PHONE и MASTER_PASSWORD.
 function isLocalMode(): boolean {
-  if (process.argv.includes('--dev')) return true
-  return (process.env.DATABASE_URL ?? '').startsWith('file:')
+  if (!process.argv.includes('--dev')) return false
+  const url = process.env.DATABASE_URL ?? ''
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
+  } catch {
+    return false
+  }
 }
 
 // Проверка выполняется до первого запроса к БД: отказ быстрый и
 // без подключения. Сообщение перечисляет, чего именно не хватает,
 // и показывает, как задать; сама строка подключения не логируется
-// (урок /api/debug-env из APEX Moto — URL содержит секреты).
+// (урок debug-env из предыдущего проекта — URL содержит секреты).
 function assertMasterCredentials(): void {
   if (isLocalMode()) return
   const missing: string[] = []
@@ -76,7 +81,7 @@ function assertMasterCredentials(): void {
   if (missing.length === 0) return
   console.error(
     [
-      'Seed Logix: ОТКАЗ — бой не на пароле по умолчанию (З1).',
+      'Seed Logix: ОТКАЗ — бой не на пароле по умолчанию (З1 / DF-00).',
       '',
       `Не задано: ${missing.join(', ')}.`,
       'Пароль logix-master в не-локальной базе — дыра того же класса,',
@@ -87,8 +92,7 @@ function assertMasterCredentials(): void {
       '  MASTER_PHONE="+79001234567" MASTER_PASSWORD="<сильный пароль>" bun run seed',
       '',
       'Локальный режим (значения по умолчанию разрешены):',
-      '  - SQLite в DATABASE_URL: file:./db/custom.db (или другой file:...);',
-      '  - флаг --dev для не-file базы — только для разработки, не для прода.',
+      '  - флаг --dev только при подключении к localhost или 127.0.0.1.',
     ].join('\n'),
   )
   process.exit(1)

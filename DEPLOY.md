@@ -55,6 +55,21 @@ git push -u origin main
 
 ```bash
 bun install
+## Переменные окружения
+
+| Переменная | Где задаётся | Назначение |
+|---|---|---|
+| `DATABASE_URL` | Vercel + `.env` | Строка подключения PostgreSQL (Vercel — pooled, CLI — прямая) |
+| `MASTER_PHONE`, `MASTER_PASSWORD` | локально/CI | Сид мастера (seed.ts); против нелокальной БД без них сид отказывается работать |
+| `ADMIN_PHONE`, `ADMIN_PASSWORD` | локально/CI | Алиасы сид-скриптов для мастера |
+| `TRUSTED_PROXY` | Vercel = `1` | Доверять `X-Forwarded-For` за обратным прокси (для rate-limit логина) |
+| `DISABLE_RATE_LIMIT` | только e2e-раннер | Отключение rate-limit логина в тестах |
+| `BASE_URL` | только e2e | База URL для `scripts/e2e_api_test.py` (локально `http://localhost:3000`) |
+| `VERCEL` | платформа Vercel | Признак окружения Vercel (используется `/api/health`) |
+| `VERCEL_GIT_COMMIT_SHA` | платформа Vercel | SHA деплоя для `/api/health` |
+| `SHADOW_URL` | задаётся integrity_check.py | Shadow-БД для IC-01 (scripts/shadow-db.ts), вручную не задаётся |
+| `NODE_ENV` | платформа Vercel | `production` в проде |
+
 cp .env.example .env
 ```
 

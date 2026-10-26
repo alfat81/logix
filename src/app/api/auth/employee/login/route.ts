@@ -7,7 +7,7 @@ import { checkLoginGuard, recordLoginAttempt } from '@/lib/login-guard'
 
 // POST /api/auth/employee/login
 // Body: { phone, password }
-// Паттерн перенесён с APEX Moto (api/auth/employee/login); З2 закрыла
+// Паттерн входа сотрудника; З2 закрыла
 // отложенное в MVP-периметре: проверка перебора теперь стоит до
 // сверки пароля (lib/login-guard.ts), 2FA остаётся за рамками роадмапа.
 export async function POST(req: NextRequest) {
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const employee = await db.employee.findUnique({ where: { phone } })
     if (!employee) {
       // Формулировка не раскрывает, существует ли телефон — тот же
-      // принцип, что в APEX Moto после ревью логина. Провал пишется
+      // принцип, проверенный ревью логина. Провал пишется
       // в аудит: даже «несуществующий» телефон может быть перебором
       await recordLoginAttempt(req, { kind: 'employee', login: phone, success: false })
       return NextResponse.json({ error: 'Неверный телефон или пароль' }, { status: 401 })

@@ -10,9 +10,9 @@ datasource db {
 // Остальные модели (LegalEntity, Customer, Contract, Order,
 // OrderStageCatalog, OrderStageInstance) начинаются с Дорожки Б —
 // намеренно не добавлены здесь, Employee/EmployeeSession нужны раньше
-// как часть auth-паттерна (А4+А5, см. LOGISTICS-TASK-QUEUE.md).
+// как часть auth-паттерна (А4+А5; исторический план — docs/archive/).
 // ^ Исторический комментарий А4 — с Дорожкой Б (Б1) модели ядра
-// добавлены ниже по разделу 9 LOGISTICS-ROADMAP.md. Скоуп Б1: шесть
+// добавлены ниже (исторический план — docs/archive/). Скоуп Б1: шесть
 // моделей ядра заявки; Lead/QuoteOption/документы/подрядчики/брокеры —
 // следующих дорожки, поля-ссылки на них сюда не добавлены, чтобы не
 // тянуть миграцию-заглушку.
@@ -95,7 +95,7 @@ model Contract {
   customerId    String
   // Сквозной номер рамочного договора (Б4: заявка = "<договор>-<порядковый>",
   // например "17-1"). Int, а не String: выдаётся системой последовательно
-  // (max+1 с retry-петлёй на P2002), как number у заказов APEX Moto.
+  // (max+1 с retry-петлёй на P2002), как number у заказов предыдущего проекта.
   number        Int       @unique
   signedAt      DateTime?
   createdAt     DateTime  @default(now())
@@ -768,13 +768,13 @@ model Activity {
 model LoginAttempt {
   id        String   @id @default(cuid())
   // employee | contractor | client | broker — какой из четырёх входов
-  // дёргали (в APEX порталов было три, но различие в таблице он не
+  // дёргали (в предыдущем проекте порталов было три, но различие в таблице он не
   // хранил; здесь храним — аудиту важно, какую дверь дёргали; Д
   // добавила четвёртую дверь)
   kind      String
   ip        String   @default("unknown")
   // Логин в нормализованном виде (+7XXXXXXXXXX). Nullable — на
-  // случай будущего входа без логина (мастер-пароль в APEX).
+  // случай будущего входа без логина (мастер-пароль в прошлом проекте).
   login     String?
   userAgent String?
   success   Boolean  @default(false)

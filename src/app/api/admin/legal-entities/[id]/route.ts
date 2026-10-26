@@ -33,7 +33,8 @@ const PatchLegalEntitySchema = z
 type Params = { params: Promise<{ id: string }> }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const auth = await requireEmployee(req, { write: true })
+  // P1-09 / DF-00: правка юрлиц — только мастер
+  const auth = await requireEmployee(req, { roles: ['master'], write: true })
   if (!auth.ok) return auth.response
 
   const { id } = await params

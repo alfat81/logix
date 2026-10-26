@@ -34,7 +34,7 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
   poweredByHeader: false,
-  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg"],
+  serverExternalPackages: ["@prisma/client"],
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

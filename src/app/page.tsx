@@ -3,7 +3,7 @@ import { ArrowRight, Container, Ship, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // Корневая страница — минимальный фейс проекта. Куда grows: лендинг
-// с описанием сервиса (по аналогии с сайтом APEX Moto), сюда пока
+// с описанием сервиса (когда дойдёт очередь), сюда пока
 // приходит и проверяющий превью, и первый менеджер Logix.
 export default function Home() {
   return (

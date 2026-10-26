@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.5.2] — Контур проверок G1–G4 (DF-00B, 26.10.2026)
+
+Гейты качества стали артефактами и автоматикой (D30): `scripts/inventory.py` генерирует `docs/INVENTORY.md` (индекс экспортов/компонентов/роутов/моделей/env); `scripts/scope.py` (init/check) требует, чтобы каждое изменение попадало в заявленные области `SCOPE-vX.Y.Z.json`; `scripts/integrity_check.py` проверяет IC-01…IC-14 с храповиком (baseline 166 записей); `knip` в храповике через `scripts/knip_check.py` (40 записей); CI-задание `integrity` и гейт в `build-release.py`. Чистка рудиментов (G4): удалены `needsRehash`, `@prisma/adapter-pg`, мёртвые зависимости `date-fns`/`@radix-ui/react-tabs`; вычищены упоминания APEX/LOGISTICS-TASK-QUEUE и D27-терминология в 4 пользовательских текстах; 28 старых релизных файлов переехали в `docs/archive/releases/`; P1-25 закрыта как поглощённая (IC-09/IC-14). Тесты самих проверок: `scripts/test_integrity.py` (23 фикс-кейса «нарушение ловится»).
+
+## [0.5.1] — Фундамент: атомарная конвертация, разграничение прав, гигиена (DF-00, 26.10.2026)
+
+Первый релиз Фазы DF («Единая картина сделки»): закрыты задачи P1-09 (минимальный скоуп разграничения прав), P1-10 (атомарная конвертация лида в заявку), ужесточена безопасность паролей и скриптов.
+
+### Атомарная конвертация лида (P1-10)
+- `POST /api/admin/leads/[id]/convert`: все мутирующие операции объединены в единую интерактивную транзакцию `db.$transaction` с таймаутом 15с.
+- Клиент (findOrCreateCustomer), заявка (createOrderWithStages), обязательные этапы, won-статус, перенос брокеров (carryBrokersToOrder), перенос документов (carryDocumentsToOrder) и аудит-логи в обе ленты (logActivity) коммитятся или откатываются целиком.
+- В `createOrderWithStages`: добавлена блокировка строки контракта (`SELECT id FROM "Contract" WHERE id = ${contract.id} FOR UPDATE`) для предотвращения гонок нумерации `numberInContract` без retry-петли на P2002.
+- Ветка самовосстановления убрана: повторная конвертация всегда возвращает 409 с номером существующей заявки.
+- Разгрузка `orders.ts` (368 → 252 строки): сводка этапов и расчет ETA вынесены в `src/lib/order-summary.ts` (RULES 2.14).
+
+### Разграничение прав ролей (P1-09)
+- Только мастер (`roles: ['master']`):
+  - Каталог этапов: POST /api/admin/stage-catalog, PATCH и DELETE /api/admin/stage-catalog/[id].
+  - Юридические лица: POST /api/admin/legal-entities, PATCH /api/admin/legal-entities/[id].
+  - Удаление запросов: DELETE /api/admin/leads/[id].
+  - Возврат из терминальных статусов: `lost`/`won` у лида, `completed`/`cancelled` у заявки.
+  - Менеджерам возвращается 403 Forbidden.
+- Добавлен автоматический аудит-тест `permissions-guard.test.ts`, гарантирующий наличие `{ write: true }` у всех мутирующих эндпоинтов и защиту мастер-онли роутов.
+
+### Безопасность и гигиена
+- `src/lib/password.ts`: убран фолбэк на открытый текст в `verifyPassword`. Значения без префикса `scrypt:` отвергаются (401/false).
+- `scripts/seed.ts` и `.env.example`: удален режим `file:` (SQLite); режим `--dev` разрешен только при подключении к `localhost` или `127.0.0.1`.
+- `docs/SECURITY-ACTIONS.md`: команды переведены на PowerShell (`$env:DATABASE_URL`, `Read-Host -AsSecureString`).
+- CSRF-прокси: подтверждена корректная работа защиты Origin в `src/proxy.ts`.
+
 ## [0.5.0] — Справочники по §4.3 после резки 14 монолитов (P1-22, 25.10.2026)
 
 Версия minor — веха масштаба P1-19 (0.3.0) и P1-21 (0.4.0): 46 новых

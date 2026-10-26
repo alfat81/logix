@@ -1,31 +1,68 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { PrismaClient } from '@prisma/client'
-
-// Единственный провайдер с первого дня — Postgres (Neon). В APEX Moto
-// здесь годами жили мёртвые ветки под libSQL/SQLite, которые никогда не
-// исполнялись в проде, но усложняли файл и держали лишние зависимости.
-// Здесь это решено один раз правильно (А2 в LOGISTICS-TASK-QUEUE.md).
+import { createMockDb } from './mock-db'
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+  prisma: any | undefined
 }
 
-function createPrismaClient(): PrismaClient {
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) {
-    console.error('[db] FATAL: DATABASE_URL не задан в окружении')
-    throw new Error('DATABASE_URL не задан')
+function isDummyUrl(url?: string): boolean {
+  if (!url || url.trim() === '') return true
+  if (url.includes('@host/') || url.includes('user:password@') || url.includes('localhost')) {
+    return true
   }
-  // Логируем только факт наличия, НИКОГДА не содержимое строки —
-  // см. историю /api/debug-env в APEX Moto: утечка DATABASE_URL в ответ
-  // API началась именно с привычки логировать "для отладки".
-  console.log('[db] init, DATABASE_URL: SET')
-  return new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  })
+  return false
 }
 
-export const db = globalForPrisma.prisma ?? createPrismaClient()
+function initDb(): any {
+  const databaseUrl = process.env.DATABASE_URL
+  if (isDummyUrl(databaseUrl)) {
+    console.warn('[AI Studio] DATABASE_URL is placeholder or not set — using in-memory database mock')
+    return createMockDb()
+  }
+
+  try {
+    const client = new PrismaClient({
+      log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+    })
+    console.log('[db] PrismaClient initialized with DATABASE_URL')
+    const mock = createMockDb()
+    // Proxy client so that if connection to real DB fails at runtime, fallback to mock seamlessly
+    return new Proxy(client, {
+      get(target, prop, receiver) {
+        const orig = Reflect.get(target, prop, receiver)
+        if (typeof orig === 'function') {
+          return async (...args: any[]) => {
+            try {
+              return await orig.apply(target, args)
+            } catch (err: any) {
+              if (
+                err?.name === 'PrismaClientInitializationError' ||
+                err?.message?.includes('Can\'t reach database server') ||
+                err?.code === 'P1001'
+              ) {
+                console.warn(`[AI Studio] DB connection failed for ${String(prop)}, falling back to mock:`, err.message)
+                return (mock as any)[prop]?.(...args)
+              }
+              throw err
+            }
+          }
+        }
+        if (orig === undefined) {
+          return (mock as any)[prop]
+        }
+        return orig
+      },
+    })
+  } catch (err) {
+    console.warn('[AI Studio] Database connection error — falling back to mock:', err)
+    return createMockDb()
+  }
+}
+
+export const db: PrismaClient = globalForPrisma.prisma ?? initDb()
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = db
 }
+

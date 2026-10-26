@@ -83,7 +83,7 @@ export function CustomerCreateDialog({ onCreated }: { onCreated: () => void }) {
           <DialogTitle>Новый клиент</DialogTitle>
           <DialogDescription>
             Завести заранее — например, перед первым обращением. Клиент
-            также рождается сам при создании заявки или конвертации лида.
+            также рождается сам при создании заявки или конвертации запроса.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">

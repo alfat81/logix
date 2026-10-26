@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import {
   ACTIVITY_PUBLIC_FIELDS,
@@ -9,31 +10,29 @@ import {
 
 // Д (роадмап 5а): перенос брокеров расчёта в заявку. Идемпотентен —
 // существующие связи не дублирует (@unique orderId+brokerId и без
-// того поймал бы, но проверка дешевле ретрая). Вызывается из обоих
-// путей роута: основного и самозавершения краш-окна (заявка создана,
-// статус не дописан) — чтобы краш между созданием заявки и переносом
-// не лишал брокеров видимости навсегда.
+// того поймал бы, но проверка дешевле ретрая).
+// DF-00: принимает tx для атомарной конвертации в единой транзакции.
 export async function carryBrokersToOrder(
   leadId: string,
-  orderId: string
+  orderId: string,
+  tx?: Prisma.TransactionClient
 ): Promise<number> {
-  const leadBrokers = await db.leadBroker.findMany({
+  const client = tx ?? db
+  const leadBrokers = await client.leadBroker.findMany({
     where: { leadId },
     select: { brokerId: true },
   })
   if (leadBrokers.length === 0) return 0
 
-  const existing = await db.orderBroker.findMany({
+  const existing = await client.orderBroker.findMany({
     where: { orderId },
     select: { brokerId: true },
   })
   const existingIds = new Set(existing.map((b) => b.brokerId))
-  // createMany + skipDuplicates — не для SQLite (не поддерживается),
-  // поэтому фильтруем сами
   const toCreate = leadBrokers.filter((b) => !existingIds.has(b.brokerId))
   if (toCreate.length === 0) return 0
 
-  await db.orderBroker.createMany({
+  await client.orderBroker.createMany({
     data: toCreate.map((b) => ({ orderId, brokerId: b.brokerId })),
   })
   return toCreate.length
