@@ -15,5 +15,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // v0.5.4: .env → process.env до импорта тестов — db.ts без мок-ветки
+    // требует валидный DATABASE_URL (правка связана с фикс CI e2e 401)
+    setupFiles: ['tests/setup-env.ts'],
   },
 })

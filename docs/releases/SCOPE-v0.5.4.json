@@ -1,0 +1,28 @@
+{
+  "task": "Фикс CI e2e 401: удаление мок-базы AI Studio (mock-db.ts, isDummyUrl), fail-fast в db.ts, PG-сервис + миграции + сид в CI checks, vitest setup-env, релиз v0.5.4",
+  "areas": [
+    "src/lib/db.ts — единственный источник данных PostgreSQL, fail fast без DATABASE_URL (З1)",
+    "удаление src/lib/mock-db.ts (727 строк) — мок-ветки isDummyUrl и Proxy-фолбэк P1001",
+    "CI: .github/workflows/ci.yml — сервис postgres:16 в checks, миграции + сид",
+    "vitest: tests/setup-env.ts (setupFiles, загрузка .env) + vitest.config.ts",
+    "scripts/integrity_check.py — IC-04 без исключения mock-db.ts",
+    "инфраструктура проверок: scripts/scope_baseline_from_zip.py (восстановление baseline из релизного zip)",
+    "документация: CHANGELOG, ROADMAP, релизные файлы v0.5.4"
+  ],
+  "globs": [
+    ".github/workflows/ci.yml",
+    "src/lib/db.ts",
+    "src/lib/mock-db.ts",
+    "tests/setup-env.ts",
+    "vitest.config.ts",
+    "scripts/integrity_check.py",
+    "scripts/scope_baseline_from_zip.py",
+    "docs/INVENTORY.md",
+    "CHANGELOG.md",
+    "docs/ROADMAP.md",
+    "package.json",
+    "docs/releases/RELEASE-NOTES-v0.5.4.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.5.4.md",
+    "docs/releases/SCOPE-v0.5.4.json"
+  ]
+}

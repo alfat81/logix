@@ -15,9 +15,24 @@ jobs:
   checks:
     name: validate · tsc · lint · build
     runs-on: ubuntu-latest
+    # v0.5.4: PostgreSQL-сервис + миграции + сид — интеграционные unit-тесты
+    # (convert-atomic, password) требуют живую БД. Раньше они «зеленели»
+    # через мок-ветку db.ts (localhost → in-memory mock) — фиктивный PASS.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: logix
+          POSTGRES_PASSWORD: logix
+          POSTGRES_DB: logix
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U logix"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      # Фиктивный: шаги этого job в БД не ходят
-      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+      DATABASE_URL: postgresql://logix:logix@localhost:5432/logix?schema=public
+      MASTER_PHONE: '+79000000000'
+      MASTER_PASSWORD: ci-e2e-master-password # одноразовая БД раннера
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -31,6 +46,10 @@ jobs:
         run: bunx prisma validate
       - name: Генерация клиента Prisma
         run: bunx prisma generate
+      - name: Миграции (для интеграционных unit-тестов)
+        run: bunx prisma migrate deploy
+      - name: Сид
+        run: bun run seed
       - name: TypeScript
         run: bunx tsc --noEmit
       - name: ESLint

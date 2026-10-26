@@ -154,8 +154,8 @@ def ic04() -> None:
         return
     created: set[str] = set()
     for f in rglob("src/**/*.ts*"):
-        if f.name.endswith(".test.ts") or f.name == "mock-db.ts":
-            continue  # mock-db.ts — dev-заглушка, не производственный источник событий
+        if f.name.endswith(".test.ts"):
+            continue
         for lit in re.findall(r"""type:\s*['"]([a-z][a-z0-9_]+)['"]""", text(f)):
             if "_" in lit and lit != "type":
                 created.add(lit)
@@ -294,7 +294,11 @@ def ic08() -> None:
     for f in docs:
         if not f.exists():
             continue
-        for ref in re.findall(r"`((?:src|docs|scripts|prisma)/[\w@./\-]+)`", text(f)):
+        # IC-08 проверяет ССЫЛКИ в прозе. Команды в fenced-блоках релизных
+        # инструкций (например git rm удаляемого в этом же релизе файла) —
+        # не ссылки: владелец их выполняет, а не переходит по ним (v0.5.4).
+        body = re.sub(r"```.*?```", "", text(f), flags=re.S)
+        for ref in re.findall(r"`((?:src|docs|scripts|prisma)/[\w@./\-]+)`", body):
             if any(bad in ref for bad in ("{", "*", "<", "X.Y.Z", "vX", "…")):
                 continue
             if any(ref == p or ref.startswith(p + "/") for p in PLANNED):

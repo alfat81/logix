@@ -1,63 +1,27 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { PrismaClient } from '@prisma/client'
-import { createMockDb } from './mock-db'
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: any | undefined
+  prisma: PrismaClient | undefined
 }
 
-function isDummyUrl(url?: string): boolean {
-  if (!url || url.trim() === '') return true
-  if (url.includes('@host/') || url.includes('user:password@') || url.includes('localhost')) {
-    return true
+// DF-00: единственный источник данных — PostgreSQL через DATABASE_URL.
+// v0.5.4: удалена мок-ветка шаблона AI Studio. Хроника дефекта: isDummyUrl()
+// считал «фиктивной» любую строку с localhost — CI-раннер (DATABASE_URL
+// вида postgresql://logix:logix@localhost:5432/logix) получал пустой
+// in-memory мок вместо реальной БД: сид писал учётку в PostgreSQL,
+// сервер искал её в моке → каскад 401 в e2e job'е (прогоны #27-#29).
+// Вторая мок-ветка — Proxy-фолбэк на createMockDb при P1001 — в бою
+// молча подменяла реальные данные при недоступности БД. Обе ветки
+// маскировали конфигурационные ошибки — против принципа З1 (fail fast).
+function initDb(): PrismaClient {
+  if (!process.env.DATABASE_URL) {
+    throw new Error(
+      'DATABASE_URL не задан: укажите строку подключения PostgreSQL (см. .env.example)',
+    )
   }
-  return false
-}
-
-function initDb(): any {
-  const databaseUrl = process.env.DATABASE_URL
-  if (isDummyUrl(databaseUrl)) {
-    console.warn('[AI Studio] DATABASE_URL is placeholder or not set — using in-memory database mock')
-    return createMockDb()
-  }
-
-  try {
-    const client = new PrismaClient({
-      log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-    })
-    console.log('[db] PrismaClient initialized with DATABASE_URL')
-    const mock = createMockDb()
-    // Proxy client so that if connection to real DB fails at runtime, fallback to mock seamlessly
-    return new Proxy(client, {
-      get(target, prop, receiver) {
-        const orig = Reflect.get(target, prop, receiver)
-        if (typeof orig === 'function') {
-          return async (...args: any[]) => {
-            try {
-              return await orig.apply(target, args)
-            } catch (err: any) {
-              if (
-                err?.name === 'PrismaClientInitializationError' ||
-                err?.message?.includes('Can\'t reach database server') ||
-                err?.code === 'P1001'
-              ) {
-                console.warn(`[AI Studio] DB connection failed for ${String(prop)}, falling back to mock:`, err.message)
-                return (mock as any)[prop]?.(...args)
-              }
-              throw err
-            }
-          }
-        }
-        if (orig === undefined) {
-          return (mock as any)[prop]
-        }
-        return orig
-      },
-    })
-  } catch (err) {
-    console.warn('[AI Studio] Database connection error — falling back to mock:', err)
-    return createMockDb()
-  }
+  return new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+  })
 }
 
 export const db: PrismaClient = globalForPrisma.prisma ?? initDb()
@@ -65,4 +29,3 @@ export const db: PrismaClient = globalForPrisma.prisma ?? initDb()
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = db
 }
-

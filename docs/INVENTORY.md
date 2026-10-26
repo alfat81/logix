@@ -127,7 +127,6 @@
 | `MAX_LIST_TAKE` | `src/lib/list-query.ts` | — |
 | `MAX_QUERY_LENGTH` | `src/lib/list-query.ts` | — |
 | `MIN_QUERY_LENGTH` | `src/lib/search-constants.ts` | Меньше 2 символов роут не ищет (200 с пустыми секциями): одиночная |
-| `MockTable` | `src/lib/mock-db.ts` | — |
 | `NOTE_MAX_LENGTH` | `src/lib/note-constants.ts` | Потолок текста заметки: лента остаётся читаемой, textarea UI |
 | `NoteRow` | `src/lib/activity.ts` | Запись заметки. В отличие от logActivity (наблюдение над действием — |
 | `ORDER_ACTIVE_STATUSES` | `src/lib/order-constants.ts` | v0.3.1 (BRANDBOOK §4.2): табы-группы списка заявок. «Активные» — |
@@ -163,7 +162,6 @@
 | `RawContact` | `src/lib/leads.ts` | — |
 | `RawContactSchema` | `src/lib/leads.ts` | Черновая анкета контакта на этапе запроса (В1, rawContact Json). |
 | `RawContractorInfoSchema` | `src/lib/contractors.ts` | Черновая анкета кандидата (rawInfo Json, Г1) — толерантный record, как |
-| `RecordItem` | `src/lib/mock-db.ts` | — |
 | `RequisiteField` | `src/lib/requisite-fields.ts` | — |
 | `RouteFieldsInput` | `src/lib/route-fields.ts` | — |
 | `RouteFieldsSchema` | `src/lib/route-fields.ts` | ── zod-схема route-полей (тела POST/PATCH) ───────────────────────── |
@@ -220,7 +218,6 @@
 | `createContractorSession` | `src/lib/contractor-auth.ts` | — |
 | `createDocumentOnDeal` | `src/lib/documents.ts` | — |
 | `createEmployeeSession` | `src/lib/auth.ts` | — |
-| `createMockDb` | `src/lib/mock-db.ts` | Build proxy db object |
 | `createOrderWithStages` | `src/lib/orders.ts` | — |
 | `db` | `src/lib/db.ts` | — |
 | `definePortal` | `src/lib/portal-auth.ts` | — |
@@ -296,11 +293,9 @@
 | `resolveFileMime` | `src/lib/file-signature.ts` | — |
 | `routeToDbColumns` | `src/lib/route-fields.ts` | RouteFieldsInput → данные для prisma create/update (readyDate — Date, |
 | `sanitizeFileName` | `src/lib/documents.ts` | Санитизация имени: без каталогов, без управляющих символов, без |
-| `seedMockDatabase` | `src/lib/mock-db.ts` | Seed initial database |
 | `sessionCookieOptions` | `src/lib/auth.ts` | — |
 | `stageVisual` | `src/lib/stage-visuals.ts` | — |
 | `summarizeOrderStages` | `src/lib/order-summary.ts` | Этапы заявки (по sequence asc) → сводка: первый незавершённый этап |
-| `tables` | `src/lib/mock-db.ts` | Global registry of mock tables |
 | `todayUtcMidnight` | `src/lib/order-summary.ts` | Граница «сегодня» по UTC: плановые даты приходят UTC-полуночью |
 | `unauthorized` | `src/lib/portal-auth.ts` | — |
 | `utcDayStart` | `src/lib/order-summary.ts` | — |
