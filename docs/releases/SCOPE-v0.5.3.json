@@ -1,0 +1,39 @@
+{
+  "task": "DF-00C — Заморозка кабинета подрядчика (D31): флаг CONTRACTOR_PORTAL_ENABLED, 404 в proxy.ts, UI без выдачи доступа, FROZEN.md, scope/knip-интеграция, e2e двух режимов, пин bun в CI, README/DEPLOY/.env.example",
+  "areas": [
+    "единая точка заморозки: src/proxy.ts + src/lib/flags.ts",
+    "лендинг (скрытие ссылки) и страница «Подрядчики» (серверная обёртка + клиентское тело)",
+    "диалоги выдачи доступа: ContractorPoolEditDialog, ContractorLeadContractDialog и их секции",
+    "FROZEN.md и интеграция проверок: scope.py (парсер секции), knip_check.py (исключение замороженных)",
+    "e2e заморозки: scripts/e2e_contractor_frozen.py",
+    "CI: пин bun-version, echo версий, шаг заморозки, флаг для основного e2e",
+    "документация: README, DEPLOY, .env.example, ROADMAP-DEALFLOW, ROADMAP, CHANGELOG, release-файлы v0.5.3"
+  ],
+  "globs": [
+    "src/proxy.ts",
+    "src/lib/flags.ts",
+    "src/app/page.tsx",
+    "src/app/admin/(dashboard)/contractors/**",
+    "src/components/admin/ContractorPoolSection.tsx",
+    "src/components/admin/ContractorLeadsSection.tsx",
+    "src/components/admin/contractorpool/ContractorPoolEditDialog.tsx",
+    "src/components/admin/contractorlead/ContractorLeadContractDialog.tsx",
+    "scripts/scope.py",
+    "scripts/knip_check.py",
+    "scripts/e2e_contractor_frozen.py",
+    "scripts/df00c_browser.sh",
+    "docs/FROZEN.md",
+    "docs/INVENTORY.md",
+    "docs/ROADMAP.md",
+    "docs/ROADMAP-DEALFLOW.md",
+    "CHANGELOG.md",
+    "README.md",
+    "DEPLOY.md",
+    ".env.example",
+    ".github/workflows/ci.yml",
+    "package.json",
+    "docs/releases/SCOPE-v0.5.3.json",
+    "docs/releases/RELEASE-NOTES-v0.5.3.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.5.3.md"
+  ]
+}

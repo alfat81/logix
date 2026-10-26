@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Container, Ship, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { contractorPortalEnabled } from "@/lib/flags";
 
 // Корневая страница — минимальный фейс проекта. Куда grows: лендинг
 // с описанием сервиса (когда дойдёт очередь), сюда пока
@@ -17,9 +18,13 @@ export default function Home() {
             Logix
           </div>
           <div className="flex items-center gap-2">
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/contractor/login">Вход для подрядчиков</Link>
-            </Button>
+            {/* D31 (DF-00C): кабинет подрядчика заморожен — ссылка только
+                при явном включении CONTRACTOR_PORTAL_ENABLED=true */}
+            {contractorPortalEnabled() && (
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/contractor/login">Вход для подрядчиков</Link>
+              </Button>
+            )}
             <Button asChild variant="ghost" size="sm">
               <Link href="/broker/login">Вход для брокеров</Link>
             </Button>

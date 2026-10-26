@@ -213,6 +213,7 @@
 | `clientSessionCookieOptions` | `src/lib/client-auth.ts` | — |
 | `cn` | `src/lib/utils.ts` | — |
 | `contractorActor` | `src/lib/activity.ts` | У подрядчика «имя» — companyName (люди не заведены, Г4). |
+| `contractorPortalEnabled` | `src/lib/flags.ts` | ─── Функциональные флаги (серверные) ─────────────────────────────── |
 | `contractorSessionCookieOptions` | `src/lib/contractor-auth.ts` | — |
 | `createBrokerSession` | `src/lib/broker-auth.ts` | — |
 | `createClientSession` | `src/lib/client-auth.ts` | — |
@@ -547,9 +548,10 @@
 
 | Переменная | Файлов с использованием | .env.example | DEPLOY.md |
 |---|---|---|---|
-| `ADMIN_PASSWORD` | 1 | да | да |
-| `ADMIN_PHONE` | 1 | да | да |
-| `BASE_URL` | 1 | да | да |
+| `ADMIN_PASSWORD` | 2 | да | да |
+| `ADMIN_PHONE` | 2 | да | да |
+| `BASE_URL` | 2 | да | да |
+| `CONTRACTOR_PORTAL_ENABLED` | 1 | да | да |
 | `DATABASE_URL` | 5 | да | да |
 | `DISABLE_RATE_LIMIT` | 1 | да | да |
 | `MASTER_PASSWORD` | 2 | да | да |

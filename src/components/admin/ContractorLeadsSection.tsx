@@ -31,9 +31,12 @@ import { fmtLeadDate, type ContractorLeadRow } from './contractorlead/types'
 // (TransportChips — общий с пулом; резка под лимит 300, RULES 2.14).
 export function ContractorLeadsSection({
   refreshKey = 0,
+  portalEnabled,
   onContractorBorn,
 }: {
   refreshKey?: number
+  // D31 (DF-00C): флаг заморозки кабинета — в диалог выдачи доступа
+  portalEnabled: boolean
   onContractorBorn?: () => void
 }) {
   const { toast } = useToast()
@@ -197,6 +200,7 @@ export function ContractorLeadsSection({
 
       <ContractorLeadContractDialog
         lead={contractLead}
+        portalEnabled={portalEnabled}
         onClose={() => setContractLead(null)}
         patchLead={patchLead}
         onContractorBorn={onContractorBorn}

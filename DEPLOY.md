@@ -63,6 +63,7 @@ bun install
 | `MASTER_PHONE`, `MASTER_PASSWORD` | локально/CI | Сид мастера (seed.ts); против нелокальной БД без них сид отказывается работать |
 | `ADMIN_PHONE`, `ADMIN_PASSWORD` | локально/CI | Алиасы сид-скриптов для мастера |
 | `TRUSTED_PROXY` | Vercel = `1` | Доверять `X-Forwarded-For` за обратным прокси (для rate-limit логина) |
+| `CONTRACTOR_PORTAL_ENABLED` | не задаётся (по умолчанию `false`) | D31: кабинет подрядчика заморожен — `src/proxy.ts` отвечает 404 на `/contractor/**`, `/api/contractor/**`, `/api/auth/contractor/**`; `true` включает кабинет (регресс/разморозка). Разморозка — только записью владельца (docs/FROZEN.md) |
 | `DISABLE_RATE_LIMIT` | только e2e-раннер | Отключение rate-limit логина в тестах |
 | `BASE_URL` | только e2e | База URL для `scripts/e2e_api_test.py` (локально `http://localhost:3000`) |
 | `VERCEL` | платформа Vercel | Признак окружения Vercel (используется `/api/health`) |

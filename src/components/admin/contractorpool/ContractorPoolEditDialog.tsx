@@ -38,6 +38,7 @@ import type { ContractorRow, PoolForm } from './types'
 // (isActive=false), диалог остаётся открытым для немедленного отката.
 export function ContractorPoolEditDialog({
   contractor,
+  portalEnabled,
   onClose,
   onSaved,
   onReloaded,
@@ -45,6 +46,8 @@ export function ContractorPoolEditDialog({
   onContractorChanged,
 }: {
   contractor: ContractorRow | null
+  // D31 (DF-00C): кабинет заморожен — поле смены пароля скрыто
+  portalEnabled: boolean
   onClose: () => void
   onSaved: () => void
   onReloaded: () => void
@@ -175,17 +178,22 @@ export function ContractorPoolEditDialog({
                   />
                 </div>
               </div>
-              <div className="grid gap-1.5">
-                <Label className="text-xs text-muted-foreground">
-                  Новый пароль — заполните только для смены
-                </Label>
-                <Input
-                  type="text"
-                  placeholder="Минимум 6 символов"
-                  value={form.password}
-                  onChange={(e) => setForm((f) => f && { ...f, password: e.target.value })}
-                />
-              </div>
+              {/* D31 (DF-00C): выдача доступа заморожена — поле видно только
+                  при CONTRACTOR_PORTAL_ENABLED=true; пустая форма = «не менять»,
+                  поэтому при false пароль просто не отправляется */}
+              {portalEnabled && (
+                <div className="grid gap-1.5">
+                  <Label className="text-xs text-muted-foreground">
+                    Новый пароль — заполните только для смены
+                  </Label>
+                  <Input
+                    type="text"
+                    placeholder="Минимум 6 символов"
+                    value={form.password}
+                    onChange={(e) => setForm((f) => f && { ...f, password: e.target.value })}
+                  />
+                </div>
+              )}
               <div className="grid gap-1.5">
                 <Label className="text-xs text-muted-foreground">Компетенции — виды транспорта</Label>
                 <TransportChips

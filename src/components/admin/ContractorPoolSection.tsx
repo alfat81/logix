@@ -28,9 +28,12 @@ import { fmtPoolDate, type ContractorRow, type PoolFilter } from './contractorpo
 // (резка под лимит 300, RULES 2.14).
 export function ContractorPoolSection({
   refreshKey = 0,
+  portalEnabled,
   onContractorChanged,
 }: {
   refreshKey?: number
+  // D31 (DF-00C): флаг заморозки кабинета — в диалог выдачи доступа
+  portalEnabled: boolean
   onContractorChanged?: () => void
 }) {
   const { toast } = useToast()
@@ -174,6 +177,7 @@ export function ContractorPoolSection({
 
       <ContractorPoolEditDialog
         contractor={selected}
+        portalEnabled={portalEnabled}
         onClose={() => setSelected(null)}
         onSaved={() => {
           setSelected(null)

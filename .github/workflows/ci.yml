@@ -21,6 +21,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+        with:
+          # Урок v0.5.2 (26.10.2026): без пина setup-bun ставит latest —
+          # дрейф тулчейна между прогонами невидим. Пин = последний
+          # стабильный, проверенный на зелёном прогоне v0.5.1.
+          bun-version: '1.4.4'
       - run: bun install
       - name: Схема Prisma валидна
         run: bunx prisma validate
@@ -55,6 +60,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.4' # пин: см. комментарий в job checks
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -89,13 +96,21 @@ jobs:
       ADMIN_PHONE: '+79000000000'
       ADMIN_PASSWORD: ci-e2e-master-password
       BASE_URL: http://localhost:3000
+      # D31: основной e2e включает кабинет подрядчика (блок регресса);
+      # заморозка проверяется отдельным шагом «Сквозной тест заморозки»
+      CONTRACTOR_PORTAL_ENABLED: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.4' # пин: см. комментарий в job checks
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: bun install
+      - name: Версии тулчейна (дрейф раннера — видимым)
+        run: |-
+          echo "bun $(bun --version) | node $(node --version) | python3 $(python3 --version 2>&1 | awk '{print $2}')"
       - name: Миграции
         run: bunx prisma migrate deploy
       - name: Сид
@@ -112,9 +127,25 @@ jobs:
           cat next.log; exit 1
       - name: Сквозной API-тест
         run: python3 scripts/e2e_api_test.py
+      - name: 'Сквозной тест заморозки D31 — кабинет подрядчика отвечает 404'
+        run: |
+          pkill -f next-server || pkill -f "next start" || true; sleep 2
+          # Флаг=false перекрывает job- env только для этого шага;
+          # DISABLE_RATE_LIMIT=true: основной e2e намеренно заблокировал вход
+          CONTRACTOR_PORTAL_ENABLED=false DISABLE_RATE_LIMIT=true \
+            nohup bun run start > next_frozen.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/ > /dev/null && exit 0
+            sleep 1
+          done
+          cat next_frozen.log; exit 1
+      - name: Проверки заморозки (кабинет 404, база подрядчиков живёт)
+        run: python3 scripts/e2e_contractor_frozen.py
       - name: Лог приложения при падении
         if: failure()
-        run: tail -200 next.log
+        run: |
+          tail -200 next.log
+          tail -200 next_frozen.log || true
 
   secrets:
     name: gitleaks

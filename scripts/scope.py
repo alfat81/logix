@@ -19,7 +19,9 @@ FROZEN = ROOT / "docs" / "FROZEN.md"
 
 EXCLUDE_DIRS = {".git", "node_modules", ".next", ".staging", ".zscripts",
                 "tool-results", "skills", "db", ".pg", ".turbo"}
-EXCLUDE_FILES = {".scope-baseline.json", "next-env.d.ts", "tsconfig.tsbuildinfo"}
+EXCLUDE_FILES = {".scope-baseline.json", "next-env.d.ts", "tsconfig.tsbuildinfo",
+                 # локальные секреты (gitignored) — не часть области изменений
+                 ".env"}
 EXCLUDE_PATTERNS = ["*.zip", "*.log", "*.tsbuildinfo", "*.dump", "*.sql.gz",
                     "*.cookies", "*.cookiejar", "cookies*.txt", "cmv*", "*.cookies*"]
 
@@ -59,11 +61,28 @@ def frozen_globs() -> list[str]:
     if not FROZEN.exists():
         return []
     globs = []
+    # Парсится ТОЛЬКО секция «Замороженные глобы» (до следующего `## `):
+    # остальные разделы FROZEN.md («Не заморожено», «вне файловых глобов»)
+    # упоминают живые пути в backticks — их замораживать нельзя (D31).
+    in_section = False
     for line in FROZEN.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## "):
+            in_section = line.strip() == "## Замороженные глобы"
+            continue
+        if not in_section:
+            continue
         m = re.search(r"`([^`]+)`", line)
         if m and ("*" in m.group(1) or "/" in m.group(1)) and not line.strip().startswith("|--"):
             cand = m.group(1)
-            if not cand.startswith(("http", "#")) and (cand.endswith("*") or cand.endswith("**") or "/**" in cand):
+            # Глобы с * — всегда; точный путь файла — тоже (D31: заморозка
+            # отдельных файлов вроде src/lib/contractor-auth.ts). Принимаем
+            # только кодовые пути (src|scripts|prisma) — не доки и не ссылки.
+            if not cand.startswith(("http", "#")) and (
+                cand.endswith("*")
+                or cand.endswith("**")
+                or "/**" in cand
+                or (cand.startswith(("src/", "scripts/", "prisma/")) and cand.count("/") >= 2)
+            ):
                 globs.append(cand)
     return sorted(set(globs))
 

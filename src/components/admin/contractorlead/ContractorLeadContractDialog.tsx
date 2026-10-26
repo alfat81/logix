@@ -52,13 +52,28 @@ const EMPTY_CONTRACT_FORM: ContractForm = {
 const toggleChip = (v: string, arr: string[], set: (next: string[]) => void) =>
   set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v])
 
+// D31 (DF-00C): при заморозке кабинета пароль подрядчику никто не передаёт,
+// но API рождения подрядчика требует пароль (сервер хранит хэш). Клиент
+// генерирует случайный самостоятельно — войти с ним нельзя до разморозки
+// (портал отвечает 404), переиспользование логики API сохраняется.
+function generateHiddenPassword(): string {
+  const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789'
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('')
+}
+
 export function ContractorLeadContractDialog({
   lead,
+  portalEnabled,
   onClose,
   patchLead,
   onContractorBorn,
 }: {
   lead: ContractorLeadRow | null
+  // D31 (DF-00C): кабинет заморожен — поле стартового пароля скрыто,
+  // вместо него клиент сам генерирует случайный (API и e2e не меняются)
+  portalEnabled: boolean
   onClose: () => void
   patchLead: (lead: ContractorLeadRow, body: Record<string, unknown>) => Promise<boolean>
   onContractorBorn?: () => void
@@ -76,12 +91,14 @@ export function ContractorLeadContractDialog({
     setContractForm({
       ...EMPTY_CONTRACT_FORM,
       phone: readInfoString(raw.phone),
+      // D31: при заморозке пароль не выдаётся — случайный вместо вводимого
+      password: portalEnabled ? '' : generateHiddenPassword(),
       transports: readTransportChips(raw.transportTypes).filter((t) =>
         (TRANSPORT_TYPES as readonly string[]).includes(t)
       ),
       directions: readInfoString(raw.directions),
     })
-  }, [lead])
+  }, [lead, portalEnabled])
 
   const handleContract = async () => {
     if (!lead) return
@@ -121,10 +138,17 @@ export function ContractorLeadContractDialog({
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Перевести в пул — {lead?.companyName}</DialogTitle>
-          <DialogDescription>
-            Рождается подрядчик со входом в урезанный ЛК. Телефон — логин (нормализуется
-            сервером), пароль передайте подрядчику.
-          </DialogDescription>
+          {portalEnabled ? (
+            <DialogDescription>
+              Рождается подрядчик со входом в урезанный ЛК. Телефон — логин (нормализуется
+              сервером), пароль передайте подрядчику.
+            </DialogDescription>
+          ) : (
+            <DialogDescription>
+              Кабинет подрядчика заморожен (D31): вход не выдаётся, пароль будет сгенерирован
+              автоматически. Телефон — контакт и будущий логин на случай разморозки.
+            </DialogDescription>
+          )}
         </DialogHeader>
         <div className="grid gap-4">
           <div className="grid grid-cols-2 gap-3">
@@ -137,15 +161,18 @@ export function ContractorLeadContractDialog({
                 onChange={(e) => setContractForm((f) => ({ ...f, phone: e.target.value }))}
               />
             </div>
-            <div className="grid gap-1.5">
-              <Label>Стартовый пароль</Label>
-              <Input
-                type="text"
-                placeholder="Минимум 6 символов"
-                value={contractForm.password}
-                onChange={(e) => setContractForm((f) => ({ ...f, password: e.target.value }))}
-              />
-            </div>
+            {/* D31 (DF-00C): поле выдачи пароля — только при включённом кабинете */}
+            {portalEnabled && (
+              <div className="grid gap-1.5">
+                <Label>Стартовый пароль</Label>
+                <Input
+                  type="text"
+                  placeholder="Минимум 6 символов"
+                  value={contractForm.password}
+                  onChange={(e) => setContractForm((f) => ({ ...f, password: e.target.value }))}
+                />
+              </div>
+            )}
           </div>
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">Компетенции — виды транспорта</Label>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { contractorPortalEnabled } from '@/lib/flags'
 
 // Защита от CSRF (E0-09): изменяющие запросы к API принимаются только
 // со своего origin. SameSite=Lax у cookie остаётся первым барьером,
@@ -6,7 +7,23 @@ import { NextRequest, NextResponse } from 'next/server'
 // трогаем: cookie браузер в них не подставит без нашей страницы.
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
+// D31 (DF-00C): кабинет подрядчика заморожен. Пока
+// CONTRACTOR_PORTAL_ENABLED !== 'true', любые пути кабинета отвечают
+// 404 ДО любой логики: ни роуты, ни авторизация, ни cookie подрядчика
+// (logix_contractor_session) не обрабатываются. Код кабинета остаётся
+// в репо (не удаляется — понадобится при разморозке, docs/FROZEN.md),
+// регресс гоняется в CI с включённым флагом.
+const CONTRACTOR_PATH = /^\/(api\/(?:auth\/)?contractor(?:\/|$)|contractor(?:\/|$))/
+
 export function proxy(req: NextRequest) {
+  if (!contractorPortalEnabled() && CONTRACTOR_PATH.test(req.nextUrl.pathname)) {
+    // API — машинный JSON; страницы кабинета — пустой 404 без деталей
+    if (req.nextUrl.pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Не найдено' }, { status: 404 })
+    }
+    return new NextResponse(null, { status: 404 })
+  }
+
   if (!MUTATING.has(req.method)) return NextResponse.next()
 
   const origin = req.headers.get('origin')
@@ -25,5 +42,7 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: '/api/:path*',
+  // D31: страницы кабинета подрядчика тоже идут через proxy (404 при
+  // заморозке); API — дополнительно origin-проверка мутаций (E0-09)
+  matcher: ['/api/:path*', '/contractor/:path*'],
 }
