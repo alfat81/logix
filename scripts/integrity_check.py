@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# DF-00B (G3): целостность проекта IC-01..IC-14 (docs/ROADMAP-DEALFLOW.md §4.7).
+# DF-00B/DF-00D (G3): целостность проекта IC-01..IC-15 (docs/ROADMAP-DEALFLOW.md §4.7).
 # python3 scripts/integrity_check.py                 — прогон против храповика (красный = релиз не собирается)
 # python3 scripts/integrity_check.py --report-only   — все находки без сравнения с baseline (первичный снимок)
 # python3 scripts/integrity_check.py --write-baseline — зафиксировать текущие находки как baseline
@@ -132,9 +132,12 @@ def ic03() -> None:
     # внутри (createDocumentOnDeal/deleteDocument), версии — в роуте через
     # addDocumentVersion/logDocumentVersionAdded. Делегирование patch.ts
     # (P1-22, лимит 300) событийно: patchLead/patchOrder зовут emitEvent.
+    # Делегирование настроек (DF-00D): setSetting/resetSetting зовут emitEvent
+    # внутри — инвариант держит IC-15 no-event (settings.ts без emitEvent = красный).
     event_call = (r"emitEvent\(|logActivity\(|logInternalNote\(|"
                   r"createDocumentOnDeal\(|addDocumentVersion\(|deleteDocument\(|"
-                  r"patchLead\(|patchOrder\(|detachBrokerFromLead\(|detachBrokerFromOrder\(")
+                  r"patchLead\(|patchOrder\(|detachBrokerFromLead\(|detachBrokerFromOrder\(|"
+                  r"setSetting\(|resetSetting\(")
     for f in rglob("src/app/api/**/route.ts"):
         t = text(f)
         url = rel(f)
@@ -143,7 +146,12 @@ def ic03() -> None:
         seg = url.split("/")[3] if url.count("/") >= 3 else ""
         if seg == "auth" or "CRON_SECRET" in t:
             continue
-        if seg == "admin" and "{ write: true }" not in t:
+        if seg == "admin" and re.search(r"\{\s*[^{}]*?write:\s*true", t) is None:
+            # Маркер ищем по месту в объекте опций, а не точной подстрокой:
+            # master-only роуты передают { write: true, roles: [...] } (Ж6в, DF-00D) —
+            # это тот же маркер P1-09; подстрока давала ложные FAIL (шесть записей
+            # baseline сняты в v0.6.1). Сила гарда не снижена: write-роут без
+            # write: true в опциях всё так же красный.
             add("IC-03", url + ":write", "admin write-роут без { write: true }")
         if not re.search(event_call, t) and "// no-event:" not in t:
             add("IC-03", url + ":event", "write-роут без события и без // no-event:")
@@ -290,11 +298,14 @@ def ic07() -> None:
 
 
 # ── IC-08: ссылки в документах на существующие пути ─────────────────────────
-# Пути из будущих карточек (плановые ссылки ROADMAP-DEALFLOW) — не нарушение:
-PLANNED = {"src/lib/events.ts", "src/lib/audience.ts", "src/lib/participants.ts",
-           "src/lib/notifications", "src/lib/brand.ts", "src/lib/events-guard.test.ts",
-           "scripts/pulse_check.py", "scripts/migrate-files-to-r2.ts",
-           "scripts/check-format-dupes.sh", "scripts/check-ui-guard.sh"}
+# Пути из будущих карточек (плановые ссылки ROADMAP-DEALFLOW) — не нарушение.
+# Список храповиком: путь с появлением файла уходит отсюда (v0.6.1: events.ts,
+# audience.ts, events-guard.test.ts, settings.ts стали существующими; r2-вариант
+# исчез из канона 1.4 вместе со ссылкой — «r2 ВРЕМЕННО» закрыто).
+PLANNED = {"src/lib/participants.ts", "src/lib/notifications",
+           "src/lib/brand.ts",
+           "scripts/pulse_check.py", "scripts/check-format-dupes.sh",
+           "scripts/migrate-files-to-storage.ts"}
 
 
 def ic08() -> None:
@@ -421,6 +432,151 @@ def ic13() -> None:
             add("IC-13", path, f"охранный тест отсутствует ({why}); сам прогон — bun run test")
 
 
+# ── IC-15: настройки (D32) — реестр без хардкода бизнес-параметров ──────────
+# Определение §4.7 G3: бизнес-параметры (время HH:MM, часовой пояс, лимиты,
+# пороги, адреса отправителя) не заданы литералами вне lib/settings.ts;
+# каждый ключ реестра имеет значение по умолчанию, подпись и валидатор;
+# каждый ключ показан на экране настроек; изменения настроек пишутся в журнал.
+SETTINGS_FILE = "src/lib/settings.ts"
+SETTINGS_API = "src/app/api/admin/settings/route.ts"
+SETTINGS_PAGE = "src/app/admin/(dashboard)/settings/page.tsx"
+SETTINGS_PANEL = "src/components/admin/SettingsPanel.tsx"
+# Целостная строка-литерал = значение параметра. Частичное совпадение не счёт:
+# подписи и подсказки вправе упоминать «09:00» в прозе, ISO-суффикс 'T00:00:00'
+# в дате — не бизнес-время, а placeholder — пример формата для человека.
+TIME_LIT = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
+TZ_LIT = re.compile(r"^(?:Africa|America|Antarctica|Asia|Atlantic|Australia|Europe|Indian|Pacific)/[\w+\-]+(?:/[\w+\-]+)?$")
+EMAIL_LIT = re.compile(r"^[\w.+\-]+@[\w\-]+\.[\w.\-]{2,}$")
+# Прямая запись Setting мимо setSetting/resetSetting — без события журнала.
+DIRECT_WRITE = re.compile(r"\.setting\.(?:upsert|create|createMany|update|updateMany|delete|deleteMany)\b")
+
+
+def quoted_strings(code: str) -> list[str]:
+    out = []
+    for m in re.finditer(r"'([^'\n]*)'|\"([^\"\n]*)\"", code):
+        s = m.group(1) if m.group(1) is not None else m.group(2)
+        if s:
+            out.append(s)
+    return out
+
+
+def business_literals(code: str) -> list[tuple[str, str]]:
+    """(вид, литерал): время/пояс/адрес, заданные ЦЕЛОЙ строкой-литералом."""
+    code = re.sub(r'placeholder="[^"]*"', "", code)   # подсказка ввода — пример формата
+    code = re.sub(r"placeholder=\{[^{}]*\}", "", code)  # ...и в JSX-выражении
+    code = strip_ts_comments(code)
+    hits: list[tuple[str, str]] = []
+    for s in quoted_strings(code):
+        if TIME_LIT.match(s):
+            hits.append(("time", s))
+        elif TZ_LIT.match(s):
+            hits.append(("tz", s))
+        elif EMAIL_LIT.match(s):
+            hits.append(("email", s))
+    return hits
+
+
+def parse_setting_blocks(t: str) -> list[str]:
+    """Тела defineSetting({...}) с подсчётом скобок (внутри бывают скобки валидаторов)."""
+    blocks: list[str] = []
+    i = 0
+    while True:
+        s = t.find("defineSetting({", i)
+        if s < 0:
+            return blocks
+        depth = 0
+        for j in range(s + len("defineSetting("), len(t)):
+            c = t[j]
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    blocks.append(t[s:j + 1])
+                    i = j + 1
+                    break
+        else:
+            return blocks
+
+
+def ic15_registry() -> list[str]:
+    """Каждый ключ реестра — с дефолтом, подписью и валидатором. Возвращает ключи."""
+    f = ROOT / SETTINGS_FILE
+    if not f.exists():
+        add("IC-15", "registry-missing", f"{SETTINGS_FILE} не найден")
+        return []
+    blocks = parse_setting_blocks(text(f))
+    if not blocks:
+        add("IC-15", "registry-empty", "реестр SETTINGS пуст")
+        return []
+    keys: list[str] = []
+    for n, b in enumerate(blocks, 1):
+        mk = re.search(r"key:\s*'([\w.]+)'", b)
+        if not mk:
+            add("IC-15", f"registry:entry-{n}", "ключ defineSetting не найден")
+            continue
+        k = mk.group(1)
+        keys.append(k)
+        if not re.search(r"label:\s*'[^']+'", b):
+            add("IC-15", f"registry:label:{k}", "нет подписи экрана")
+        if "defaultValue:" not in b:
+            add("IC-15", f"registry:default:{k}", "нет значения по умолчанию")
+        if "validate:" not in b:
+            add("IC-15", f"registry:validate:{k}", "нет валидатора")
+    return keys
+
+
+def ic15_screen(keys: list[str]) -> None:
+    """Каждый ключ показан на экране: API отдаёт реестр целиком (SETTINGS.map),
+    панель рендерит общий список — ключ конкретной настройки вшит быть не может."""
+    api = ROOT / SETTINGS_API
+    if not api.exists():
+        add("IC-15", "api-missing", f"{SETTINGS_API} не найден")
+    elif "SETTINGS.map(" not in text(api):
+        add("IC-15", "api-not-generic", "GET отдаёт не весь реестр (ожидался SETTINGS.map)")
+    page = ROOT / SETTINGS_PAGE
+    if not page.exists():
+        add("IC-15", "screen-missing", f"{SETTINGS_PAGE} не найден")
+    elif "SettingsPanel" not in text(page):
+        add("IC-15", "screen-no-panel", "экран не рендерит SettingsPanel")
+    panel = ROOT / SETTINGS_PANEL
+    if not panel.exists():
+        add("IC-15", "panel-missing", f"{SETTINGS_PANEL} не найден")
+        return
+    pt = strip_ts_comments(text(panel))
+    for k in keys:
+        if f"'{k}'" in pt or f'"{k}"' in pt:
+            add("IC-15", f"screen-hardcoded:{k}",
+                "ключ вшит в панель — рендер обязан быть общим (по uiType)")
+
+
+def ic15_journal() -> None:
+    """Изменения настроек пишутся в журнал: запись Setting — только через
+    setSetting/resetSetting (emitEvent внутри), событие — в ACTIVITY_TYPES."""
+    for f in rglob("src/**/*.ts*"):
+        if f.name.endswith(".test.ts") or rel(f) == SETTINGS_FILE:
+            continue
+        if DIRECT_WRITE.search(text(f)):
+            add("IC-15", f"direct-write:{rel(f)}", "запись Setting мимо setSetting/resetSetting (без события)")
+    act = ROOT / "src" / "lib" / "activity.ts"
+    if not act.exists() or "'setting_changed'" not in text(act):
+        add("IC-15", "event-not-in-registry", "setting_changed отсутствует в ACTIVITY_TYPES")
+    st = ROOT / SETTINGS_FILE
+    if st.exists() and "emitEvent(" not in text(st):
+        add("IC-15", "no-event", "setSetting/resetSetting без emitEvent — журнал не пишется")
+
+
+def ic15() -> None:
+    keys = ic15_registry()
+    for f in rglob("src/**/*.ts*"):
+        if f.name.endswith(".test.ts") or rel(f) == SETTINGS_FILE:
+            continue
+        for kind, lit in business_literals(text(f)):
+            add("IC-15", f"{kind}:{rel(f)}", f"бизнес-параметр {lit!r} литералом вне реестра (перенесите в SETTINGS)")
+    ic15_screen(keys)
+    ic15_journal()
+
+
 # ── IC-14: дубликаты определений и блоков ≥ 12 строк ────────────────────────
 def ic14() -> None:
     names: dict[str, set[str]] = {}
@@ -457,7 +613,7 @@ CHECKS = [
     ("IC-02", ic02), ("IC-03", ic03), ("IC-04", ic04), ("IC-05", ic05),
     ("IC-06", ic06), ("IC-07", ic07), ("IC-08", ic08), ("IC-09", ic09),
     ("IC-10", ic10), ("IC-11", ic11), ("IC-12", ic12), ("IC-13", ic13),
-    ("IC-14", ic14),
+    ("IC-14", ic14), ("IC-15", ic15),
 ]
 
 

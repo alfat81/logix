@@ -1,0 +1,40 @@
+{
+  "task": "DF-00D «Настройки системы: минимум хардкода» v0.6.1: модель Setting (key PK, value Json, updatedAt, updatedByName) + миграция df_00d_settings; src/lib/settings.ts — типизированный реестр SETTINGS (ключ/тип/дефолт/подпись/подсказка/валидатор/группа), getSetting (кэш ≤60с, откат на дефолт при пустой таблице), setSetting (валидатор + событие setting_changed через emitEvent: аудитория staff, старое/новое значение, без секретов); ACTIVITY_TYPES/EVENT_TYPES + setting_changed; API /api/admin/settings (GET + PATCH, master-only: менеджеру 403, неверный ввод 400, изменение в журнале); экран /admin/settings (группы, подписи, подсказки, значение по умолчанию, «сбросить», проверка ввода) + AdminNav (пункт «Настройки», masterOnly); integrity_check.py + IC-15 (включение проверки реестра настроек) + фикстуры IC-15 в test_integrity.py (DF-00B: каждая проверка с фикстурой); e2e-блок DF-00D; unit-тесты валидаторов/кэша/отката; документация релиза (CHANGELOG, ROADMAP-статус, карточка DF-00D [x], DECISIONS D32–D39 из Приложения A, INVENTORY)",
+  "areas": [
+    "prisma: schema (новая модель Setting — одна таблица, без ссылок на остальные; комментарий инварианта цели Activity) и миграция df_00d_settings",
+    "src/lib: settings.ts (НОВЫЙ — реестр SETTINGS, getSetting/setSetting, кэш ≤60с) + settings-validators.ts (НОВЫЙ — валидаторы вынесены из settings.ts ради лимита 300 строк RULES 2.14, единая точка импорта остаётся settings.ts через реэкспорт) + settings.test.ts (НОВЫЙ); activity.ts (ACTIVITY_TYPES + setting_changed, ActivityTarget комментарий), events.ts (EVENT_TYPES + метаданные setting_changed, EmitEventInput.target опционален), events.test.ts (синхронизация реестров/NOTIFY_RULES с новым типом)",
+    "admin UI: src/app/admin/(dashboard)/settings/page.tsx (НОВЫЙ, master-only), src/components/admin/SettingsPanel.tsx (НОВЫЙ), src/components/admin/AdminNav.tsx (пункт «Настройки», masterOnly)",
+    "API: src/app/api/admin/settings/route.ts (НОВЫЙ, GET+PATCH, master-only)",
+    "scripts: integrity_check.py (+IC-15, PLANNED settings.ts/migrate-files-to-storage.ts), integrity-baseline.json (храповик), e2e_api_test.py (+блок DF-00D)",
+    "docs: DECISIONS.md (D32–D39 из Приложения A роадмапа 1.4), DEPRECATIONS.md (кандидаты переноса констант, если появятся), INVENTORY.md (перегенерация)",
+    "docs релиза: CHANGELOG.md, docs/ROADMAP.md (статус-блок), docs/ROADMAP-DEALFLOW.md (карточка DF-00D [x], очередь §6 — после получения каноничного файла 1.4 от владельца), package.json (0.6.0→0.6.1), SCOPE-v0.6.1.json, RELEASE-NOTES-v0.6.1.md, RELEASE-INSTRUCTIONS-v0.6.1.md"
+  ],
+  "globs": [
+    "prisma/schema.prisma",
+    "prisma/migrations/**",
+    "src/lib/settings.ts",
+    "src/lib/settings-validators.ts",
+    "src/lib/settings.test.ts",
+    "src/lib/activity.ts",
+    "src/lib/events.ts",
+    "src/lib/events.test.ts",
+    "src/app/api/admin/settings/route.ts",
+    "src/app/admin/(dashboard)/settings/page.tsx",
+    "src/components/admin/SettingsPanel.tsx",
+    "src/components/admin/AdminNav.tsx",
+    "scripts/integrity_check.py",
+    "scripts/test_integrity.py",
+    "scripts/integrity-baseline.json",
+    "scripts/e2e_api_test.py",
+    "docs/DECISIONS.md",
+    "docs/DEPRECATIONS.md",
+    "docs/INVENTORY.md",
+    "CHANGELOG.md",
+    "docs/ROADMAP.md",
+    "docs/ROADMAP-DEALFLOW.md",
+    "package.json",
+    "docs/releases/SCOPE-v0.6.1.json",
+    "docs/releases/RELEASE-NOTES-v0.6.1.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.6.1.md"
+  ]
+}

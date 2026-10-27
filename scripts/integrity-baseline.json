@@ -1,545 +1,521 @@
 {
-  "IC-03": [
-    {
-      "key": "src/app/api/admin/brokers/[id]/route.ts:event",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/brokers/route.ts:event",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/customers/[id]/access/route.ts:event",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/customers/route.ts:event",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/employees/[id]/route.ts:write",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/employees/[id]/route.ts:event",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/employees/route.ts:write",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/employees/route.ts:event",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/legal-entities/[id]/route.ts:write",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/legal-entities/[id]/route.ts:event",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/legal-entities/route.ts:write",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/legal-entities/route.ts:event",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/stage-catalog/[id]/route.ts:write",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/stage-catalog/[id]/route.ts:event",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/stage-catalog/route.ts:write",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/stage-catalog/route.ts:event",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    },
-    {
-      "key": "src/app/api/admin/contractor-leads/route.ts:event",
-      "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
-    }
-  ],
-  "IC-06": [
-    {
-      "key": "not-in-example:SHADOW_URL",
-      "reason": "первичный baseline DF-00B"
-    }
-  ],
-  "IC-09": [
-    {
-      "key": "money:src/components/admin/cargo/CargoGroupsView.tsx",
-      "reason": "первичный baseline DF-00B"
-    }
-  ],
-  "IC-10": [
-    {
-      "key": "brand-missing",
-      "reason": "первичный baseline DF-00B"
-    }
-  ],
-  "IC-13": [],
-  "IC-14": [
-    {
-      "key": "block:src/app/admin/(dashboard)/orders/[id]/page.tsx~src/components/admin/LeadCard.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/admin/(dashboard)/orders/[id]/page.tsx~src/components/broker/BrokerOrderCard.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/admin/(dashboard)/orders/[id]/page.tsx~src/components/client/ClientOrderCard.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/admin/(dashboard)/orders/[id]/page.tsx~src/components/contractor/ContractorOrderCard.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/admin/login/page.tsx~src/app/broker/login/page.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/admin/login/page.tsx~src/app/client/login/page.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/admin/login/page.tsx~src/app/contractor/login/page.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/brokers/[id]/route.ts~src/app/api/admin/options/[id]/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/brokers/route.ts~src/app/api/admin/contractor-leads/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/brokers/route.ts~src/app/api/admin/contractors/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/brokers/route.ts~src/app/api/admin/leads/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/contractor-leads/route.ts~src/app/api/admin/leads/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/customers/[id]/access/route.ts~src/app/api/admin/leads/[id]/convert/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/customers/[id]/access/route.ts~src/app/api/admin/leads/[id]/options/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/employees/route.ts~src/app/api/admin/legal-entities/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/leads/[id]/brokers/route.ts~src/app/api/admin/orders/[id]/brokers/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/leads/[id]/convert/helpers.ts~src/app/api/admin/leads/[id]/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/leads/[id]/convert/route.ts~src/app/api/admin/leads/[id]/options/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/leads/[id]/documents/route.ts~src/app/api/admin/orders/[id]/documents/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/leads/[id]/notes/route.ts~src/app/api/admin/orders/[id]/notes/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/admin/leads/[id]/patch.ts~src/app/api/admin/orders/[id]/patch.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/auth/broker/login/route.ts~src/app/api/auth/client/login/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/auth/broker/login/route.ts~src/app/api/auth/contractor/login/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/auth/client/login/route.ts~src/app/api/auth/contractor/login/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/broker/leads/[id]/documents/route.ts~src/app/api/broker/orders/[id]/documents/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/broker/orders/[id]/route.ts~src/app/api/broker/orders/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/broker/orders/[id]/route.ts~src/app/api/client/orders/[id]/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/broker/orders/[id]/route.ts~src/app/api/client/orders/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/broker/orders/route.ts~src/app/api/client/orders/[id]/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/broker/orders/route.ts~src/app/api/client/orders/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/client/leads/[id]/documents/route.ts~src/app/api/client/orders/[id]/documents/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/client/orders/[id]/route.ts~src/app/api/client/orders/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/client/orders/[id]/route.ts~src/app/api/contractor/orders/[id]/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/broker/login/page.tsx~src/app/client/login/page.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/broker/login/page.tsx~src/app/contractor/login/page.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/client/login/page.tsx~src/app/contractor/login/page.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/ContractsList.tsx~src/components/admin/CustomersList.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/ContractsList.tsx~src/components/admin/LeadsList.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/ContractsList.tsx~src/components/admin/OrdersList.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/CustomerCabinetAccess.tsx~src/components/admin/LeadEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/CustomerCabinetAccess.tsx~src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/CustomerCreateDialog.tsx~src/components/admin/LeadCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/CustomerCreateDialog.tsx~src/components/admin/OrderCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/CustomerCreateDialog.tsx~src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/CustomerCreateDialog.tsx~src/components/admin/employee/EmployeeCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/CustomerCreateDialog.tsx~src/components/admin/legalentity/LegalEntityCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/CustomerCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/CustomersList.tsx~src/components/admin/LeadsList.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/CustomersList.tsx~src/components/admin/OrdersList.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadCard.tsx~src/components/broker/BrokerLeadCard.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadCard.tsx~src/components/client/ClientLeadCard.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/OrderCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/broker/BrokerCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/employee/EmployeeCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/legalentity/LegalEntityCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/broker/BrokerEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/contractorlead/ContractorLeadContractDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/employee/EmployeeEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/legalentity/LegalEntityEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/stagecatalog/StageEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadsList.tsx~src/components/admin/OrdersList.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadsToolbar.tsx~src/components/admin/ListToolbar.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/LeadsToolbar.tsx~src/components/admin/OrdersToolbar.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/ListToolbar.tsx~src/components/admin/OrdersToolbar.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/OrderCreateDialog.tsx~src/components/admin/employee/EmployeeCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/OrderCreateDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/OrderCreateDialog.tsx~src/components/admin/legalentity/LegalEntityCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/OrderCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/QuoteOptionFormFields.tsx~src/components/admin/order/OrderQuoteDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/broker/BrokerEditDialog.tsx~src/components/admin/contractorlead/ContractorLeadContractDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/broker/BrokerEditDialog.tsx~src/components/admin/contractorpool/ContractorPoolToggleDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/broker/BrokerEditDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadContractDialog.tsx~src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadContractDialog.tsx~src/components/admin/contractorpool/ContractorPoolEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadContractDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadContractDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadContractDialog.tsx~src/components/documents/parts/DocumentCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/contractorpool/ContractorPoolToggleDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/employee/EmployeeCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/employee/EmployeeEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/legalentity/LegalEntityCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/legalentity/LegalEntityEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/stagecatalog/StageEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/contractorpool/ContractorPoolEditDialog.tsx~src/components/documents/parts/DocumentCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/employee/EmployeeCreateDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/employee/EmployeeCreateDialog.tsx~src/components/admin/legalentity/LegalEntityCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/employee/EmployeeCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/employee/EmployeeEditDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/employee/EmployeeEditDialog.tsx~src/components/admin/legalentity/LegalEntityEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/employee/EmployeeEditDialog.tsx~src/components/admin/stagecatalog/StageEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/employee/EmployeeResetPasswordDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/employee/EmployeeResetPasswordDialog.tsx~src/components/admin/legalentity/LegalEntityEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/employee/EmployeeResetPasswordDialog.tsx~src/components/admin/stagecatalog/StageEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/lead/LeadStatusControls.tsx~src/components/admin/order/OrderQuoteDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/lead/LeadStatusControls.tsx~src/components/admin/order/OrderStages.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/legalentity/LegalEntityCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/legalentity/LegalEntityEditDialog.tsx~src/components/admin/stagecatalog/StageEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/order/OrderQuoteDialog.tsx~src/components/admin/order/OrderStages.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/broker/BrokerHome.tsx~src/components/client/ClientHome.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/broker/BrokerLeadCard.tsx~src/components/client/ClientLeadCard.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/broker/BrokerOrderCard.tsx~src/components/client/ClientOrderCard.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/broker/BrokerOrderCard.tsx~src/components/contractor/ContractorOrderCard.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/client/ClientHome.tsx~src/components/client/ClientOrderCard.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/client/ClientOrderCard.tsx~src/components/contractor/ContractorOrderCard.tsx",
-      "reason": "первичный baseline DF-00B"
-    }
-  ]
+ "IC-03": [
+  {
+   "key": "src/app/api/admin/brokers/[id]/route.ts:event",
+   "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
+  },
+  {
+   "key": "src/app/api/admin/brokers/route.ts:event",
+   "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
+  },
+  {
+   "key": "src/app/api/admin/customers/[id]/access/route.ts:event",
+   "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
+  },
+  {
+   "key": "src/app/api/admin/customers/route.ts:event",
+   "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
+  },
+  {
+   "key": "src/app/api/admin/employees/[id]/route.ts:event",
+   "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
+  },
+  {
+   "key": "src/app/api/admin/employees/route.ts:event",
+   "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
+  },
+  {
+   "key": "src/app/api/admin/legal-entities/[id]/route.ts:event",
+   "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
+  },
+  {
+   "key": "src/app/api/admin/legal-entities/route.ts:event",
+   "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
+  },
+  {
+   "key": "src/app/api/admin/stage-catalog/[id]/route.ts:event",
+   "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
+  },
+  {
+   "key": "src/app/api/admin/stage-catalog/route.ts:event",
+   "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
+  },
+  {
+   "key": "src/app/api/admin/contractor-leads/route.ts:event",
+   "reason": "справочники/доступ без событий сделки (G3 DF-01: событие придёт с задачей своего домена)"
+  }
+ ],
+ "IC-06": [
+  {
+   "key": "not-in-example:SHADOW_URL",
+   "reason": "первичный baseline DF-00B"
+  }
+ ],
+ "IC-09": [
+  {
+   "key": "money:src/components/admin/cargo/CargoGroupsView.tsx",
+   "reason": "первичный baseline DF-00B"
+  }
+ ],
+ "IC-10": [
+  {
+   "key": "brand-missing",
+   "reason": "первичный baseline DF-00B"
+  }
+ ],
+ "IC-13": [],
+ "IC-14": [
+  {
+   "key": "block:src/app/admin/(dashboard)/orders/[id]/page.tsx~src/components/admin/LeadCard.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/admin/(dashboard)/orders/[id]/page.tsx~src/components/broker/BrokerOrderCard.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/admin/(dashboard)/orders/[id]/page.tsx~src/components/client/ClientOrderCard.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/admin/(dashboard)/orders/[id]/page.tsx~src/components/contractor/ContractorOrderCard.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/admin/login/page.tsx~src/app/broker/login/page.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/admin/login/page.tsx~src/app/client/login/page.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/admin/login/page.tsx~src/app/contractor/login/page.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/brokers/[id]/route.ts~src/app/api/admin/options/[id]/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/brokers/route.ts~src/app/api/admin/contractor-leads/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/brokers/route.ts~src/app/api/admin/contractors/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/brokers/route.ts~src/app/api/admin/leads/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/contractor-leads/route.ts~src/app/api/admin/leads/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/customers/[id]/access/route.ts~src/app/api/admin/leads/[id]/convert/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/customers/[id]/access/route.ts~src/app/api/admin/leads/[id]/options/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/employees/route.ts~src/app/api/admin/legal-entities/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/leads/[id]/brokers/route.ts~src/app/api/admin/orders/[id]/brokers/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/leads/[id]/convert/helpers.ts~src/app/api/admin/leads/[id]/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/leads/[id]/convert/route.ts~src/app/api/admin/leads/[id]/options/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/leads/[id]/documents/route.ts~src/app/api/admin/orders/[id]/documents/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/leads/[id]/notes/route.ts~src/app/api/admin/orders/[id]/notes/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/leads/[id]/patch.ts~src/app/api/admin/orders/[id]/patch.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/auth/broker/login/route.ts~src/app/api/auth/client/login/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/auth/broker/login/route.ts~src/app/api/auth/contractor/login/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/auth/client/login/route.ts~src/app/api/auth/contractor/login/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/broker/leads/[id]/documents/route.ts~src/app/api/broker/orders/[id]/documents/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/broker/orders/[id]/route.ts~src/app/api/broker/orders/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/broker/orders/[id]/route.ts~src/app/api/client/orders/[id]/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/broker/orders/[id]/route.ts~src/app/api/client/orders/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/broker/orders/route.ts~src/app/api/client/orders/[id]/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/broker/orders/route.ts~src/app/api/client/orders/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/client/leads/[id]/documents/route.ts~src/app/api/client/orders/[id]/documents/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/client/orders/[id]/route.ts~src/app/api/client/orders/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/client/orders/[id]/route.ts~src/app/api/contractor/orders/[id]/route.ts",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/broker/login/page.tsx~src/app/client/login/page.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/broker/login/page.tsx~src/app/contractor/login/page.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/client/login/page.tsx~src/app/contractor/login/page.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/ContractsList.tsx~src/components/admin/CustomersList.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/ContractsList.tsx~src/components/admin/LeadsList.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/ContractsList.tsx~src/components/admin/OrdersList.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/CustomerCabinetAccess.tsx~src/components/admin/LeadEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/CustomerCabinetAccess.tsx~src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/CustomerCreateDialog.tsx~src/components/admin/LeadCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/CustomerCreateDialog.tsx~src/components/admin/OrderCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/CustomerCreateDialog.tsx~src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/CustomerCreateDialog.tsx~src/components/admin/employee/EmployeeCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/CustomerCreateDialog.tsx~src/components/admin/legalentity/LegalEntityCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/CustomerCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/CustomersList.tsx~src/components/admin/LeadsList.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/CustomersList.tsx~src/components/admin/OrdersList.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadCard.tsx~src/components/broker/BrokerLeadCard.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadCard.tsx~src/components/client/ClientLeadCard.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/OrderCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/broker/BrokerCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/employee/EmployeeCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/legalentity/LegalEntityCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/broker/BrokerEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/contractorlead/ContractorLeadContractDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/employee/EmployeeEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/legalentity/LegalEntityEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/stagecatalog/StageEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadsList.tsx~src/components/admin/OrdersList.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadsToolbar.tsx~src/components/admin/ListToolbar.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/LeadsToolbar.tsx~src/components/admin/OrdersToolbar.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/ListToolbar.tsx~src/components/admin/OrdersToolbar.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/OrderCreateDialog.tsx~src/components/admin/employee/EmployeeCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/OrderCreateDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/OrderCreateDialog.tsx~src/components/admin/legalentity/LegalEntityCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/OrderCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/QuoteOptionFormFields.tsx~src/components/admin/order/OrderQuoteDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/broker/BrokerEditDialog.tsx~src/components/admin/contractorlead/ContractorLeadContractDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/broker/BrokerEditDialog.tsx~src/components/admin/contractorpool/ContractorPoolToggleDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/broker/BrokerEditDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadContractDialog.tsx~src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadContractDialog.tsx~src/components/admin/contractorpool/ContractorPoolEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadContractDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadContractDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadContractDialog.tsx~src/components/documents/parts/DocumentCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/contractorpool/ContractorPoolToggleDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/employee/EmployeeCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/employee/EmployeeEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/legalentity/LegalEntityCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/legalentity/LegalEntityEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/stagecatalog/StageEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/contractorpool/ContractorPoolEditDialog.tsx~src/components/documents/parts/DocumentCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/employee/EmployeeCreateDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/employee/EmployeeCreateDialog.tsx~src/components/admin/legalentity/LegalEntityCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/employee/EmployeeCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/employee/EmployeeEditDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/employee/EmployeeEditDialog.tsx~src/components/admin/legalentity/LegalEntityEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/employee/EmployeeEditDialog.tsx~src/components/admin/stagecatalog/StageEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/employee/EmployeeResetPasswordDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/employee/EmployeeResetPasswordDialog.tsx~src/components/admin/legalentity/LegalEntityEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/employee/EmployeeResetPasswordDialog.tsx~src/components/admin/stagecatalog/StageEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/lead/LeadStatusControls.tsx~src/components/admin/order/OrderQuoteDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/lead/LeadStatusControls.tsx~src/components/admin/order/OrderStages.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/legalentity/LegalEntityCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/legalentity/LegalEntityEditDialog.tsx~src/components/admin/stagecatalog/StageEditDialog.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/admin/order/OrderQuoteDialog.tsx~src/components/admin/order/OrderStages.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/broker/BrokerHome.tsx~src/components/client/ClientHome.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/broker/BrokerLeadCard.tsx~src/components/client/ClientLeadCard.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/broker/BrokerOrderCard.tsx~src/components/client/ClientOrderCard.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/broker/BrokerOrderCard.tsx~src/components/contractor/ContractorOrderCard.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/client/ClientHome.tsx~src/components/client/ClientOrderCard.tsx",
+   "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/components/client/ClientOrderCard.tsx~src/components/contractor/ContractorOrderCard.tsx",
+   "reason": "первичный baseline DF-00B"
+  }
+ ]
 }

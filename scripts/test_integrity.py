@@ -64,6 +64,14 @@ class TestIC03(FixtureBase):
         ic.ic03()
         self.assertIn("src/app/api/admin/leads/route.ts:write", self.keys())
 
+    def test_roles_marker_form_passes_write_check(self) -> None:
+        # master-only роуты (Ж6в, DF-00D): write: true в составе объекта с roles —
+        # тот же маркер P1-09; регрессия подстрочного поиска (v0.6.1) не должна вернуться
+        touch(self.tmp, "src/app/api/admin/employees/route.ts",
+              "export async function POST() { const a = await requireEmployee(req, { write: true, roles: ['master'] }); await db.employee.create({}) }")
+        ic.ic03()
+        self.assertEqual([k for k in self.keys() if k.endswith(":write")], [])
+
     def test_no_event_marker_passes(self) -> None:
         touch(self.tmp, "src/app/api/admin/leads/route.ts",
               "// no-event: служебный сброс\nexport async function POST() { await requireEmployee(req, { write: true }) }")
@@ -186,6 +194,85 @@ class TestIC14(FixtureBase):
         touch(self.tmp, "src/lib/d.ts", block)
         ic.ic14()
         self.assertTrue(any(k.startswith("block:") for k in self.keys()))
+
+
+class TestIC15(FixtureBase):
+    FULL_ENTRY = (
+        "export const SETTINGS = [\n"
+        "  defineSetting({\n"
+        "    key: 'files.max_mb', group: 'files', uiType: 'number',\n"
+        "    label: 'Максимальный размер файла',\n"
+        "    hint: 'Лимит загрузки',\n"
+        "    defaultValue: 25, validate: (v) => asInt(v, 1, 200),\n"
+        "  }),\n"
+        "]\n")
+
+    def test_catches_business_literals_outside_registry(self) -> None:
+        touch(self.tmp, "src/lib/x.ts",
+              "const w = '09:00'\nconst tz = 'Europe/Moscow'\nconst e = 'noreply@logix.ru'")
+        ic.ic15()
+        k = self.keys()
+        self.assertTrue(any(s.startswith("time:") for s in k), k)
+        self.assertTrue(any(s.startswith("tz:") for s in k), k)
+        self.assertTrue(any(s.startswith("email:") for s in k), k)
+
+    def test_format_examples_pass(self) -> None:
+        touch(self.tmp, "src/components/p.tsx",
+              "// дежурная подпись 09:00\n"
+              "const iso = new Date(v + 'T00:00:00')\n"
+              "export const P = () => <Input placeholder=\"09:00, 16:00\" />")
+        touch(self.tmp, "src/components/q.tsx",
+              "export const Q = () => <Input placeholder=\"mail@example.com\" />")
+        ic.ic15()
+        k = self.keys()
+        self.assertEqual([s for s in k if s.startswith(("time:", "tz:", "email:"))], [], k)
+
+    def test_registry_entry_requires_default_label_validate(self) -> None:
+        touch(self.tmp, "src/lib/settings.ts",
+              "export const SETTINGS = [\n"
+              "  defineSetting({\n"
+              "    key: 'files.max_mb', group: 'files', uiType: 'number',\n"
+              "    label: 'Максимальный размер файла',\n"
+              "    validate: (v) => asInt(v, 1, 200),\n"
+              "  }),\n"
+              "]\n")
+        ic.ic15()
+        self.assertIn("registry:default:files.max_mb", self.keys())
+
+    def test_screen_must_not_hardcode_key(self) -> None:
+        touch(self.tmp, "src/lib/settings.ts", self.FULL_ENTRY)
+        touch(self.tmp, "src/app/api/admin/settings/route.ts",
+              "import { SETTINGS } from '@/lib/settings'\nconst rows = SETTINGS.map((d) => d.key)")
+        touch(self.tmp, "src/app/admin/(dashboard)/settings/page.tsx",
+              "export default function Page() { return <SettingsPanel /> }")
+        touch(self.tmp, "src/components/admin/SettingsPanel.tsx",
+              "const keys = settings.map((entry) => entry.key)\nif (keys[0] === 'files.max_mb') {}")
+        ic.ic15()
+        self.assertIn("screen-hardcoded:files.max_mb", self.keys())
+
+    def test_direct_setting_write_caught(self) -> None:
+        touch(self.tmp, "src/app/api/admin/x/route.ts",
+              "export async function PATCH() { await db.setting.upsert({}) }")
+        ic.ic15()
+        self.assertIn("direct-write:src/app/api/admin/x/route.ts", self.keys())
+
+    def test_valid_configuration_passes(self) -> None:
+        touch(self.tmp, "src/lib/activity.ts",
+              "export const ACTIVITY_TYPES = ['lead_created', 'setting_changed']")
+        touch(self.tmp, "src/lib/settings.ts",
+              "import { emitEvent } from './events'\n" + self.FULL_ENTRY +
+              "export async function setSetting(key: string, value: unknown, tx: unknown) {\n"
+              "  await tx.setting.upsert({})\n"
+              "  await emitEvent(tx, { type: 'setting_changed', description: key })\n"
+              "}\n")
+        touch(self.tmp, "src/app/api/admin/settings/route.ts",
+              "import { SETTINGS } from '@/lib/settings'\nconst rows = SETTINGS.map((d) => d.key)")
+        touch(self.tmp, "src/app/admin/(dashboard)/settings/page.tsx",
+              "export default function Page() { return <SettingsPanel /> }")
+        touch(self.tmp, "src/components/admin/SettingsPanel.tsx",
+              "export function SettingsPanel() { return settings.map((entry) => entry.key) }")
+        ic.ic15()
+        self.assertEqual(self.keys(), set())
 
 
 class TestScope(FixtureBase):

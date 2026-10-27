@@ -10,6 +10,7 @@ import {
   Inbox,
   Landmark,
   ListChecks,
+  Settings,
   Truck,
   UserCog,
   Users,
@@ -32,7 +33,7 @@ type NavItem = {
   href: string
   label: string
   icon: LucideIcon
-  // Ж6в: пункт виден только мастеру (Сотрудники).
+  // Ж6в / DF-00D: пункт виден только мастеру (Сотрудники, Настройки).
   masterOnly?: boolean
   // §4.1: число активных объектов (приходит из layout, сервер).
   count?: number
@@ -72,6 +73,10 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/admin/brokers', label: 'Брокеры', icon: Landmark },
       { href: '/admin/employees', label: 'Сотрудники', icon: UserCog, masterOnly: true },
     ],
+  },
+  {
+    title: null,
+    items: [{ href: '/admin/settings', label: 'Настройки', icon: Settings, masterOnly: true }],
   },
 ]
 

@@ -97,6 +97,12 @@ export const EVENT_TYPES: Record<ActivityType, EventMeta> = {
   document_deleted: { label: 'Документ удалён', audience: ['staff', 'client', 'broker'], notify: [] },
   // внутренние заметки (Ж3) — только staff, уведомлений нет (§8)
   note_added: { label: 'Внутренняя заметка', audience: ['staff'], notify: [] },
+  // настройки системы (DF-00D, D32) — глобальное событие БЕЗ цели-сделки
+  // (target не передаётся); только staff, уведомлений нет: факт изменения
+  // виден в ленте сотрудникам, письма по настройкам не предусмотрены (§8).
+  // description несёт ключ, старое и новое значение — секретов в реестре
+  // нет по построению (секреты и адреса инфраструктуры живут в env).
+  setting_changed: { label: 'Настройка изменена', audience: ['staff'], notify: [] },
 }
 
 // Снимок имени системного актёра. Живёт здесь (а не в activity.ts),
@@ -120,7 +126,12 @@ function normalizeAudience(list: readonly Audience[]): Audience[] {
 }
 
 export type EmitEventInput = {
-  target: ActivityTarget
+  // Цель-сделка: ровно одна из трёх (см. ActivityTarget). НЕ задана —
+  // глобальное событие без сделки (DF-00D: setting_changed — настройка
+  // не belongs ни одной заявке); колонки orderId/leadId/contractorId
+  // в БД nullable, событие с пустой целью легитимно (Ж5-логика лент
+  // читает по цели, staff-лента видит и глобальные).
+  target?: ActivityTarget | null
   actor: ActivityActor
   type: ActivityType
   description: string
@@ -155,7 +166,7 @@ export async function emitEvent(
   try {
     await tx.activity.create({
       data: {
-        ...input.target,
+        ...(input.target ?? {}),
         actorType: input.actor.type,
         actorId: input.actor.type === 'system' ? null : input.actor.id,
         actorName: input.actor.type === 'system' ? SYSTEM_ACTOR_NAME : input.actor.name,

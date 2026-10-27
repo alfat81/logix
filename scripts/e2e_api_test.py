@@ -279,6 +279,22 @@ s,d=a.r('GET',f'/api/admin/orders/{oid}'); oacts2=(d.get('order',d)).get('activi
 chk('DF-01: order_broker_detached в ленте с именем брокера',any(x['type']=='order_broker_detached' and ('Брокер-2 '+u) in x['description'] for x in oacts2),[x['type'] for x in oacts2[:6]])
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); acts=d.get('lead',d).get('activities',[])
 chk('P1-04: лента — оценка брокера отформатирована («85 000,50 ₽»)',bool(acts) and any('платежи: 85\u00a0000,50 ₽' in x['description'] for x in acts),[x['description'] for x in acts[:3]])
+# --- DF-00D: настройки системы (мастер-only; журнал/транзакция — settings.test.ts против живой БД) ---
+s,d=bb.r('GET','/api/admin/settings'); chk('[ПРИЁМКА DF-00D] менеджер не читает настройки → 403',s==403,s)
+s,d=bb.r('PATCH','/api/admin/settings',{'key':'files.max_mb','value':50}); chk('[ПРИЁМКА DF-00D] менеджер не меняет настройки → 403',s==403,s)
+s,d=C().r('GET','/api/admin/settings'); chk('DF-00D: аноним не читает настройки → 401',s==401,s)
+s,d=a.r('GET','/api/admin/settings'); st=d.get('settings',[]) if isinstance(d,dict) else []
+chk('[ПРИЁМКА DF-00D] мастер читает реестр: 17 ключей, группы, дефолты',s==200 and len(st)==17 and bool(d.get('groups')) and all('defaultValue' in x for x in st),(s,len(st)))
+f0=[x for x in st if x['key']=='files.max_mb'][0]
+chk('DF-00D: пустая таблица — значение равно дефолту',f0['value']==25 and f0['isModified']==False,f0)
+s,d=a.r('PATCH','/api/admin/settings',{'key':'files.max_mb','value':50}); chk('[ПРИЁМКА DF-00D] мастер меняет значение, новое видно в ответе',s==200 and (d.get('setting') or {}).get('value')==50,(s,d))
+s,d=a.r('GET','/api/admin/settings'); f1=[x for x in d.get('settings',[]) if x['key']=='files.max_mb'][0]
+chk('DF-00D: изменение пережило перечитывание (isModified, кто менял)',f1['value']==50 and f1['isModified']==True and bool(f1.get('updatedByName')),f1)
+s,d=a.r('PATCH','/api/admin/settings',{'key':'owner_digest.window_start','value':'25:99'}); chk('[ПРИЁМКА DF-00D] неверный формат времени → 400',s==400,(s,d))
+s,d=a.r('PATCH','/api/admin/settings',{'key':'hacker.key','value':'x'}); chk('DF-00D: свободный ключ → 400',s==400,s)
+s,d=a.r('PATCH','/api/admin/settings',{'key':'files.max_mb','value':0}); chk('DF-00D: значение вне границ → 400',s==400,s)
+s,d=a.r('PATCH','/api/admin/settings',{'key':'files.max_mb'}); chk('DF-00D: PATCH без value → 400',s==400,s)
+s,d=a.r('DELETE','/api/admin/settings',{'key':'files.max_mb'}); chk('DF-00D: «сбросить» → значение вернулось к дефолту',s==200 and (d.get('setting') or {}).get('value')==25,(s,d))
 # --- contractor
 k=C(); s,d=k.r('POST','/api/auth/contractor/login',{'phone':cph,'password':'contr-pass-1'}); chk('вход подрядчика',s==200,(s,d))
 s,d=k.r('GET',f'/api/contractor/orders/{oid}'); txt=json.dumps(d,ensure_ascii=False); chk('подрядчик видит заявку со своим этапом',s==200,(s,txt[:150]))

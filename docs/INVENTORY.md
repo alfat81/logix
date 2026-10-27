@@ -18,7 +18,7 @@
 | `ACTIVITY_TYPES` | `src/lib/activity.ts` | Стабильные коды событий: расширение списка — правка здесь, значения |
 | `AUDIENCES` | `src/lib/audience.ts` | — |
 | `ActivityActor` | `src/lib/activity.ts` | Кто действовал. Сотрудник, подрядчик, клиент (И1 — запрос из |
-| `ActivityTarget` | `src/lib/activity.ts` | Цель события — ровно одна из трёх. Дискриминированное объединение: |
+| `ActivityTarget` | `src/lib/activity.ts` | Цель-сделка — ровно одна из трёх. Дискриминированное объединение: |
 | `ActivityType` | `src/lib/activity.ts` | — |
 | `Audience` | `src/lib/audience.ts` | — |
 | `BROKER_COMPANY_NAME_MAX` | `src/lib/brokers.ts` | Название компании — потолок как у подрядчика (Г2). |
@@ -174,11 +174,21 @@
 | `RouteFieldsSchema` | `src/lib/route-fields.ts` | ── zod-схема route-полей (тела POST/PATCH) ───────────────────────── |
 | `SEARCH_TAKE` | `src/lib/search-constants.ts` | Сколько строк на секцию (заявки / лиды) возвращает глобальный поиск. |
 | `SESSION_COOKIE` | `src/lib/auth.ts` | — |
+| `SETTINGS` | `src/lib/settings.ts` | — |
+| `SETTING_GROUPS` | `src/lib/settings.ts` | — |
+| `SETTING_GROUP_LABELS` | `src/lib/settings.ts` | — |
 | `STAGE_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Этап: не начат — нейтрально, в работе — движение, готов — успех, |
 | `STAGE_STATUSES` | `src/lib/order-constants.ts` | Статус этапа внутри заявки (роадмап, раздел 3): не начат → в работе → |
 | `STAGE_STATUS_LABELS` | `src/lib/order-constants.ts` | — |
 | `SYSTEM_ACTOR` | `src/lib/activity.ts` | — |
 | `SYSTEM_ACTOR_NAME` | `src/lib/events.ts` | Снимок имени системного актёра. Живёт здесь (а не в activity.ts), |
+| `SettingDef` | `src/lib/settings.ts` | — |
+| `SettingGroup` | `src/lib/settings.ts` | — |
+| `SettingKey` | `src/lib/settings.ts` | — |
+| `SettingType` | `src/lib/settings.ts` | type — рендер поля на экране настроек: время, список времён, число, |
+| `SettingValidationError` | `src/lib/settings-validators.ts` | Ошибка валидации/неизвестного ключа: API /api/admin/settings |
+| `SettingValue` | `src/lib/settings.ts` | value — Json: форма зависит от типа; структуру знает реестр, БД не |
+| `SettingsValues` | `src/lib/settings.ts` | Ключ → тип значения: getSetting/setSetting типизированы по реестру, |
 | `StageStatus` | `src/lib/order-constants.ts` | — |
 | `StageView` | `src/lib/order-summary.ts` | — |
 | `StageViewRow` | `src/lib/order-summary.ts` | — |
@@ -203,6 +213,16 @@
 | `allowedLeadTransitionsLabeled` | `src/lib/status-machine.ts` | — |
 | `allowedOrderTransitionsLabeled` | `src/lib/status-machine.ts` | — |
 | `apiErrorResponse` | `src/lib/api-errors.ts` | — |
+| `asEventCodeList` | `src/lib/settings-validators.ts` | Коды «красных» событий — только из реестра ACTIVITY_TYPES: свободный |
+| `asInt` | `src/lib/settings-validators.ts` | — |
+| `asNonEmptyStr` | `src/lib/settings-validators.ts` | — |
+| `asOneOf` | `src/lib/settings-validators.ts` | — |
+| `asOptionalEmail` | `src/lib/settings-validators.ts` | — |
+| `asOptionalStr` | `src/lib/settings-validators.ts` | Пустая строка легитимна («не задано»): brand.signature, email.reply_to. |
+| `asStringList` | `src/lib/settings-validators.ts` | — |
+| `asTime` | `src/lib/settings-validators.ts` | — |
+| `asTimeList` | `src/lib/settings-validators.ts` | — |
+| `asTimezone` | `src/lib/settings-validators.ts` | — |
 | `brokerActor` | `src/lib/activity.ts` | Брокер портала (Д): имя — companyName на момент действия (снимок, |
 | `brokerSessionCookieOptions` | `src/lib/broker-auth.ts` | — |
 | `buildLeadEditDiff` | `src/lib/lead-edit.ts` | Diff анкеты: список строк «Подпись: старое → новое» (только реально |
@@ -215,6 +235,7 @@
 | `checkLoginGuard` | `src/lib/login-guard.ts` | — |
 | `checkOrderTransition` | `src/lib/status-machine.ts` | — |
 | `ciContains` | `src/lib/list-query.ts` | Тип — надстройка над Prisma StringFilter: в postgres-генерации клиент |
+| `clearSettingsCache` | `src/lib/settings.ts` | Сброс кэша: тесты и административные операции (после массовых правок). |
 | `clientActor` | `src/lib/activity.ts` | Клиент кабинета (И1): имя — Customer.name на момент действия |
 | `clientSessionCookieOptions` | `src/lib/client-auth.ts` | — |
 | `cn` | `src/lib/utils.ts` | — |
@@ -264,6 +285,8 @@
 | `getCurrentEmployee` | `src/lib/auth.ts` | — |
 | `getEmployeeByToken` | `src/lib/auth.ts` | — |
 | `getIncompleteMandatoryStages` | `src/lib/orders.ts` | ─── Готовность обязательного ядра к завершению заявки (P1-05) ── |
+| `getSetting` | `src/lib/settings.ts` | Пустая таблица легитимна: откат на значение по умолчанию — система |
+| `getSettingDef` | `src/lib/settings.ts` | Свободные ключи не допускаются: пишем только то, что знает экран |
 | `hashPassword` | `src/lib/password.ts` | — |
 | `hashSessionToken` | `src/lib/portal-auth.ts` | — |
 | `isCurrencyCode` | `src/lib/money.ts` | — |
@@ -303,10 +326,12 @@
 | `requireContractor` | `src/lib/contractor-auth.ts` | Единственный способ проверить подрядчика в роутах кабинета; опций нет — |
 | `requireEmployee` | `src/lib/auth.ts` | — |
 | `requisitesInn` | `src/lib/requisite-fields.ts` | ИНН — главный реквизит для строки списка (идентифицирует юрлицо |
+| `resetSetting` | `src/lib/settings.ts` | «Сбросить» на экране настроек: строка удаляется, getSetting возвращается |
 | `resolveFileMime` | `src/lib/file-signature.ts` | — |
 | `routeToDbColumns` | `src/lib/route-fields.ts` | RouteFieldsInput → данные для prisma create/update (readyDate — Date, |
 | `sanitizeFileName` | `src/lib/documents.ts` | Санитизация имени: без каталогов, без управляющих символов, без |
 | `sessionCookieOptions` | `src/lib/auth.ts` | — |
+| `setSetting` | `src/lib/settings.ts` | Актёр — тот, кто сохранил (мастер; API Блока 4 передаёт employeeActor). |
 | `stageVisual` | `src/lib/stage-visuals.ts` | — |
 | `summarizeOrderStages` | `src/lib/order-summary.ts` | Этапы заявки (по sequence asc) → сводка: первый незавершённый этап |
 | `todayUtcMidnight` | `src/lib/order-summary.ts` | Граница «сегодня» по UTC: плановые даты приходят UTC-полуночью |
@@ -385,6 +410,7 @@
 | `RawInfoView` | `src/components/admin/contractorlead/RawInfoView.tsx` |
 | `RequisitesFields` | `src/components/admin/legalentity/RequisitesFields.tsx` |
 | `RoleChips` | `src/components/admin/employee/RoleChips.tsx` |
+| `SettingsPanel` | `src/components/admin/SettingsPanel.tsx` |
 | `SideActivityFeed` | `src/components/admin/SideActivityFeed.tsx` |
 | `StageCard` | `src/components/admin/order/StageCard.tsx` |
 | `StageCatalogList` | `src/components/admin/StageCatalogList.tsx` |
@@ -489,6 +515,7 @@
 | POST | `/api/admin/orders/{id}/stages` | admin | employee | write | нет |
 | DELETE, PATCH | `/api/admin/orders/{id}/stages/{stageId}` | admin | employee | write | нет |
 | GET | `/api/admin/search` | admin | employee | — | нет |
+| DELETE, GET, PATCH | `/api/admin/settings` | admin | employee | — | нет |
 | GET, POST | `/api/admin/stage-catalog` | admin | employee | — | нет |
 | DELETE, PATCH | `/api/admin/stage-catalog/{id}` | admin | employee | — | нет |
 | POST | `/api/auth/broker/login` | auth | — | — | нет |
@@ -551,6 +578,7 @@
 | `OrderStageCatalog` | 5 | scripts/seed.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/orders/[id]/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts (+11) |
 | `OrderStageInstance` | 11 | src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts, src/app/api/contractor/orders/[id]/stages/[stageId]/route.ts, src/lib/orders.ts |
 | `QuoteOption` | 14 | src/app/api/admin/leads/[id]/patch.ts, src/app/api/admin/options/[id]/route.ts |
+| `Setting` | 4 | src/app/api/admin/settings/route.ts, src/lib/settings.ts |
 
 ## Переменные окружения
 

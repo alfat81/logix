@@ -73,6 +73,12 @@ export const ACTIVITY_TYPES = [
   // description, автор — actor, время — createdAt. Попадают в
   // ленту, внешним кабинетам не показываются (isInternal).
   'note_added',
+  // настройки системы (DF-00D, D32): изменение значения из реестра
+  // SETTINGS. Цель событие — нет (настройка глобальна, не belongs
+  // сделке); старое/новое — description (без секретов: ключи
+  // реестра не содержат их по определению — секреты живут в env).
+  // Аудитория staff: значения настроек — внутренняя кухня.
+  'setting_changed',
 ] as const
 export type ActivityType = (typeof ACTIVITY_TYPES)[number]
 
@@ -119,8 +125,11 @@ export function brokerActor(b: { id: string; companyName: string }): BrokerActor
 
 export const SYSTEM_ACTOR: ActivityActor = { type: 'system' }
 
-// Цель события — ровно одна из трёх. Дискриминированное объединение:
-// TS не даст передать две цели или ни одной.
+// Цель-сделка — ровно одна из трёх. Дискриминированное объединение:
+// TS не даст передать две цели. Ноль целей на уровне emitEvent
+// легитимен (EmitEventInput.target опционален, DF-00D): глобальные
+// события без сделки (setting_changed) пишутся без цели, колонки БД
+// nullable; этот union описывает только цель-сделку.
 export type ActivityTarget =
   | { orderId: string }
   | { leadId: string }
