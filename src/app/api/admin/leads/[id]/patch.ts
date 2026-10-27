@@ -11,7 +11,8 @@ import {
 import { readyDateInput } from '@/lib/route-fields'
 import { checkLeadTransition } from '@/lib/status-machine'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { logActivity, employeeActor } from '@/lib/activity'
+import { employeeActor } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 
 // v0.5.0 (P1-22): PATCH /api/admin/leads/[id] — выезд из route.ts
 // (резка под лимит 300, RULES 2.14). Логика 1:1.
@@ -240,11 +241,10 @@ export async function patchLead(
       },
     })
 
-    // Ж2: журнал — по смысловым частям PATCH, отдельная запись на каждую:
-    // лента читается как хроника решений, а не «что-то обновили».
+    // Ж2: журнал — по смысловым частям PATCH, отдельная запись на каждую
+    // (лента — хроника решений, а не «что-то обновили»).
     if (status !== undefined) {
-      const prevLabel =
-        LEAD_STATUS_LABELS[existing.status as LeadStatus] ?? existing.status
+      const prevLabel = LEAD_STATUS_LABELS[existing.status as LeadStatus] ?? existing.status
       const statusDescription =
         status === 'lost'
           ? `Статус: ${prevLabel} → ${LEAD_STATUS_LABELS[status]} — причина: ${lostReason}`
@@ -252,12 +252,12 @@ export async function patchLead(
             ? // P1-05: причина отказа не теряется — уходит в журнал вместе с возвратом.
               `Возвращён в работу: ${prevLabel} → ${LEAD_STATUS_LABELS[status]} — причина отказа: ${existing.lostReason ?? 'не указана'}`
             : `Статус: ${prevLabel} → ${LEAD_STATUS_LABELS[status]}`
-      await logActivity(
-        { leadId: id },
-        employeeActor(auth.employee),
-        'lead_status_changed',
-        statusDescription,
-      )
+      await emitEvent(db, {
+        target: { leadId: id },
+        actor: employeeActor(auth.employee),
+        type: 'lead_status_changed',
+        description: statusDescription,
+      })
     }
     let assigneeMessage: string | null = null
     if (assignedToId !== undefined) {
@@ -268,21 +268,21 @@ export async function patchLead(
           : prevName
             ? `Ответственный: ${prevName} → ${newAssigneeName}`
             : `Назначен ответственный: ${newAssigneeName}`
-      await logActivity(
-        { leadId: id },
-        employeeActor(auth.employee),
-        'lead_assignee_changed',
+      await emitEvent(db, {
+        target: { leadId: id },
+        actor: employeeActor(auth.employee),
+        type: 'lead_assignee_changed',
         description,
-      )
+      })
       assigneeMessage = assignedToId === null ? 'Ответственный снят' : `Ответственный: ${newAssigneeName}`
     }
     if (editDescription) {
-      await logActivity(
-        { leadId: id },
-        employeeActor(auth.employee),
-        'lead_edited',
-        editDescription,
-      )
+      await emitEvent(db, {
+        target: { leadId: id },
+        actor: employeeActor(auth.employee),
+        type: 'lead_edited',
+        description: editDescription,
+      })
     }
 
     const messageParts: string[] = []

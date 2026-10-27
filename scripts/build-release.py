@@ -34,6 +34,8 @@ EXCLUDE_DIRS = {
     ".git", ".next", "node_modules", "__pycache__",
     ".turbo", ".vercel", ".zscripts", "skills", "upload", "download",
     "examples", ".pytest_cache", ".venv",
+    # локальные бинари/данные PostgreSQL песочницы (provision_pg.sh, 247 МБ)
+    ".pg",
 }
 
 # Файлы-мусор и СЕКРЕТЫ. .env.* исключены намеренно: в клоне владельца

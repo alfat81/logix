@@ -9,7 +9,8 @@ import {
   type TransportTypeCode,
 } from '@/lib/route-fields'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { logActivity, employeeActor } from '@/lib/activity'
+import { employeeActor } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 import { ciContains } from '@/lib/list-query'
 
 // ─── GET /api/admin/leads — список лидов (В2) ─────────────────
@@ -228,16 +229,18 @@ export async function POST(req: NextRequest) {
     })
 
     // Ж2: журнал — рождение лида (воронка начинается с запроса).
-    await logActivity(
-      { leadId: lead.id },
-      employeeActor(auth.employee),
-      'lead_created',
-      customerName
+    // DF-01: emitEvent — единственная точка записи, аудитория — из
+    // реестра EVENT_TYPES.
+    await emitEvent(db, {
+      target: { leadId: lead.id },
+      actor: employeeActor(auth.employee),
+      type: 'lead_created',
+      description: customerName
         ? `Запрос создан — клиент: ${customerName}`
         : contactName
           ? `Запрос создан — контакт: ${contactName}`
           : 'Запрос создан',
-    )
+    })
 
     return NextResponse.json({ lead, message: 'Запрос создан' }, { status: 201 })
   } catch (e) {

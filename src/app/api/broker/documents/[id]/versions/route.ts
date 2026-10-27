@@ -49,7 +49,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       brokerActor(auth.broker),
       doc.title,
       result.version.version,
-      parsed.comment
+      parsed.comment,
+      // DF-01: documentId связывает событие с документом (лента → файл)
+      { documentId: id }
     )
 
     return NextResponse.json({ version: result.version, document: result.document }, { status: 201 })

@@ -4,11 +4,12 @@ import { z } from 'zod'
 import { resolveFileMime } from '@/lib/file-signature'
 import { db } from '@/lib/db'
 import {
-  logActivity,
   type EmployeeActor,
   type ClientActor,
   type BrokerActor,
 } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
+import { documentEventAudience } from '@/lib/audience'
 import {
   DOC_ALLOWED_MIME,
   DOC_COMMENT_MAX_LENGTH,
@@ -309,18 +310,18 @@ export async function createDocumentOnDeal(
     throw new Error('документ создан, но не читается — рассинхрон схемы')
   }
 
-  // Ж2: событие в ленту сделки. О внутреннем документе — только
-  // внутренняя запись: внешний кабинет не должен даже узнать о
-  // факте его существования (ACTIVITY_EXTERNAL_WHERE отфильтрует;
-  // лента наружу пока не отдаётся, но флаг ставится сразу).
-  await logActivity(
-    deal,
+  // Ж2: событие в ленту сделки (DF-01 — через emitEvent, единственная
+  // точка записи). documentId связывает событие с документом (DF-12);
+  // о внутреннем документе — только внутренняя запись: внешний кабинет
+  // не должен даже узнать о факте его существования.
+  await emitEvent(db, {
+    target: deal,
     actor,
-    'document_created',
-    `Документ «${document.title}» (версия 1)${meta.comment ? `: ${meta.comment}` : ''}`,
-    undefined,
-    { isInternal },
-  )
+    type: 'document_created',
+    description: `Документ «${document.title}» (версия 1)${meta.comment ? `: ${meta.comment}` : ''}`,
+    documentId: document.id,
+    audience: documentEventAudience(isInternal),
+  })
 
   return document
 }
@@ -400,16 +401,16 @@ export async function logDocumentVersionAdded(
   docTitle: string,
   version: number,
   comment: string | undefined,
-  opts?: { isInternal?: boolean },
+  opts?: { isInternal?: boolean; documentId?: string | null },
 ): Promise<void> {
-  await logActivity(
-    deal,
+  await emitEvent(db, {
+    target: deal,
     actor,
-    'document_version_added',
-    `Версия ${version} документа «${docTitle}»${comment ? `: ${comment}` : ''}`,
-    undefined,
-    opts,
-  )
+    type: 'document_version_added',
+    description: `Версия ${version} документа «${docTitle}»${comment ? `: ${comment}` : ''}`,
+    documentId: opts?.documentId ?? null,
+    audience: documentEventAudience(opts?.isInternal ?? false),
+  })
 }
 
 // ── Удаление документа (только менеджер) ────────────────────────────
@@ -429,14 +430,14 @@ export async function deleteDocument(
   const deal: DocumentDealTarget = doc.orderId
     ? { orderId: doc.orderId }
     : { leadId: doc.leadId! }
-  await logActivity(
-    deal,
+  await emitEvent(db, {
+    target: deal,
     actor,
-    'document_deleted',
-    `Документ «${doc.title}» удалён`,
-    undefined,
-    { isInternal: doc.isInternal },
-  )
+    type: 'document_deleted',
+    description: `Документ «${doc.title}» удалён`,
+    documentId: doc.id,
+    audience: documentEventAudience(doc.isInternal),
+  })
   return { title: doc.title }
 }
 

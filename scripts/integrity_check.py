@@ -126,6 +126,15 @@ def ic02() -> None:
 def ic03() -> None:
     # { write: true } — маркер requireEmployee (P1-09); у портальных гвардов опций нет
     # («периметр один», client-auth.ts) — для них проверяем только событие/no-event.
+    # DF-01 (G3): событие — через emitEvent (единственная точка записи,
+    # lib/events.ts); logActivity — deprecated-обёртка замороженного контура
+    # (D31), logInternalNote — заметки Ж3. Хелперы documents.ts пишут события
+    # внутри (createDocumentOnDeal/deleteDocument), версии — в роуте через
+    # addDocumentVersion/logDocumentVersionAdded. Делегирование patch.ts
+    # (P1-22, лимит 300) событийно: patchLead/patchOrder зовут emitEvent.
+    event_call = (r"emitEvent\(|logActivity\(|logInternalNote\(|"
+                  r"createDocumentOnDeal\(|addDocumentVersion\(|deleteDocument\(|"
+                  r"patchLead\(|patchOrder\(|detachBrokerFromLead\(|detachBrokerFromOrder\(")
     for f in rglob("src/app/api/**/route.ts"):
         t = text(f)
         url = rel(f)
@@ -136,7 +145,7 @@ def ic03() -> None:
             continue
         if seg == "admin" and "{ write: true }" not in t:
             add("IC-03", url + ":write", "admin write-роут без { write: true }")
-        if not re.search(r"db\.activity\.create|createActivity", t) and "// no-event:" not in t:
+        if not re.search(event_call, t) and "// no-event:" not in t:
             add("IC-03", url + ":event", "write-роут без события и без // no-event:")
 
 

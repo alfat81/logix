@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { logActivity, employeeActor } from '@/lib/activity'
+import { detachBrokerFromLead } from '@/lib/broker-links'
 
 type Params = { params: Promise<{ id: string; brokerId: string }> }
 
@@ -11,7 +11,8 @@ type Params = { params: Promise<{ id: string; brokerId: string }> }
 // платежей (BrokerEstimate, 1:1 со связью) уходит каскадом вместе со
 // связью — отключение = «консультация прекращена», полусвязь с
 // осиротевшей оценкой не нужна (заявка ещё не создана; на won-лидах
-// отключение запрещено, см. ниже).
+// отключение запрещено, см. ниже). Снятие связи и событие detach —
+// в lib/broker-links.ts (общий хвост с заявкой, DF-01 G3).
 //
 // Лид в won/с заявкой — 409: связь уже перенесена в OrderBroker (В4),
 // история расчёта зафиксирована; управлять видимостью исполнения
@@ -36,22 +37,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       )
     }
 
-    const link = await db.leadBroker.findUnique({
-      where: { leadId_brokerId: { leadId: id, brokerId } },
-      include: { broker: { select: { id: true, companyName: true } } },
-    })
+    const link = await detachBrokerFromLead(id, brokerId, auth.employee)
     if (!link) {
       return NextResponse.json({ error: 'Брокер не подключён к этому запросу' }, { status: 404 })
     }
-
-    await db.leadBroker.delete({ where: { id: link.id } })
-
-    await logActivity(
-      { leadId: id },
-      employeeActor(auth.employee),
-      'lead_broker_detached',
-      `Отключён брокер: ${link.broker.companyName}`,
-    )
 
     return NextResponse.json({ ok: true, message: `Брокер «${link.broker.companyName}» отключён` })
   } catch (e) {

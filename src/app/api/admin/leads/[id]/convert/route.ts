@@ -11,7 +11,8 @@ import { createOrderWithStages, findOrCreateCustomer } from '@/lib/orders'
 import { carryDocumentsToOrder } from '@/lib/documents'
 import { normalizePhone } from '@/lib/phone'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { logActivity, employeeActor } from '@/lib/activity'
+import { employeeActor } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 import { carryBrokersToOrder, loadLeadCard } from './helpers'
 
 type Params = { params: Promise<{ id: string }> }
@@ -187,24 +188,22 @@ export async function POST(req: NextRequest, { params }: Params) {
         const carriedDocs = await carryDocumentsToOrder(id, orderRes.id, tx)
 
         // 6. Аудит в обе ленты событий
-        await logActivity(
-          { leadId: id },
-          employeeActor(auth.employee),
-          'lead_converted',
-          `Сконвертирован в заявку №${orderRes.number}` +
+        await emitEvent(tx, {
+          target: { leadId: id },
+          actor: employeeActor(auth.employee),
+          type: 'lead_converted',
+          description: `Сконвертирован в заявку №${orderRes.number}` +
             (carriedBrokers > 0 ? ` — брокеры перенесены: ${carriedBrokers}` : '') +
             (carriedDocs > 0 ? `, документы перенесены: ${carriedDocs}` : ''),
-          tx
-        )
-        await logActivity(
-          { orderId: orderRes.id },
-          employeeActor(auth.employee),
-          'order_created',
-          `Заявка №${orderRes.number} создана конвертацией из запроса — груз и условия скопированы снимком` +
+        })
+        await emitEvent(tx, {
+          target: { orderId: orderRes.id },
+          actor: employeeActor(auth.employee),
+          type: 'order_created',
+          description: `Заявка №${orderRes.number} создана конвертацией из запроса — груз и условия скопированы снимком` +
             (carriedBrokers > 0 ? `, брокеры видимости: ${carriedBrokers}` : '') +
             (carriedDocs > 0 ? `, документы: ${carriedDocs}` : ''),
-          tx
-        )
+        })
 
         return {
           order: { id: orderRes.id, number: orderRes.number },

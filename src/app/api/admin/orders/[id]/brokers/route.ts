@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { logActivity, employeeActor } from '@/lib/activity'
+import { employeeActor } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 import { BROKER_PUBLIC_FIELDS } from '@/lib/brokers'
 
 type Params = { params: Promise<{ id: string }> }
@@ -80,12 +81,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       include: { broker: { select: BROKER_PUBLIC_FIELDS } },
     })
 
-    await logActivity(
-      { orderId: id },
-      employeeActor(auth.employee),
-      'order_broker_attached',
-      `Подключён брокер: ${broker.companyName}`,
-    )
+    await emitEvent(db, {
+      target: { orderId: id },
+      actor: employeeActor(auth.employee),
+      type: 'order_broker_attached',
+      description: `Подключён брокер: ${broker.companyName}`,
+    })
 
     return NextResponse.json({ link }, { status: 201 })
   } catch (e) {

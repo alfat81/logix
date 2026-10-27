@@ -6,6 +6,7 @@ import {
   ACTIVITY_PUBLIC_FIELDS,
   ACTIVITY_FEED_TAKE,
 } from '@/lib/activity'
+import { eventWhereFor } from '@/lib/audience'
 import { patchLead } from './patch'
 
 type Params = { params: Promise<{ id: string }> }
@@ -37,7 +38,10 @@ export async function GET(req: NextRequest, { params }: Params) {
           },
         },
         // Ж2: лента событий — свежие сверху, окно ACTIVITY_FEED_TAKE.
+        // DF-01: фильтр аудитории — только через eventWhereFor (§1.3);
+        // для staff это пустой фрагмент.
         activities: {
+          where: eventWhereFor('staff'),
           orderBy: { createdAt: 'desc' },
           take: ACTIVITY_FEED_TAKE,
           select: ACTIVITY_PUBLIC_FIELDS,

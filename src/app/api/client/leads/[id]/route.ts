@@ -9,7 +9,8 @@ import {
   ClientLeadEditSchema,
 } from '@/lib/lead-edit'
 import { readyDateInput } from '@/lib/route-fields'
-import { logActivity, clientActor } from '@/lib/activity'
+import { clientActor } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -135,7 +136,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         placesCount: route?.placesCount,
       },
     })
-    await logActivity({ leadId: id }, clientActor(auth.client), 'lead_edited', description)
+    await emitEvent(db, {
+      target: { leadId: id },
+      actor: clientActor(auth.client),
+      type: 'lead_edited',
+      description,
+    })
 
     return NextResponse.json({ ok: true, message: 'Запрос обновлён' })
   } catch (e) {

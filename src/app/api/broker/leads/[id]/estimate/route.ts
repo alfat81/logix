@@ -3,7 +3,8 @@ import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireBroker } from '@/lib/broker-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { logActivity, brokerActor } from '@/lib/activity'
+import { brokerActor } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 import { BrokerEstimateSchema, readPermits } from '@/lib/brokers'
 import { formatMoney } from '@/lib/money'
 
@@ -78,12 +79,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
       duty !== null ? `платежи: ${formatMoney(duty.toString(), 'RUB')}` : 'платежи: не указаны',
     )
     parts.push(permits.length > 0 ? `разрешительные документы: ${permits.length}` : 'разрешительные документы: не указаны')
-    await logActivity(
-      { leadId: id },
-      brokerActor({ id: auth.broker.id, companyName: auth.broker.companyName }),
-      'broker_estimate_changed',
-      `Оценка таможенных платежей (${link.estimate ? 'обновлена' : 'сообщена'}) — ${parts.join(', ')}`,
-    )
+    await emitEvent(db, {
+      target: { leadId: id },
+      actor: brokerActor({ id: auth.broker.id, companyName: auth.broker.companyName }),
+      type: 'broker_estimate_changed',
+      description: `Оценка таможенных платежей (${link.estimate ? 'обновлена' : 'сообщена'}) — ${parts.join(', ')}`,
+    })
 
     return NextResponse.json({
       estimate: {

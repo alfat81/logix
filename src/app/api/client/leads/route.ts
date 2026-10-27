@@ -3,7 +3,8 @@ import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireClient } from '@/lib/client-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { logActivity, clientActor } from '@/lib/activity'
+import { clientActor } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 import {
   ClientCreateRequestSchema,
   CLIENT_LEAD_DAILY_LIMIT,
@@ -125,12 +126,12 @@ export async function POST(req: NextRequest) {
     // Ж2: рождение лида из кабинета — в общую ленту лида. Новый тип
     // актёра 'client' (решение И1): до сих пор ленту писали только
     // сотрудники и подрядчики.
-    await logActivity(
-      { leadId: lead.id },
-      clientActor(auth.client),
-      'lead_created',
-      'Запрос создан клиентом в кабинете'
-    )
+    await emitEvent(db, {
+      target: { leadId: lead.id },
+      actor: clientActor(auth.client),
+      type: 'lead_created',
+      description: 'Запрос создан клиентом в кабинете',
+    })
 
     return NextResponse.json({ lead, message: 'Запрос отправлен' }, { status: 201 })
   } catch (e) {

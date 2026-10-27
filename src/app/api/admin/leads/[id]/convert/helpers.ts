@@ -4,6 +4,7 @@ import {
   ACTIVITY_PUBLIC_FIELDS,
   ACTIVITY_FEED_TAKE,
 } from '@/lib/activity'
+import { eventWhereFor } from '@/lib/audience'
 
 // v0.5.0 (P1-22): хелперы конвертации лида в заявку (В4) — выезд из
 // route.ts (резка под лимит 300, RULES 2.14). Логика 1:1.
@@ -58,6 +59,9 @@ export async function loadLeadCard(id: string) {
         },
       },
       activities: {
+        // DF-01: фильтр аудитории — только через eventWhereFor (§1.3);
+        // для staff это пустой фрагмент.
+        where: eventWhereFor('staff'),
         orderBy: { createdAt: 'desc' },
         take: ACTIVITY_FEED_TAKE,
         select: ACTIVITY_PUBLIC_FIELDS,

@@ -12,13 +12,15 @@
 
 | Экспорт | Файл | Назначение (первая строка комментария) |
 |---|---|---|
-| `ACTIVITY_EXTERNAL_WHERE` | `src/lib/activity.ts` | Обязательный фрагмент where для ВНЕШНИХ read-контекстов ленты — |
+| `ACTIVITY_EXTERNAL_WHERE` | `src/lib/activity.ts` | — |
 | `ACTIVITY_FEED_TAKE` | `src/lib/activity.ts` | Лимит выдачи: лента без пагинации (Ж4 сделает постраничность для |
 | `ACTIVITY_PUBLIC_FIELDS` | `src/lib/activity.ts` | ── Чтение ленты (GET карточек) ───────────────────────────────────── |
 | `ACTIVITY_TYPES` | `src/lib/activity.ts` | Стабильные коды событий: расширение списка — правка здесь, значения |
+| `AUDIENCES` | `src/lib/audience.ts` | — |
 | `ActivityActor` | `src/lib/activity.ts` | Кто действовал. Сотрудник, подрядчик, клиент (И1 — запрос из |
 | `ActivityTarget` | `src/lib/activity.ts` | Цель события — ровно одна из трёх. Дискриминированное объединение: |
 | `ActivityType` | `src/lib/activity.ts` | — |
+| `Audience` | `src/lib/audience.ts` | — |
 | `BROKER_COMPANY_NAME_MAX` | `src/lib/brokers.ts` | Название компании — потолок как у подрядчика (Г2). |
 | `BROKER_KIND_LABELS` | `src/lib/brokers.ts` | Пометка «штатный/привлечённый» для списков. |
 | `BROKER_PASSWORD_MAX` | `src/lib/brokers.ts` | — |
@@ -28,6 +30,7 @@
 | `BrokerActor` | `src/lib/activity.ts` | — |
 | `BrokerEstimateInput` | `src/lib/brokers.ts` | — |
 | `BrokerEstimateSchema` | `src/lib/brokers.ts` | — |
+| `BrokerLinkSnapshot` | `src/lib/broker-links.ts` | Снимок связи для 404 и имени брокера в событии/ответе. |
 | `CARGO_PROFILES` | `src/lib/order-constants.ts` | Профиль груза (роадмап, раздел 6: негабарит/опасные — глубже в Phase 2). |
 | `CARGO_PROFILE_LABELS` | `src/lib/order-constants.ts` | — |
 | `CLIENT_LEAD_DAILY_LIMIT` | `src/lib/client-constants.ts` | Дневной потолок запросов из кабинета на клиента (анти-спам внешнего |
@@ -105,9 +108,12 @@
 | `EMPLOYEE_ROLE_LABELS` | `src/lib/employees.ts` | — |
 | `EMPTY_LEAD_CARGO_FORM` | `src/lib/leads.ts` | — |
 | `ESTIMATE_NOTES_MAX` | `src/lib/brokers.ts` | — |
+| `EVENT_TYPES` | `src/lib/events.ts` | — |
+| `EmitEventInput` | `src/lib/events.ts` | — |
 | `EmployeeActor` | `src/lib/activity.ts` | Конкретные типы актёров (Е: документы требуют ровно один из трёх |
 | `EmployeeRole` | `src/lib/auth.ts` | Роли — JSON-массив в Employee.roles (не enum БД): новая роль — правка |
 | `EmployeeRoleName` | `src/lib/employees.ts` | — |
+| `EventMeta` | `src/lib/events.ts` | Метаданные типа события: подпись (для будущих фильтров/писем), |
 | `LEAD_ACTIVE_STATUSES` | `src/lib/leads.ts` | v0.3.1 (BRANDBOOK §4.1): счётчик навигации у «Лидов» — активные, |
 | `LEAD_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Лид: new/calculated — ждём (расчёт, выбор клиента), won — сделка |
 | `LEAD_CARGO_LABELS` | `src/lib/leads.ts` | Подписи полей анкеты — общие для диалога создания и карточки лида |
@@ -129,6 +135,7 @@
 | `MIN_QUERY_LENGTH` | `src/lib/search-constants.ts` | Меньше 2 символов роут не ищет (200 с пустыми секциями): одиночная |
 | `NOTE_MAX_LENGTH` | `src/lib/note-constants.ts` | Потолок текста заметки: лента остаётся читаемой, textarea UI |
 | `NoteRow` | `src/lib/activity.ts` | Запись заметки. В отличие от logActivity (наблюдение над действием — |
+| `NotifyRule` | `src/lib/events.ts` | Кто получит уведомление (DF-03, матрица §8 ROADMAP-DEALFLOW; точные |
 | `ORDER_ACTIVE_STATUSES` | `src/lib/order-constants.ts` | v0.3.1 (BRANDBOOK §4.2): табы-группы списка заявок. «Активные» — |
 | `ORDER_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Заявка: расчёт и согласование — ожидание, в работе — движение, |
 | `ORDER_SORTS` | `src/lib/orders.ts` | ─── Сортировки списка заявок (Ж4; v0.3.1 — переезд из роута, ────── |
@@ -171,7 +178,7 @@
 | `STAGE_STATUSES` | `src/lib/order-constants.ts` | Статус этапа внутри заявки (роадмап, раздел 3): не начат → в работе → |
 | `STAGE_STATUS_LABELS` | `src/lib/order-constants.ts` | — |
 | `SYSTEM_ACTOR` | `src/lib/activity.ts` | — |
-| `SYSTEM_ACTOR_NAME` | `src/lib/activity.ts` | — |
+| `SYSTEM_ACTOR_NAME` | `src/lib/events.ts` | Снимок имени системного актёра. Живёт здесь (а не в activity.ts), |
 | `StageStatus` | `src/lib/order-constants.ts` | — |
 | `StageView` | `src/lib/order-summary.ts` | — |
 | `StageViewRow` | `src/lib/order-summary.ts` | — |
@@ -201,6 +208,7 @@
 | `buildLeadEditDiff` | `src/lib/lead-edit.ts` | Diff анкеты: список строк «Подпись: старое → новое» (только реально |
 | `buildLeadPayload` | `src/lib/leads.ts` | — |
 | `calcOrderEta` | `src/lib/order-summary.ts` | v0.3.1 (BRANDBOOK §4.3): ETA заявки — обещанная дата завершения. |
+| `canSeeDocument` | `src/lib/audience.ts` | Видимость ДОКУМЕНТА аудитории (не сделки!): внутренний документ — |
 | `cargoFormFromData` | `src/lib/leads.ts` | Обратный разбор в состояние формы (Ж1: правка груза ЗАЯВКИ, правка |
 | `carryDocumentsToOrder` | `src/lib/documents.ts` | ── Перенос при конвертации (В4): лид → заявка ────────────────────── |
 | `checkLeadTransition` | `src/lib/status-machine.ts` | — |
@@ -226,11 +234,16 @@
 | `destroyClientSession` | `src/lib/client-auth.ts` | — |
 | `destroyContractorSession` | `src/lib/contractor-auth.ts` | — |
 | `destroySession` | `src/lib/auth.ts` | — |
+| `detachBrokerFromLead` | `src/lib/broker-links.ts` | Снять связь «брокер консультирует запрос» и записать |
+| `detachBrokerFromOrder` | `src/lib/broker-links.ts` | Снять видимость заявки у брокера и записать order_broker_detached. |
 | `detectFamily` | `src/lib/file-signature.ts` | — |
 | `docFileError` | `src/lib/documents.ts` | — |
+| `documentEventAudience` | `src/lib/audience.ts` | Аудитория СОБЫТИЯ о документе: внутренний документ не должен даже |
 | `documentVisibleToBroker` | `src/lib/documents.ts` | — |
 | `documentVisibleToClient` | `src/lib/documents.ts` | — |
+| `emitEvent` | `src/lib/events.ts` | Запись события сделки. Семантика ошибок — как у прежнего logActivity: |
 | `employeeActor` | `src/lib/activity.ts` | — |
+| `eventWhereFor` | `src/lib/audience.ts` | Where-фрагмент для чтения ленты данным кабинетом. |
 | `findOrCreateContract` | `src/lib/orders.ts` | Для новой пары рамочный договор создаётся прозрачно в момент первой |
 | `findOrCreateCustomer` | `src/lib/orders.ts` | Если передан customerId — берём его. Иначе: по телефону (если указан) |
 | `fmtDiffNum` | `src/lib/lead-edit.ts` | ── Форматирование значений для diff ──────────────────────────────── |
@@ -262,7 +275,7 @@
 | `isValidEmail` | `src/lib/phone.ts` | Проверка: это email (строгая)? |
 | `isVatMode` | `src/lib/money.ts` | — |
 | `joinRouteText` | `src/lib/route-fields.ts` | Обратная сборка для показа/редактирования: «Страна, город» / «Город» / |
-| `logActivity` | `src/lib/activity.ts` | ── Запись события ────────────────────────────────────────────────── |
+| `logActivity` | `src/lib/activity.ts` | — |
 | `logDocumentVersionAdded` | `src/lib/documents.ts` | Событие о новой версии — отдельно от транзакции (лента — наблюдение, |
 | `logInternalNote` | `src/lib/activity.ts` | — |
 | `mergeLeadCargo` | `src/lib/lead-edit.ts` | Полная замена известных полей анкеты груза с сохранением неизвестных |
@@ -515,7 +528,7 @@
 
 | Модель | Полей | Где используется |
 |---|---|---|
-| `Activity` | 14 | src/app/admin/(dashboard)/page.tsx, src/lib/activity.ts |
+| `Activity` | 17 | src/app/admin/(dashboard)/page.tsx, src/lib/activity.ts |
 | `Broker` | 12 | src/app/api/admin/brokers/[id]/route.ts, src/app/api/admin/brokers/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/auth/broker/login/route.ts |
 | `BrokerEstimate` | 8 | src/app/api/broker/leads/[id]/estimate/route.ts |
 | `BrokerSession` | 6 | src/lib/broker-auth.ts |
@@ -530,11 +543,11 @@
 | `Employee` | 10 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/leads/[id]/patch.ts, src/app/api/admin/orders/[id]/patch.ts (+1) |
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts |
 | `Lead` | 26 | src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/leads/[id]/convert/helpers.ts, src/app/api/admin/leads/[id]/convert/route.ts (+11) |
-| `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts |
+| `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts |
 | `LegalEntity` | 7 | scripts/seed.ts, src/app/api/admin/leads/[id]/convert/route.ts, src/app/api/admin/legal-entities/[id]/route.ts, src/app/api/admin/legal-entities/route.ts |
 | `LoginAttempt` | 7 | src/lib/login-guard.ts |
-| `Order` | 34 | src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/documents/route.ts (+14) |
-| `OrderBroker` | 6 | src/app/api/admin/orders/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/broker/orders/[id]/documents/route.ts |
+| `Order` | 34 | src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/admin/orders/[id]/notes/route.ts (+14) |
+| `OrderBroker` | 6 | src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/lib/broker-links.ts |
 | `OrderStageCatalog` | 5 | scripts/seed.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/orders/[id]/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts (+11) |
 | `OrderStageInstance` | 11 | src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts, src/app/api/contractor/orders/[id]/stages/[stageId]/route.ts, src/lib/orders.ts |
 | `QuoteOption` | 14 | src/app/api/admin/leads/[id]/patch.ts, src/app/api/admin/options/[id]/route.ts |

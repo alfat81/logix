@@ -6,7 +6,8 @@ import { hashPassword } from '@/lib/password'
 import { normalizePhone } from '@/lib/phone'
 import { PatchContractorLeadSchema, CONTRACTOR_LEAD_STATUS_LABELS } from '@/lib/contractors'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { logActivity, employeeActor } from '@/lib/activity'
+import { employeeActor } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -158,13 +159,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           // Ж2: журнал — рождение подрядчика в той же транзакции:
           // событие существует ровно тогда, когда и сам подрядчик
           // (откат Г2 откатывает и запись).
-          await logActivity(
-            { contractorId: created.id },
-            employeeActor(auth.employee),
-            'contractor_created',
-            `Переведён в пул из кандидатов (кандидат: ${existing.companyName}) — создан логин ЛК`,
-            tx,
-          )
+          await emitEvent(tx, {
+            target: { contractorId: created.id },
+            actor: employeeActor(auth.employee),
+            type: 'contractor_created',
+            description: `Переведён в пул из кандидатов (кандидат: ${existing.companyName}) — создан логин ЛК`,
+          })
           return created
         })
 

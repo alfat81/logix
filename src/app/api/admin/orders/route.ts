@@ -6,7 +6,8 @@ import { requireEmployee } from '@/lib/auth'
 import { ORDER_STATUSES, ORDER_ACTIVE_STATUSES, CARGO_PROFILES, type OrderStatus } from '@/lib/order-constants'
 import { createOrderWithStages, findOrCreateCustomer, summarizeOrderStages, calcOrderEta, todayUtcMidnight } from '@/lib/orders'
 import { normalizePhone } from '@/lib/phone'
-import { logActivity, employeeActor } from '@/lib/activity'
+import { employeeActor } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 import { parseListQuery, ciContains } from '@/lib/list-query'
 import { ORDER_SORTS, orderOrderBy } from '@/lib/orders'
 import { TRANSPORT_TYPE_CODES, type TransportTypeCode } from '@/lib/route-fields'
@@ -276,12 +277,12 @@ export async function POST(req: NextRequest) {
       })
       customerLabel = existing?.name ?? null
     }
-    await logActivity(
-      { orderId: result.id },
-      employeeActor(auth.employee),
-      'order_created',
-      `Заявка №${result.number} создана вручную${customerLabel ? ` — клиент: ${customerLabel}` : ''}`,
-    )
+    await emitEvent(db, {
+      target: { orderId: result.id },
+      actor: employeeActor(auth.employee),
+      type: 'order_created',
+      description: `Заявка №${result.number} создана вручную${customerLabel ? ` — клиент: ${customerLabel}` : ''}`,
+    })
 
     return NextResponse.json({ order: result }, { status: 201 })
   } catch (e) {

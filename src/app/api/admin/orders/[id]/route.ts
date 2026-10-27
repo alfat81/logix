@@ -7,6 +7,7 @@ import {
   ACTIVITY_PUBLIC_FIELDS,
   ACTIVITY_FEED_TAKE,
 } from '@/lib/activity'
+import { eventWhereFor } from '@/lib/audience'
 import { patchOrder } from './patch'
 
 type Params = { params: Promise<{ id: string }> }
@@ -57,7 +58,10 @@ export async function GET(req: NextRequest, { params }: Params) {
       // Ж2: лента событий — последние ACTIVITY_FEED_TAKE записей,
       // свежие сверху (лента карточки — окно, не архив; проекция без
       // actorId — имени-снимка ленте достаточно).
+      // DF-01: фильтр аудитории — только через eventWhereFor (§1.3);
+      // для staff это пустой фрагмент.
       activities: {
+        where: eventWhereFor('staff'),
         orderBy: { createdAt: 'desc' },
         take: ACTIVITY_FEED_TAKE,
         select: ACTIVITY_PUBLIC_FIELDS,

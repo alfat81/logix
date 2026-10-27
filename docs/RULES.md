@@ -165,9 +165,9 @@ src/
     portal-auth.ts     единая авторизация кабинетов (+ client/broker/contractor-auth)
     status-machine.ts  разрешённые переходы статусов
     money.ts           деньги: Decimal-арифметика и formatMoney — единственная точка
-    activity.ts        журнал событий (logActivity — единственная точка записи; переход на events.ts)
-    events.ts          события сделки emitEvent() (ось системы, DF-01)
-    audience.ts        расчёт видимости и аудитории staff|client|broker (DF-01)
+    activity.ts        проекции ленты ACTIVITY_PUBLIC_FIELDS, logInternalNote; logActivity — deprecated-обёртка замороженного контура (D31, DEPRECATIONS.md)
+    events.ts          события сделки: emitEvent() — единственная точка записи; реестр EVENT_TYPES (тип → подпись, аудитория, правило уведомления)
+    audience.ts        единственная точка видимости: eventWhereFor(audience), canSeeDocument; аудитории staff|client|broker (DF-01)
     participants.ts    участники сделки participantsOf() (DF-02)
     notifications/     очередь, правила, шаблоны и транспорты email (DF-03)
     leads.ts / orders.ts / order-constants.ts / documents.ts / contractors.ts /

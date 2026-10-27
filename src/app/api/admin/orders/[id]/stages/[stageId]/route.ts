@@ -5,7 +5,8 @@ import { requireEmployee } from '@/lib/auth'
 import { STAGE_STATUSES, STAGE_STATUS_LABELS, type StageStatus } from '@/lib/order-constants'
 import { isStageMandatory, todayUtcMidnight, utcDayStart } from '@/lib/orders'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { logActivity, employeeActor, fmtRuDate, type ActivityType } from '@/lib/activity'
+import { employeeActor, fmtRuDate, type ActivityType } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 
 type Params = { params: Promise<{ id: string; stageId: string }> }
 
@@ -189,7 +190,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       })
     }
     for (const ev of events) {
-      await logActivity({ orderId: id }, employeeActor(auth.employee), ev.type, ev.description)
+      await emitEvent(db, {
+        target: { orderId: id },
+        actor: employeeActor(auth.employee),
+        type: ev.type,
+        description: ev.description,
+        // stageId связывает событие с этапом (DF-07 соберёт по нему пульс)
+        stageId,
+      })
     }
 
     return NextResponse.json({
@@ -236,12 +244,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     await db.orderStageInstance.delete({ where: { id: stageId } })
 
-    await logActivity(
-      { orderId: id },
-      employeeActor(auth.employee),
-      'stage_removed',
-      `Удалён этап «${catalogEntry?.name ?? stage.stageCode}»`,
-    )
+    await emitEvent(db, {
+      target: { orderId: id },
+      actor: employeeActor(auth.employee),
+      type: 'stage_removed',
+      description: `Удалён этап «${catalogEntry?.name ?? stage.stageCode}»`,
+      stageId,
+    })
     return NextResponse.json({ ok: true })
   } catch (e) {
     return apiErrorResponse(e, 'stage DELETE', 'Не удалось удалить этап')

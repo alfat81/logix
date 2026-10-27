@@ -52,7 +52,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       doc.title,
       result.version.version,
       parsed.comment,
-      { isInternal: doc.isInternal }
+      // DF-01: documentId связывает событие с документом (лента → файл)
+      { isInternal: doc.isInternal, documentId: id }
     )
 
     return NextResponse.json({ version: result.version, document: result.document }, { status: 201 })

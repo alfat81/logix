@@ -6,7 +6,8 @@ import { hashPassword } from '@/lib/password'
 import { normalizePhone } from '@/lib/phone'
 import { PatchContractorSchema, CONTRACTOR_PUBLIC_FIELDS } from '@/lib/contractors'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { logActivity, employeeActor } from '@/lib/activity'
+import { employeeActor } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -114,30 +115,30 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // профиль — разные события истории (исключение/возврат — решение,
     // пароль — доступ, профиль — уточнение данных).
     if (data.isActive !== undefined) {
-      await logActivity(
-        { contractorId: id },
-        employeeActor(auth.employee),
-        'contractor_pool_changed',
-        data.isActive
+      await emitEvent(db, {
+        target: { contractorId: id },
+        actor: employeeActor(auth.employee),
+        type: 'contractor_pool_changed',
+        description: data.isActive
           ? 'Возвращён в пул — назначается на новые этапы'
           : 'Исключён из пула — новые назначения заблокированы, существующие и вход в ЛК живут',
-      )
+      })
     }
     if (data.password) {
-      await logActivity(
-        { contractorId: id },
-        employeeActor(auth.employee),
-        'contractor_password_changed',
-        'Обновлён пароль ЛК подрядчика',
-      )
+      await emitEvent(db, {
+        target: { contractorId: id },
+        actor: employeeActor(auth.employee),
+        type: 'contractor_password_changed',
+        description: 'Обновлён пароль ЛК подрядчика',
+      })
     }
     if (profileTouched) {
-      await logActivity(
-        { contractorId: id },
-        employeeActor(auth.employee),
-        'contractor_updated',
-        'Обновлены данные подрядчика',
-      )
+      await emitEvent(db, {
+        target: { contractorId: id },
+        actor: employeeActor(auth.employee),
+        type: 'contractor_updated',
+        description: 'Обновлены данные подрядчика',
+      })
     }
 
     return NextResponse.json({

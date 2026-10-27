@@ -13,7 +13,8 @@ import { PatchOrderSchema } from './schemas'
 import { buildLeadEditDiff } from '@/lib/lead-edit'
 import { getIncompleteMandatoryStages } from '@/lib/orders'
 import { checkOrderTransition, TERMINAL_ORDER_STATUSES } from '@/lib/status-machine'
-import { logActivity, employeeActor, type ActivityType } from '@/lib/activity'
+import { employeeActor, type ActivityType } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 
 // v0.5.0 (P1-22): PATCH /api/admin/orders/[id] — выезд из route.ts
 // (резка под лимит 300, RULES 2.14); zod-схема — в schemas.ts. Логика 1:1:
@@ -255,7 +256,12 @@ export async function patchOrder(
       events.push({ type: 'order_fields_changed', description: `Поля заявки: ${fields.join('; ')}` })
     }
     for (const ev of events) {
-      await logActivity({ orderId: id }, employeeActor(employee), ev.type, ev.description)
+      await emitEvent(db, {
+        target: { orderId: id },
+        actor: employeeActor(employee),
+        type: ev.type,
+        description: ev.description,
+      })
     }
 
     return NextResponse.json({

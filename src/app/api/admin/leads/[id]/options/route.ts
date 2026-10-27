@@ -5,7 +5,8 @@ import { requireEmployee } from '@/lib/auth'
 import { CreateQuoteOptionSchema, LEAD_STATUS_LABELS } from '@/lib/leads'
 import { formatMoneyWithVat } from '@/lib/money'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { logActivity, employeeActor } from '@/lib/activity'
+import { employeeActor } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -108,14 +109,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       // Ж2: журнал — в той же транзакции (откат создания откатывает
       // и запись). Автомат new→calculated дописывается в описание —
       // единственный автомат воронки заслуживает строки в ленте.
-      await logActivity(
-        { leadId: id },
-        employeeActor(auth.employee),
-        'option_added',
-        `Добавлен вариант расчёта: ${data.description} — ${formatMoneyWithVat(data.price, data.currency, data.vatMode)}, ${data.etaDays} дн.` +
+      await emitEvent(tx, {
+        target: { leadId: id },
+        actor: employeeActor(auth.employee),
+        type: 'option_added',
+        description: `Добавлен вариант расчёта: ${data.description} — ${formatMoneyWithVat(data.price, data.currency, data.vatMode)}, ${data.etaDays} дн.` +
           (becomesCalculated ? ` — запрос посчитан: ${LEAD_STATUS_LABELS.calculated}` : ''),
-        tx,
-      )
+      })
       return created
     })
 

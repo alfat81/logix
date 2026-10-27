@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
-import { logActivity, employeeActor, fmtRuDate } from '@/lib/activity'
+import { employeeActor, fmtRuDate } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -74,14 +75,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     })
 
     // Ж2: журнал — добавление необязательного этапа поверх ядра.
-    await logActivity(
-      { orderId: id },
-      employeeActor(auth.employee),
-      'stage_added',
-      `Добавлен этап «${catalogEntry.name}»${
+    // stageId связывает событие с этапом (DF-07 соберёт по нему пульс).
+    await emitEvent(db, {
+      target: { orderId: id },
+      actor: employeeActor(auth.employee),
+      type: 'stage_added',
+      description: `Добавлен этап «${catalogEntry.name}»${
         parsed.data.plannedDate ? ` — план: ${fmtRuDate(new Date(parsed.data.plannedDate))}` : ''
       }`,
-    )
+      stageId: stage.id,
+    })
 
     return NextResponse.json({ stage }, { status: 201 })
   } catch (e) {

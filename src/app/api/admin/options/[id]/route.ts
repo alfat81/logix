@@ -4,7 +4,8 @@ import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { UpdateQuoteOptionSchema } from '@/lib/leads'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { logActivity, employeeActor } from '@/lib/activity'
+import { employeeActor } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -95,13 +96,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       // Ж2: журнал — выбор и правка отдельными записями (выбор — это
       // решение, правка — уточнение данных), в той же транзакции.
       if (data.isSelected === true) {
-        await logActivity(
-          { leadId: existing.leadId },
-          employeeActor(auth.employee),
-          'option_selected',
-          `Выбран вариант расчёта: ${data.description ?? existing.description}`,
-          tx,
-        )
+        await emitEvent(tx, {
+          target: { leadId: existing.leadId },
+          actor: employeeActor(auth.employee),
+          type: 'option_selected',
+          description: `Выбран вариант расчёта: ${data.description ?? existing.description}`,
+        })
       }
       const fieldsTouched =
         data.description !== undefined ||
@@ -114,13 +114,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         data.etaDays !== undefined ||
         data.priorityFit !== undefined
       if (fieldsTouched) {
-        await logActivity(
-          { leadId: existing.leadId },
-          employeeActor(auth.employee),
-          'option_updated',
-          `Обновлён вариант расчёта: ${data.description ?? existing.description}`,
-          tx,
-        )
+        await emitEvent(tx, {
+          target: { leadId: existing.leadId },
+          actor: employeeActor(auth.employee),
+          type: 'option_updated',
+          description: `Обновлён вариант расчёта: ${data.description ?? existing.description}`,
+        })
       }
       return updated
     })
@@ -176,12 +175,12 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     await db.lead.update({ where: { id: existing.leadId }, data: { updatedAt: new Date() } })
 
     // Ж2: журнал — удаление варианта (описание — до удаления).
-    await logActivity(
-      { leadId: existing.leadId },
-      employeeActor(auth.employee),
-      'option_removed',
-      `Удалён вариант расчёта: ${existing.description}`,
-    )
+    await emitEvent(db, {
+      target: { leadId: existing.leadId },
+      actor: employeeActor(auth.employee),
+      type: 'option_removed',
+      description: `Удалён вариант расчёта: ${existing.description}`,
+    })
 
     const updatedLead = await db.lead.findUnique({
       where: { id: existing.leadId },

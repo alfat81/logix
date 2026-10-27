@@ -35,3 +35,6 @@ cookies*.txt
 *.dump
 *.sql.gz
 package-lock.json
+
+# локальные бинари/данные PostgreSQL песочницы (scripts/provision_pg.sh)
+.pg/

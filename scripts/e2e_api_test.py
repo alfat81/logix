@@ -231,6 +231,12 @@ s,d=a.r('POST','/api/admin/contractor-leads',{'companyName':'Перевозчи�
 cph=ph(base+2); s,d=a.r('PATCH',f'/api/admin/contractor-leads/{clid}',{'status':'contracted','phone':cph,'password':'contr-pass-1'}); chk('подрядчик рождён',s in(200,201),(s,d))
 s,d=a.r('GET','/api/admin/contractors'); cs=d.get('contractors',d); cid=[c for c in cs if c['phone']==cph][0]['id']
 st2=st[1]; s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{st2["id"]}',{'contractorId':cid}); chk('подрядчик назначен на этап',s==200,(s,d))
+# --- DF-01: события как ось — заметка staff-only, аудитория событий ---
+note='Внутренняя заметка DF-01 '+u
+s,d=a.r('POST',f'/api/admin/orders/{oid}/notes',{'text':note}); chk('DF-01: внутренняя заметка создана',s in(200,201),(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid}'); Oa=d.get('order',d); oacts=Oa.get('activities',[])
+chk('DF-01: заметка в ленте сотрудника (staff видит всё)',any(x['type']=='note_added' and x['isInternal'] and x['description']==note for x in oacts),[x['type'] for x in oacts[:6]])
+chk('DF-01: статус-событие заявки не внутреннее (адресовано клиенту)',any(x['type']=='order_status_changed' and not x['isInternal'] for x in oacts),[x['type'] for x in oacts[:6]])
 # client access
 cust=O['customer']['id'] if O.get('customer') else O['customerId']
 s,d=a.r(AM,f'/api/admin/customers/{cust}/access',{'password':'client-pass-1'}); chk('доступ клиенту выдан',s in(200,201),(s,d))
@@ -242,6 +248,8 @@ txt=json.dumps(d,ensure_ascii=False)
 chk('клиент НЕ видит цену/снимок',('1200000' not in txt),'price leaked')
 chk('P1-04: клиент НЕ видит себестоимость',('costEstimate' not in txt and '999999.99' not in txt),'cost leaked to client')
 chk('клиент НЕ видит подрядчика',('Перевозчик '+u) not in txt,'contractor name leaked')
+chk('DF-01: клиент НЕ видит ленту событий (activities)',('activities' not in txt),'activities leaked to client')
+chk('DF-01: клиент НЕ видит внутреннюю заметку',(note not in txt),'note leaked to client')
 s,d=c.r('GET',f'/api/client/orders/{oid}/documents'); txt=json.dumps(d,ensure_ascii=False)
 chk('клиент НЕ видит внутренний документ',('Тариф подрядчика' not in txt),txt[:200])
 s,d=c.r('GET','/api/admin/orders'); chk('клиент не попадает в админ-API',s==401,s)
@@ -253,12 +261,22 @@ b=C(); s,d=b.r('POST','/api/auth/broker/login',{'phone':bph,'password':'broker-p
 s,d=b.r('GET',f'/api/broker/orders/{oid}'); chk('брокер видит заявку (перенос связи)',s==200,(s,str(d)[:150]))
 txt=json.dumps(d,ensure_ascii=False); chk('брокер НЕ видит цену клиента',('1200000' not in txt),'price leaked to broker')
 chk('P1-04: брокер НЕ видит себестоимость',('costEstimate' not in txt),'cost leaked to broker')
+chk('DF-01: брокер НЕ видит ленту событий (activities)',('activities' not in txt),'activities leaked to broker')
+chk('DF-01: брокер НЕ видит внутреннюю заметку',(note not in txt),'note leaked to broker')
 s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'customsDutyEstimate':85000.5,'requiredPermits':['Сертификат соответствия']})
 if s==405: s,d=b.r('PATCH',f'/api/broker/leads/{lid}/estimate',{'customsDutyEstimate':85000.5,'requiredPermits':['Сертификат соответствия']})
 if s==405: s,d=b.r('POST',f'/api/broker/leads/{lid}/estimate',{'customsDutyEstimate':85000.5,'requiredPermits':['Сертификат соответствия']})
 chk('брокер даёт оценку платежей (дробные, P1-04)',s in(200,201),(s,d))
 chk('P1-04: Decimal оценки в ответе',str((d.get('estimate') or {}).get('customsDutyEstimate')) in('85000.5','85000.50'),d)
 s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'customsDutyEstimate':1.234}); chk('P1-04: 3 знака в оценке → 400',s==400,s)
+# --- DF-01/G3: отключение брокера — общий хвост lib/broker-links.ts ---
+s,d=a.r('POST','/api/admin/brokers',{'companyName':'Брокер-2 '+u,'phone':ph(base+6),'password':'broker-pass-2'}); chk('DF-01: брокер-2 создан',s in(200,201),(s,d)); bid2=(d.get('broker') or d)['id']
+s,d=a.r('POST',f'/api/admin/leads/{lid}/brokers',{'brokerId':bid2}); chk('DF-01: брокер не подключается к won-запросу → 409',s==409,s)
+s,d=a.r('POST',f'/api/admin/orders/{oid}/brokers',{'brokerId':bid2}); chk('DF-01: брокер-2 подключён к заявке',s in(200,201),(s,d))
+s,d=a.r('DELETE',f'/api/admin/orders/{oid}/brokers/{bid2}'); chk('DF-01: брокер отключён от заявки (событие detach)',s==200,(s,d))
+s,d=a.r('DELETE',f'/api/admin/orders/{oid}/brokers/{bid2}'); chk('DF-01: повторное отключение брокера → 404',s==404,s)
+s,d=a.r('GET',f'/api/admin/orders/{oid}'); oacts2=(d.get('order',d)).get('activities',[])
+chk('DF-01: order_broker_detached в ленте с именем брокера',any(x['type']=='order_broker_detached' and ('Брокер-2 '+u) in x['description'] for x in oacts2),[x['type'] for x in oacts2[:6]])
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); acts=d.get('lead',d).get('activities',[])
 chk('P1-04: лента — оценка брокера отформатирована («85 000,50 ₽»)',bool(acts) and any('платежи: 85\u00a0000,50 ₽' in x['description'] for x in acts),[x['description'] for x in acts[:3]])
 # --- contractor
@@ -267,6 +285,7 @@ s,d=k.r('GET',f'/api/contractor/orders/{oid}'); txt=json.dumps(d,ensure_ascii=Fa
 chk('подрядчик НЕ видит цену клиента',('1200000' not in txt),'price leaked to contractor')
 chk('P1-04: подрядчик НЕ видит себестоимость',('costEstimate' not in txt),'cost leaked to contractor')
 chk('подрядчик видит только свои этапы',txt.count('"stageCode"')<=1,txt.count('"stageCode"'))
+chk('DF-01: подрядчик НЕ видит внутреннюю заметку',(note not in txt),'note leaked to contractor')
 s,d=k.r('PATCH',f'/api/contractor/orders/{oid}/stages/{mand["id"]}',{'status':'in_progress'}); chk('подрядчик не правит чужой этап',s in(403,404),s)
 s,d=k.r('PATCH',f'/api/contractor/orders/{oid}/stages/{st2["id"]}',{'status':'problem'}); chk('подрядчик ставит problem своему этапу',s==200,(s,d))
 # --- IDOR: second client
