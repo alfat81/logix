@@ -52,8 +52,12 @@ npx prisma@6.19.3 migrate deploy
 **Сид — обязательно один раз** (справочники заполняются актуализацией, правки мастера не перезаписываются):
 
 ```powershell
-npx prisma@6.19.3 db seed
+npx tsx scripts/seed.ts
 ```
+
+Урок 29.10 (fix2): до fix2 команда `npx prisma@6.19.3 db seed` была **молчаливым no-op** — exit 0 без действий (в package.json не было конфига `prisma.seed`, а сид лежит в `scripts/seed.ts`). После применения fix2 (блок `"prisma": {"seed": "tsx scripts/seed.ts"}` в package.json) равнозначна и `npx prisma@6.19.3 db seed`. Критерий успеха в обоих случаях — строка ожидания ниже, а не exit code.
+
+Если `MASTER_PHONE`/`MASTER_PASSWORD` не заданы в `.env` — передать их прямо в команде: `$env:MASTER_PHONE="+7…"; $env:MASTER_PASSWORD="…"; npx tsx scripts/seed.ts`. Сид идемпотентен: повторный запуск безвреден.
 
 Ожидание в выводе: `Справочники DF-17 актуализированы (country: 249, currency: 32, packaging: 24, incoterm: 12)`.
 

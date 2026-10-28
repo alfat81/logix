@@ -5,6 +5,11 @@
 # его начала — допуск учтён в диспетчере, src/lib/notifications/windows.ts).
 # Секреты задаёт владелец: CRON_SECRET, APP_BASE_URL (Settings → Secrets).
 # Подстраховка — суточный Vercel Cron (см. RELEASE-INSTRUCTIONS).
+# Урок 29.10 (v0.6.7-fix3): без секретов шаг падал «Process completed with
+# exit code 3» — это curl exit 3 «URL malformed»: пустой APP_BASE_URL давал
+# относительный URL, а bash -e обрывал шаг прямо на curl; Bearer в логе был
+# пустой (секрета нет). Диагностика была нечитаемой. Теперь секреты передаются
+# через env, а гарды до curl дают ::error:: с точной инструкцией.
 name: Scheduler
 
 on:
@@ -22,10 +27,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: POST /api/internal/notifications/dispatch
+        env:
+          # Секреты — только через env: GitHub маскирует значения в логах,
+          # а пустое значение ловится гардом ниже с внятной ошибкой.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
         run: |
+          fail() { echo "::error::$1"; exit 1; }
+
+          [ -n "$APP_BASE_URL" ] || fail "Секрет APP_BASE_URL не задан: GitHub → Settings → Secrets and variables → Actions → New repository secret: APP_BASE_URL = боевой адрес приложения, без слэша в конце (например, https://logix.vercel.app). Тот же адрес, что в Vercel (DEPLOY.md §4.3)."
+          case "$APP_BASE_URL" in
+            https://*|http://*) ;;
+            *) fail "APP_BASE_URL должен начинаться с http:// или https:// (сейчас: '$APP_BASE_URL'). Без схемы curl получает относительный URL и падает с exit 3 «URL malformed»." ;;
+          esac
+          [ -n "$CRON_SECRET" ] || fail "Секрет CRON_SECRET не задан: GitHub → Settings → Secrets and variables → Actions → New repository secret: CRON_SECRET = то же значение, что в Vercel (Bearer-токен диспетчера). Без него эндпоинт отвечает 403."
+
+          # || code=000: сбой curl (сеть/таймаут) не должен обрывать шаг до
+          # итоговой диагностики — код 000 попадёт в внятное сообщение ниже.
           code=$(curl -s -o /tmp/dispatch.json -w "%{http_code}" --max-time 60 -X POST \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json" \
-            "${{ secrets.APP_BASE_URL }}/api/internal/notifications/dispatch")
-          echo "HTTP $code: $(cat /tmp/dispatch.json)"
-          test "$code" = "200"
+            "$APP_BASE_URL/api/internal/notifications/dispatch") || code=000
+          echo "HTTP $code: $(cat /tmp/dispatch.json 2>/dev/null || echo '<тела нет>')"
+          [ "$code" = "200" ] || fail "Диспетчер ответил HTTP $code (ожидается 200). 401/403 — CRON_SECRET расходится со значением в Vercel; 000 — эндпоинт не отвечает (деплой спит, домен в APP_BASE_URL неверен); 5xx — смотреть логи Vercel."
