@@ -62,7 +62,13 @@ def strip_ts_comments(src: str) -> str:
 
 
 # ── IC-01: prisma validate + расхождение схемы с миграциями ─────────────────
+# Урок v0.6.7-fix1: молчаливый SKIP (regex не брал URL без пароля — а в .env
+# песочницы как раз такой) спрятал дрейф RefItem.updatedAt от локального гейта;
+# в CI проверка шла и поймала. SKIP теперь всегда с причиной в сводке.
+ic01_skip: str = ""
+
 def ic01() -> str:
+    global ic01_skip
     try:
         subprocess.run(["bunx", "prisma", "validate"], cwd=ROOT, check=True,
                        capture_output=True, timeout=120, env=sub_env())
@@ -71,9 +77,11 @@ def ic01() -> str:
         return "FAIL"
     url = db_url_from_env_file()
     if not url:
+        ic01_skip = "DATABASE_URL не задан"
         return "SKIP"
-    m = re.match(r"(postgresql://[^:/@]+:[^:/@]+@[^/]+)/(\w+)", url)
+    m = re.match(r"(postgresql://[^/]+?)/(\w+)", url)
     if not m:
+        ic01_skip = f"DATABASE_URL не postgresql ({url[:24]}…)"
         return "SKIP"
     shadow_url = f"{m.group(1)}/logix_ic_shadow"
     pg_url = f"{m.group(1)}/postgres"
@@ -85,6 +93,7 @@ def ic01() -> str:
     r = subprocess.run(["bun", "scripts/shadow-db.ts", "create"], cwd=ROOT,
                        capture_output=True, text=True, timeout=60, env=sh_env)
     if r.returncode != 0:
+        ic01_skip = "shadow-БД logix_ic_shadow не создалась (postgres недоступен?)"
         return "SKIP"
     try:
         d = subprocess.run(
@@ -708,6 +717,8 @@ def main() -> None:
             stale.append((ic, bk))
 
     print(f"IC-01 {ic01_status} (prisma validate + migrate diff)")
+    if ic01_status == "SKIP":
+        print(f"ВНИМАНИЕ: IC-01 SKIP — {ic01_skip}; дрейф схема↔миграции НЕ проверялся")
     for ic in [c for c, _ in CHECKS[1:]]:
         n = len(by_ic.get(ic, []))
         print(f"{ic} {'PASS' if n == 0 else 'FAIL'} ({n})")
