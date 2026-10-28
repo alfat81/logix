@@ -39,6 +39,7 @@ export function EmployeeEditDialog({
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
   const [roles, setRoles] = useState<EmployeeRoleName[]>([])
   const [saving, setSaving] = useState(false)
   const [togglingActive, setTogglingActive] = useState(false)
@@ -48,6 +49,7 @@ export function EmployeeEditDialog({
     if (row) {
       setName(row.name)
       setPhone(row.phone)
+      setEmail(row.email ?? '')
       setRoles(row.roles.length > 0 ? [...row.roles] : ['manager'])
     }
   }, [row])
@@ -63,7 +65,13 @@ export function EmployeeEditDialog({
       const res = await fetch(`/api/admin/employees/${row.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), phone, roles }),
+        body: JSON.stringify({
+          name: name.trim(),
+          phone,
+          // null = очистить email (DF-02: пустое поле в форме — «email нет»)
+          email: email.trim() ? email.trim() : null,
+          roles,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Не удалось сохранить сотрудника')
@@ -140,6 +148,16 @@ export function EmployeeEditDialog({
                   inputMode="tel"
                   value={phone}
                   onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="emp-edit-email">Email для уведомлений</Label>
+                <Input
+                  id="emp-edit-email"
+                  type="email"
+                  placeholder="name@company.ru (необязательно)"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
               <div className="grid gap-2">

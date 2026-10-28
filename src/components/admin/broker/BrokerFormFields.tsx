@@ -60,6 +60,19 @@ export function BrokerFormFields({
           />
         </div>
       </div>
+      {/* DF-02: контактный email компании — адресат уведомлений (DF-03);
+          у людей внутри компании свой email — в списке сотрудников брокера */}
+      <div className="grid gap-2">
+        <Label htmlFor={`${idPrefix}-email`}>Email для уведомлений</Label>
+        <Input
+          id={`${idPrefix}-email`}
+          type="email"
+          placeholder="info@broker-company.ru (необязательно)"
+          value={form.email}
+          onChange={(e) => onChange((f) => ({ ...f, email: e.target.value }))}
+          disabled={disabled}
+        />
+      </div>
       <div className="flex items-center justify-between rounded-lg border p-3">
         <div className="grid gap-0.5">
           <span className="text-sm font-medium">Штатный брокер</span>

@@ -135,6 +135,8 @@ export async function POST(req: NextRequest) {
       data: {
         name: parsed.data.name,
         phone,
+        // DF-02: контактный email (необязателен; непустой — валиден по схеме).
+        ...(parsed.data.email !== undefined ? { email: parsed.data.email } : {}),
         password: hashPassword(parsed.data.password),
         roles: JSON.stringify(parsed.data.roles),
       },

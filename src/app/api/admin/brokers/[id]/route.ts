@@ -95,6 +95,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         data: {
           ...(data.companyName !== undefined ? { companyName: data.companyName } : {}),
           ...(data.phone !== undefined ? { phone: data.phone } : {}),
+          // DF-02: email; null — осознанная очистка, отсутствие — не менять.
+          ...(data.email !== undefined ? { email: data.email } : {}),
           ...(data.password !== undefined ? { password: hashPassword(data.password) } : {}),
           ...(data.isInHouse !== undefined ? { isInHouse: data.isInHouse } : {}),
           ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),

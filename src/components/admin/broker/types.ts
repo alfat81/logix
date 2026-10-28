@@ -10,6 +10,7 @@ export type BrokerRow = {
   id: string
   companyName: string
   phone: string
+  email: string | null
   isInHouse: boolean
   isActive: boolean
   comment: string | null
@@ -22,6 +23,7 @@ export type BrokerFilter = 'all' | 'active' | 'inactive'
 export type BrokerForm = {
   companyName: string
   phone: string
+  email: string
   password: string
   isInHouse: boolean
   comment: string
@@ -30,6 +32,7 @@ export type BrokerForm = {
 export const EMPTY_BROKER_FORM: BrokerForm = {
   companyName: '',
   phone: '',
+  email: '',
   password: '',
   isInHouse: false,
   comment: '',

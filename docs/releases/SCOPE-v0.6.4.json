@@ -1,0 +1,41 @@
+{
+  "task": "DF-02 «Участники сделки»: src/lib/participants.ts — единая точка «кто в сделке» (participantsOf: staff = активный ответственный или мастера, client/brokers с активными пользователями, подрядчики справочно — не адресаты D31; recipientsOfCustomer — люди с email с фолбэком на компанию, единственная точка изменения P1-07); миграция df_02_contact_email — nullable Employee.email/Broker.email (expand); email в формах создания/правки сотрудника и брокера (isEmail, null = очистить), в карточках и API-ответах; vitest 151/151 (+13), e2e 225/225 (+9), заморозка D31 16/16; DEPRECATIONS: contract-записи 0.6.4→0.6.5",
+  "areas": [
+    "src/lib: participants.ts (новый — participantsOf/participantsOfOrder/participantsOfLead/recipientsOfCustomer, 13 интеграционных кейсов в participants.test.ts), employees.ts/brokers.ts (EmailSchema с isEmail, email в Create/Patch схемах и PUBLIC_FIELDS), 4 admin-роута employees/brokers (прокидывание email, null = очистить)",
+    "UI: employee/{types,EmployeeCreateDialog,EmployeeEditDialog,EmployeeCard}, broker/{types,BrokerFormFields,BrokerCreateDialog,BrokerEditDialog,BrokerCard} — поле «Email для уведомлений» (минимальный UI по брендбуку, строка на карточке только при наличии email)",
+    "схема: prisma/schema.prisma (Employee.email, Broker.email — nullable) + миграция 20261028080900_df_02_contact_email (2 × ADD COLUMN TEXT, additive)",
+    "доки: CHANGELOG (+[0.6.4]), ROADMAP.md (статус-блок v0.6.4), ROADMAP-DEALFLOW.md (§6 факт, карточка DF-02 [x], примечание P1-07 → recipientsOfCustomer), DEPRECATIONS.md (0.6.4→0.6.5 ×5), INVENTORY.md (регенерация), package.json 0.6.4, тройка релиза v0.6.4"
+  ],
+  "globs": [
+    "package.json",
+    "CHANGELOG.md",
+    "docs/ROADMAP.md",
+    "docs/ROADMAP-DEALFLOW.md",
+    "docs/DEPRECATIONS.md",
+    "docs/INVENTORY.md",
+    "docs/releases/SCOPE-v0.6.4.json",
+    "docs/releases/RELEASE-NOTES-v0.6.4.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.6.4.md",
+    "prisma/schema.prisma",
+    "prisma/migrations/20261028080900_df_02_contact_email/migration.sql",
+    "scripts/build-release.py",
+    "src/lib/participants.ts",
+    "src/lib/participants.test.ts",
+    "src/lib/employees.ts",
+    "src/lib/brokers.ts",
+    "src/app/api/admin/employees/route.ts",
+    "src/app/api/admin/employees/[id]/route.ts",
+    "src/app/api/admin/brokers/route.ts",
+    "src/app/api/admin/brokers/[id]/route.ts",
+    "scripts/e2e_api_test.py",
+    "src/components/admin/employee/types.ts",
+    "src/components/admin/employee/EmployeeCreateDialog.tsx",
+    "src/components/admin/employee/EmployeeEditDialog.tsx",
+    "src/components/admin/employee/EmployeeCard.tsx",
+    "src/components/admin/broker/types.ts",
+    "src/components/admin/broker/BrokerFormFields.tsx",
+    "src/components/admin/broker/BrokerCreateDialog.tsx",
+    "src/components/admin/broker/BrokerEditDialog.tsx",
+    "src/components/admin/broker/BrokerCard.tsx"
+  ]
+}

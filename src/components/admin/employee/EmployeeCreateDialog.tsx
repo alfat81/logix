@@ -32,6 +32,7 @@ export function EmployeeCreateDialog({ onCreated }: { onCreated: () => void }) {
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [roles, setRoles] = useState<EmployeeRoleName[]>(['manager'])
 
@@ -52,7 +53,13 @@ export function EmployeeCreateDialog({ onCreated }: { onCreated: () => void }) {
       const res = await fetch('/api/admin/employees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), phone, password, roles }),
+        body: JSON.stringify({
+          name: name.trim(),
+          phone,
+          ...(email.trim() ? { email: email.trim() } : {}),
+          password,
+          roles,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Не удалось создать сотрудника')
@@ -64,6 +71,7 @@ export function EmployeeCreateDialog({ onCreated }: { onCreated: () => void }) {
       setOpen(false)
       setName('')
       setPhone('')
+      setEmail('')
       setPassword('')
       setRoles(['manager'])
       onCreated()
@@ -112,6 +120,16 @@ export function EmployeeCreateDialog({ onCreated }: { onCreated: () => void }) {
               placeholder="+7 (900) 555-01-02"
               value={phone}
               onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="emp-email">Email для уведомлений</Label>
+            <Input
+              id="emp-email"
+              type="email"
+              placeholder="name@company.ru (необязательно)"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           <div className="grid gap-2">

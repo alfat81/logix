@@ -51,6 +51,11 @@ export function BrokerCard({
             <span className="font-mono">{broker.phone}</span>
             {broker.comment && <span className="ml-2">· {broker.comment}</span>}
           </div>
+          {/* DF-02: контактный email компании — адресат уведомлений (DF-03);
+              строка появляется только у брокера с email */}
+          {broker.email && (
+            <div className="mt-0.5 truncate text-sm text-muted-foreground">{broker.email}</div>
+          )}
         </div>
         <div className="flex shrink-0 items-start gap-2">
           <div className="text-right">

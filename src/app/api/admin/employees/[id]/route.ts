@@ -151,6 +151,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data: {
         ...(data.name !== undefined ? { name: data.name } : {}),
         ...(loginPhone !== undefined ? { phone: loginPhone } : {}),
+        // DF-02: email; null — осознанная очистка, отсутствие — не менять.
+        ...(data.email !== undefined ? { email: data.email } : {}),
         ...(data.password !== undefined ? { password: hashPassword(data.password) } : {}),
         ...(data.roles !== undefined ? { roles: JSON.stringify(data.roles) } : {}),
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),

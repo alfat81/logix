@@ -4,6 +4,7 @@
 // продублирован здесь локально. lib/auth.ts остаётся владельцем
 // проверки прав; этот файл — общий словарь для роутов и UI.
 import { z } from 'zod'
+import { isEmail } from './phone'
 
 // Роли сотрудников. Employee.roles в БД — JSON-строка ("["master"]"),
 // а не enum: расширение списка ролей (будущий "department_head" из
@@ -19,6 +20,19 @@ export const EMPLOYEE_ROLE_LABELS: Record<EmployeeRoleName, string> = {
 
 // Имя для карточки справочника.
 export const EMPLOYEE_NAME_MAX = 200
+
+// DF-02: контактный email для уведомлений (адресат-человек, DF-03).
+// Необязателен; непустое значение обязано быть адресом (isEmail,
+// паттерн resolveEmail company-users: мусор не сохраняем). Тот же
+// потолок длины, что у имени.
+export const EMPLOYEE_EMAIL_MAX = 200
+export const EmployeeEmailSchema = z
+  .string()
+  .trim()
+  .max(EMPLOYEE_EMAIL_MAX, `Email — до ${EMPLOYEE_EMAIL_MAX} символов`)
+  .refine((v) => isEmail(v), 'Некорректный email — ожидается адрес вида name@company.ru')
+// Для PATCH: null = очистить поле, отсутствие = не менять.
+export const PatchEmployeeEmailSchema = EmployeeEmailSchema.nullable()
 
 // Стартовый/новый пароль сотрудника. Жёстче подрядчицкого (6, Г2 —
 // урезанный ЛК): у сотрудника полный кабинет со сделками, клиентами
@@ -52,6 +66,7 @@ export function parseEmployeeRoles(raw: string): EmployeeRoleName[] {
 export const CreateEmployeeSchema = z.object({
   name: z.string().trim().min(1, 'Укажите имя сотрудника').max(EMPLOYEE_NAME_MAX),
   phone: z.string().trim().min(5, 'Укажите телефон — логин кабинета').max(30),
+  email: EmployeeEmailSchema.optional(),
   password: z
     .string()
     .min(EMPLOYEE_PASSWORD_MIN, `Пароль — минимум ${EMPLOYEE_PASSWORD_MIN} символов`)
@@ -70,6 +85,7 @@ export const PatchEmployeeSchema = z
   .object({
     name: z.string().trim().min(1, 'Укажите имя сотрудника').max(EMPLOYEE_NAME_MAX).optional(),
     phone: z.string().trim().min(5, 'Укажите телефон — логин кабинета').max(30).optional(),
+    email: PatchEmployeeEmailSchema.optional(),
     password: z
       .string()
       .min(EMPLOYEE_PASSWORD_MIN, `Пароль — минимум ${EMPLOYEE_PASSWORD_MIN} символов`)
@@ -85,10 +101,11 @@ export const PatchEmployeeSchema = z
     (v) =>
       v.name !== undefined ||
       v.phone !== undefined ||
+      v.email !== undefined ||
       v.password !== undefined ||
       v.roles !== undefined ||
       v.isActive !== undefined,
-    { message: 'Нечего обновлять: передайте name, phone, password, roles или isActive' }
+    { message: 'Нечего обновлять: передайте name, phone, email, password, roles или isActive' }
   )
 export type PatchEmployeeInput = z.infer<typeof PatchEmployeeSchema>
 
@@ -101,6 +118,7 @@ export const EMPLOYEE_PUBLIC_FIELDS = {
   id: true,
   name: true,
   phone: true,
+  email: true,
   roles: true,
   isActive: true,
   createdAt: true,

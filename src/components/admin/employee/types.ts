@@ -9,6 +9,7 @@ export type EmployeeRow = {
   id: string
   name: string
   phone: string
+  email: string | null
   roles: EmployeeRoleName[]
   isActive: boolean
   createdAt: string

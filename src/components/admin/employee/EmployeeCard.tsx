@@ -40,6 +40,11 @@ export function EmployeeCard({
           <div className="mt-0.5 truncate text-sm text-muted-foreground tabular-nums">
             {row.phone}
           </div>
+          {/* DF-02: контактный email — адресат уведомлений (DF-03); строка
+              появляется только у сотрудника с email (карточка не шумит) */}
+          {row.email && (
+            <div className="mt-0.5 truncate text-sm text-muted-foreground">{row.email}</div>
+          )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <div className="flex flex-wrap items-center justify-end gap-1.5">

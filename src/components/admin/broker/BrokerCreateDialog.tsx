@@ -44,6 +44,8 @@ export function BrokerCreateDialog({ onCreated }: { onCreated: () => void }) {
         body: JSON.stringify({
           companyName,
           phone,
+          // DF-02: email необязателен; пустое поле не отправляем (null в БД)
+          ...(form.email.trim() ? { email: form.email.trim() } : {}),
           password: form.password,
           isInHouse: form.isInHouse,
           ...(form.comment.trim() ? { comment: form.comment.trim() } : {}),

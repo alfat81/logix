@@ -36,6 +36,9 @@ EXCLUDE_DIRS = {
     "examples", ".pytest_cache", ".venv",
     # локальные бинари/данные PostgreSQL песочницы (provision_pg.sh, 247 МБ)
     ".pg",
+    # внутренние артефакты мультиагентной работы песочницы (урок v0.6.4:
+    # попадали в архив и утекали владельцу контекст worklog)
+    "tool-results",
 }
 
 # Файлы-мусор и СЕКРЕТЫ. .env.* исключены намеренно: в клоне владельца
@@ -43,7 +46,12 @@ EXCLUDE_DIRS = {
 EXCLUDE_FILES = {
     ".env", ".env.local", ".env.production", "next.log", ".DS_Store",
     "tsconfig.tsbuildinfo", "bun.lockb.tmp", ".scope-baseline.json",
+    # локальные утилиты песочницы, не являющиеся частью продукта
+    "provision_pg.sh", "verify_release_diff.py", "make_fix1_zip.py",
 }
+# Журнал мультиагентной работы — только в КОРНЕ репо: архивный
+# docs/archive/worklog.md — часть истории продукта и едет в архиве.
+ROOT_ONLY_EXCLUDE = {"worklog.md", "df01-report.md"}
 EXCLUDE_SUFFIXES = (".log", ".tsbuildinfo")
 # Исключение из исключения: пример env-переменных едет в архиве.
 ALLOW = {".env.example"}
@@ -55,6 +63,8 @@ def is_excluded(rel: Path) -> bool:
     # «releases» исключаем только в КОРНЕЕ репо (каталог вывода архива),
     # но не docs/releases/ — релизные документы едут в архиве.
     if rel.parts[0] == "releases":
+        return True
+    if len(rel.parts) == 1 and rel.name in ROOT_ONLY_EXCLUDE:
         return True
     if any(part in EXCLUDE_DIRS for part in rel.parts):
         return True

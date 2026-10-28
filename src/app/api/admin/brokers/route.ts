@@ -110,6 +110,8 @@ export async function POST(req: NextRequest) {
         data: {
           companyName: parsed.data.companyName,
           phone,
+          // DF-02: контактный email компании (необязателен).
+          ...(parsed.data.email !== undefined ? { email: parsed.data.email } : {}),
           password: hashPassword(parsed.data.password),
           isInHouse: parsed.data.isInHouse ?? false,
           ...(parsed.data.comment !== undefined && parsed.data.comment !== null

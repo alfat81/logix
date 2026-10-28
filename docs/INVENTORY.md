@@ -25,12 +25,14 @@
 | `Audience` | `src/lib/audience.ts` | — |
 | `AuthorRef` | `src/lib/actor-name.ts` | …и на автора (строка DocumentVersion) — та же семантика, другие имена |
 | `BROKER_COMPANY_NAME_MAX` | `src/lib/brokers.ts` | Название компании — потолок как у подрядчика (Г2). |
+| `BROKER_EMAIL_MAX` | `src/lib/brokers.ts` | DF-02: контактный email компании брокера для уведомлений |
 | `BROKER_KIND_LABELS` | `src/lib/brokers.ts` | Пометка «штатный/привлечённый» для списков. |
 | `BROKER_PASSWORD_MAX` | `src/lib/brokers.ts` | — |
 | `BROKER_PASSWORD_MIN` | `src/lib/brokers.ts` | Пароль урезанного ЛК брокера. Жёстче подрядчицкого (6, Г2 — только |
 | `BROKER_PUBLIC_FIELDS` | `src/lib/brokers.ts` | ─── Публичная проекция брокера (Д) ─────────────────────────────── |
 | `BROKER_SESSION_COOKIE` | `src/lib/broker-auth.ts` | Кабинет брокера (Д). Механизм сессий — lib/portal-auth.ts. |
 | `BrokerActor` | `src/lib/activity.ts` | — |
+| `BrokerEmailSchema` | `src/lib/brokers.ts` | — |
 | `BrokerEstimateInput` | `src/lib/brokers.ts` | — |
 | `BrokerEstimateSchema` | `src/lib/brokers.ts` | — |
 | `BrokerLinkSnapshot` | `src/lib/broker-links.ts` | Снимок связи для 404 и имени брокера в событии/ответе. |
@@ -96,6 +98,7 @@
 | `DOC_SIGNATURE_ERROR` | `src/lib/documents.ts` | — |
 | `DOC_TITLE_MAX_LENGTH` | `src/lib/document-constants.ts` | Пределы текстовых полей: название документа и комментарий версии. |
 | `DOC_VERSION_PUBLIC_FIELDS` | `src/lib/documents.ts` | — |
+| `DealParticipants` | `src/lib/participants.ts` | — |
 | `DocActor` | `src/lib/documents.ts` | — |
 | `DocAllowedMime` | `src/lib/document-constants.ts` | — |
 | `DocFilePayload` | `src/lib/documents.ts` | — |
@@ -106,6 +109,7 @@
 | `DocumentType` | `src/lib/document-constants.ts` | — |
 | `DocumentVersionMetaSchema` | `src/lib/documents.ts` | — |
 | `DocumentVersionRow` | `src/lib/documents.ts` | — |
+| `EMPLOYEE_EMAIL_MAX` | `src/lib/employees.ts` | DF-02: контактный email для уведомлений (адресат-человек, DF-03). |
 | `EMPLOYEE_NAME_MAX` | `src/lib/employees.ts` | Имя для карточки справочника. |
 | `EMPLOYEE_PASSWORD_MAX` | `src/lib/employees.ts` | — |
 | `EMPLOYEE_PASSWORD_MIN` | `src/lib/employees.ts` | Стартовый/новый пароль сотрудника. Жёстче подрядчицкого (6, Г2 — |
@@ -117,6 +121,7 @@
 | `EVENT_TYPES` | `src/lib/events.ts` | — |
 | `EmitEventInput` | `src/lib/events.ts` | — |
 | `EmployeeActor` | `src/lib/activity.ts` | Конкретные типы актёров (Е: документы требуют ровно один из трёх |
+| `EmployeeEmailSchema` | `src/lib/employees.ts` | — |
 | `EmployeeRole` | `src/lib/auth.ts` | Роли — JSON-массив в Employee.roles (не enum БД): новая роль — правка |
 | `EmployeeRoleName` | `src/lib/employees.ts` | — |
 | `EventMeta` | `src/lib/events.ts` | Метаданные типа события: подпись (для будущих фильтров/писем), |
@@ -155,12 +160,17 @@
 | `ParsedDocumentForm` | `src/lib/documents.ts` | — |
 | `ParsedListQuery` | `src/lib/list-query.ts` | — |
 | `ParsedVersionForm` | `src/lib/documents.ts` | — |
+| `ParticipantCompany` | `src/lib/participants.ts` | Компания-участник (клиент или брокер): реквизиты + активные |
+| `ParticipantContractor` | `src/lib/participants.ts` | Подрядчик-исполнитель этапа — справочно (не адресат, D31). |
+| `ParticipantPerson` | `src/lib/participants.ts` | Человек-участник: сотрудник либо пользователь кабинета (DF-02A). |
+| `PatchBrokerEmailSchema` | `src/lib/brokers.ts` | Для PATCH: null = очистить поле, отсутствие = не менять. |
 | `PatchBrokerInput` | `src/lib/brokers.ts` | — |
 | `PatchBrokerSchema` | `src/lib/brokers.ts` | ─── PATCH брокера: /api/admin/brokers/[id] (Д) ─────────────────── |
 | `PatchContractorInput` | `src/lib/contractors.ts` | — |
 | `PatchContractorLeadInput` | `src/lib/contractors.ts` | — |
 | `PatchContractorLeadSchema` | `src/lib/contractors.ts` | ─── PATCH кандидата: смена статуса / рождение подрядчика ─────────── |
 | `PatchContractorSchema` | `src/lib/contractors.ts` | ─── PATCH подрядчика пула: /api/admin/contractors/[id] (Г3) ───── |
+| `PatchEmployeeEmailSchema` | `src/lib/employees.ts` | Для PATCH: null = очистить поле, отсутствие = не менять. |
 | `PatchEmployeeInput` | `src/lib/employees.ts` | — |
 | `PatchEmployeeSchema` | `src/lib/employees.ts` | ─── PATCH сотрудника: /api/admin/employees/[id] (Ж6в) ──────────── |
 | `PatchLeadInput` | `src/lib/leads.ts` | — |
@@ -175,6 +185,7 @@
 | `RawContact` | `src/lib/leads.ts` | — |
 | `RawContactSchema` | `src/lib/leads.ts` | Черновая анкета контакта на этапе запроса (В1, rawContact Json). |
 | `RawContractorInfoSchema` | `src/lib/contractors.ts` | Черновая анкета кандидата (rawInfo Json, Г1) — толерантный record, как |
+| `Recipient` | `src/lib/participants.ts` | Адресат уведомления по компании-клиенту (recipientsOfCustomer): |
 | `RequisiteField` | `src/lib/requisite-fields.ts` | — |
 | `RouteFieldsInput` | `src/lib/route-fields.ts` | — |
 | `RouteFieldsSchema` | `src/lib/route-fields.ts` | ── zod-схема route-полей (тела POST/PATCH) ───────────────────────── |
@@ -327,6 +338,9 @@
 | `parseListQuery` | `src/lib/list-query.ts` | Парсинг параметров списка. Возвращает ошибку (строкой — роут отдаст |
 | `parseMoneyInput` | `src/lib/money.ts` | Разбор ввода менеджера: «1 450,50» / «1450.5» / «1 450» → число; |
 | `parseRouteText` | `src/lib/route-fields.ts` | ── Разбор свободного «Страна, город» ─────────────────────────────── |
+| `participantsOf` | `src/lib/participants.ts` | Единая точка входа: ref.orderId либо ref.leadId (ровно один). |
+| `participantsOfLead` | `src/lib/participants.ts` | Участники запроса (Lead): до конвертации клиент может отсутствовать |
+| `participantsOfOrder` | `src/lib/participants.ts` | Участники заявки (Order): ответственный, клиент, брокеры, подрядчики |
 | `phoneVariants` | `src/lib/phone.ts` | Телефонные варианты поискового запроса (Ж7, переиспользован Ж6а). |
 | `projectActorName` | `src/lib/actor-name.ts` | ── Правило проекции (чистая функция) ─────────────────────────────── |
 | `projectActors` | `src/lib/actor-name.ts` | Лента событий (Activity): actorName → проекция. |
@@ -339,6 +353,7 @@
 | `readPermits` | `src/lib/brokers.ts` | ─── Конвенции Json для UI (по образцу mergeTransportChips Г5) ──── |
 | `readTransportChips` | `src/lib/contractors.ts` | Толерантное чтение массива видов транспорта: не массив / не строки — |
 | `readyDateInput` | `src/lib/route-fields.ts` | Готовность к отгрузке: строка yyyy-mm-dd → UTC-полночь (даты бланка — |
+| `recipientsOfCustomer` | `src/lib/participants.ts` | ─── Получатели клиента (единственная точка изменения, DF-03) ──────── |
 | `recordLoginAttempt` | `src/lib/login-guard.ts` | — |
 | `requireBroker` | `src/lib/broker-auth.ts` | Единственный способ проверить брокера в роутах кабинета; опций нет — |
 | `requireClient` | `src/lib/client-auth.ts` | Единственный способ проверить клиента в роутах кабинета; опций нет — |
@@ -584,7 +599,7 @@
 | Модель | Полей | Где используется |
 |---|---|---|
 | `Activity` | 17 | src/app/admin/(dashboard)/page.tsx, src/lib/activity.ts |
-| `Broker` | 13 | src/app/api/admin/brokers/[id]/route.ts, src/app/api/admin/brokers/[id]/users/route.ts, src/app/api/admin/brokers/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts |
+| `Broker` | 14 | src/app/api/admin/brokers/[id]/route.ts, src/app/api/admin/brokers/[id]/users/route.ts, src/app/api/admin/brokers/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts |
 | `BrokerEstimate` | 8 | src/app/api/broker/leads/[id]/estimate/route.ts |
 | `BrokerSession` | 8 | src/lib/broker-auth.ts |
 | `BrokerUser` | 12 | src/app/api/admin/brokers/[id]/users/route.ts, src/app/api/auth/broker/login/route.ts, src/lib/actor-name.ts, src/lib/company-users.ts |
@@ -597,7 +612,7 @@
 | `CustomerUser` | 12 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/auth/client/login/route.ts, src/lib/actor-name.ts, src/lib/company-users.ts |
 | `Document` | 12 | src/app/api/admin/documents/[id]/versions/route.ts, src/app/api/admin/leads/[id]/documents/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/app/api/client/leads/[id]/documents/route.ts (+2) |
 | `DocumentVersion` | 13 | src/app/api/document-versions/[id]/file/route.ts |
-| `Employee` | 10 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/leads/[id]/patch.ts, src/app/api/admin/orders/[id]/patch.ts (+1) |
+| `Employee` | 11 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/leads/[id]/patch.ts, src/app/api/admin/orders/[id]/patch.ts (+1) |
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts |
 | `Lead` | 26 | src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/leads/[id]/convert/helpers.ts, src/app/api/admin/leads/[id]/convert/route.ts (+11) |
 | `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts |

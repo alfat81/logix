@@ -21,6 +21,10 @@ model Employee {
   id        String   @id @default(cuid())
   name      String
   phone     String   @unique
+  // DF-02: контактный email для уведомлений (адресат-человек, DF-03).
+  // Nullable: поле необязательное, пустота — «email нет», мусор —
+  // не сохраняем (isEmail, паттерн resolveEmail company-users).
+  email     String?
   password  String // hashPassword() из src/lib/password.ts
   // JSON-массив, не enum — см. раздел 1а LOGISTICS-ROADMAP.md: точный
   // периметр "начальник отдела" ещё не решён, добавление новой роли
@@ -572,6 +576,10 @@ model Broker {
   // Логин урезанного ЛК (Д) — тот же паттерн, что Employee (А5) и
   // Contractor (Г2): нормализованный +7XXXXXXXXXX, @unique.
   phone       String   @unique
+  // DF-02: контактный email компании брокера для уведомлений
+  // (адресат-человек живёт в BrokerUser.email, DF-03; это поле —
+  // общий адрес компании, фолбэк recipientsOfBroker).
+  email       String?
   // hashPassword() из src/lib/password.ts. Пароль задаёт менеджер при
   // создании (как сотрудникам Ж6в и клиентам И1 — брокер внешний
   // пользователь, саморегистрации нет), смена — PATCH /[id] с разрывом

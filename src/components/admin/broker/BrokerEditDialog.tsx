@@ -40,6 +40,7 @@ export function BrokerEditDialog({
       setForm({
         companyName: broker.companyName,
         phone: broker.phone,
+        email: broker.email ?? '',
         password: '',
         isInHouse: broker.isInHouse,
         comment: broker.comment ?? '',
@@ -64,6 +65,9 @@ export function BrokerEditDialog({
       if (form.phone.trim() && form.phone.trim() !== broker.phone) {
         body.phone = form.phone.trim()
       }
+      // DF-02: email шлём всегда — null очищает, строка сохраняет
+      // (пустое поле формы означает «email нет», а не «не менять»)
+      body.email = form.email.trim() ? form.email.trim() : null
       if (form.password) {
         body.password = form.password
       }

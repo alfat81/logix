@@ -417,6 +417,19 @@ s,d=C().r('POST','/api/auth/client/login',{'phone':ph(base+11),'password':'bad0'
 chk('DF-02A: rate-limit входа клиента (429)',s==429,s)
 s,d=C().r('POST','/api/auth/broker/login',{'phone':ph(base+12),'password':'bad0'})
 chk('DF-02A: rate-limit входа брокера (общий бакет IP)',s==429,s)
+# --- DF-02: участники сделки — email для уведомлений в справочниках ---
+# (миграция df_02_contact_email: Employee.email, Broker.email — nullable;
+# валидация isEmail на сервере, null = очистить; участники собирает
+# src/lib/participants.ts — unit-уровень, e2e проверяет CRUD форм)
+s,d=a.r('POST','/api/admin/employees',{'name':'DF02 сотрудник '+u,'phone':ph(base+21),'password':'df02-pass-1','roles':['manager'],'email':'df02-emp-'+u+'@test.ru'}); chk('DF-02: сотрудник создаётся с email',s==201 and d.get('employee',{}).get('email')=='df02-emp-'+u+'@test.ru',(s,d)); emp_df02=(d.get('employee') or {}).get('id')
+s,d=a.r('POST','/api/admin/employees',{'name':'DF02 мусор '+u,'phone':ph(base+22),'password':'df02-pass-1','roles':['manager'],'email':'not-an-email'}); chk('DF-02: мусорный email сотрудника → 400',s==400,(s,d))
+s,d=a.r('PATCH',f'/api/admin/employees/{emp_df02}',{'email':'df02-fixed-'+u+'@test.ru'}); chk('DF-02: PATCH email сотрудника сохраняет',s==200 and d.get('employee',{}).get('email')=='df02-fixed-'+u+'@test.ru',(s,d))
+s,d=a.r('PATCH',f'/api/admin/employees/{emp_df02}',{'email':None}); chk('DF-02: PATCH email=null очищает email сотрудника',s==200 and d.get('employee',{}).get('email') is None,(s,d))
+s,d=a.r('GET','/api/admin/employees'); elist=d.get('employees',[]); chk('DF-02: список сотрудников отдаёт email',bool(elist) and 'email' in elist[0],(elist[0] if elist else None))
+s,d=a.r('POST','/api/admin/brokers',{'companyName':'DF02 брокер '+u,'phone':ph(base+23),'password':'df02-pass-1','email':'df02-broker-'+u+'@test.ru'}); chk('DF-02: брокер создаётся с email',s in(200,201) and (d.get('broker') or {}).get('email')=='df02-broker-'+u+'@test.ru',(s,d)); brk_df02=(d.get('broker') or {}).get('id')
+s,d=a.r('PATCH',f'/api/admin/brokers/{brk_df02}',{'email':'broken-email'}); chk('DF-02: мусорный email брокера → 400',s==400,(s,d))
+s,d=a.r('PATCH',f'/api/admin/brokers/{brk_df02}',{'email':'df02-broker-fixed-'+u+'@test.ru'}); chk('DF-02: PATCH email брокера сохраняет',s==200 and d.get('broker',{}).get('email')=='df02-broker-fixed-'+u+'@test.ru',(s,d))
+s,d=a.r('GET','/api/admin/brokers'); blist=d.get('brokers',[]); chk('DF-02: список брокеров отдаёт email',bool(blist) and 'email' in blist[0],(blist[0] if blist else None))
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)
 hard=[r for r in R if not r[1] and not r[0].startswith('[ЦЕЛЬ')]

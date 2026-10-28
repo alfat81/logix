@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { formatMoney, moneyAmount } from '@/lib/money'
+import { isEmail } from '@/lib/phone'
 
 // ─── Брокеры: константы, схемы и проекции (Дорожка Д, роадмап 5а) ──
 // Клиент-безопасный файл по образцу lib/contractors.ts (Г) и
@@ -8,6 +9,19 @@ import { formatMoney, moneyAmount } from '@/lib/money'
 
 // Название компании — потолок как у подрядчика (Г2).
 export const BROKER_COMPANY_NAME_MAX = 200
+
+// DF-02: контактный email компании брокера для уведомлений
+// (адресат-человек живёт в BrokerUser.email; здесь — общий адрес
+// компании, фолбэк будущих recipientsOfBroker). Правила те же, что
+// у сотрудников (Ж6в): необязателен, мусор не сохраняем.
+export const BROKER_EMAIL_MAX = 200
+export const BrokerEmailSchema = z
+  .string()
+  .trim()
+  .max(BROKER_EMAIL_MAX, `Email — до ${BROKER_EMAIL_MAX} символов`)
+  .refine((v) => isEmail(v), 'Некорректный email — ожидается адрес вида name@company.ru')
+// Для PATCH: null = очистить поле, отсутствие = не менять.
+export const PatchBrokerEmailSchema = BrokerEmailSchema.nullable()
 
 // Пароль урезанного ЛК брокера. Жёстче подрядчицкого (6, Г2 — только
 // свои этапы): брокер видит сделку целиком с этапа расчёта — тот же
@@ -24,6 +38,7 @@ export const BROKER_PASSWORD_MAX = 100
 export const CreateBrokerSchema = z.object({
   companyName: z.string().trim().min(1, 'Укажите название компании').max(BROKER_COMPANY_NAME_MAX),
   phone: z.string().trim().min(5, 'Укажите телефон — логин портала').max(30),
+  email: BrokerEmailSchema.optional(),
   password: z
     .string()
     .min(BROKER_PASSWORD_MIN, `Пароль — минимум ${BROKER_PASSWORD_MIN} символов`)
@@ -49,6 +64,7 @@ export const PatchBrokerSchema = z
       .max(BROKER_COMPANY_NAME_MAX)
       .optional(),
     phone: z.string().trim().min(5, 'Укажите телефон — логин портала').max(30).optional(),
+    email: PatchBrokerEmailSchema.optional(),
     password: z
       .string()
       .min(BROKER_PASSWORD_MIN, `Пароль — минимум ${BROKER_PASSWORD_MIN} символов`)
@@ -63,12 +79,13 @@ export const PatchBrokerSchema = z
     (v) =>
       v.companyName !== undefined ||
       v.phone !== undefined ||
+      v.email !== undefined ||
       v.password !== undefined ||
       v.isInHouse !== undefined ||
       v.isActive !== undefined ||
       v.comment !== undefined ||
       v.contactInfo !== undefined,
-    { message: 'Нечего обновлять: передайте companyName, phone, password, isInHouse, isActive, comment или contactInfo' }
+    { message: 'Нечего обновлять: передайте companyName, phone, email, password, isInHouse, isActive, comment или contactInfo' }
   )
 export type PatchBrokerInput = z.infer<typeof PatchBrokerSchema>
 
@@ -80,6 +97,7 @@ export const BROKER_PUBLIC_FIELDS = {
   id: true,
   companyName: true,
   phone: true,
+  email: true,
   isInHouse: true,
   isActive: true,
   comment: true,
