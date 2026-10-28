@@ -168,13 +168,9 @@ export function CustomerCard() {
         )}
       </div>
 
-      {/* Доступ в кабинет (И1): выдать/сменить/отозвать пароль клиента */}
-      <CustomerCabinetAccess
-        customerId={customer.id}
-        hasCabinetAccess={customer.hasCabinetAccess}
-        phone={customer.phone}
-        onChanged={load}
-      />
+      {/* Сотрудники клиента (И1 → DF-02A Блок 5): список людей с
+          доступом в кабинет вместо одного пароля на компанию */}
+      <CustomerCabinetAccess customerId={customer.id} onChanged={load} />
 
       {/* Рамочные договоры */}
       <div className="grid gap-2">

@@ -9,6 +9,7 @@ import {
   parseDocumentVersionForm,
   type DocumentDealTarget,
 } from '@/lib/documents'
+import { projectAuthors, projectDocumentAuthors } from '@/lib/actor-name'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -53,7 +54,17 @@ export async function POST(req: NextRequest, { params }: Params) {
       { documentId: id }
     )
 
-    return NextResponse.json({ version: result.version, document: result.document }, { status: 201 })
+    // DF-02A (Блок 4): автор новой версии — этот пользователь; в ответе
+    // сразу имя человека (свой кабинет — коллега).
+    const [version] = await projectAuthors([result.version], {
+      kind: 'client',
+      customerId: auth.client.id,
+    })
+    const [document] = await projectDocumentAuthors([result.document], {
+      kind: 'client',
+      customerId: auth.client.id,
+    })
+    return NextResponse.json({ version, document }, { status: 201 })
   } catch (e) {
     return apiErrorResponse(e, 'client document versions POST', 'Не удалось загрузить версию')
   }

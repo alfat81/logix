@@ -10,20 +10,13 @@ import { RouteFieldsSchema } from '@/lib/route-fields'
 // Пароль доступа в кабинет — те же рамки, что у сотрудников (Ж6в) и
 // подрядчиков: выдаёт менеджер, поэтому потолок в 100 символов не
 // мешает человеку, а минимум 8 отсекает «1234».
+// DF-02A Блок 5: константа — единая точка и для паролей ПОЛЬЗОВАТЕЛЕЙ
+// компании (lib/company-users.ts resolvePassword), и для UI диалогов
+// выдачи (CustomerUserDialog/BrokerUsersDialog). ClientAccessSchema
+// удалена — диалог доступа стал списком людей (роуты access и
+// brokers/[id]/users валидируют свои схемы на месте).
 export const CLIENT_PASSWORD_MIN = 8
 export const CLIENT_PASSWORD_MAX = 100
-
-// Тело POST /api/admin/customers/[id]/access — выдать/сменить пароль
-// (строка) или отозвать доступ (null, сессии рвутся).
-export const ClientAccessSchema = z.object({
-  password: z
-    .string()
-    .trim()
-    .min(CLIENT_PASSWORD_MIN, `Пароль — минимум ${CLIENT_PASSWORD_MIN} символов`)
-    .max(CLIENT_PASSWORD_MAX, 'Пароль — слишком длинный')
-    .nullable(),
-})
-export type ClientAccessInput = z.infer<typeof ClientAccessSchema>
 
 // Тело POST /api/client/leads — запрос из кабинета. Груз — та же
 // свободная анкета, что у лида менеджера (CargoInfoSchema, В1), но

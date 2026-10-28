@@ -38,6 +38,13 @@ export async function GET(req: NextRequest, { params }: Params) {
       where: { id },
       include: {
         _count: { select: { orders: true, contracts: true, leads: true } },
+        // DF-02A Блок 5: «доступ выдан» = есть активный пользователь
+        // с паролем (люди — источник входа с Блока 3); Customer.password
+        // — зеркало отката, источником правды больше не является.
+        users: {
+          where: { isActive: true, password: { not: null } },
+          select: { id: true },
+        },
         contracts: {
           orderBy: { number: 'asc' },
           include: {
@@ -94,7 +101,7 @@ export async function GET(req: NextRequest, { params }: Params) {
         createdAt: customer.createdAt,
         // И1: есть ли доступ в кабинет. Сам хеш наружу не отдаём
         // никогда — только булев флаг (паттерн EMPLOYEE_PUBLIC_FIELDS)
-        hasCabinetAccess: customer.password !== null,
+        hasCabinetAccess: customer.users.length > 0,
         ordersCount: customer._count.orders,
         contractsCount: customer._count.contracts,
         leadsCount: customer._count.leads,

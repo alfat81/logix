@@ -1,33 +1,109 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { hashPassword } from '@/lib/password'
-import { isPhoneNormalized } from '@/lib/phone'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { ClientAccessSchema } from '@/lib/client-constants'
+import { CLIENT_PASSWORD_MAX } from '@/lib/client-constants'
+import {
+  CompanyUserError,
+  createCustomerUser,
+  updateCustomerUser,
+  setCustomerUserActive,
+} from '@/lib/company-users'
 
 type Params = { params: Promise<{ id: string }> }
 
-// ─── POST /api/admin/customers/[id]/access — доступ в кабинет (И1) ──
-// Выдать/сменить пароль клиента (тело { password: "…" }) или отозвать
-// доступ ({ password: null }). Модель — та же, что у подрядчика
-// (Г2/Г3): учётку внешнему пользователю выдаёт менеджер, у клиента
-// саморегистрации нет (SMS-верификации телефона в MVP нет, «регистрация
-// на любой номер» открывала бы чужие заявки). Право — любой сотрудник
-// на запись (write:true): выдача доступа клиенту — часть ведения
-// сделки, как и пароль подрядчика; мастер-only здесь не нужен (в
-// отличие от справочника сотрудников Ж6в, раскрывающего ВСЕ учётки).
+// ─── Доступ в кабинет клиента (И1) — СПИСОК ЛЮДЕЙ (DF-02A Блок 5) ────
+// Диалог доступа («один пароль на компанию») превращается в список
+// пользователей компании: создать, править, деактивировать. Управление
+// — через общую точку lib/company-users.ts (правила И1 сужены до
+// человека: пароль хешируется в lib, «пароль есть → телефон +7 есть»,
+// деактивация рвёт сессии ТОЛЬКО этого пользователя, primary
+// деактивации не подлежит — доступ компании целиком закрывается
+// деактивацией компании в справочнике).
 //
-// Смена/отзыв РВУТ сессии (паттерн Ж6в): сброс пароля закрывает вход,
-// где старый пароль уже введён; при повторной выдаче старые сессии не
-// воскресают. Аудит Ж2 не пишется: цель события — заявка/лид/
-// подрядчик, у управления доступом цели нет (решение Ж6в).
+// Зеркало переходного периода (до contract-релиза 0.6.3, DEPRECATIONS):
+// при изменении пароля ОСНОВНОГО пользователя хеш дублируется в старое
+// поле Customer.password (страховка отката на v0.6.1). Пароли остальных
+// пользователей и их телефоны в старое поле НЕ пишутся: в v0.6.1 этих
+// людей не существовало, а перетирать логин/контакт компании чужим
+// человеком нельзя. Смена пароля primary рвёт сессии этого человека
+// (lib), коллег не задевает.
+//
+// Аудит Ж2 не пишется: у управления доступом нет цели (решение Ж6в).
+
+const UserFieldsSchema = {
+  phone: z.string().trim().max(30).nullable().optional(),
+  email: z.string().trim().max(120).nullable().optional(),
+  password: z.string().max(CLIENT_PASSWORD_MAX).nullable().optional(),
+}
+
+const CreateUserSchema = z.object({
+  name: z.string().trim().min(1, 'Укажите имя пользователя').max(100),
+  ...UserFieldsSchema,
+})
+
+const UpdateUserSchema = z
+  .object({
+    userId: z.string().min(1),
+    name: z.string().trim().min(1, 'Укажите имя пользователя').max(100).optional(),
+    isActive: z.boolean().optional(),
+    ...UserFieldsSchema,
+  })
+  .refine(
+    (v) =>
+      v.name !== undefined ||
+      v.phone !== undefined ||
+      v.email !== undefined ||
+      v.password !== undefined ||
+      v.isActive !== undefined,
+    { message: 'Нечего обновлять' }
+  )
+
+// GET — список людей компании: id, контакты, статусы. Хеш пароля
+// наружу не отдаётся никогда — только булев hasPassword.
+export async function GET(req: NextRequest, { params }: Params) {
+  const auth = await requireEmployee(req)
+  if (!auth.ok) return auth.response
+
+  const { id } = await params
+  try {
+    const customer = await db.customer.findUnique({ where: { id }, select: { id: true } })
+    if (!customer) {
+      return NextResponse.json({ error: 'Клиент не найден' }, { status: 404 })
+    }
+    const users = await db.customerUser.findMany({
+      where: { customerId: id },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        isActive: true,
+        isPrimary: true,
+        password: true,
+        lastLoginAt: true,
+        createdAt: true,
+      },
+    })
+    return NextResponse.json({
+      users: users.map(({ password, ...u }) => ({ ...u, hasPassword: password !== null })),
+    })
+  } catch (e) {
+    return apiErrorResponse(e, 'customer access GET', 'Не удалось загрузить список сотрудников')
+  }
+}
+
+// POST — создать человека. Первый пользователь компании становится
+// основным (isPrimary) — к нему переходит зеркало пароля; остальные —
+// обычные (пароль не трогает Customer.password).
 export async function POST(req: NextRequest, { params }: Params) {
   const auth = await requireEmployee(req, { write: true })
   if (!auth.ok) return auth.response
 
   const { id } = await params
-
   try {
     let body: unknown
     try {
@@ -35,7 +111,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     } catch {
       return NextResponse.json({ error: 'Некорректный JSON в теле запроса' }, { status: 400 })
     }
-    const parsed = ClientAccessSchema.safeParse(body)
+    const parsed = CreateUserSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json(
         { error: 'Некорректные данные', details: parsed.error.flatten() },
@@ -48,38 +124,90 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Клиент не найден' }, { status: 404 })
     }
 
-    // Логин в кабинет — по нормализованному телефону (+7XXXXXXXXXX):
-    // клиент без телефона (или с иностранным сырым номером, который не
-    // нормализуется) войти не сможет в принципе. Отказываем сразу с
-    // внятным текстом, а не выдаём мертворождённый доступ (паттерн
-    // нормализации сотрудников Ж6в: логин А5/И1 иначе не пускает).
-    if (parsed.data.password !== null && !isPhoneNormalized(customer.phone ?? '')) {
+    const created = await db.$transaction(async (tx) => {
+      const isFirst = (await tx.customerUser.count({ where: { customerId: id } })) === 0
+      const user = await createCustomerUser(tx, id, {
+        ...parsed.data,
+        isPrimary: isFirst,
+      })
+      // Зеркало первичной выдачи: первый пользователь с паролем = тот,
+      // чей вход в v0.6.1 продолжил бы работать после отката.
+      if (isFirst && parsed.data.password) {
+        await tx.customer.update({
+          where: { id },
+          data: { password: hashPassword(parsed.data.password) },
+        })
+      }
+      return user
+    })
+    return NextResponse.json({ ok: true, userId: created.id }, { status: 201 })
+  } catch (e) {
+    if (e instanceof CompanyUserError) {
+      return NextResponse.json({ error: e.message }, { status: e.status })
+    }
+    return apiErrorResponse(e, 'customer access POST', 'Не удалось создать сотрудника')
+  }
+}
+
+// PATCH — правка человека (контакты, пароль, «снять пароль» = null)
+// и деактивация/возврат (isActive). Пароль меняется через
+// updateCustomerUser (рвёт сессии пользователя); primary — с зеркалом
+// в Customer.password.
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const auth = await requireEmployee(req, { write: true })
+  if (!auth.ok) return auth.response
+
+  const { id } = await params
+  try {
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Некорректный JSON в теле запроса' }, { status: 400 })
+    }
+    const parsed = UpdateUserSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
-        {
-          error:
-            'У клиента не указан нормализованный российский телефон (+7…). Вход в кабинет идёт по телефону — сначала заполните его в справочнике.',
-        },
+        { error: 'Некорректные данные', details: parsed.error.flatten() },
         { status: 400 }
       )
     }
+    const data = parsed.data
+    const { userId, ...changes } = data
 
-    if (parsed.data.password === null) {
-      // Отзыв доступа: пароль снимается, живые сессии гаснут
-      await db.$transaction([
-        db.customer.update({ where: { id }, data: { password: null } }),
-        db.clientSession.deleteMany({ where: { customerId: id } }),
-      ])
-      return NextResponse.json({ ok: true, hasCabinetAccess: false })
+    const user = await db.customerUser.findFirst({ where: { id: userId, customerId: id } })
+    if (!user) {
+      return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
     }
 
-    // Выдача/смена: новый хеш + разрыв старых сессий (сброс = «старый
-    // вход больше не доверен», Ж6в)
-    await db.$transaction([
-      db.customer.update({ where: { id }, data: { password: hashPassword(parsed.data.password) } }),
-      db.clientSession.deleteMany({ where: { customerId: id } }),
-    ])
-    return NextResponse.json({ ok: true, hasCabinetAccess: true })
+    await db.$transaction(async (tx) => {
+      const { isActive, ...fields } = changes
+      if (fields.name !== undefined || fields.phone !== undefined || fields.email !== undefined || fields.password !== undefined) {
+        await updateCustomerUser(tx, userId, fields)
+      }
+      if (isActive !== undefined) {
+        await setCustomerUserActive(tx, userId, isActive)
+      }
+      // Зеркало: менялся пароль ОСНОВНОГО пользователя — дубль в
+      // Customer.password (включая снятие: null = «отзыв» в старой
+      // семантике).
+      if (user.isPrimary && fields.password !== undefined) {
+        await tx.customer.update({
+          where: { id },
+          data: {
+            password:
+              fields.password === null
+                ? null
+                : hashPassword(fields.password),
+          },
+        })
+      }
+    })
+    return NextResponse.json({ ok: true })
   } catch (e) {
-    return apiErrorResponse(e, 'customers/access POST', 'Не удалось изменить доступ')
+    if (e instanceof CompanyUserError) {
+      return NextResponse.json({ error: e.message }, { status: e.status })
+    }
+    return apiErrorResponse(e, 'customer access PATCH', 'Не удалось изменить пользователя')
   }
 }

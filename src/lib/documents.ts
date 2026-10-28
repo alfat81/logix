@@ -232,6 +232,10 @@ export const DOC_VERSION_PUBLIC_FIELDS = {
   fileSize: true,
   comment: true,
   authorType: true,
+  // DF-02A (Блок 4): id пользователя — ключ проекции имени при чтении
+  // (lib/actor-name.ts); непрозрачен (cuid), наружу не персональные
+  // данные, но стабильная ссылка на автора версии.
+  authorId: true,
   authorName: true,
   createdAt: true,
 } as const
@@ -261,6 +265,9 @@ export type DocumentVersionRow = Prisma.DocumentVersionGetPayload<{
 // ── Создание документа на сделке (лид ИЛИ заявка) ────────────────────
 // deal — ровно одна цель (инвариант enforced типом, как ActivityTarget).
 // actor — сотрудник / клиент / брокер (подрядчика в контуре Е нет).
+// DF-02A (Блок 4): у клиента/брокера authorId = id ПОЛЬЗОВАТЕЛЯ
+// (CustomerUser/BrokerUser), authorName — снимок КОМПАНИИ; отображаемое
+// имя собирается при чтении (lib/actor-name.ts) по роли читателя.
 // allowInternal: false у внешних порталов — клиент и брокер внутренние
 // документы создавать не могут, флаг принудительно гасится.
 

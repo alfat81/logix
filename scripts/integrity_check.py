@@ -306,6 +306,8 @@ PLANNED = {"src/lib/participants.ts", "src/lib/notifications",
            "src/lib/brand.ts",
            "scripts/pulse_check.py", "scripts/check-format-dupes.sh",
            "scripts/migrate-files-to-storage.ts"}
+# DF-02A v0.6.2: company-users.ts появился в Блоке 2, actor-name.ts —
+# в Блоке 4 (храповик сработал — пути убраны).
 
 
 def ic08() -> None:

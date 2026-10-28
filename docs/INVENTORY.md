@@ -20,7 +20,10 @@
 | `ActivityActor` | `src/lib/activity.ts` | Кто действовал. Сотрудник, подрядчик, клиент (И1 — запрос из |
 | `ActivityTarget` | `src/lib/activity.ts` | Цель-сделка — ровно одна из трёх. Дискриминированное объединение: |
 | `ActivityType` | `src/lib/activity.ts` | — |
+| `ActorNameReader` | `src/lib/actor-name.ts` | Роль читателя: сотрудник (проекция «Имя (Компания)») или внешний |
+| `ActorRef` | `src/lib/actor-name.ts` | Минимальная ссылка на актёра (строка Activity)… |
 | `Audience` | `src/lib/audience.ts` | — |
+| `AuthorRef` | `src/lib/actor-name.ts` | …и на автора (строка DocumentVersion) — та же семантика, другие имена |
 | `BROKER_COMPANY_NAME_MAX` | `src/lib/brokers.ts` | Название компании — потолок как у подрядчика (Г2). |
 | `BROKER_KIND_LABELS` | `src/lib/brokers.ts` | Пометка «штатный/привлечённый» для списков. |
 | `BROKER_PASSWORD_MAX` | `src/lib/brokers.ts` | — |
@@ -31,6 +34,7 @@
 | `BrokerEstimateInput` | `src/lib/brokers.ts` | — |
 | `BrokerEstimateSchema` | `src/lib/brokers.ts` | — |
 | `BrokerLinkSnapshot` | `src/lib/broker-links.ts` | Снимок связи для 404 и имени брокера в событии/ответе. |
+| `BrokerLoginUser` | `src/lib/company-users.ts` | — |
 | `CARGO_PROFILES` | `src/lib/order-constants.ts` | Профиль груза (роадмап, раздел 6: негабарит/опасные — глубже в Phase 2). |
 | `CARGO_PROFILE_LABELS` | `src/lib/order-constants.ts` | — |
 | `CLIENT_LEAD_DAILY_LIMIT` | `src/lib/client-constants.ts` | Дневной потолок запросов из кабинета на клиента (анти-спам внешнего |
@@ -50,13 +54,13 @@
 | `CURRENCY_SIGNS` | `src/lib/money.ts` | Знаки валют — короткие символы в интерфейсе (Intl style:'currency' |
 | `CargoInfoSchema` | `src/lib/leads.ts` | Свободная анкета груза на этапе запроса (груз/вес/объём/откуда-куда). |
 | `CargoProfile` | `src/lib/order-constants.ts` | — |
-| `ClientAccessInput` | `src/lib/client-constants.ts` | — |
-| `ClientAccessSchema` | `src/lib/client-constants.ts` | Тело POST /api/admin/customers/[id]/access — выдать/сменить пароль |
 | `ClientActor` | `src/lib/activity.ts` | — |
 | `ClientCreateRequestInput` | `src/lib/client-constants.ts` | — |
 | `ClientCreateRequestSchema` | `src/lib/client-constants.ts` | Тело POST /api/client/leads — запрос из кабинета. Груз — та же |
 | `ClientLeadEditInput` | `src/lib/lead-edit.ts` | — |
 | `ClientLeadEditSchema` | `src/lib/lead-edit.ts` | Тело PATCH из кабинета клиента: клиент правит ТОЛЬКО анкету груза |
+| `CompanyLoginResult` | `src/lib/company-users.ts` | — |
+| `CompanyUserError` | `src/lib/company-users.ts` | Бизнес-ошибка управления пользователями: роуты отдают её клиенту |
 | `ContractorCompetenciesSchema` | `src/lib/contractors.ts` | Компетенции подрядчика (competencies Json, Г1) — тоже record: виды |
 | `ContractorContactInfoSchema` | `src/lib/contractors.ts` | Контактные данные подрядчика (contactInfo Json, Г1) — сырой Json по |
 | `ContractorLeadStatus` | `src/lib/contractors.ts` | — |
@@ -64,6 +68,7 @@
 | `ConvertLeadSchema` | `src/lib/leads.ts` | ─── Конвертация лида в заявку (В4) ───────────────────────────────── |
 | `CreateBrokerInput` | `src/lib/brokers.ts` | — |
 | `CreateBrokerSchema` | `src/lib/brokers.ts` | ─── Создание брокера: POST /api/admin/brokers (Д) ──────────────── |
+| `CreateCompanyUserData` | `src/lib/company-users.ts` | — |
 | `CreateContractorLeadInput` | `src/lib/contractors.ts` | — |
 | `CreateContractorLeadSchema` | `src/lib/contractors.ts` | ─── Создание кандидата (POST /api/admin/contractor-leads, Г2) ────── |
 | `CreateEmployeeInput` | `src/lib/employees.ts` | — |
@@ -74,10 +79,11 @@
 | `CreateQuoteOptionInput` | `src/lib/leads.ts` | — |
 | `CreateQuoteOptionSchema` | `src/lib/leads.ts` | — |
 | `CurrencyCode` | `src/lib/money.ts` | — |
-| `CurrentBroker` | `src/lib/broker-auth.ts` | — |
-| `CurrentClient` | `src/lib/client-auth.ts` | — |
+| `CurrentBroker` | `src/lib/broker-auth.ts` | id — КОМПАНИЯ (brokerId): скоупинг кабинетских роутов не меняется. |
+| `CurrentClient` | `src/lib/client-auth.ts` | id — КОМПАНИЯ (customerId): скоупинг кабинетских роутов не меняется. |
 | `CurrentContractor` | `src/lib/contractor-auth.ts` | — |
 | `CurrentEmployee` | `src/lib/auth.ts` | — |
+| `CustomerLoginUser` | `src/lib/company-users.ts` | ── Вход (Блок 3, DF-02A): учётка — человек, UX прежний ────────────── |
 | `DB_OUT_OF_SYNC_HINT` | `src/lib/api-errors.ts` | — |
 | `DEFAULT_LIST_TAKE` | `src/lib/list-query.ts` | — |
 | `DOCUMENT_TYPES` | `src/lib/document-constants.ts` | — |
@@ -177,6 +183,7 @@
 | `SETTINGS` | `src/lib/settings.ts` | — |
 | `SETTING_GROUPS` | `src/lib/settings.ts` | — |
 | `SETTING_GROUP_LABELS` | `src/lib/settings.ts` | — |
+| `STAFF_READER` | `src/lib/actor-name.ts` | Единственный скоуп роутов админки — константа вместо литерала в |
 | `STAGE_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Этап: не начат — нейтрально, в работе — движение, готов — успех, |
 | `STAGE_STATUSES` | `src/lib/order-constants.ts` | Статус этапа внутри заявки (роадмап, раздел 3): не начат → в работе → |
 | `STAGE_STATUS_LABELS` | `src/lib/order-constants.ts` | — |
@@ -203,8 +210,10 @@
 | `TransportModesSchema` | `src/lib/leads.ts` | Виды транспорта в варианте — свободный список непустых строк («Авто», |
 | `TransportType` | `src/lib/leads.ts` | — |
 | `TransportTypeCode` | `src/lib/route-fields.ts` | — |
+| `UpdateCompanyUserData` | `src/lib/company-users.ts` | — |
 | `UpdateQuoteOptionInput` | `src/lib/leads.ts` | — |
 | `UpdateQuoteOptionSchema` | `src/lib/leads.ts` | PATCH варианта: любое подмножество полей, но не пустое. Инвариант |
+| `UserNameMap` | `src/lib/actor-name.ts` | — |
 | `VAT_MODES` | `src/lib/money.ts` | Режим НДС — метка цены, НЕ расчёт (см. enum VatMode в схеме). |
 | `VAT_MODE_LABELS` | `src/lib/money.ts` | — |
 | `VatModeCode` | `src/lib/money.ts` | — |
@@ -223,7 +232,9 @@
 | `asTime` | `src/lib/settings-validators.ts` | — |
 | `asTimeList` | `src/lib/settings-validators.ts` | — |
 | `asTimezone` | `src/lib/settings-validators.ts` | — |
-| `brokerActor` | `src/lib/activity.ts` | Брокер портала (Д): имя — companyName на момент действия (снимок, |
+| `authenticateBrokerLogin` | `src/lib/company-users.ts` | — |
+| `authenticateCustomerLogin` | `src/lib/company-users.ts` | — |
+| `brokerActor` | `src/lib/activity.ts` | Брокер портала (Д). DF-02A (Блок 4): актор — ЧЕЛОВЕК (userId), |
 | `brokerSessionCookieOptions` | `src/lib/broker-auth.ts` | — |
 | `buildLeadEditDiff` | `src/lib/lead-edit.ts` | Diff анкеты: список строк «Подпись: старое → новое» (только реально |
 | `buildLeadPayload` | `src/lib/leads.ts` | — |
@@ -236,15 +247,17 @@
 | `checkOrderTransition` | `src/lib/status-machine.ts` | — |
 | `ciContains` | `src/lib/list-query.ts` | Тип — надстройка над Prisma StringFilter: в postgres-генерации клиент |
 | `clearSettingsCache` | `src/lib/settings.ts` | Сброс кэша: тесты и административные операции (после массовых правок). |
-| `clientActor` | `src/lib/activity.ts` | Клиент кабинета (И1): имя — Customer.name на момент действия |
+| `clientActor` | `src/lib/activity.ts` | Клиент кабинета (И1). DF-02A (Блок 4): актор — ЧЕЛОВЕК (userId), |
 | `clientSessionCookieOptions` | `src/lib/client-auth.ts` | — |
 | `cn` | `src/lib/utils.ts` | — |
 | `contractorActor` | `src/lib/activity.ts` | У подрядчика «имя» — companyName (люди не заведены, Г4). |
 | `contractorPortalEnabled` | `src/lib/flags.ts` | ─── Функциональные флаги (серверные) ─────────────────────────────── |
 | `contractorSessionCookieOptions` | `src/lib/contractor-auth.ts` | — |
 | `createBrokerSession` | `src/lib/broker-auth.ts` | — |
+| `createBrokerUser` | `src/lib/company-users.ts` | — |
 | `createClientSession` | `src/lib/client-auth.ts` | — |
 | `createContractorSession` | `src/lib/contractor-auth.ts` | — |
+| `createCustomerUser` | `src/lib/company-users.ts` | — |
 | `createDocumentOnDeal` | `src/lib/documents.ts` | — |
 | `createEmployeeSession` | `src/lib/auth.ts` | — |
 | `createOrderWithStages` | `src/lib/orders.ts` | — |
@@ -285,6 +298,8 @@
 | `getCurrentEmployee` | `src/lib/auth.ts` | — |
 | `getEmployeeByToken` | `src/lib/auth.ts` | — |
 | `getIncompleteMandatoryStages` | `src/lib/orders.ts` | ─── Готовность обязательного ядра к завершению заявки (P1-05) ── |
+| `getPrimaryBrokerUser` | `src/lib/company-users.ts` | — |
+| `getPrimaryCustomerUser` | `src/lib/company-users.ts` | Основной пользователь — точка входа Блока 3 (перенос входа компании |
 | `getSetting` | `src/lib/settings.ts` | Пустая таблица легитимна: откат на значение по умолчанию — система |
 | `getSettingDef` | `src/lib/settings.ts` | Свободные ключи не допускаются: пишем только то, что знает экран |
 | `hashPassword` | `src/lib/password.ts` | — |
@@ -313,6 +328,10 @@
 | `parseMoneyInput` | `src/lib/money.ts` | Разбор ввода менеджера: «1 450,50» / «1450.5» / «1 450» → число; |
 | `parseRouteText` | `src/lib/route-fields.ts` | ── Разбор свободного «Страна, город» ─────────────────────────────── |
 | `phoneVariants` | `src/lib/phone.ts` | Телефонные варианты поискового запроса (Ж7, переиспользован Ж6а). |
+| `projectActorName` | `src/lib/actor-name.ts` | ── Правило проекции (чистая функция) ─────────────────────────────── |
+| `projectActors` | `src/lib/actor-name.ts` | Лента событий (Activity): actorName → проекция. |
+| `projectAuthors` | `src/lib/actor-name.ts` | Плоские строки версий (DocumentVersion): authorName → проекция. |
+| `projectDocumentAuthors` | `src/lib/actor-name.ts` | Список документов: authorName во ВСЕХ версиях каждого документа, |
 | `readApiResponse` | `src/lib/api-client.ts` | — |
 | `readDocFile` | `src/lib/documents.ts` | Читает файл и проверяет сигнатуру. null — содержимое не прошло проверку. */ |
 | `readInfoString` | `src/lib/contractors.ts` | Толерантное чтение строковых полей анкеты (directions и пр.). |
@@ -328,14 +347,19 @@
 | `requisitesInn` | `src/lib/requisite-fields.ts` | ИНН — главный реквизит для строки списка (идентифицирует юрлицо |
 | `resetSetting` | `src/lib/settings.ts` | «Сбросить» на экране настроек: строка удаляется, getSetting возвращается |
 | `resolveFileMime` | `src/lib/file-signature.ts` | — |
+| `resolveUserNames` | `src/lib/actor-name.ts` | ── Батч-резолв пользователей ─────────────────────────────────────── |
 | `routeToDbColumns` | `src/lib/route-fields.ts` | RouteFieldsInput → данные для prisma create/update (readyDate — Date, |
 | `sanitizeFileName` | `src/lib/documents.ts` | Санитизация имени: без каталогов, без управляющих символов, без |
 | `sessionCookieOptions` | `src/lib/auth.ts` | — |
+| `setBrokerUserActive` | `src/lib/company-users.ts` | — |
+| `setCustomerUserActive` | `src/lib/company-users.ts` | Деактивация закрывает сессии пользователя немедленно (по образцу |
 | `setSetting` | `src/lib/settings.ts` | Актёр — тот, кто сохранил (мастер; API Блока 4 передаёт employeeActor). |
 | `stageVisual` | `src/lib/stage-visuals.ts` | — |
 | `summarizeOrderStages` | `src/lib/order-summary.ts` | Этапы заявки (по sequence asc) → сводка: первый незавершённый этап |
 | `todayUtcMidnight` | `src/lib/order-summary.ts` | Граница «сегодня» по UTC: плановые даты приходят UTC-полуночью |
 | `unauthorized` | `src/lib/portal-auth.ts` | — |
+| `updateBrokerUser` | `src/lib/company-users.ts` | — |
+| `updateCustomerUser` | `src/lib/company-users.ts` | — |
 | `utcDayStart` | `src/lib/order-summary.ts` | — |
 | `verifyPassword` | `src/lib/password.ts` | — |
 
@@ -351,6 +375,7 @@
 | `AttentionScreen` | `src/components/admin/AttentionScreen.tsx` |
 | `Breadcrumbs` | `src/components/admin/Breadcrumbs.tsx` |
 | `BrokerLinksSection` | `src/components/admin/BrokerLinksSection.tsx` |
+| `BrokerUsersDialog` | `src/components/admin/BrokerUsersDialog.tsx` |
 | `BrokersList` | `src/components/admin/BrokersList.tsx` |
 | `CargoFormFields` | `src/components/admin/cargo/CargoFormFields.tsx` |
 | `CargoGroups` | `src/components/admin/CargoGroups.tsx` |
@@ -367,6 +392,7 @@
 | `CustomerCabinetAccess` | `src/components/admin/CustomerCabinetAccess.tsx` |
 | `CustomerCard` | `src/components/admin/CustomerCard.tsx` |
 | `CustomerCreateDialog` | `src/components/admin/CustomerCreateDialog.tsx` |
+| `CustomerUserDialog` | `src/components/admin/CustomerUserDialog.tsx` |
 | `CustomersList` | `src/components/admin/CustomersList.tsx` |
 | `EMPTY_OPTION_FORM` | `src/components/admin/QuoteOptionFormFields.tsx` |
 | `EmployeeCard` | `src/components/admin/employee/EmployeeCard.tsx` |
@@ -433,6 +459,7 @@
 | `BrokerLogoutButton` | `src/components/broker/BrokerLogoutButton.tsx` |
 | `BrokerOrderCard` | `src/components/broker/BrokerOrderCard.tsx` |
 | `BrokerOrderStatusBadge` | `src/components/broker/BrokerBadges.tsx` |
+| `BrokerUserForm` | `src/components/admin/broker/BrokerUserForm.tsx` |
 
 ### src/components/client
 
@@ -483,6 +510,7 @@
 | GET | `/api/admin/attention` | admin | employee | — | нет |
 | GET, POST | `/api/admin/brokers` | admin | employee | write | нет |
 | PATCH | `/api/admin/brokers/{id}` | admin | employee | write | нет |
+| GET, PATCH, POST | `/api/admin/brokers/{id}/users` | admin | employee | write | нет |
 | GET, POST | `/api/admin/contractor-leads` | admin | employee | write | нет |
 | DELETE, GET, PATCH | `/api/admin/contractor-leads/{id}` | admin | employee | write | нет |
 | GET | `/api/admin/contractors` | admin | employee | — | нет |
@@ -490,7 +518,7 @@
 | GET | `/api/admin/contracts` | admin | employee | — | нет |
 | GET, POST | `/api/admin/customers` | admin | employee | write | нет |
 | GET | `/api/admin/customers/{id}` | admin | employee | — | нет |
-| POST | `/api/admin/customers/{id}/access` | admin | employee | write | нет |
+| GET, PATCH, POST | `/api/admin/customers/{id}/access` | admin | employee | write | нет |
 | DELETE | `/api/admin/documents/{id}` | admin | employee | write | нет |
 | POST | `/api/admin/documents/{id}/versions` | admin | employee | write | нет |
 | GET, POST | `/api/admin/employees` | admin | employee | — | нет |
@@ -556,15 +584,17 @@
 | Модель | Полей | Где используется |
 |---|---|---|
 | `Activity` | 17 | src/app/admin/(dashboard)/page.tsx, src/lib/activity.ts |
-| `Broker` | 12 | src/app/api/admin/brokers/[id]/route.ts, src/app/api/admin/brokers/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/auth/broker/login/route.ts |
+| `Broker` | 13 | src/app/api/admin/brokers/[id]/route.ts, src/app/api/admin/brokers/[id]/users/route.ts, src/app/api/admin/brokers/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts |
 | `BrokerEstimate` | 8 | src/app/api/broker/leads/[id]/estimate/route.ts |
-| `BrokerSession` | 6 | src/lib/broker-auth.ts |
-| `ClientSession` | 6 | src/app/api/admin/customers/[id]/access/route.ts, src/lib/client-auth.ts |
+| `BrokerSession` | 8 | src/lib/broker-auth.ts |
+| `BrokerUser` | 12 | src/app/api/admin/brokers/[id]/users/route.ts, src/app/api/auth/broker/login/route.ts, src/lib/actor-name.ts, src/lib/company-users.ts |
+| `ClientSession` | 8 | src/lib/client-auth.ts |
 | `Contract` | 9 | src/app/api/admin/contracts/route.ts |
 | `Contractor` | 15 | src/app/api/admin/contractor-leads/[id]/route.ts, src/app/api/admin/contractors/[id]/route.ts, src/app/api/admin/contractors/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/auth/contractor/login/route.ts |
 | `ContractorLead` | 9 | src/app/api/admin/contractor-leads/[id]/route.ts, src/app/api/admin/contractor-leads/route.ts |
 | `ContractorSession` | 6 | src/lib/contractor-auth.ts |
-| `Customer` | 12 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/customers/route.ts, src/app/api/admin/leads/route.ts, src/app/api/admin/orders/route.ts, src/app/api/auth/client/login/route.ts |
+| `Customer` | 13 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/customers/route.ts, src/app/api/admin/leads/route.ts, src/app/api/admin/orders/route.ts |
+| `CustomerUser` | 12 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/auth/client/login/route.ts, src/lib/actor-name.ts, src/lib/company-users.ts |
 | `Document` | 12 | src/app/api/admin/documents/[id]/versions/route.ts, src/app/api/admin/leads/[id]/documents/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/app/api/client/leads/[id]/documents/route.ts (+2) |
 | `DocumentVersion` | 13 | src/app/api/document-versions/[id]/file/route.ts |
 | `Employee` | 10 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/leads/[id]/patch.ts, src/app/api/admin/orders/[id]/patch.ts (+1) |
@@ -589,7 +619,7 @@
 | `BASE_URL` | 2 | да | да |
 | `CONTRACTOR_PORTAL_ENABLED` | 1 | да | да |
 | `DATABASE_URL` | 5 | да | да |
-| `DISABLE_RATE_LIMIT` | 1 | да | да |
+| `DISABLE_RATE_LIMIT` | 2 | да | да |
 | `MASTER_PASSWORD` | 2 | да | да |
 | `MASTER_PHONE` | 2 | да | да |
 | `NODE_ENV` | 2 | — | да |

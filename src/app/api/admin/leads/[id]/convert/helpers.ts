@@ -5,6 +5,7 @@ import {
   ACTIVITY_FEED_TAKE,
 } from '@/lib/activity'
 import { eventWhereFor } from '@/lib/audience'
+import { projectActors, STAFF_READER } from '@/lib/actor-name'
 
 // v0.5.0 (P1-22): хелперы конвертации лида в заявку (В4) — выезд из
 // route.ts (резка под лимит 300, RULES 2.14). Логика 1:1.
@@ -43,8 +44,10 @@ export async function carryBrokersToOrder(
 // Ж2: включает ленту событий — ответ конвертации обновляет состояние
 // LeadCard целиком, без ленты карточка «теряла» бы её до перезагрузки.
 // Д: брокеры с оценками — карточка лида показывает их и после won.
+// DF-02A (Блок 4): актёр-человек собирается при чтении (staff —
+// «Имя (Компания)»), вызов после транзакции — db, не tx.
 export async function loadLeadCard(id: string) {
-  return db.lead.findUnique({
+  const lead = await db.lead.findUnique({
     where: { id },
     include: {
       customer: { select: { id: true, name: true, phone: true, email: true } },
@@ -68,4 +71,7 @@ export async function loadLeadCard(id: string) {
       },
     },
   })
+  if (!lead) return lead
+  const activities = await projectActors(lead.activities, STAFF_READER)
+  return { ...lead, activities }
 }

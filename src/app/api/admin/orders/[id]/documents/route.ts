@@ -8,6 +8,7 @@ import {
   createDocumentOnDeal,
   parseDocumentCreateForm,
 } from '@/lib/documents'
+import { projectDocumentAuthors, STAFF_READER } from '@/lib/actor-name'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -36,7 +37,11 @@ export async function GET(req: NextRequest, { params }: Params) {
       select: DOC_PUBLIC_FIELDS,
       orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
     })
-    return NextResponse.json({ documents })
+    // DF-02A (Блок 4): автор версии — человек; сотруднику —
+    // «Имя (Компания)» (устаревшие версии — компания, как было).
+    return NextResponse.json({
+      documents: await projectDocumentAuthors(documents, STAFF_READER),
+    })
   } catch (e) {
     return apiErrorResponse(e, 'order documents GET', 'Не удалось загрузить документы')
   }

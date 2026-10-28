@@ -102,23 +102,11 @@
    "reason": "первичный baseline DF-00B"
   },
   {
-   "key": "block:src/app/api/admin/brokers/route.ts~src/app/api/admin/contractors/route.ts",
-   "reason": "первичный baseline DF-00B"
-  },
-  {
    "key": "block:src/app/api/admin/brokers/route.ts~src/app/api/admin/leads/route.ts",
    "reason": "первичный baseline DF-00B"
   },
   {
    "key": "block:src/app/api/admin/contractor-leads/route.ts~src/app/api/admin/leads/route.ts",
-   "reason": "первичный baseline DF-00B"
-  },
-  {
-   "key": "block:src/app/api/admin/customers/[id]/access/route.ts~src/app/api/admin/leads/[id]/convert/route.ts",
-   "reason": "первичный baseline DF-00B"
-  },
-  {
-   "key": "block:src/app/api/admin/customers/[id]/access/route.ts~src/app/api/admin/leads/[id]/options/route.ts",
    "reason": "первичный baseline DF-00B"
   },
   {
@@ -147,18 +135,6 @@
   },
   {
    "key": "block:src/app/api/admin/leads/[id]/patch.ts~src/app/api/admin/orders/[id]/patch.ts",
-   "reason": "первичный baseline DF-00B"
-  },
-  {
-   "key": "block:src/app/api/auth/broker/login/route.ts~src/app/api/auth/client/login/route.ts",
-   "reason": "первичный baseline DF-00B"
-  },
-  {
-   "key": "block:src/app/api/auth/broker/login/route.ts~src/app/api/auth/contractor/login/route.ts",
-   "reason": "первичный baseline DF-00B"
-  },
-  {
-   "key": "block:src/app/api/auth/client/login/route.ts~src/app/api/auth/contractor/login/route.ts",
    "reason": "первичный baseline DF-00B"
   },
   {
@@ -219,14 +195,6 @@
   },
   {
    "key": "block:src/components/admin/ContractsList.tsx~src/components/admin/OrdersList.tsx",
-   "reason": "первичный baseline DF-00B"
-  },
-  {
-   "key": "block:src/components/admin/CustomerCabinetAccess.tsx~src/components/admin/LeadEditDialog.tsx",
-   "reason": "первичный baseline DF-00B"
-  },
-  {
-   "key": "block:src/components/admin/CustomerCabinetAccess.tsx~src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx",
    "reason": "первичный baseline DF-00B"
   },
   {
@@ -516,6 +484,52 @@
   {
    "key": "block:src/components/client/ClientOrderCard.tsx~src/components/contractor/ContractorOrderCard.tsx",
    "reason": "первичный baseline DF-00B"
+  },
+  {
+   "key": "block:src/app/api/admin/brokers/[id]/users/route.ts~src/app/api/admin/customers/[id]/access/route.ts",
+   "reason": "DF-02A Блок 5: параллельные CRUD-роуты списка людей (клиент/брокер) — общая логика в lib/company-users.ts, роуты тонкие шейпы zod+зеркала; схлопывание в дженерик дороже пары зеркальных файлов (Г1-решение Блока 5)"
+  },
+  {
+   "key": "block:src/components/admin/BrokerUsersDialog.tsx~src/components/admin/CustomerCabinetAccess.tsx",
+   "reason": "DF-02A Блок 5: зеркальные списки людей (карточка клиента / диалог справочника брокера) — одинаковая анатомия бейджей и действий по брендбуку; строки-паттерны UI"
+  },
+  {
+   "key": "block:src/components/admin/CustomerUserDialog.tsx~src/components/admin/broker/BrokerUserForm.tsx",
+   "reason": "DF-02A Блок 5: зеркальные формы сотрудника (клиент/брокер) — поля name/phone/email/password и генератор пароля; разнос контекстов"
+  },
+  {
+   "key": "block:src/components/admin/CustomerUserDialog.tsx~src/components/admin/LeadEditDialog.tsx",
+   "reason": "шаблон диалог-формы (grid Label+Input) — стандартные строки шадсн-диалогов, дубликат каркаса, не логики"
+  },
+  {
+   "key": "block:src/components/admin/CustomerUserDialog.tsx~src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx",
+   "reason": "шаблон диалог-формы (grid Label+Input) — стандартные строки шадсн-диалогов"
+  },
+  {
+   "key": "block:src/components/admin/CustomerUserDialog.tsx~src/components/admin/employee/EmployeeEditDialog.tsx",
+   "reason": "шаблон диалог-формы (grid Label+Input) — стандартные строки шадсн-диалогов"
+  },
+  {
+   "key": "block:src/components/admin/CustomerUserDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
+   "reason": "паттерн показа/генерации пароля (глаз + Сгенерировать) — общий каркас с диалогом сброса пароля сотрудника"
+  },
+  {
+   "key": "block:src/components/admin/CustomerUserDialog.tsx~src/components/admin/legalentity/LegalEntityEditDialog.tsx",
+   "reason": "шаблон диалог-формы (grid Label+Input) — стандартные строки шадсн-диалогов"
+  },
+  {
+   "key": "block:src/components/admin/CustomerUserDialog.tsx~src/components/admin/stagecatalog/StageEditDialog.tsx",
+   "reason": "шаблон диалог-формы (grid Label+Input) — стандартные строки шадсн-диалогов"
+  }
+ ],
+ "IC-08": [
+  {
+   "key": "docs/ROADMAP-DEALFLOW.md->docs/design/contrast-pairs.json",
+   "reason": "роадмап v1.5 (DF-20/DF-21, очередь §6) опережает код: артефакты DF-20 (contrast-pairs.json, contrast_check.py) появятся при закрытии DF-20 (D40); записи снимаются при его закрытии"
+  },
+  {
+   "key": "docs/ROADMAP-DEALFLOW.md->scripts/contrast_check.py",
+   "reason": "роадмап v1.5 (DF-20/DF-21, очередь §6) опережает код: артефакты DF-20 (contrast-pairs.json, contrast_check.py) появятся при закрытии DF-20 (D40); записи снимаются при его закрытии"
   }
  ]
 }

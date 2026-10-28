@@ -84,9 +84,13 @@ export type ActivityType = (typeof ACTIVITY_TYPES)[number]
 
 // Кто действовал. Сотрудник, подрядчик, клиент (И1 — запрос из
 // кабинета) и брокер (Д — оценка таможенных платежей из портала) —
-// id+имя (имя пишется снимком, id — для будущих фильтров «действия
-// сотрудника» без FK). Система — событие без человека (сегодня таких
-// в очереди нет, слот оставлен: Ж3-заметки и будущие автоматизации).
+// id+имя. Система — событие без человека (сегодня таких в очереди
+// нет, слот оставлен: Ж3-заметки и будущие автоматизации).
+// DF-02A (Блок 4): для клиента и брокера id = id ПОЛЬЗОВАТЕЛЯ
+// (CustomerUser/BrokerUser), name — снимок КОМПАНИИ (наименее
+// привилегированная строка: актёр-человек собирается при чтении
+// lib/actor-name.ts по actorId — «Имя (Компания)»/компания/имя
+// по роли читателя). У сотрудника/подрядчика — прежние снимки.
 export type ActivityActor =
   | { type: 'employee'; id: string; name: string }
   | { type: 'contractor'; id: string; name: string }
@@ -111,16 +115,17 @@ export function contractorActor(c: { id: string; companyName: string }): Activit
   return { type: 'contractor', id: c.id, name: c.companyName }
 }
 
-// Клиент кабинета (И1): имя — Customer.name на момент действия
-// (снимок, как у остальных актёров).
-export function clientActor(c: { id: string; name: string }): ClientActor {
-  return { type: 'client', id: c.id, name: c.name }
+// Клиент кабинета (И1). DF-02A (Блок 4): актор — ЧЕЛОВЕК (userId),
+// name — снимок КОМПАНИИ (CurrentClient.name = имя компании).
+// Проекция отображаемого имени — lib/actor-name.ts при чтении.
+export function clientActor(c: { userId: string; name: string }): ClientActor {
+  return { type: 'client', id: c.userId, name: c.name }
 }
 
-// Брокер портала (Д): имя — companyName на момент действия (снимок,
-// как у подрядчика — люди у брокера не заведены).
-export function brokerActor(b: { id: string; companyName: string }): BrokerActor {
-  return { type: 'broker', id: b.id, name: b.companyName }
+// Брокер портала (Д). DF-02A (Блок 4): актор — ЧЕЛОВЕК (userId),
+// name — снимок компании (companyName); проекция — lib/actor-name.ts.
+export function brokerActor(b: { userId: string; companyName: string }): BrokerActor {
+  return { type: 'broker', id: b.userId, name: b.companyName }
 }
 
 export const SYSTEM_ACTOR: ActivityActor = { type: 'system' }
@@ -215,11 +220,14 @@ export async function logInternalNote(
 }
 
 // ── Чтение ленты (GET карточек) ─────────────────────────────────────
-// Публичная проекция без actorId — ленте достаточно имени-снимка.
+// Публичная проекция. DF-02A (Блок 4): actorId включён — проекция
+// «Имя (Компания)» собирается при чтении (lib/actor-name.ts) по id
+// пользователя; id непрозрачен (cuid), имя-снимок остаётся строкой.
 // isInternal нужен UI: заметки рисуются иначе (бейдж «Заметка»).
 export const ACTIVITY_PUBLIC_FIELDS = {
   id: true,
   actorType: true,
+  actorId: true,
   actorName: true,
   type: true,
   description: true,

@@ -1,6 +1,6 @@
 'use client'
 
-import { Pencil, ShieldCheck, ShieldOff } from 'lucide-react'
+import { Pencil, ShieldCheck, ShieldOff, UsersRound } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -16,11 +16,14 @@ export function BrokerCard({
   broker,
   onEdit,
   onToggleActive,
+  onManageUsers,
   saving,
 }: {
   broker: BrokerRow
   onEdit: (b: BrokerRow) => void
   onToggleActive: (b: BrokerRow) => void
+  // DF-02A Блок 5: список сотрудников (люди портала брокера)
+  onManageUsers: (b: BrokerRow) => void
   saving: boolean
 }) {
   return (
@@ -55,6 +58,15 @@ export function BrokerCard({
               Сделок: {broker._count.leadLinks + broker._count.orderLinks}
             </div>
             <div className="mt-1 flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                onClick={() => onManageUsers(broker)}
+                title="Сотрудники — люди с доступом в портал"
+              >
+                <UsersRound className="size-4" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"

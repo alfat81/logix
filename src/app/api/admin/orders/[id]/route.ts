@@ -8,6 +8,7 @@ import {
   ACTIVITY_FEED_TAKE,
 } from '@/lib/activity'
 import { eventWhereFor } from '@/lib/audience'
+import { projectActors, STAFF_READER } from '@/lib/actor-name'
 import { patchOrder } from './patch'
 
 type Params = { params: Promise<{ id: string }> }
@@ -91,6 +92,9 @@ export async function GET(req: NextRequest, { params }: Params) {
   return NextResponse.json({
     order: {
       ...order,
+      // DF-02A (Блок 4): актёр-человек собирается при чтении —
+      // «Имя (Компания)» (устаревшие строки — компания, как было).
+      activities: await projectActors(order.activities, STAFF_READER),
       stages: order.stages.map((s) => ({
         ...s,
         isMandatory: mandatoryByCode.get(s.stageCode) ?? false,

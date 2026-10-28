@@ -8,6 +8,7 @@ import {
   BROKER_PUBLIC_FIELDS,
 } from '@/lib/brokers'
 import { apiErrorResponse } from '@/lib/api-errors'
+import { CompanyUserError, createBrokerUser } from '@/lib/company-users'
 
 // ─── Справочник брокеров (Д, роадмап 5а) ─────────────────────────
 // GET /api/admin/brokers — список. Query: ?active=true|false — витрина
@@ -98,24 +99,42 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const broker = await db.broker.create({
-      data: {
-        companyName: parsed.data.companyName,
+    // DF-02A: брокер рождается сразу с основным пользователем — источник
+    // входа с этого релиза (имя — название компании, телефон/пароль —
+    // те же учётные данные; createBrokerUser хеширует сам, проверит
+    // глобальную уникальность телефона среди пользователей брокера).
+    // Старое поле Broker.password остаётся (DEPRECATIONS, страховка
+    // отката до contract-релиза).
+    const broker = await db.$transaction(async (tx) => {
+      const created = await tx.broker.create({
+        data: {
+          companyName: parsed.data.companyName,
+          phone,
+          password: hashPassword(parsed.data.password),
+          isInHouse: parsed.data.isInHouse ?? false,
+          ...(parsed.data.comment !== undefined && parsed.data.comment !== null
+            ? { comment: parsed.data.comment }
+            : {}),
+          ...(parsed.data.contactInfo
+            ? { contactInfo: parsed.data.contactInfo as object }
+            : {}),
+        },
+        select: BROKER_PUBLIC_FIELDS,
+      })
+      await createBrokerUser(tx, created.id, {
+        name: created.companyName,
         phone,
-        password: hashPassword(parsed.data.password),
-        isInHouse: parsed.data.isInHouse ?? false,
-        ...(parsed.data.comment !== undefined && parsed.data.comment !== null
-          ? { comment: parsed.data.comment }
-          : {}),
-        ...(parsed.data.contactInfo
-          ? { contactInfo: parsed.data.contactInfo as object }
-          : {}),
-      },
-      select: BROKER_PUBLIC_FIELDS,
+        password: parsed.data.password,
+        isPrimary: true,
+      })
+      return created
     })
 
     return NextResponse.json({ broker }, { status: 201 })
   } catch (e) {
+    if (e instanceof CompanyUserError) {
+      return NextResponse.json({ error: e.message }, { status: e.status })
+    }
     return apiErrorResponse(e, 'brokers POST', 'Не удалось создать брокера')
   }
 }

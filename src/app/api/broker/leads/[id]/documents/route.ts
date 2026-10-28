@@ -8,6 +8,7 @@ import {
   createDocumentOnDeal,
   parseDocumentCreateForm,
 } from '@/lib/documents'
+import { projectDocumentAuthors } from '@/lib/actor-name'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -42,7 +43,14 @@ export async function GET(req: NextRequest, { params }: Params) {
       select: DOC_PUBLIC_FIELDS,
       orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
     })
-    return NextResponse.json({ documents })
+    // DF-02A (Блок 4): автор версии — человек. Коллеги по компании
+    // видят имена, чужие авторы — компанию (снимок как был).
+    return NextResponse.json({
+      documents: await projectDocumentAuthors(documents, {
+        kind: 'broker',
+        brokerId: auth.broker.id,
+      }),
+    })
   } catch (e) {
     return apiErrorResponse(e, 'broker lead documents GET', 'Не удалось загрузить документы')
   }
@@ -71,7 +79,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       parsed.meta,
       parsed.file
     )
-    return NextResponse.json({ document }, { status: 201 })
+    // DF-02A (Блок 4): автор версии 1 — этот пользователь; в ответе
+    // сразу имя человека (свой кабинет — коллега).
+    const [projected] = await projectDocumentAuthors([document], {
+      kind: 'broker',
+      brokerId: auth.broker.id,
+    })
+    return NextResponse.json({ document: projected }, { status: 201 })
   } catch (e) {
     return apiErrorResponse(e, 'broker lead documents POST', 'Не удалось загрузить документ')
   }

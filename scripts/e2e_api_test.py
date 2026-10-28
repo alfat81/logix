@@ -237,10 +237,13 @@ s,d=a.r('POST',f'/api/admin/orders/{oid}/notes',{'text':note}); chk('DF-01: вн
 s,d=a.r('GET',f'/api/admin/orders/{oid}'); Oa=d.get('order',d); oacts=Oa.get('activities',[])
 chk('DF-01: заметка в ленте сотрудника (staff видит всё)',any(x['type']=='note_added' and x['isInternal'] and x['description']==note for x in oacts),[x['type'] for x in oacts[:6]])
 chk('DF-01: статус-событие заявки не внутреннее (адресовано клиенту)',any(x['type']=='order_status_changed' and not x['isInternal'] for x in oacts),[x['type'] for x in oacts[:6]])
-# client access
+# client access — DF-02A: выдача доступа создаёт ОСНОВНОГО пользователя
+# компании (имя человека задаёт менеджер); логин прежний — телефон
+# компании + пароль (критерий приёмки: вход без смены пароля)
 cust=O['customer']['id'] if O.get('customer') else O['customerId']
-s,d=a.r(AM,f'/api/admin/customers/{cust}/access',{'password':'client-pass-1'}); chk('доступ клиенту выдан',s in(200,201),(s,d))
-s,d=a.r('GET',f'/api/admin/customers/{cust}'); cphone=(d.get('customer',d)).get('phone'); print('client phone',cphone)
+s,d=a.r('GET',f'/api/admin/customers/{cust}'); custrow=(d.get('customer',d)); cust_name=custrow.get('name'); cphone=custrow.get('phone'); print('client phone',cphone)
+prim_name='Иван Клиентов '+u
+s,d=a.r(AM,f'/api/admin/customers/{cust}/access',{'name':prim_name,'phone':cphone,'password':'client-pass-1'}); chk('доступ клиенту выдан (основной пользователь создан)',s in(200,201),(s,d))
 # --- client
 c=C(); s,d=c.r('POST','/api/auth/client/login',{'phone':cphone,'password':'client-pass-1'}); chk('вход клиента',s==200,(s,d))
 s,d=c.r('GET',f'/api/client/orders/{oid}'); chk('клиент видит свою заявку',s==200,(s,str(d)[:200]))
@@ -279,6 +282,75 @@ s,d=a.r('GET',f'/api/admin/orders/{oid}'); oacts2=(d.get('order',d)).get('activi
 chk('DF-01: order_broker_detached в ленте с именем брокера',any(x['type']=='order_broker_detached' and ('Брокер-2 '+u) in x['description'] for x in oacts2),[x['type'] for x in oacts2[:6]])
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); acts=d.get('lead',d).get('activities',[])
 chk('P1-04: лента — оценка брокера отформатирована («85 000,50 ₽»)',bool(acts) and any('платежи: 85\u00a0000,50 ₽' in x['description'] for x in acts),[x['description'] for x in acts[:3]])
+# --- DF-02A: сотрудники компании — отдельные входы, автор-человек ---
+# Список людей: primary создан выдачей доступа выше (имя человека
+# задал менеджер), lastLoginAt проставлен входом; хеши не покидают сервер
+s,d=a.r('GET',f'/api/admin/customers/{cust}/access'); users=d.get('users',[])
+prim=[x for x in users if x.get('isPrimary')]
+chk('DF-02A: список людей — primary с паролем, хеши не утекают',s==200 and len(prim)==1 and prim[0].get('hasPassword') is True and all('password' not in x for x in users),(s,users))
+uid1=prim[0]['id'] if prim else None
+chk('DF-02A: lastLoginAt основного проставлен входом',bool(prim) and bool(prim[0].get('lastLoginAt')),prim[0] if prim else None)
+s,d=c.r('GET','/api/auth/client/me'); chk('DF-02A: /me кабинета несёт человека и компанию',s==200 and (d.get('client') or {}).get('userName')==prim_name and (d.get('client') or {}).get('id')==cust,(s,d))
+# второй пользователь той же компании — видит те же заявки (скоуп — компания)
+u2ph=ph(base+7); u2name='Клиент Пётр '+u
+s,d=a.r('POST',f'/api/admin/customers/{cust}/access',{'name':u2name,'phone':u2ph,'password':'client-pass-2x'}); chk('DF-02A: второй пользователь компании создан (не primary)',s==201 and bool((d or {}).get('userId')),(s,d)); uid2=(d or {}).get('userId')
+cu2=C(); s,d=cu2.r('POST','/api/auth/client/login',{'phone':u2ph,'password':'client-pass-2x'}); chk('DF-02A: второй пользователь вошёл (userName в ответе)',s==200 and (d.get('client') or {}).get('userName')==u2name,(s,d))
+s,d=cu2.r('GET',f'/api/client/orders/{oid}'); chk('DF-02A: коллега видит ту же заявку',s==200,s)
+# смена пароля второму: его сессия гаснет, коллега не задет, старый пароль не работает
+s,d=a.r('PATCH',f'/api/admin/customers/{cust}/access',{'userId':uid2,'password':'client-pass-3x'}); chk('DF-02A: смена пароля пользователя → 200',s==200,(s,d))
+s,d=cu2.r('GET','/api/client/orders'); chk('DF-02A: смена пароля погасила сессию ТОЛЬКО этого пользователя',s==401,s)
+s,d=c.r('GET',f'/api/client/orders/{oid}'); chk('DF-02A: сессия коллеги после чужой смены пароля жива',s==200,s)
+s,d=C().r('POST','/api/auth/client/login',{'phone':u2ph,'password':'client-pass-2x'}); chk('DF-02A: старый пароль после смены не работает (401)',s==401,s)
+cu2=C(); s,d=cu2.r('POST','/api/auth/client/login',{'phone':u2ph,'password':'client-pass-3x'}); chk('DF-02A: вход по новому паролю',s==200,s)
+# чужая компания: пользователь B не видит заявку A (404)
+s,d=a.r('POST','/api/admin/customers',{'name':'Компания B '+u,'phone':ph(base+8)}); custB=(d.get('customer') or d)['id']
+s,d=a.r(AM,f'/api/admin/customers/{custB}/access',{'name':'Клиент B '+u,'phone':ph(base+9),'password':'client-pass-b'})
+cb=C(); cb.r('POST','/api/auth/client/login',{'phone':ph(base+9),'password':'client-pass-b'})
+s,d=cb.r('GET',f'/api/client/orders/{oid}'); chk('DF-02A: пользователь компании B не видит заявку A (404)',s==404,s)
+# деактивация второго: сессия гаснет, вход 403, доступ компании цел, возврат — снова входит
+s,d=a.r('PATCH',f'/api/admin/customers/{cust}/access',{'userId':uid2,'isActive':False}); chk('DF-02A: деактивация пользователя → 200',s==200,(s,d))
+s,d=cu2.r('GET','/api/client/orders'); chk('DF-02A: сессия деактивированного погасла',s==401,s)
+s,d=C().r('POST','/api/auth/client/login',{'phone':u2ph,'password':'client-pass-3x'}); chk('DF-02A: деактивированный не входит (403 «доступ закрыт», не 401)',s==403,s)
+s,d=c.r('GET',f'/api/client/orders/{oid}'); chk('DF-02A: деактивация одного не закрыла доступ компании',s==200,s)
+s,d=a.r('PATCH',f'/api/admin/customers/{cust}/access',{'userId':uid2,'isActive':True}); chk('DF-02A: возврат пользователя → 200',s==200,(s,d))
+cu2=C(); s,d=cu2.r('POST','/api/auth/client/login',{'phone':u2ph,'password':'client-pass-3x'}); chk('DF-02A: после возврата пользователь входит снова',s==200,s)
+# контакт без входа (P1-07): пользователь без пароля существует, но не входит
+s,d=a.r('POST',f'/api/admin/customers/{cust}/access',{'name':'Контакт без входа '+u,'phone':ph(base+13)}); chk('DF-02A: контакт без пароля создан',s==201,(s,d))
+s,d=C().r('POST','/api/auth/client/login',{'phone':ph(base+13),'password':'anything1'}); chk('DF-02A: контакт без пароля не входит (401)',s==401,s)
+s,d=a.r('GET',f'/api/admin/customers/{cust}/access'); nofin=[x for x in d.get('users',[]) if x.get('phone')=='+7999%07d'%(base+13)]
+chk('DF-02A: контакт без входа в списке (hasPassword=false)',len(nofin)==1 and nofin[0].get('hasPassword') is False,nofin)
+s,d=a.r('GET',f'/api/admin/customers/{cust}'); chk('DF-02A: доступ компании = активный пользователь с паролем',(d.get('customer',d)).get('hasCabinetAccess') is True,(s,d))
+# --- DF-02A: автор-человек в версиях документов ---
+body,ct=multipart({'type':'invoice','title':'Счёт от клиента '+u},'cl.pdf',b'%PDF-1.4 client',"application/pdf")
+s,d=c.r('POST',f'/api/client/orders/{oid}/documents',raw=body,ct=ct); chk('DF-02A: клиент загрузил документ (версия 1)',s in(200,201),(s,d))
+v1=((d.get('document') or {}).get('versions') or [{}])[0]
+chk('DF-02A: автор версии — человек (свой кабинет видит имя)',v1.get('authorType')=='client' and v1.get('authorName')==prim_name and bool(v1.get('authorId')),v1)
+s,d=a.r('GET',f'/api/admin/orders/{oid}/documents'); txt=json.dumps(d,ensure_ascii=False)
+chk('DF-02A: сотрудник видит автора «Имя (Компания)»',(prim_name+' ('+cust_name+')') in txt,txt[:200])
+s,d=b.r('GET',f'/api/broker/orders/{oid}/documents'); txt=json.dumps(d,ensure_ascii=False)
+chk('DF-02A: брокер (другая сторона) видит только компанию автора',cust_name in txt and prim_name not in txt,txt[:200])
+# --- DF-02A: сотрудники брокера (зеркало клиентского) ---
+s,d=a.r('GET',f'/api/admin/brokers/{bid}/users'); bu=d.get('users',[])
+bprim=[x for x in bu if x.get('isPrimary')]
+chk('DF-02A: у брокера основной пользователь (создан вместе с брокером)',s==200 and len(bprim)==1 and bprim[0].get('hasPassword') is True,(s,bu))
+buid1=bprim[0]['id'] if bprim else None
+bu2ph=ph(base+10); bu2name='Брокер Пётр '+u
+s,d=a.r('POST',f'/api/admin/brokers/{bid}/users',{'name':bu2name,'phone':bu2ph,'password':'broker-pass-3'}); chk('DF-02A: второй пользователь брокера создан',s==201,(s,d)); buid2=(d or {}).get('userId')
+bu2=C(); s,d=bu2.r('POST','/api/auth/broker/login',{'phone':bu2ph,'password':'broker-pass-3'}); chk('DF-02A: второй пользователь брокера вошёл (userName)',s==200 and (d.get('broker') or {}).get('userName')==bu2name,(s,d))
+s,d=bu2.r('GET',f'/api/broker/orders/{oid}'); chk('DF-02A: коллега-брокер видит ту же заявку',s==200,s)
+s,d=a.r('PATCH',f'/api/admin/brokers/{bid}/users',{'userId':buid2,'isActive':False}); chk('DF-02A: деактивация пользователя брокера → 200',s==200,(s,d))
+s,d=bu2.r('GET','/api/broker/orders'); chk('DF-02A: сессия деактивированного брокера погасла',s==401,s)
+s,d=C().r('POST','/api/auth/broker/login',{'phone':bu2ph,'password':'broker-pass-3'}); chk('DF-02A: деактивированный брокер не входит (403)',s==403,s)
+# автор-человек у брокера: личность известна — правим имя, грузим документ
+s,d=a.r('PATCH',f'/api/admin/brokers/{bid}/users',{'userId':buid1,'name':'Брокер Олег '+u}); chk('DF-02A: имя человека у основного брокера правится',s==200,(s,d))
+body,ct=multipart({'type':'other','title':'Акт брокера '+u},'br.pdf',b'%PDF-1.4 broker',"application/pdf")
+s,d=b.r('POST',f'/api/broker/orders/{oid}/documents',raw=body,ct=ct); chk('DF-02A: брокер загрузил документ',s in(200,201),(s,d))
+bv1=((d.get('document') or {}).get('versions') or [{}])[0]
+chk('DF-02A: автор-брокер — человек (свой кабинет)',bv1.get('authorType')=='broker' and bv1.get('authorName')=='Брокер Олег '+u and bool(bv1.get('authorId')),bv1)
+s,d=a.r('GET',f'/api/admin/orders/{oid}/documents'); txt=json.dumps(d,ensure_ascii=False)
+chk('DF-02A: сотрудник видит автора-брокера «Имя (Компания)»',('Брокер Олег '+u+' (Брокер '+u+')') in txt,txt[:200])
+s,d=c.r('GET',f'/api/client/orders/{oid}/documents'); txt=json.dumps(d,ensure_ascii=False)
+chk('DF-02A: клиент (другая сторона) видит только компанию брокера',('Брокер '+u) in txt and ('Брокер Олег '+u) not in txt,txt[:200])
 # --- DF-00D: настройки системы (мастер-only; журнал/транзакция — settings.test.ts против живой БД) ---
 s,d=bb.r('GET','/api/admin/settings'); chk('[ПРИЁМКА DF-00D] менеджер не читает настройки → 403',s==403,s)
 s,d=bb.r('PATCH','/api/admin/settings',{'key':'files.max_mb','value':50}); chk('[ПРИЁМКА DF-00D] менеджер не меняет настройки → 403',s==403,s)
@@ -306,7 +378,7 @@ s,d=k.r('PATCH',f'/api/contractor/orders/{oid}/stages/{mand["id"]}',{'status':'i
 s,d=k.r('PATCH',f'/api/contractor/orders/{oid}/stages/{st2["id"]}',{'status':'problem'}); chk('подрядчик ставит problem своему этапу',s==200,(s,d))
 # --- IDOR: second client
 s,d=a.r('POST','/api/admin/customers',{'name':'Чужой '+u,'phone':ph(base+3)}); c2=(d.get('customer') or d)['id']
-a.r(AM,f'/api/admin/customers/{c2}/access',{'password':'client-pass-2'})
+a.r(AM,f'/api/admin/customers/{c2}/access',{'name':'Пользователь чужой '+u,'phone':ph(base+3),'password':'client-pass-2'})
 c2c=C(); c2c.r('POST','/api/auth/client/login',{'phone':ph(base+3),'password':'client-pass-2'})
 s,d=c2c.r('GET',f'/api/client/orders/{oid}'); chk('IDOR: чужой клиент не видит заявку',s in(403,404),s)
 # --- P1-02: клиент правит свой запрос до вариантов ---
@@ -320,6 +392,7 @@ chk('P1-02: правка клиента видна в колонках',float(L2
 s,d=c2c.r('PATCH',f'/api/client/leads/{clid2}',{'cargoInfo':{'weightKg':1}}); chk('P1-02: чужой клиент не правит запрос (IDOR)',s in(403,404),s)
 s,d=a.r('GET',f'/api/admin/leads/{clid2}'); L=d.get('lead',d); acts=L.get('activities',[])
 chk('P1-02: правка клиента в журнале запроса (актёр — клиент)',bool(acts) and acts[0]['type']=='lead_edited' and acts[0]['actorType']=='client',(acts[0] if acts else None))
+chk('DF-02A: в ленте сотрудника актёр-клиент — «Имя (Компания)»',bool(acts) and prim_name in acts[0].get('actorName','') and cust_name in acts[0].get('actorName','') and bool(acts[0].get('actorId')),(acts[0] if acts else None))
 s,d=c.r('PATCH',f'/api/client/leads/{lid}',{'cargoInfo':{'weightKg':3333}}); chk('P1-02: клиент не правит запрос после вариантов → 409',s==409,s)
 s,d=a.r('GET',f'/api/admin/orders/{oid}/documents'); docs=d.get('documents',d)
 vid=[x for x in docs if x['isInternal']][0]['versions'][0]['id']
@@ -337,6 +410,13 @@ for i in range(6): s,d=x.r('POST','/api/auth/employee/login',{'phone':'+79000000
 chk('rate-limit входа (429 после 5 провалов)',s==429,s)
 s,d=x.r('POST','/api/auth/employee/login',{'phone':'+79000000000','password':'bad'},h={'X-Forwarded-For':'1.2.3.%d'%random.randint(1,250)})
 chk('E0-05 подмена X-Forwarded-For не обходит лимит',s==429,s)
+# DF-02A: лимиты входа кабинетов действуют (роуты переписаны на
+# authenticate* — guard общий, ключ телефон+IP сохранён; минутое окно
+# по IP уже заполнено провалами выше, честный перебор кабинета — vitest)
+s,d=C().r('POST','/api/auth/client/login',{'phone':ph(base+11),'password':'bad0'})
+chk('DF-02A: rate-limit входа клиента (429)',s==429,s)
+s,d=C().r('POST','/api/auth/broker/login',{'phone':ph(base+12),'password':'bad0'})
+chk('DF-02A: rate-limit входа брокера (общий бакет IP)',s==429,s)
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)
 hard=[r for r in R if not r[1] and not r[0].startswith('[ЦЕЛЬ')]

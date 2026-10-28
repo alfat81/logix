@@ -81,7 +81,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
     parts.push(permits.length > 0 ? `разрешительные документы: ${permits.length}` : 'разрешительные документы: не указаны')
     await emitEvent(db, {
       target: { leadId: id },
-      actor: brokerActor({ id: auth.broker.id, companyName: auth.broker.companyName }),
+      // DF-02A (Блок 4): актор — пользователь брокера (userId), имя —
+      // снимок компании; проекция в ленте — lib/actor-name.ts.
+      actor: brokerActor(auth.broker),
       type: 'broker_estimate_changed',
       description: `Оценка таможенных платежей (${link.estimate ? 'обновлена' : 'сообщена'}) — ${parts.join(', ')}`,
     })

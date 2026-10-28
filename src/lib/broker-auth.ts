@@ -1,26 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { Broker } from '@prisma/client'
+import type { Broker, BrokerUser } from '@prisma/client'
 import { db } from './db'
 import { definePortal } from './portal-auth'
 
 // Кабинет брокера (Д). Механизм сессий — lib/portal-auth.ts.
-// isActive проверяется на каждый запрос: деактивированный брокер
-// больше не видит сделки. Права: свои сделки и своя оценка платежей.
+// DF-02A: сессия принадлежит ЧЕЛОВЕКУ — пользователю брокерской
+// компании (BrokerUser), зеркально клиентскому кабинету (И1).
+// isActive проверяется на каждый запрос на ДВУХ уровнях: человек и
+// компания. Сессии без пользователя (userId null, окно деплоя)
+// считаются не найденными — вход заново.
+// Права: свои сделки и своя оценка платежей.
 export const BROKER_SESSION_COOKIE = 'logix_broker_session'
 
-export type CurrentBroker = { id: string; companyName: string; phone: string }
+// id — КОМПАНИЯ (brokerId): скоупинг кабинетских роутов не меняется.
+// userId/userName — человек: актёр событий и автор версий документов
+// (Блок 4: actorId = userId, проекция имени — lib/actor-name.ts),
+// шапка портала и /me.
+export type CurrentBroker = {
+  id: string
+  userId: string
+  userName: string
+  companyName: string
+  phone: string | null
+}
 
-const portal = definePortal<Broker, CurrentBroker>({
+type SessionUser = BrokerUser & { broker: Broker }
+
+const portal = definePortal<SessionUser, CurrentBroker>({
   cookie: BROKER_SESSION_COOKIE,
   store: {
-    find: (token) => db.brokerSession.findUnique({ where: { token }, include: { broker: true } })
-      .then((s) => (s ? { expiresAt: s.expiresAt, user: s.broker } : null)),
-    create: (brokerId, token, expiresAt) => db.brokerSession.create({ data: { brokerId, token, expiresAt } }),
+    // Сессии без пользователя (userId null — окно деплоя) = не найдена.
+    find: (token) =>
+      db.brokerSession
+        .findUnique({ where: { token }, include: { user: { include: { broker: true } } } })
+        .then((s) => (s && s.user ? { expiresAt: s.expiresAt, user: s.user } : null)),
+    // Референс = id ПОЛЬЗОВАТЕЛЯ; brokerId берём самим (один
+    // findUnique на вход — контракт portal-auth не меняем, там
+    // замороженный подрядчик D31).
+    create: (brokerUserId, token, expiresAt) =>
+      db.brokerUser
+        .findUnique({ where: { id: brokerUserId }, select: { brokerId: true } })
+        .then((u) => {
+          if (!u) throw new Error(`brokerSession.create: пользователь ${brokerUserId} не найден`)
+          return db.brokerSession.create({
+            data: { brokerId: u.brokerId, userId: brokerUserId, token, expiresAt },
+          })
+        }),
     remove: (token) => db.brokerSession.deleteMany({ where: { token } }),
-    purgeExpired: (brokerId, now) => db.brokerSession.deleteMany({ where: { brokerId, expiresAt: { lt: now } } }),
+    // Просроченные сессии чистим только у ЭТОГО пользователя.
+    purgeExpired: (brokerUserId, now) =>
+      db.brokerSession.deleteMany({ where: { userId: brokerUserId, expiresAt: { lt: now } } }),
   },
-  isAllowed: (u) => u.isActive,
-  toCurrent: (u): CurrentBroker => ({ id: u.id, companyName: u.companyName, phone: u.phone }),
+  isAllowed: (u) => u.isActive && u.broker.isActive,
+  toCurrent: (u): CurrentBroker => ({
+    id: u.brokerId,
+    userId: u.id,
+    userName: u.name,
+    companyName: u.broker.companyName,
+    phone: u.phone,
+  }),
 })
 
 export const getBrokerByToken = portal.getByToken

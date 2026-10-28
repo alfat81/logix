@@ -6,6 +6,12 @@ import { hashPassword } from '@/lib/password'
 import { normalizePhone } from '@/lib/phone'
 import { PatchBrokerSchema, BROKER_PUBLIC_FIELDS } from '@/lib/brokers'
 import { apiErrorResponse } from '@/lib/api-errors'
+import {
+  CompanyUserError,
+  getPrimaryBrokerUser,
+  updateBrokerUser,
+  createBrokerUser,
+} from '@/lib/company-users'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -109,6 +115,31 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (mustTearSessions) {
         await tx.brokerSession.deleteMany({ where: { brokerId: id } })
       }
+      // DF-02A: основной пользователь — источник входа; телефон и
+      // пароль синхронизируются ему при правке справочника (dual-write
+      // со старыми полями до contract-релиза, DEPRECATIONS). Смена
+      // пароля у пользователя рвёт ЕГО сессии — компания уже погашена
+      // выше. Имя пользователя не трогаем: это имя человека, его правят
+      // в списке людей (Блок 5), а не вслед за названием компании.
+      if (data.password !== undefined || data.phone !== undefined) {
+        const primary = await getPrimaryBrokerUser(tx, id)
+        if (primary) {
+          await updateBrokerUser(tx, primary.id, {
+            ...(data.password !== undefined ? { password: data.password } : {}),
+            ...(data.phone !== undefined ? { phone: data.phone } : {}),
+          })
+        } else if (data.password !== undefined) {
+          // Страховка рассинхрона (брокера без пользователя быть не
+          // должно — миграция создала всем, POST создаёт сразу):
+          // восстанавливаем primary из доступных данных.
+          await createBrokerUser(tx, id, {
+            name: existing.companyName,
+            phone: data.phone ?? existing.phone,
+            password: data.password,
+            isPrimary: true,
+          })
+        }
+      }
       return updated
     })
 
@@ -124,6 +155,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
               : 'Брокер обновлён',
     })
   } catch (e) {
+    if (e instanceof CompanyUserError) {
+      return NextResponse.json({ error: e.message }, { status: e.status })
+    }
     return apiErrorResponse(e, 'brokers PATCH', 'Не удалось обновить брокера')
   }
 }

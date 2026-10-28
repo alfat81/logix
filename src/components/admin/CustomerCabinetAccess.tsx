@@ -1,74 +1,75 @@
 'use client'
 
-import { useState } from 'react'
-import { Eye, EyeOff, KeyRound, Loader2, RefreshCw, ShieldOff } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Loader2, Pencil, ShieldCheck, ShieldOff, Users, UserPlus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
-import { isPhoneNormalized } from '@/lib/phone'
-import { CLIENT_PASSWORD_MIN } from '@/lib/client-constants'
+import { CustomerUserDialog, type CustomerUserRow } from './CustomerUserDialog'
 
-// ─── Доступ клиента в кабинет (И1, админ-сторона) ───────────────────
-// Выдача/смена/отзыв пароля кабинета прямо из карточки клиента.
-// Модель — как у подрядчика (Г2/Г3): учётку выдаёт менеджер. Смена и
-// отзыв рвут живые сессии клиента (роут access, паттерн Ж6в). Хеш
-// наружу не отдаётся никогда — карточка знает только факт «выдан/не
-// выдан» (hasCabinetAccess из GET карточки).
-
-function generatePassword(): string {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
-  const bytes = new Uint8Array(12)
-  crypto.getRandomValues(bytes)
-  return [...bytes].map((b) => alphabet[b % alphabet.length]).join('')
-}
+// ─── Сотрудники клиента (И1 → DF-02A Блок 5) ────────────────────────
+// Прежний диалог «один пароль на компанию» стал списком людей: менеджер
+// создаёт сотрудников, выдаёт каждому пароль (вход = телефон человека),
+// правит и деактивирует. Деактивация закрывает сессии только этого
+// человека (роут access + lib/company-users.ts). Основной пользователь
+// — перенос старого входа компании: деактивации не подлежит (доступ
+// компании целиком закрывается деактивацией компании в справочнике).
+// Хеши наружу не отдаются никогда — только hasPassword.
 
 export function CustomerCabinetAccess({
   customerId,
-  hasCabinetAccess,
-  phone,
   onChanged,
 }: {
   customerId: string
-  hasCabinetAccess: boolean
-  phone: string | null
   onChanged: () => void
 }) {
   const { toast } = useToast()
-  const [pwdOpen, setPwdOpen] = useState(false)
-  const [revokeOpen, setRevokeOpen] = useState(false)
-  const [password, setPassword] = useState('')
-  const [showPwd, setShowPwd] = useState(false)
-  const [busy, setBusy] = useState(false)
+  const [users, setUsers] = useState<CustomerUserRow[] | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editing, setEditing] = useState<CustomerUserRow | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
-  // Вход в кабинет — по нормализованному телефону; без него доступ
-  // мертворождён (роут access откажет 400, но честнее не давать
-  // кнопку вовсе и объяснить, что сделать).
-  const phoneOk = isPhoneNormalized(phone ?? '')
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/customers/${customerId}/access`)
+      const data = await readApiResponse<{ users?: CustomerUserRow[]; error?: string }>(res)
+      if (!res.ok) throw new Error(data.error || 'Ошибка загрузки')
+      setUsers(data.users ?? [])
+    } catch (e) {
+      setUsers([])
+      toast({
+        title: 'Не удалось загрузить список сотрудников',
+        description: e instanceof Error ? e.message : '',
+        variant: 'destructive',
+      })
+    }
+  }, [customerId, toast])
 
-  const post = async (body: { password: string | null }, okTitle: string) => {
-    setBusy(true)
+  useEffect(() => {
+    load()
+  }, [load])
+
+  // После любой операции: перезагрузить список + карточку (бейдж
+  // «доступ выдан» считается по людям на сервере).
+  const reloadAll = () => {
+    load()
+    onChanged()
+  }
+
+  const toggleActive = async (u: CustomerUserRow) => {
+    setBusyId(u.id)
     try {
       const res = await fetch(`/api/admin/customers/${customerId}/access`, {
-        method: 'POST',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ userId: u.id, isActive: !u.isActive }),
       })
       const data = await readApiResponse<{ error?: string }>(res)
-      if (!res.ok) throw new Error(data.error || 'Не удалось изменить доступ')
-      toast({ title: okTitle })
-      onChanged()
+      if (!res.ok) throw new Error(data.error || 'Не удалось изменить статус')
+      toast({ title: u.isActive ? 'Доступ сотрудника закрыт' : 'Доступ сотрудника возвращён' })
+      reloadAll()
     } catch (e) {
       toast({
         title: 'Ошибка',
@@ -76,163 +77,117 @@ export function CustomerCabinetAccess({
         variant: 'destructive',
       })
     } finally {
-      setBusy(false)
+      setBusyId(null)
     }
-  }
-
-  const handleSave = async () => {
-    if (password.trim().length < CLIENT_PASSWORD_MIN) {
-      toast({
-        title: `Пароль — минимум ${CLIENT_PASSWORD_MIN} символов`,
-        variant: 'destructive',
-      })
-      return
-    }
-    await post({ password }, hasCabinetAccess ? 'Пароль кабинета изменён' : 'Доступ в кабинет выдан')
-    setPwdOpen(false)
-    setPassword('')
-  }
-
-  const handleRevoke = async () => {
-    await post({ password: null }, 'Доступ в кабинет отозван')
-    setRevokeOpen(false)
   }
 
   return (
     <Card className="p-0">
-      <CardContent className="p-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <KeyRound className="size-4 text-muted-foreground" />
-        <div className="min-w-44 flex-1">
-          <div className="text-sm font-medium flex items-center gap-2">
-            Доступ в кабинет клиента
-            {hasCabinetAccess ? (
-              <Badge variant="delivered">
-                Выдан
-              </Badge>
-            ) : (
-              <Badge variant="version">Не выдан</Badge>
-            )}
+      <CardContent className="p-4 grid gap-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Users className="size-4 text-muted-foreground" />
+          <div className="min-w-44 flex-1">
+            <div className="text-sm font-medium">Сотрудники клиента</div>
+            <div className="text-xs text-muted-foreground">
+              Вход в кабинет — по телефону и паролю человека. Свои заявки видят все сотрудники
+              компании.
+            </div>
           </div>
-          <div className="text-xs text-muted-foreground">
-            {phoneOk
-              ? hasCabinetAccess
-                ? `Вход по телефону ${phone}. Смена пароля завершит активные сеансы.`
-                : `Вход будет по телефону ${phone} и выданному паролю.`
-              : 'Для входа в кабинет нужен нормализованный российский телефон клиента (+7…) — сначала заполните его.'}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
           <Button
             size="sm"
             variant="outline"
-            disabled={!phoneOk || busy}
             onClick={() => {
-              setPassword('')
-              setPwdOpen(true)
+              setEditing(null)
+              setDialogOpen(true)
             }}
           >
-            {hasCabinetAccess ? (
-              <>
-                <RefreshCw className="size-4" />
-                Сменить пароль
-              </>
-            ) : (
-              <>
-                <KeyRound className="size-4" />
-                Выдать доступ
-              </>
-            )}
+            <UserPlus className="size-4" />
+            Добавить сотрудника
           </Button>
-          {hasCabinetAccess && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-destructive hover:text-destructive"
-              disabled={busy}
-              onClick={() => setRevokeOpen(true)}
-            >
-              <ShieldOff className="size-4" />
-              Отозвать
-            </Button>
-          )}
         </div>
+
+        {users === null ? (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
+            <Loader2 className="size-4 animate-spin" />
+            Загрузка…
+          </div>
+        ) : users.length === 0 ? (
+          <div className="text-sm text-muted-foreground border-t pt-3">
+            Сотрудников нет — добавьте первого, чтобы выдать доступ в кабинет.
+          </div>
+        ) : (
+          <div className="grid gap-2 border-t pt-3">
+            {users.map((u) => (
+              <div
+                key={u.id}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border p-3"
+              >
+                <div className="min-w-40 flex-1">
+                  <div className="text-sm font-medium flex items-center gap-2">
+                    <span className="truncate">{u.name}</span>
+                    {u.isPrimary && <Badge variant="delivered">Основной</Badge>}
+                    {!u.isActive && (
+                      <Badge
+                        variant="outline"
+                        className="text-xxs bg-destructive/10 text-destructive border-transparent"
+                      >
+                        Доступ закрыт
+                      </Badge>
+                    )}
+                    {u.isActive && !u.hasPassword && <Badge variant="version">Без входа</Badge>}
+                  </div>
+                  <div className="text-xs text-muted-foreground font-mono">
+                    {u.phone ?? 'телефон не указан'}
+                    {u.email && <span className="font-sans"> · {u.email}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    onClick={() => {
+                      setEditing(u)
+                      setDialogOpen(true)
+                    }}
+                    title="Править сотрудника"
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                  {!u.isPrimary && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      disabled={busyId === u.id}
+                      onClick={() => toggleActive(u)}
+                      title={
+                        u.isActive
+                          ? 'Закрыть доступ — активные сеансы сотрудника завершатся'
+                          : 'Вернуть доступ'
+                      }
+                    >
+                      {u.isActive ? (
+                        <ShieldOff className="size-4 text-destructive" />
+                      ) : (
+                        <ShieldCheck className="size-4" />
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
 
-      {/* Диалог выдачи/смены пароля */}
-      <Dialog open={pwdOpen} onOpenChange={setPwdOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {hasCabinetAccess ? 'Сменить пароль кабинета' : 'Выдать доступ в кабинет'}
-            </DialogTitle>
-            <DialogDescription>
-              Передайте пароль клиенту лично — восстановления по SMS в MVP нет.
-              {hasCabinetAccess && ' Смена завершит все активные сеансы клиента.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="client-password">Пароль</Label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Input
-                  id="client-password"
-                  type={showPwd ? 'text' : 'password'}
-                  className="pr-10"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
-                  disabled={busy}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 size-7"
-                  onClick={() => setShowPwd((v) => !v)}
-                  aria-label={showPwd ? 'Скрыть пароль' : 'Показать пароль'}
-                >
-                  {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </Button>
-              </div>
-              <Button type="button" variant="outline" onClick={() => setPassword(generatePassword())}>
-                Сгенерировать
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Минимум {CLIENT_PASSWORD_MIN} символов.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button onClick={handleSave} disabled={busy}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              {hasCabinetAccess ? 'Сменить пароль' : 'Выдать доступ'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Диалог отзыва доступа */}
-      <Dialog open={revokeOpen} onOpenChange={setRevokeOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Отозвать доступ в кабинет?</DialogTitle>
-            <DialogDescription>
-              Клиент потеряет вход в кабинет немедленно: пароль снимается, активные
-              сеансы завершаются. Запросы и заявки клиента не удаляются — доступ
-              можно выдать заново в любой момент.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRevokeOpen(false)} disabled={busy}>
-              Отмена
-            </Button>
-            <Button variant="destructive" onClick={handleRevoke} disabled={busy}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              Отозвать доступ
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CustomerUserDialog
+        customerId={customerId}
+        user={editing}
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSaved={reloadAll}
+      />
     </Card>
   )
 }

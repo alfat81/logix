@@ -1,26 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { Customer } from '@prisma/client'
+import type { Customer, CustomerUser } from '@prisma/client'
 import { db } from './db'
 import { definePortal } from './portal-auth'
 
 // Кабинет клиента (И1). Механизм сессий — lib/portal-auth.ts.
-// isActive проверяется на каждый запрос: деактивированный клиент
-// теряет доступ немедленно. Без пароля вход невозможен (роут входа).
+// DF-02A: сессия принадлежит ЧЕЛОВЕКУ — пользователю компании
+// (CustomerUser), область видимости по-прежнему компания. isActive
+// проверяется на каждый запрос на ДВУХ уровнях: активен ли человек и
+// активна ли его компания (деактивация любого из них гасит доступ
+// немедленно). Сессии без пользователя (userId null, окно деплоя)
+// считаются не найденными — вход заново, это ожидаемо.
+// Без пароля вход невозможен (роут входа).
 export const CLIENT_SESSION_COOKIE = 'logix_client_session'
 
-export type CurrentClient = { id: string; name: string; phone: string | null; email: string | null }
+// id — КОМПАНИЯ (customerId): скоупинг кабинетских роутов не меняется.
+// userId/userName — человек: актёр событий и автор версий документов
+// (Блок 4: actorId = userId, проекция имени — lib/actor-name.ts),
+// шапка кабинета и /me.
+export type CurrentClient = {
+  id: string
+  userId: string
+  userName: string
+  name: string
+  phone: string | null
+  email: string | null
+}
 
-const portal = definePortal<Customer, CurrentClient>({
+type SessionUser = CustomerUser & { customer: Customer }
+
+const portal = definePortal<SessionUser, CurrentClient>({
   cookie: CLIENT_SESSION_COOKIE,
   store: {
-    find: (token) => db.clientSession.findUnique({ where: { token }, include: { customer: true } })
-      .then((s) => (s ? { expiresAt: s.expiresAt, user: s.customer } : null)),
-    create: (customerId, token, expiresAt) => db.clientSession.create({ data: { customerId, token, expiresAt } }),
+    // Сессии без пользователя (userId null — окно деплоя) = не найдена.
+    find: (token) =>
+      db.clientSession
+        .findUnique({ where: { token }, include: { user: { include: { customer: true } } } })
+        .then((s) => (s && s.user ? { expiresAt: s.expiresAt, user: s.user } : null)),
+    // Референс = id ПОЛЬЗОВАТЕЛЯ (см. createSession). companyId берём
+    // самим: один findUnique на вход — вход редкое событие, лишний
+    // запрос не стоит изменения контракта portal-auth (замороженный
+    // подрядчик D31 сидит на том же definePortal).
+    create: (customerUserId, token, expiresAt) =>
+      db.customerUser
+        .findUnique({ where: { id: customerUserId }, select: { customerId: true } })
+        .then((u) => {
+          if (!u) throw new Error(`clientSession.create: пользователь ${customerUserId} не найден`)
+          return db.clientSession.create({
+            data: { customerId: u.customerId, userId: customerUserId, token, expiresAt },
+          })
+        }),
     remove: (token) => db.clientSession.deleteMany({ where: { token } }),
-    purgeExpired: (customerId, now) => db.clientSession.deleteMany({ where: { customerId, expiresAt: { lt: now } } }),
+    // Просроченные сессии чистим только у ЭТОГО пользователя (не
+    // компании): коллеги не задеваются.
+    purgeExpired: (customerUserId, now) =>
+      db.clientSession.deleteMany({ where: { userId: customerUserId, expiresAt: { lt: now } } }),
   },
-  isAllowed: (u) => u.isActive,
-  toCurrent: (u): CurrentClient => ({ id: u.id, name: u.name, phone: u.phone, email: u.email }),
+  isAllowed: (u) => u.isActive && u.customer.isActive,
+  toCurrent: (u): CurrentClient => ({
+    id: u.customerId,
+    userId: u.id,
+    userName: u.name,
+    name: u.customer.name,
+    phone: u.phone,
+    email: u.email,
+  }),
 })
 
 export const getClientByToken = portal.getByToken

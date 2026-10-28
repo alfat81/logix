@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { AttentionScreen } from '@/components/admin/AttentionScreen'
 import { SideActivityFeed, type SideActivityItem } from '@/components/admin/SideActivityFeed'
 import { eventWhereFor } from '@/lib/audience'
+import { projectActors, STAFF_READER } from '@/lib/actor-name'
 
 // Ж5: главная страница — «Требует внимания» (просрочка, проблемы,
 // неназначенные исполнители, лиды без движения). Список заявок
@@ -15,11 +16,14 @@ import { eventWhereFor } from '@/lib/audience'
 export default async function AdminPage() {
   // DF-01: фильтр ленты — только через eventWhereFor (инвариант
   // §1.3 ROADMAP-DEALFLOW); для staff это пустой фрагмент.
-  const rows = await db.activity.findMany({
+  // DF-02A (Блок 4): актёр-человек собирается при чтении —
+  // «Имя (Компания)» (устаревшие строки — компания, как было).
+  const feed = await db.activity.findMany({
     where: eventWhereFor('staff'),
     orderBy: { createdAt: 'desc' },
     take: 30,
   })
+  const rows = await projectActors(feed, STAFF_READER)
 
   const items: SideActivityItem[] = rows.map((a) => ({
     id: a.id,

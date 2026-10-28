@@ -7,6 +7,7 @@ import {
   ACTIVITY_FEED_TAKE,
 } from '@/lib/activity'
 import { eventWhereFor } from '@/lib/audience'
+import { projectActors, STAFF_READER } from '@/lib/actor-name'
 import { patchLead } from './patch'
 
 type Params = { params: Promise<{ id: string }> }
@@ -52,7 +53,10 @@ export async function GET(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
 
-    return NextResponse.json({ lead })
+    // DF-02A (Блок 4): актёр-человек собирается при чтении — сотруднику
+    // «Имя (Компания)» (устаревшие строки — компания, как было).
+    const activities = await projectActors(lead.activities, STAFF_READER)
+    return NextResponse.json({ lead: { ...lead, activities } })
   } catch (e) {
     return apiErrorResponse(e, 'lead GET', 'Не удалось загрузить запрос')
   }

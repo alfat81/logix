@@ -9,6 +9,7 @@ import { ListTabs } from '@/components/admin/ListTabs'
 import { BrokerCard } from './broker/BrokerCard'
 import { BrokerCreateDialog } from './broker/BrokerCreateDialog'
 import { BrokerEditDialog } from './broker/BrokerEditDialog'
+import { BrokerUsersDialog } from './BrokerUsersDialog'
 import type { BrokerFilter, BrokerRow } from './broker/types'
 
 // ─── Справочник брокеров (Д) — §4.2–4.3 ─────────────────────────────
@@ -41,6 +42,8 @@ export function BrokersList() {
   const [filter, setFilter] = useState<BrokerFilter>('active')
   const [editing, setEditing] = useState<BrokerRow | null>(null)
   const [saving, setSaving] = useState(false)
+  // DF-02A Блок 5: сотрудники какого брокера смотрим
+  const [usersOf, setUsersOf] = useState<BrokerRow | null>(null)
 
   const load = useCallback(
     async (f: BrokerFilter) => {
@@ -125,6 +128,7 @@ export function BrokersList() {
               broker={b}
               onEdit={setEditing}
               onToggleActive={toggleActive}
+              onManageUsers={setUsersOf}
               saving={saving}
             />
           ))}
@@ -139,6 +143,8 @@ export function BrokersList() {
           load(filter)
         }}
       />
+
+      <BrokerUsersDialog broker={usersOf} onClose={() => setUsersOf(null)} />
     </div>
   )
 }
