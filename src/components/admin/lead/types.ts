@@ -24,6 +24,10 @@ export type LeadFull = {
   weightKg?: string | number | null
   volumeM3?: string | number | null
   placesCount?: number | null
+  // DF-17: коды из справочников (страны маршрута, условие поставки)
+  originCountryCode?: string | null
+  destinationCountryCode?: string | null
+  incotermCode?: string | null
   // P1-01: ответственный менеджер (null = не назначен — кабинетный запрос)
   assignee: { id: string; name: string } | null
   options: QuoteOptionRow[]

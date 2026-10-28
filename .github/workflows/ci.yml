@@ -131,6 +131,9 @@ jobs:
       EMAIL_PROVIDER: fake
       # D11: base для ссылок в письмах (пернат от пустой ссылки в теле)
       APP_BASE_URL: http://localhost:3000
+      # DF-17: в раннере без внешней сети — импорт курсов ЦБ выключен
+      # (короткое замыкание в lib/cbr.ts, проход диспетчера не шумит)
+      CBR_IMPORT: 'off'
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

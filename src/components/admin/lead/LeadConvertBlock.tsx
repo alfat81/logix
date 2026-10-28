@@ -28,18 +28,22 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { readLeadCargo } from '@/lib/leads'
+import { IncotermPicker } from '@/components/references/IncotermPicker'
+import type { RefPick } from '@/components/references/ReferenceCombobox'
 import type { LegalEntityRow } from './types'
-
-const INCOTERMS = ['EXW', 'FCA', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP', 'FAS', 'FOB', 'CFR', 'CIF']
 
 export function LeadConvertBlock({
   leadId,
   cargoInfo,
   canConvert,
+  // DF-17: условие поставки из запроса клиента (Lead.incotermCode) —
+  // предзаполняется, менеджер может изменить при конвертации
+  initialIncotermCode,
 }: {
   leadId: string
   cargoInfo: Record<string, unknown> | null
   canConvert: boolean
+  initialIncotermCode?: string | null
 }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -48,7 +52,7 @@ export function LeadConvertBlock({
   const [converting, setConverting] = useState(false)
   const [legalEntities, setLegalEntities] = useState<LegalEntityRow[]>([])
   const [legalEntityId, setLegalEntityId] = useState('')
-  const [incoterm, setIncoterm] = useState('none')
+  const [incotermCode, setIncotermCode] = useState('')
   const [hsCode, setHsCode] = useState('')
 
   // Справочник юрлиц — при первом открытии диалога конвертации
@@ -61,11 +65,12 @@ export function LeadConvertBlock({
   }, [convertOpen, legalEntities.length])
 
   const openConvert = () => {
-    // ТН ВЭД предзаполняем из анкеты (бланк п.5), остальное — выбор
+    // ТН ВЭД предзаполняем из анкеты (бланк п.5); Инкотермс — из запроса
+    // клиента (DF-17), иначе пусто
     const hs = readLeadCargo(cargoInfo).hsCode
     setHsCode(typeof hs === 'string' ? hs : '')
     setLegalEntityId('')
-    setIncoterm('none')
+    setIncotermCode(initialIncotermCode ?? '')
     setConvertOpen(true)
   }
 
@@ -81,7 +86,9 @@ export function LeadConvertBlock({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           legalEntityId,
-          incoterm: incoterm === 'none' ? null : incoterm,
+          // DF-17: условие поставки — КОД из справочника (легаси-ключ
+          // incoterm больше не пишем — API принимает код)
+          incotermCode: incotermCode || null,
           hsCode: hsCode.trim() || null,
         }),
       })
@@ -147,21 +154,13 @@ export function LeadConvertBlock({
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-2">
-                <Label>Инкотермс</Label>
-                <Select value={incoterm} onValueChange={setIncoterm}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">—</SelectItem>
-                    {INCOTERMS.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* DF-17: Инкотермс — Combobox справочника с разъяснением (IC-16) */}
+              <div className="col-span-2">
+                <IncotermPicker
+                  value={incotermCode}
+                  onPick={(pick: RefPick) => setIncotermCode(pick && pick.code ? pick.code : '')}
+                  label="Условия поставки (Инкотермс) — не обязательно"
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="cv-hs">Код ТН ВЭД</Label>

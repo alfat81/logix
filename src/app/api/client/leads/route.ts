@@ -9,7 +9,7 @@ import {
   ClientCreateRequestSchema,
   CLIENT_LEAD_DAILY_LIMIT,
 } from '@/lib/client-constants'
-import { readyDateInput } from '@/lib/route-fields'
+import { resolveDealCodes } from '@/lib/ref-db'
 
 // ─── Запросы клиента в кабинете (И1) ────────────────────────────────
 // GET  — «мои запросы»: лиды клиента (любого источника — и созданные
@@ -94,6 +94,14 @@ export async function POST(req: NextRequest) {
       ...(auth.client.email ? { email: auth.client.email } : {}),
     }
 
+    // DF-17: коды стран/условие поставки — единая валидация по
+    // справочнику с денормализацией имён (кабинет клиента шлёт только коды;
+    // lib/ref-db.ts — одно место знания).
+    const deal = await resolveDealCodes(parsed.data.route, parsed.data.incotermCode)
+    if (deal.error) {
+      return NextResponse.json({ error: deal.error }, { status: 400 })
+    }
+
     const lead = await db.lead.create({
       data: {
         status: 'new',
@@ -109,16 +117,9 @@ export async function POST(req: NextRequest) {
               } as unknown as Prisma.InputJsonObject,
             }
           : {}),
-        // P1-03: маршрут/метрики — колонки (undefined = остаётся NULL)
-        originCity: parsed.data.route?.originCity,
-        originCountry: parsed.data.route?.originCountry,
-        destinationCity: parsed.data.route?.destinationCity,
-        destinationCountry: parsed.data.route?.destinationCountry,
-        transportType: parsed.data.route?.transportType,
-        readyDate: parsed.data.route ? readyDateInput(parsed.data.route.readyDate) : undefined,
-        weightKg: parsed.data.route?.weightKg,
-        volumeM3: parsed.data.route?.volumeM3,
-        placesCount: parsed.data.route?.placesCount,
+        // P1-03/DF-17: маршрут/метрики + коды стран с денормализованными именами
+        ...deal.columns,
+        incotermCode: deal.incoterm,
       },
       select: CLIENT_LEAD_SELECT,
     })

@@ -21,14 +21,25 @@ import { RouteFieldsSchema } from '@/lib/route-fields'
 export const PatchOrderSchema = z.object({
   status: z.enum(ORDER_STATUSES).optional(),
   incoterm: z.string().trim().max(10).nullable().optional(),
+  // DF-17: условие поставки КОДОМ из справочника (при обоих ключах —
+  // приоритет у кода; валидность проверяет patch.ts)
+  incotermCode: z
+    .string()
+    .trim()
+    .max(10)
+    .transform((v) => v.toUpperCase())
+    .nullable()
+    .optional(),
   hsCode: z.string().trim().max(20).nullable().optional(),
   cargoProfile: z.enum(CARGO_PROFILES).optional(),
   // Форма бланка груза — свободный объект (ключи проверяет UI,
   // сервер — толерантен, как и у лида в В2)
   cargoInfo: CargoInfoSchema.nullable().optional(),
-  // P1-03: маршрут/метрики — колонки (Ж1: правится вместе с грузом)
+  // P1-03: маршрут/метрики — колонки (Ж1: правится вместе с грузом);
+  // DF-17: коды стран валидирует patch.ts (resolveRouteColumns)
   route: RouteFieldsSchema.optional(),
-  // Условия сделки — снимок варианта расчёта (структура — lib/leads.ts)
+  // Условия сделки — снимок варианта расчёта (структура — lib/leads.ts);
+  // валюта снимка валидируется по справочнику в patch.ts
   quoteSnapshot: QuoteSnapshotSchema.optional(),
   // P1-05: перекрытие незавершённого ядра при завершении — только
   // мастер, с обязательным комментарием (уходит в журнал заявки).

@@ -12,7 +12,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { QUOTE_PRIORITY_FITS, QUOTE_PRIORITY_FIT_LABELS, TRANSPORT_TYPES } from '@/lib/leads'
-import { CURRENCIES, CURRENCY_LABELS, VAT_MODES, VAT_MODE_LABELS } from '@/lib/money'
+import { VAT_MODES, VAT_MODE_LABELS } from '@/lib/money'
+import { ReferenceCombobox, type RefPick } from '@/components/references/ReferenceCombobox'
 
 // ─── Поля формы варианта расчёта (В3, деньги P1-04) ────────────────
 // Презентационная часть диалога (RULES 2.14: файл ≤ 300 строк):
@@ -20,6 +21,8 @@ import { CURRENCIES, CURRENCY_LABELS, VAT_MODES, VAT_MODE_LABELS } from '@/lib/m
 // себестоимость + валюта себестоимости, срок, ориентир. Состояние и
 // сохранение — в QuoteOptionDialog; валидация ввода денег —
 // parseMoneyInput (lib/money.ts) на стороне диалога.
+// DF-17: валюты — Combobox справочника (IC-16): отключённая мастером
+// валюта исчезает из форм; перечней литералами в коде нет.
 
 export type OptionForm = {
   description: string
@@ -100,18 +103,12 @@ export function QuoteOptionFormFields({
         </div>
         <div className="grid gap-2">
           <Label>Валюта</Label>
-          <Select value={form.currency} onValueChange={(v) => onChange({ currency: v })}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CURRENCIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {CURRENCY_LABELS[c]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ReferenceCombobox
+            dir="currency"
+            value={form.currency}
+            onPick={(pick: RefPick) => onChange({ currency: pick && pick.code ? pick.code : 'RUB' })}
+            placeholder="Например: Рубли"
+          />
         </div>
         <div className="grid gap-2">
           <Label>НДС</Label>
@@ -142,18 +139,12 @@ export function QuoteOptionFormFields({
         </div>
         <div className="grid gap-2">
           <Label>Валюта себест.</Label>
-          <Select value={form.costCurrency} onValueChange={(v) => onChange({ costCurrency: v })}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CURRENCIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {CURRENCY_LABELS[c]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ReferenceCombobox
+            dir="currency"
+            value={form.costCurrency}
+            onPick={(pick: RefPick) => onChange({ costCurrency: pick && pick.code ? pick.code : 'RUB' })}
+            placeholder="Например: Рубли"
+          />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="opt-eta">Срок, дней</Label>

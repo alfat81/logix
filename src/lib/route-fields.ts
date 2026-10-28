@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { refCodeField } from '@/lib/ref'
 
 // ─── P1-03: маршрут и груз — поля, а не только JSON ─────────────────
 // Коды типа перевозки, словарь подписей, разбор свободного текста
@@ -92,6 +93,12 @@ export const RouteFieldsSchema = z
       .positive('Количество мест должно быть больше нуля')
       .nullable()
       .optional(),
+    // DF-17: коды стран из справочника (Combobox, IC-16). Денимализацию
+    // текстовых колонок (имя из справочника) делает API через ref-db —
+    // клиент присылает ТОЛЬКО код, имя берётся из справочника на сервере
+    // (принцип снимка: старые отображения/печать работают без join).
+    originCountryCode: refCodeField('Страна отправления'),
+    destinationCountryCode: refCodeField('Страна прибытия'),
   })
   .refine((d) => Object.values(d).some((v) => v !== undefined), {
     message: 'Нечего обновлять: укажите хотя бы одно поле маршрута',
@@ -125,6 +132,8 @@ export function routeToDbColumns(
       weightKg?: number | null
       volumeM3?: number | null
       placesCount?: number | null
+      originCountryCode?: string | null
+      destinationCountryCode?: string | null
     }
   | undefined {
   if (!r) return undefined
@@ -138,5 +147,7 @@ export function routeToDbColumns(
     weightKg: r.weightKg,
     volumeM3: r.volumeM3,
     placesCount: r.placesCount,
+    originCountryCode: r.originCountryCode,
+    destinationCountryCode: r.destinationCountryCode,
   }
 }

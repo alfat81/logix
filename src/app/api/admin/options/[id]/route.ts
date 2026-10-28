@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { UpdateQuoteOptionSchema } from '@/lib/leads'
+import { resolveActiveCurrencies } from '@/lib/ref-db'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { employeeActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
@@ -36,6 +37,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       )
     }
     const data = parsed.data
+
+    // DF-17: валюты правки — из справочника (активные); null/undefined
+    // в проверку не попадает (семантика PATCH «не трогать»)
+    if (data.currency !== undefined || data.costCurrency !== undefined) {
+      const currencies = await resolveActiveCurrencies([data.currency, data.costCurrency])
+      if (currencies.invalid.length > 0) {
+        return NextResponse.json(
+          { error: `Валюта не найдена в справочнике или отключена: ${currencies.invalid.join(', ')}` },
+          { status: 400 }
+        )
+      }
+    }
 
     const existing = await db.quoteOption.findUnique({
       where: { id },

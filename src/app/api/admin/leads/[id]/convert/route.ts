@@ -8,6 +8,7 @@ import {
   LEAD_STATUS_LABELS,
 } from '@/lib/leads'
 import { createOrderWithStages, findOrCreateCustomer } from '@/lib/orders'
+import { resolveActiveRefs } from '@/lib/ref-db'
 import { carryDocumentsToOrder } from '@/lib/documents'
 import { normalizePhone } from '@/lib/phone'
 import { apiErrorResponse } from '@/lib/api-errors'
@@ -43,7 +44,20 @@ export async function POST(req: NextRequest, { params }: Params) {
         { status: 400 }
       )
     }
-    const { legalEntityId, incoterm, hsCode } = parsed.data
+    const { legalEntityId, incoterm, incotermCode, hsCode } = parsed.data
+
+    // DF-17: условие поставки — код из справочника приоритетен над легаси-
+    // текстом; код должен быть в справочнике и активен.
+    const effectiveIncotermCode = incotermCode ?? null
+    if (effectiveIncotermCode) {
+      const incotermResolved = await resolveActiveRefs('incoterm', [effectiveIncotermCode])
+      if (incotermResolved.invalid.length > 0) {
+        return NextResponse.json(
+          { error: `Условие поставки не найдено в справочнике: ${incotermResolved.invalid.join(', ')}` },
+          { status: 400 }
+        )
+      }
+    }
 
     const lead = await db.lead.findUnique({
       where: { id },
@@ -156,7 +170,9 @@ export async function POST(req: NextRequest, { params }: Params) {
           {
             customerId: customer.id,
             legalEntityId,
-            incoterm: incoterm || null,
+            // DF-17: код приоритетен; легаси-текст — снимок для старых отображений
+            incoterm: effectiveIncotermCode ?? (incoterm || null),
+            incotermCode: effectiveIncotermCode,
             hsCode: hsCode || null,
             leadId: locked.id,
             assignedToId: locked.assignedToId ?? auth.employee.id,
@@ -171,6 +187,9 @@ export async function POST(req: NextRequest, { params }: Params) {
               weightKg: locked.weightKg,
               volumeM3: locked.volumeM3,
               placesCount: locked.placesCount,
+              // DF-17: коды стран переносятся с лида снимком
+              originCountryCode: locked.originCountryCode,
+              destinationCountryCode: locked.destinationCountryCode,
             },
             quoteSnapshot,
           },

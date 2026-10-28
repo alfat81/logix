@@ -51,11 +51,11 @@
 | `CONTRACTOR_PUBLIC_FIELDS` | `src/lib/contractors.ts` | ─── Публичная проекция подрядчика (Г3) ───────────────────────── |
 | `CONTRACTOR_RAW_INFO_LABELS` | `src/lib/contractors.ts` | ─── Конвенции Json для UI (Г5) ──────────────────────────────────── |
 | `CONTRACTOR_SESSION_COOKIE` | `src/lib/contractor-auth.ts` | Кабинет подрядчика (Г4). Механизм сессий — lib/portal-auth.ts. |
-| `CURRENCIES` | `src/lib/money.ts` | — |
-| `CURRENCY_LABELS` | `src/lib/money.ts` | — |
+| `CURRENCIES` | `src/lib/money.ts` | ─── Валюты (DF-17) ────────────────────────────────────────────────── |
 | `CURRENCY_SIGNS` | `src/lib/money.ts` | Знаки валют — короткие символы в интерфейсе (Intl style:'currency' |
 | `CargoInfoSchema` | `src/lib/leads.ts` | Свободная анкета груза на этапе запроса (груз/вес/объём/откуда-куда). |
 | `CargoProfile` | `src/lib/order-constants.ts` | — |
+| `CbrRate` | `src/lib/cbr.ts` | — |
 | `ClientActor` | `src/lib/activity.ts` | — |
 | `ClientCreateRequestInput` | `src/lib/client-constants.ts` | — |
 | `ClientCreateRequestSchema` | `src/lib/client-constants.ts` | Тело POST /api/client/leads — запрос из кабинета. Груз — та же |
@@ -98,6 +98,7 @@
 | `DOC_SIGNATURE_ERROR` | `src/lib/documents.ts` | — |
 | `DOC_TITLE_MAX_LENGTH` | `src/lib/document-constants.ts` | Пределы текстовых полей: название документа и комментарий версии. |
 | `DOC_VERSION_PUBLIC_FIELDS` | `src/lib/documents.ts` | — |
+| `DealCodeColumns` | `src/lib/ref-db.ts` | ─── Коды сделки одним вызовом (DF-17, RULES 2.15 — одно место знания) ── |
 | `DealParticipants` | `src/lib/participants.ts` | — |
 | `DealRef` | `src/lib/notifications/templates.ts` | — |
 | `DigestRun` | `src/lib/notifications/digest.ts` | — |
@@ -130,6 +131,8 @@
 | `EmployeeRole` | `src/lib/auth.ts` | Роли — JSON-массив в Employee.roles (не enum БД): новая роль — правка |
 | `EmployeeRoleName` | `src/lib/employees.ts` | — |
 | `EventMeta` | `src/lib/event-registry.ts` | Метаданные типа события: подпись (подпись письма/фильтры), аудитория |
+| `INCOTERM_TRANSPORT_LABELS` | `src/lib/ref.ts` | — |
+| `IncotermMeta` | `src/lib/ref.ts` | ─── Инкотермс: meta-флаги (данные, не логика — DF-19 считает) ────── |
 | `LEAD_ACTIVE_STATUSES` | `src/lib/leads.ts` | v0.3.1 (BRANDBOOK §4.1): счётчик навигации у «Лидов» — активные, |
 | `LEAD_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Лид: new/calculated — ждём (расчёт, выбор клиента), won — сделка |
 | `LEAD_CARGO_LABELS` | `src/lib/leads.ts` | Подписи полей анкеты — общие для диалога создания и карточки лида |
@@ -168,6 +171,7 @@
 | `OrderStatus` | `src/lib/order-constants.ts` | — |
 | `PERMIT_MAX_COUNT` | `src/lib/brokers.ts` | ─── Оценка таможенных платежей (BrokerEstimate, роадмап 5а) ────── |
 | `PERMIT_MAX_LENGTH` | `src/lib/brokers.ts` | — |
+| `PLACE_KIND_LABELS` | `src/lib/ref.ts` | — |
 | `ParsedDocumentForm` | `src/lib/documents.ts` | — |
 | `ParsedListQuery` | `src/lib/list-query.ts` | — |
 | `ParsedVersionForm` | `src/lib/documents.ts` | — |
@@ -193,14 +197,21 @@
 | `QuotePriorityFit` | `src/lib/leads.ts` | — |
 | `QuoteSnapshotInput` | `src/lib/leads.ts` | — |
 | `QuoteSnapshotSchema` | `src/lib/leads.ts` | ─── Снимок условий сделки (Ж1) ───────────────────────────────────── |
+| `REF_DIRS` | `src/lib/ref.ts` | dir-ы справочника — закрытый список: каждый dir = отдельный источник |
+| `REF_DIR_LABELS` | `src/lib/ref.ts` | — |
 | `REQUISITE_FIELDS` | `src/lib/requisite-fields.ts` | — |
+| `RatesImportResult` | `src/lib/cbr.ts` | — |
 | `RawContact` | `src/lib/leads.ts` | — |
 | `RawContactSchema` | `src/lib/leads.ts` | Черновая анкета контакта на этапе запроса (В1, rawContact Json). |
 | `RawContractorInfoSchema` | `src/lib/contractors.ts` | Черновая анкета кандидата (rawInfo Json, Г1) — толерантный record, как |
 | `Recipient` | `src/lib/participants.ts` | Адресат уведомления по компании-клиенту (recipientsOfCustomer): |
 | `RecipientKind` | `src/lib/notifications/rules.ts` | — |
+| `RefDir` | `src/lib/ref.ts` | — |
+| `RefListItem` | `src/lib/ref-db.ts` | — |
+| `RefOption` | `src/lib/ref.ts` | ─── Поиск по справочнику (чистая функция — unit-тесты) ───────────── |
 | `RequisiteField` | `src/lib/requisite-fields.ts` | — |
 | `ResolvedDealEvent` | `src/lib/notifications/rules.ts` | Событие в терминах правил (снимок из emitEvent, lib/events.ts). |
+| `ResolvedRefs` | `src/lib/ref-db.ts` | Коды → имена: для денормализации текстовых колонок на записи и для |
 | `RetryOutcome` | `src/lib/notifications/retry.ts` | — |
 | `RouteFieldsInput` | `src/lib/route-fields.ts` | — |
 | `RouteFieldsSchema` | `src/lib/route-fields.ts` | ── zod-схема route-полей (тела POST/PATCH) ───────────────────────── |
@@ -268,10 +279,13 @@
 | `brokerSessionCookieOptions` | `src/lib/broker-auth.ts` | — |
 | `buildLeadEditDiff` | `src/lib/lead-edit.ts` | Diff анкеты: список строк «Подпись: старое → новое» (только реально |
 | `buildLeadPayload` | `src/lib/leads.ts` | — |
+| `buildOrderListWhere` | `src/lib/orders.ts` | where списка: статус ИЛИ группа «active» (BRANDBOOK §4.2), фильтр |
+| `buildOrderSearch` | `src/lib/orders.ts` | Поиск — только по заявке и её клиенту: номер, ТН ВЭД, имя, телефон. |
 | `calcOrderEta` | `src/lib/order-summary.ts` | v0.3.1 (BRANDBOOK §4.3): ETA заявки — обещанная дата завершения. |
 | `canSeeDocument` | `src/lib/audience.ts` | Видимость ДОКУМЕНТА аудитории (не сделки!): внутренний документ — |
 | `cargoFormFromData` | `src/lib/leads.ts` | Обратный разбор в состояние формы (Ж1: правка груза ЗАЯВКИ, правка |
 | `carryDocumentsToOrder` | `src/lib/documents.ts` | ── Перенос при конвертации (В4): лид → заявка ────────────────────── |
+| `cbrImportEnabled` | `src/lib/cbr.ts` | Выключатель для CI/e2e (без внешней сети): CBR_IMPORT=off. |
 | `checkLeadTransition` | `src/lib/status-machine.ts` | — |
 | `checkLoginGuard` | `src/lib/login-guard.ts` | — |
 | `checkOrderTransition` | `src/lib/status-machine.ts` | — |
@@ -295,6 +309,8 @@
 | `createOrderWithStages` | `src/lib/orders.ts` | — |
 | `createTelegramTransport` | `src/lib/notifications/transports/telegram.ts` | ─── DF-03: заглушка Telegram-транспорта ───────────────────────────── |
 | `createWhatsappTransport` | `src/lib/notifications/transports/whatsapp.ts` | ─── DF-03: заглушка WhatsApp-транспорта ───────────────────────────── |
+| `currencyCodeSchema` | `src/lib/ref.ts` | — |
+| `currencySign` | `src/lib/money.ts` | Знак для любого кода из справочника: известный символ либо сам код |
 | `db` | `src/lib/db.ts` | — |
 | `dealLink` | `src/lib/notifications/templates.ts` | Ссылка на сделку в кабинете получателя (§8: клиент видит свою |
 | `definePortal` | `src/lib/portal-auth.ts` | — |
@@ -306,7 +322,7 @@
 | `detachBrokerFromLead` | `src/lib/broker-links.ts` | Снять связь «брокер консультирует запрос» и записать |
 | `detachBrokerFromOrder` | `src/lib/broker-links.ts` | Снять видимость заявки у брокера и записать order_broker_detached. |
 | `detectFamily` | `src/lib/file-signature.ts` | — |
-| `dispatchNow` | `src/lib/notifications/dispatch.ts` | Полный проход: окна дайджестов + пачки до исчерпания (с потолком). |
+| `dispatchNow` | `src/lib/notifications/dispatch.ts` | Полный проход: импорт курсов ЦБ (раз в сутки, идемпотентен) + окна |
 | `dispatchPendingBatch` | `src/lib/notifications/dispatch.ts` | Одна пачка: заявка → отправка вне транзакции → итог. |
 | `docFileError` | `src/lib/documents.ts` | — |
 | `documentEventAudience` | `src/lib/audience.ts` | Аудитория СОБЫТИЯ о документе: внутренний документ не должен даже |
@@ -327,6 +343,7 @@
 | `formatMoney` | `src/lib/money.ts` | «1 450 ₽» | «1 450,50 $» — детерминированный вывод для UI, ленты и |
 | `formatMoneyWithVat` | `src/lib/money.ts` | Строка «1 450 ₽ · без НДС» — цена варианта/снимка с режимом НДС. |
 | `formatPhoneInput` | `src/lib/phone.ts` | Маска телефона при вводе — форматирует по мере печатания |
+| `getActiveCurrencyOptions` | `src/lib/ref-db.ts` | Активные валюты для форм (Combobox): из справочника; пустая таблица — |
 | `getBrand` | `src/lib/brand.ts` | — |
 | `getBrokerByToken` | `src/lib/broker-auth.ts` | — |
 | `getClientByToken` | `src/lib/client-auth.ts` | — |
@@ -346,26 +363,35 @@
 | `getTransport` | `src/lib/notifications/channel.ts` | ─── DF-03: выбор транспорта по каналу письма ──────────────────────── |
 | `hashPassword` | `src/lib/password.ts` | — |
 | `hashSessionToken` | `src/lib/portal-auth.ts` | — |
+| `importCbrRates` | `src/lib/cbr.ts` | Импорт курсов за последний доступный день. Возвращается число |
+| `incotermMetaOf` | `src/lib/ref.ts` | — |
 | `isCurrencyCode` | `src/lib/money.ts` | — |
 | `isEmail` | `src/lib/phone.ts` | Проверка: это email? |
 | `isLeadAnketaEditable` | `src/lib/lead-edit.ts` | Окно правки анкеты (P1-02): new/calculated. won — история (правится |
 | `isPhoneNormalized` | `src/lib/phone.ts` | Проверка: это нормализованный телефон? (+7XXXXXXXXXX) |
+| `isRefDir` | `src/lib/ref.ts` | — |
 | `isSqliteDatabase` | `src/lib/list-query.ts` | — |
 | `isStaffOnlyRow` | `src/lib/activity.ts` | Заметка (и другое staff-only событие) — для UI-пометок. Функция в |
 | `isStageMandatory` | `src/lib/orders.ts` | — |
 | `isValidEmail` | `src/lib/phone.ts` | Проверка: это email (строгая)? |
 | `isVatMode` | `src/lib/money.ts` | — |
 | `joinRouteText` | `src/lib/route-fields.ts` | Обратная сборка для показа/редактирования: «Страна, город» / «Город» / |
+| `listRefItems` | `src/lib/ref-db.ts` | — |
 | `logDocumentVersionAdded` | `src/lib/documents.ts` | Событие о новой версии — отдельно от транзакции (лента — наблюдение, |
 | `logInternalNote` | `src/lib/activity.ts` | — |
 | `maskPII` | `src/lib/notifications/mask.ts` | — |
+| `matchRefOptions` | `src/lib/ref.ts` | Регистронезависимо: «кит» находит Китай; «CN»/«cn» — по коду; |
 | `mergeLeadCargo` | `src/lib/lead-edit.ts` | Полная замена известных полей анкеты груза с сохранением неизвестных |
 | `mergeTransportChips` | `src/lib/contractors.ts` | Слияние при записи чипов компетенций: менеджер переключает только |
 | `moneyAmount` | `src/lib/money.ts` | ─── zod-помощник для денежных полей API (P1-04) ─────────────────── |
+| `mskToday` | `src/lib/cbr.ts` | Сегодняшняя дата в Москве (yyyy-mm-dd): курс считается «у нас» по МСК — |
 | `nextWindowTime` | `src/lib/notifications/windows.ts` | Ближайшее время СЛЕДУЮЩЕГО окна (для отложенных «красных» сверх |
 | `normalizePhone` | `src/lib/phone.ts` | Нормализация телефона в формат +7XXXXXXXXXX |
+| `normalizeRefCode` | `src/lib/ref.ts` | Нормализация кода при записи/поиске: страны и валюты — ISO верхний |
 | `nowInZone` | `src/lib/notifications/windows.ts` | Текущее «настенное» время в поясе IANA. |
 | `orderOrderBy` | `src/lib/orders.ts` | — |
+| `parseCbrNumber` | `src/lib/cbr.ts` | Строгое число из формата ЦБ: «79,7653» / «1 234,56» → number; мусор → null. |
+| `parseCbrXml` | `src/lib/cbr.ts` | Разбор XML без зависимостей (нулевая поверхность атаки вместо парсера): |
 | `parseDocumentCreateForm` | `src/lib/documents.ts` | — |
 | `parseDocumentVersionForm` | `src/lib/documents.ts` | — |
 | `parseEmployeeRoles` | `src/lib/employees.ts` | Безопасный разбор Employee.roles: битый JSON не должен ронять роуты |
@@ -394,6 +420,7 @@
 | `recipientsOfBroker` | `src/lib/participants.ts` | Адресаты брокера (DF-03): зеркало recipientsOfCustomer — активные |
 | `recipientsOfCustomer` | `src/lib/participants.ts` | ─── Получатели клиента (единственная точка изменения, DF-03) ──────── |
 | `recordLoginAttempt` | `src/lib/login-guard.ts` | — |
+| `refCodeField` | `src/lib/ref.ts` | — |
 | `renderFooter` | `src/lib/notifications/templates.ts` | Подвал: название и подпись — настройки; отключение — ответ на письмо |
 | `renderSingleLetter` | `src/lib/notifications/templates.ts` | Одиночное письмо по событию. Нейтральный вариант (аудит №16) не |
 | `requireBroker` | `src/lib/broker-auth.ts` | Единственный способ проверить брокера в роутах кабинета; опций нет — |
@@ -402,8 +429,12 @@
 | `requireEmployee` | `src/lib/auth.ts` | — |
 | `requisitesInn` | `src/lib/requisite-fields.ts` | ИНН — главный реквизит для строки списка (идентифицирует юрлицо |
 | `resetSetting` | `src/lib/settings.ts` | «Сбросить» на экране настроек: строка удаляется, getSetting возвращается |
+| `resolveActiveCurrencies` | `src/lib/ref-db.ts` | Валидация валют схемы (QuoteOption/QuoteSnapshot): коды должны быть |
+| `resolveActiveRefs` | `src/lib/ref-db.ts` | — |
+| `resolveDealCodes` | `src/lib/ref-db.ts` | — |
 | `resolveFileMime` | `src/lib/file-signature.ts` | — |
 | `resolveRecipients` | `src/lib/notifications/rules.ts` | — |
+| `resolveRouteColumns` | `src/lib/ref-db.ts` | ─── Маршрут + справочник: колонки для prisma одним вызовом ───────── |
 | `resolveUserNames` | `src/lib/actor-name.ts` | ── Батч-резолв пользователей ─────────────────────────────────────── |
 | `retryNotification` | `src/lib/notifications/retry.ts` | — |
 | `routeToDbColumns` | `src/lib/route-fields.ts` | RouteFieldsInput → данные для prisma create/update (readyDate — Date, |
@@ -420,6 +451,7 @@
 | `updateBrokerUser` | `src/lib/company-users.ts` | — |
 | `updateCustomerUser` | `src/lib/company-users.ts` | — |
 | `utcDayStart` | `src/lib/order-summary.ts` | — |
+| `validateAssigneeChange` | `src/lib/lead-edit.ts` | — |
 | `verifyPassword` | `src/lib/password.ts` | — |
 | `windowKeyOf` | `src/lib/notifications/windows.ts` | Ключ окна: «yyyy-mm-dd:HH:MM» в поясе рассылок (Notification.windowKey, |
 | `zonedWallTimeToUtc` | `src/lib/notifications/windows.ts` | Двухпроходное преобразование «настенное время в поясе» → UTC Date |
@@ -496,6 +528,8 @@
 | `QuoteOptionDialog` | `src/components/admin/QuoteOptionDialog.tsx` |
 | `QuoteOptionsSection` | `src/components/admin/QuoteOptionsSection.tsx` |
 | `RawInfoView` | `src/components/admin/contractorlead/RawInfoView.tsx` |
+| `RefDialog` | `src/components/admin/references/RefDialog.tsx` |
+| `ReferencesScreen` | `src/components/admin/references/ReferencesScreen.tsx` |
 | `RequisitesFields` | `src/components/admin/legalentity/RequisitesFields.tsx` |
 | `RoleChips` | `src/components/admin/employee/RoleChips.tsx` |
 | `SettingsPanel` | `src/components/admin/SettingsPanel.tsx` |
@@ -533,6 +567,13 @@
 | `ClientLogoutButton` | `src/components/client/ClientLogoutButton.tsx` |
 | `ClientOrderCard` | `src/components/client/ClientOrderCard.tsx` |
 | `ClientOrderStatusBadge` | `src/components/client/ClientBadges.tsx` |
+
+### src/components/components
+
+| Компонент | Файл |
+|---|---|
+| `IncotermPicker` | `src/components/references/IncotermPicker.tsx` |
+| `ReferenceCombobox` | `src/components/references/ReferenceCombobox.tsx` |
 
 ### src/components/contractor
 
@@ -606,6 +647,8 @@
 | POST | `/api/admin/orders/{id}/notes` | admin | employee | write | нет |
 | POST | `/api/admin/orders/{id}/stages` | admin | employee | write | нет |
 | DELETE, PATCH | `/api/admin/orders/{id}/stages/{stageId}` | admin | employee | write | нет |
+| GET, POST | `/api/admin/references` | admin | employee | write | нет |
+| PATCH | `/api/admin/references/{id}` | admin | employee | write | нет |
 | GET | `/api/admin/search` | admin | employee | — | нет |
 | DELETE, GET, PATCH | `/api/admin/settings` | admin | employee | — | нет |
 | GET, POST | `/api/admin/stage-catalog` | admin | employee | — | нет |
@@ -643,6 +686,7 @@
 | GET | `/api/document-versions/{id}/file` | public | — | — | нет |
 | GET | `/api/health` | public | — | — | нет |
 | POST | `/api/internal/notifications/dispatch` | public | — | — | нет |
+| GET | `/api/ref/{dir}` | public | — | — | нет |
 
 ## Модели Prisma
 
@@ -658,23 +702,25 @@
 | `Contractor` | 15 | src/app/api/admin/contractor-leads/[id]/route.ts, src/app/api/admin/contractors/[id]/route.ts, src/app/api/admin/contractors/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/auth/contractor/login/route.ts |
 | `ContractorLead` | 9 | src/app/api/admin/contractor-leads/[id]/route.ts, src/app/api/admin/contractor-leads/route.ts |
 | `ContractorSession` | 6 | src/lib/contractor-auth.ts |
+| `CurrencyRate` | 6 | src/app/api/admin/references/route.ts, src/lib/cbr.ts |
 | `Customer` | 12 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/customers/route.ts, src/app/api/admin/leads/route.ts, src/app/api/admin/orders/route.ts |
 | `CustomerUser` | 12 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/auth/client/login/route.ts, src/lib/actor-name.ts, src/lib/company-users.ts |
 | `Document` | 12 | src/app/api/admin/documents/[id]/versions/route.ts, src/app/api/admin/leads/[id]/documents/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/app/api/client/leads/[id]/documents/route.ts (+2) |
 | `DocumentVersion` | 13 | src/app/api/document-versions/[id]/file/route.ts |
-| `Employee` | 11 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/leads/[id]/patch.ts, src/app/api/admin/orders/[id]/patch.ts (+1) |
+| `Employee` | 11 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/orders/[id]/patch.ts, src/app/api/auth/employee/login/route.ts (+1) |
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts |
-| `Lead` | 26 | src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/leads/[id]/convert/helpers.ts, src/app/api/admin/leads/[id]/convert/route.ts (+12) |
+| `Lead` | 29 | src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/leads/[id]/convert/helpers.ts, src/app/api/admin/leads/[id]/convert/route.ts (+12) |
 | `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts |
 | `LegalEntity` | 7 | scripts/seed.ts, src/app/api/admin/leads/[id]/convert/route.ts, src/app/api/admin/legal-entities/[id]/route.ts, src/app/api/admin/legal-entities/route.ts |
 | `LoginAttempt` | 7 | src/lib/login-guard.ts |
 | `Notification` | 19 | scripts/e2e_seed_notification.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/notifications/route.ts, src/lib/notifications/digest.ts, src/lib/notifications/dispatch.ts, src/lib/notifications/retry.ts |
 | `NotificationPreference` | 5 | — |
-| `Order` | 34 | src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/admin/orders/[id]/notes/route.ts (+15) |
+| `Order` | 37 | src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/admin/orders/[id]/notes/route.ts (+15) |
 | `OrderBroker` | 6 | src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/lib/broker-links.ts |
 | `OrderStageCatalog` | 5 | scripts/seed.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/orders/[id]/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts (+11) |
 | `OrderStageInstance` | 11 | src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts, src/app/api/contractor/orders/[id]/stages/[stageId]/route.ts, src/lib/orders.ts |
 | `QuoteOption` | 14 | src/app/api/admin/leads/[id]/patch.ts, src/app/api/admin/options/[id]/route.ts |
+| `RefItem` | 10 | scripts/seed.ts, src/app/api/admin/references/[id]/route.ts, src/app/api/admin/references/route.ts, src/lib/ref-db.ts |
 | `Setting` | 4 | src/app/api/admin/settings/route.ts, src/lib/settings.ts |
 
 ## Переменные окружения
@@ -685,6 +731,8 @@
 | `ADMIN_PHONE` | 2 | да | да |
 | `APP_BASE_URL` | 1 | да | да |
 | `BASE_URL` | 2 | да | да |
+| `CBR_IMPORT` | 2 | да | да |
+| `CBR_RATE_URL` | 1 | да | да |
 | `CONTRACTOR_PORTAL_ENABLED` | 1 | да | да |
 | `CRON_SECRET` | 2 | да | да |
 | `DATABASE_URL` | 5 | да | да |

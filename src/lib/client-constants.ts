@@ -29,6 +29,9 @@ export const ClientCreateRequestSchema = z
     cargoInfo: CargoInfoSchema.optional(),
     // P1-03: маршрут/метрики — колонки; запрос должен нести хоть что-то
     route: RouteFieldsSchema.optional(),
+    // DF-17: условие поставки — код из справочника (Combobox с
+    // разъяснением в форме запроса); необязательно, null = не указано.
+    incotermCode: z.string().trim().max(10).transform((v) => v.toUpperCase()).nullable().optional(),
   })
   .refine(
     (d) =>

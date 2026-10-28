@@ -24,6 +24,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { formatPhoneInput, normalizePhone } from '@/lib/phone'
 import { CARGO_PROFILES, CARGO_PROFILE_LABELS } from '@/lib/order-constants'
+import { IncotermPicker } from '@/components/references/IncotermPicker'
 
 // v0.3.1: диалог создания заявки — выезд из OrdersList.tsx (638 →
 // два файла, RULES 2.14 / D15). Логика и тексты 1:1: клиент либо
@@ -33,8 +34,6 @@ import { CARGO_PROFILES, CARGO_PROFILE_LABELS } from '@/lib/order-constants'
 
 type CustomerRow = { id: string; name: string; phone: string | null }
 type LegalEntityRow = { id: string; name: string }
-
-const INCOTERMS = ['EXW', 'FCA', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP', 'FAS', 'FOB', 'CFR', 'CIF']
 
 export function OrderCreateDialog({
   onCreated,
@@ -54,7 +53,8 @@ export function OrderCreateDialog({
   const [customerEmail, setCustomerEmail] = useState('')
   const [isNewCustomer, setIsNewCustomer] = useState(false)
   const [legalEntityId, setLegalEntityId] = useState('')
-  const [incoterm, setIncoterm] = useState('none')
+  // DF-17: условие поставки — КОД из справочника (Combobox с разъяснением)
+  const [incotermCode, setIncotermCode] = useState('')
   const [hsCode, setHsCode] = useState('')
   const [cargoProfile, setCargoProfile] = useState('standard')
 
@@ -80,7 +80,7 @@ export function OrderCreateDialog({
     setCustomerPhone('')
     setCustomerEmail('')
     setIsNewCustomer(false)
-    setIncoterm('none')
+    setIncotermCode('')
     setHsCode('')
     setCargoProfile('standard')
   }
@@ -112,7 +112,8 @@ export function OrderCreateDialog({
               }
             : { customerId }),
           legalEntityId,
-          incoterm: incoterm === 'none' ? null : incoterm,
+          // DF-17: условие поставки — КОД из справочника
+          incotermCode: incotermCode || null,
           hsCode: hsCode.trim() || null,
           cargoProfile,
         }),
@@ -234,38 +235,27 @@ export function OrderCreateDialog({
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label>Инкотермс</Label>
-              <Select value={incoterm} onValueChange={setIncoterm}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">—</SelectItem>
-                  {INCOTERMS.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>Груз</Label>
-              <Select value={cargoProfile} onValueChange={setCargoProfile}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CARGO_PROFILES.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {CARGO_PROFILE_LABELS[p]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* DF-17: условие поставки — Combobox справочника с разъяснением (IC-16) */}
+          <IncotermPicker
+            value={incotermCode}
+            onPick={(pick) => setIncotermCode(pick && pick.code ? pick.code : '')}
+            label="Условия поставки (Инкотермс) — не обязательно"
+          />
+
+          <div className="grid gap-2">
+            <Label>Груз</Label>
+            <Select value={cargoProfile} onValueChange={setCargoProfile}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CARGO_PROFILES.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {CARGO_PROFILE_LABELS[p]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-2">

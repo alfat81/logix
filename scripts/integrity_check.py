@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# DF-00B/DF-00D (G3): целостность проекта IC-01..IC-15 (docs/ROADMAP-DEALFLOW.md §4.7).
+# DF-00B/DF-00D (G3): целостность проекта IC-01..IC-16 (docs/ROADMAP-DEALFLOW.md §4.7).
 # python3 scripts/integrity_check.py                 — прогон против храповика (красный = релиз не собирается)
 # python3 scripts/integrity_check.py --report-only   — все находки без сравнения с baseline (первичный снимок)
 # python3 scripts/integrity_check.py --write-baseline — зафиксировать текущие находки как baseline
@@ -116,7 +116,11 @@ def ic02() -> None:
             continue
         need = CABINET_GUARD.get(seg)
         guards = list(CABINET_GUARD.values()) + [
-            "getCurrentEmployee", "getCurrentClient", "getCurrentBroker", "getCurrentContractor"]
+            "getCurrentEmployee", "getCurrentClient", "getCurrentBroker", "getCurrentContractor",
+            # DF-17 (/api/ref/[dir]): роут для ТРЁХ кабинетов сразу — guard
+            # собирает сессию любого кабинета нижнеуровневыми lookup'ами
+            # (401 при отсутствии любой; e2e DF-17 проверяет анонима)
+            "getEmployeeByToken", "getClientByToken", "getBrokerByToken", "getContractorByToken"]
         ok = (need and need in t) or (not need and any(g in t for g in guards))
         if not ok:
             add("IC-02", rel(f), f"роут без guard кабинета (ожидался {need or 'любой'})")
@@ -573,6 +577,11 @@ def ic15() -> None:
     for f in rglob("src/**/*.ts*"):
         if f.name.endswith(".test.ts") or rel(f) == SETTINGS_FILE:
             continue
+        # DF-17 (lib/cbr.ts): «Europe/Moscow» — свойство ИСТОЧНИКА курсов
+        # (Банк России публикует по московскому дню), не бизнес-настройка;
+        # зафиксировано в docs/REFERENCES-SOURCES.md — не выносится в реестр.
+        if rel(f) == "src/lib/cbr.ts":
+            continue
         for kind, lit in business_literals(text(f)):
             add("IC-15", f"{kind}:{rel(f)}", f"бизнес-параметр {lit!r} литералом вне реестра (перенесите в SETTINGS)")
     ic15_screen(keys)
@@ -610,12 +619,65 @@ def ic14() -> None:
         add("IC-14", f"block:{a}~{b}", "дубликат блока ≥ 12 строк")
 
 
+# ── IC-16: справочники (D37) — без перечней в коде, источники описаны ───────
+# Определение §4.7: поля с кодами (страна, валюта, Инкотермс, упаковка, ТН ВЭД,
+# место) в формах выбираются только через Combobox справочника (живой выбор
+# держит валидация API через resolveActiveRefs + e2e DF-17); в коде НЕТ
+# перечней стран, валют, упаковки и условий поставки литералами; для каждого
+# справочника есть запись об источнике и условиях использования.
+REF_LIB = "src/lib/ref.ts"
+SOURCES_FILE = "docs/REFERENCES-SOURCES.md"
+# Пороги ВЫШЕ разрешённых запасов карточки DF-17: запасная ЧЕТВЁРКА валют в
+# money.ts (случай пустой таблицы) и единичные упоминания терминов — не перечни.
+INCOTERM_CODES = {"EXW", "FCA", "CPT", "CIP", "DAP", "DPU", "DDP", "FAS", "FOB", "CFR", "CIF", "DAT"}
+INCOTERM_THRESHOLD = 3
+CURRENCY_CODES = {"RUB", "USD", "EUR", "CNY", "KZT", "BYN", "UAH", "UZS", "KGS", "TJS", "TMT", "AZN", "AMD", "GEL", "TRY", "AED", "GBP", "CHF", "JPY", "KRW", "HKD", "SGD", "INR", "THB", "VND", "IDR", "MYR", "PLN", "CZK", "SEK", "NOK", "DKK"}
+CURRENCY_THRESHOLD = 7
+# Формат строк данных сида стран ('CC|CCC|NNN') — в src его быть не должно.
+COUNTRY_ROW = re.compile(r"^['\"][A-Z]{2}\|[A-Z]{3}\|\d{3}['\"],?$")
+
+
+def ic16() -> None:
+    ref_dirs: list[str] = []
+    rf = ROOT / REF_LIB
+    if rf.exists():
+        m = re.search(r"REF_DIRS\s*=\s*\[([^\]]*)\]", text(rf))
+        if m:
+            ref_dirs = re.findall(r"'(\w+)'", m.group(1))
+    else:
+        add("IC-16", "lib-missing", f"{REF_LIB} не найден")
+    src_doc = ROOT / SOURCES_FILE
+    if not src_doc.exists():
+        add("IC-16", "sources-missing", f"{SOURCES_FILE} отсутствует — каждый справочник обязан иметь запись об источнике и условиях использования")
+    else:
+        st = text(src_doc)
+        for d in ref_dirs:
+            if not re.search(rf"^##\s+{d}\b", st, re.M):
+                add("IC-16", f"sources:{d}", f"нет записи об источнике для dir={d} в {SOURCES_FILE}")
+        if "CurrencyRate" not in st and "Курсы ЦБ" not in st:
+            add("IC-16", "sources:currency-rate", "нет записи об источнике курсов ЦБ РФ (CurrencyRate)")
+    for f in rglob("src/**/*.ts*"):
+        if f.name.endswith(".test.ts"):
+            continue
+        raw = text(f)
+        code = strip_ts_comments(raw)
+        inct = {s for s in quoted_strings(code) if s in INCOTERM_CODES}
+        if len(inct) >= INCOTERM_THRESHOLD:
+            add("IC-16", f"incoterm:{rel(f)}", f"перечень условий поставки литералами ({len(inct)}): выбирайте из справочника /api/ref/incoterm")
+        cur = {s for s in quoted_strings(code) if s in CURRENCY_CODES}
+        if len(cur) >= CURRENCY_THRESHOLD:
+            add("IC-16", f"currency:{rel(f)}", f"перечень валют литералами ({len(cur)}): справочник /api/ref/currency; запасной список — только money.ts")
+        rows = [l.strip() for l in raw.splitlines() if COUNTRY_ROW.match(l.strip())]
+        if len(rows) >= 5:
+            add("IC-16", f"country:{rel(f)}", "перечень стран (формат сида) в коде: данные — scripts/ref-data/countries.ts + сид")
+
+
 CHECKS = [
     ("IC-01", lambda: ic01()),
     ("IC-02", ic02), ("IC-03", ic03), ("IC-04", ic04), ("IC-05", ic05),
     ("IC-06", ic06), ("IC-07", ic07), ("IC-08", ic08), ("IC-09", ic09),
     ("IC-10", ic10), ("IC-11", ic11), ("IC-12", ic12), ("IC-13", ic13),
-    ("IC-14", ic14), ("IC-15", ic15),
+    ("IC-14", ic14), ("IC-15", ic15), ("IC-16", ic16),
 ]
 
 

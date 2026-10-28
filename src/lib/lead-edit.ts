@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { db } from '@/lib/db'
 import {
   LEAD_CARGO_LABELS,
   RawContactSchema,
@@ -120,8 +121,6 @@ function sameDiffValue(a: unknown, b: unknown): boolean {
 // новое поле формы автоматически попадает и в diff, и в merge.
 const CARGO_DIFF_LABELS: Partial<Record<keyof typeof LEAD_CARGO_LABELS, string>> = {
   transportType: 'Тип перевозки',
-  from: 'Пункт отправления',
-  to: 'Пункт прибытия',
   routeNote: 'Маршрут',
   shipDate: 'Дата отправления',
   cargoName: 'Груз',
@@ -130,6 +129,7 @@ const CARGO_DIFF_LABELS: Partial<Record<keyof typeof LEAD_CARGO_LABELS, string>>
   weightKg: 'Вес',
   volumeM3: 'Объём',
   packaging: 'Упаковка',
+  packagingCode: 'Упаковка (код)',
   cargoValue: 'Стоимость груза',
   dangerous: 'Опасный груз',
   stackable: 'Штабелирование',
@@ -181,11 +181,13 @@ type ExistingRow = {
   weightKg?: unknown
   volumeM3?: unknown
   placesCount?: unknown
+  incotermCode?: unknown
 }
 type IncomingEdit = {
   rawContact?: RawContact
   cargoInfo?: Record<string, unknown> | null
   route?: RouteFieldsInput
+  incotermCode?: string | null
 }
 
 // Diff анкеты: список строк «Подпись: старое → новое» (только реально
@@ -271,6 +273,16 @@ export function buildLeadEditDiff(
     }
   }
 
+  // DF-17: условие поставки — код → подпись из легаси-текста (code =
+  // EXW и есть читаемое обозначение; diff честно показывает код)
+  if (incoming.incotermCode !== undefined) {
+    const prev = typeof existing.incotermCode === 'string' ? existing.incotermCode : null
+    const next = incoming.incotermCode || null
+    if (prev !== next) {
+      out.push(`Условия поставки: ${prev ?? '—'} → ${next ?? '—'}`)
+    }
+  }
+
   if (incoming.cargoInfo !== undefined) {
     const old = readLeadCargo(existing.cargoInfo) as Record<string, unknown>
     const next = incoming.cargoInfo ?? {}
@@ -314,4 +326,23 @@ export function mergeLeadCargo(
 // через заявку), lost — закрытая сделка (вернуть в работу может мастер).
 export function isLeadAnketaEditable(status: string): boolean {
   return status === 'new' || status === 'calculated'
+}
+
+// ─── P1-01: валидация смены ответственного (серверная, с db) ────────
+// Вынесена из PATCH-роута лида (лимит 300 строк, RULES 2.14). Правило:
+// целевой сотрудник должен существовать и быть активным; повторная
+// установка того же — контракт роута (400 там).
+
+export async function validateAssigneeChange(
+  assignedToId: string
+): Promise<{ error?: undefined; name: string } | { error: string; name?: undefined }> {
+  const target = await db.employee.findUnique({
+    where: { id: assignedToId },
+    select: { name: true, isActive: true },
+  })
+  if (!target) return { error: 'Сотрудник не найден' }
+  if (!target.isActive) {
+    return { error: `Сотрудник «${target.name}» деактивирован — назначить нельзя` }
+  }
+  return { name: target.name }
 }

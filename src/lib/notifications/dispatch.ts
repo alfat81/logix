@@ -3,6 +3,7 @@ import { getEmailSender } from '@/lib/brand'
 import { getTransport } from './channel'
 import { NOT_CONFIGURED } from './transport'
 import { processRegularDigests } from './digest'
+import { importCbrRates } from '@/lib/cbr'
 
 // ─── DF-03: диспетчер очереди уведомлений ────────────────────────────
 // Карточка DF-03: «выбирает pending с nextAttemptAt <= now через
@@ -157,8 +158,15 @@ export async function dispatchPendingBatch(): Promise<DispatchRun> {
   return result
 }
 
-// Полный проход: окна дайджестов + пачки до исчерпания (с потолком).
-export async function dispatchNow(): Promise<DispatchRun & { window: string | null; digests: number }> {
+// Полный проход: импорт курсов ЦБ (раз в сутки, идемпотентен) + окна
+// дайджестов + пачки до исчерпания (с потолком). Сбой курсов НЕ валит
+// проход (lib/cbr.ts гасит ошибку сам — расчёты берут последний курс).
+export async function dispatchNow(): Promise<
+  DispatchRun & { window: string | null; digests: number; ratesImported: number; ratesDate: string | null; ratesSkipped: boolean }
+> {
+  // DF-17: курсы ЦБ РФ — проходом диспетчера (карточка): короткое
+  // замыкание, если курс за сегодня уже импортирован.
+  const rates = await importCbrRates()
   const digest = await processRegularDigests()
   const totals: DispatchRun = { sent: 0, failed: 0, skipped: 0 }
   for (let i = 0; i < MAX_BATCHES; i += 1) {
@@ -168,7 +176,14 @@ export async function dispatchNow(): Promise<DispatchRun & { window: string | nu
     totals.skipped += batch.skipped
     if (batch.sent + batch.failed + batch.skipped === 0) break
   }
-  return { ...totals, window: digest.window, digests: digest.digests }
+  return {
+    ...totals,
+    window: digest.window,
+    digests: digest.digests,
+    ratesImported: rates.imported,
+    ratesDate: rates.date,
+    ratesSkipped: rates.skipped,
+  }
 }
 
 let scheduleInFlight = false

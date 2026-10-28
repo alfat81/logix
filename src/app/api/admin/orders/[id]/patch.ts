@@ -8,7 +8,7 @@ import {
   type CargoProfile,
   type OrderStatus,
 } from '@/lib/order-constants'
-import { readyDateInput } from '@/lib/route-fields'
+import { resolveRouteColumns, resolveActiveRefs, resolveActiveCurrencies } from '@/lib/ref-db'
 import { PatchOrderSchema } from './schemas'
 import { buildLeadEditDiff } from '@/lib/lead-edit'
 import { getIncompleteMandatoryStages } from '@/lib/orders'
@@ -147,11 +147,42 @@ export async function patchOrder(
       }
     }
 
+    // DF-17: коды стран — валидация + денормализация имён; условие
+    // поставки и валюты снимка — проверка активности в справочнике.
+    const routeResolved = await resolveRouteColumns(data.route)
+    if (routeResolved.error) {
+      return NextResponse.json({ error: routeResolved.error }, { status: 400 })
+    }
+    const incotermCode = data.incotermCode ?? undefined
+    if (incotermCode) {
+      const incotermResolved = await resolveActiveRefs('incoterm', [incotermCode])
+      if (incotermResolved.invalid.length > 0) {
+        return NextResponse.json(
+          { error: `Условие поставки не найдено в справочнике: ${incotermResolved.invalid.join(', ')}` },
+          { status: 400 }
+        )
+      }
+    }
+    if (data.quoteSnapshot?.currency) {
+      const cur = await resolveActiveCurrencies([data.quoteSnapshot.currency])
+      if (cur.invalid.length > 0) {
+        return NextResponse.json(
+          { error: `Валюта не найдена в справочнике или отключена: ${cur.invalid.join(', ')}` },
+          { status: 400 }
+        )
+      }
+    }
+
     const order = await db.order.update({
       where: { id },
       data: {
         ...(data.status ? { status: data.status as OrderStatus } : {}),
         ...(data.incoterm !== undefined ? { incoterm: data.incoterm || null } : {}),
+        // DF-17: условие поставки кодом (null = очистить); легаси-текст
+        // синхронно денимализуется кодом при его наличии
+        ...(incotermCode !== undefined
+          ? { incotermCode: incotermCode || null, ...(incotermCode ? { incoterm: incotermCode } : {}) }
+          : {}),
         ...(data.hsCode !== undefined ? { hsCode: data.hsCode || null } : {}),
         ...(data.cargoProfile ? { cargoProfile: data.cargoProfile } : {}),
         // Ж1: zod-объекты шире Prisma.InputJsonObject — явный каст на
@@ -166,17 +197,9 @@ export async function patchOrder(
                   : (data.cargoInfo as unknown as Prisma.InputJsonObject),
             }
           : {}),
-        // P1-03: маршрут/метрики — колонки (undefined = не трогаем,
-        // null = очистить; прямые свойства — без спредов-союзов)
-        originCity: data.route?.originCity,
-        originCountry: data.route?.originCountry,
-        destinationCity: data.route?.destinationCity,
-        destinationCountry: data.route?.destinationCountry,
-        transportType: data.route?.transportType,
-        readyDate: data.route ? readyDateInput(data.route.readyDate) : undefined,
-        weightKg: data.route?.weightKg,
-        volumeM3: data.route?.volumeM3,
-        placesCount: data.route?.placesCount,
+        // P1-03/DF-17: маршрут/метрики + коды стран с денормализованными
+        // именами (undefined = не трогаем, null = очистить)
+        ...routeResolved.columns,
         ...(data.quoteSnapshot !== undefined
           ? {
               quoteSnapshot:

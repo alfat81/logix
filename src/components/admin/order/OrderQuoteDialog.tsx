@@ -27,7 +27,8 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { QUOTE_PRIORITY_FITS, QUOTE_PRIORITY_FIT_LABELS, TRANSPORT_TYPES } from '@/lib/leads'
-import { CURRENCIES, CURRENCY_LABELS, VAT_MODES, VAT_MODE_LABELS, parseMoneyInput } from '@/lib/money'
+import { VAT_MODES, VAT_MODE_LABELS, parseMoneyInput } from '@/lib/money'
+import { ReferenceCombobox, type RefPick } from '@/components/references/ReferenceCombobox'
 import type { QuoteSnapshot } from './types'
 import { EMPTY_QUOTE_FORM, quoteFormFromSnapshot, type QuoteForm } from './quote-snapshot'
 
@@ -163,21 +164,15 @@ export function OrderQuoteDialog({
             </div>
             <div className="grid gap-2">
               <Label>Валюта</Label>
-              <Select
+              {/* DF-17: валюта — Combobox справочника (IC-16) */}
+              <ReferenceCombobox
+                dir="currency"
                 value={quoteForm.currency}
-                onValueChange={(v) => setQuoteForm((f) => ({ ...f, currency: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CURRENCIES.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {CURRENCY_LABELS[c]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onPick={(pick: RefPick) =>
+                  setQuoteForm((f) => ({ ...f, currency: pick && pick.code ? pick.code : 'RUB' }))
+                }
+                placeholder="Например: Рубли"
+              />
             </div>
             <div className="grid gap-2">
               <Label>НДС</Label>

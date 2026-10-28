@@ -201,6 +201,8 @@ export function LeadCard() {
             leadId={lead.id}
             cargoInfo={lead.cargoInfo}
             canConvert={!!selectedOption}
+            // DF-17: условие поставки из запроса клиента — предзаполняется
+            initialIncotermCode={lead.incotermCode}
           />
         ) : null}
       </div>

@@ -11,6 +11,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { TRANSPORT_TYPES, type LeadCargoForm } from '@/lib/leads'
+import { ReferenceCombobox, type RefPick } from '@/components/references/ReferenceCombobox'
+import { IncotermPicker } from '@/components/references/IncotermPicker'
 
 // ─── Форма: поля бланка (значения — строки, см. LeadCargoForm) ─────
 // v0.5.0 (P1-22): выезд из CargoGroups.tsx (резка под лимит 300,
@@ -18,12 +20,19 @@ import { TRANSPORT_TYPES, type LeadCargoForm } from '@/lib/leads'
 // Используется диалогом создания лида (В5) и правкой груза заявки (Ж1):
 // один бланк — одно место правки. onChange получает СЛЕДУЮЩЕЕ
 // состояние целиком (компонент неконтролируемо ничего не хранит).
+// DF-17: страна и упаковка — Combobox справочника (IC-16); условие
+// поставки с разъяснением — опционально (showIncoterm, форма запроса
+// клиента); «Другое…» — свободный текст упаковки (код пустой).
 export function CargoFormFields({
   form,
   onChange,
+  showIncoterm = false,
 }: {
   form: LeadCargoForm
   onChange: (next: LeadCargoForm) => void
+  // DF-17: условие поставки — в форме запроса клиента; у менеджера
+  // Инкотермс спрашивается при конвертации (LeadConvertBlock)
+  showIncoterm?: boolean
 }) {
   const set = (key: keyof LeadCargoForm, value: string) =>
     onChange({ ...form, [key]: value })
@@ -32,6 +41,24 @@ export function CargoFormFields({
   // поле не попадает в cargoInfo (buildLeadPayload пропускает пустые).
   const setSelected = (key: keyof LeadCargoForm, value: string) =>
     set(key, value === 'none' ? '' : value)
+
+  // Страна: код в форму, имя денормализует сервер из справочника
+  const setCountry = (key: 'originCountryCode' | 'destinationCountryCode') => (pick: RefPick) =>
+    set(key, pick && pick.code ? pick.code : '')
+
+  // Упаковка: из справочника → текст = имя, код = код; «Другое» → текст
+  // как есть, код пустой; очистка → пусто.
+  const setPackaging = (pick: RefPick) => {
+    if (pick === null) {
+      onChange({ ...form, packaging: '', packagingCode: '' })
+    } else if (pick.code === null) {
+      onChange({ ...form, packaging: pick.text, packagingCode: '' })
+    } else {
+      onChange({ ...form, packaging: pick.name, packagingCode: pick.code })
+    }
+  }
+
+  const setIncoterm = (pick: RefPick) => set('incotermCode', pick && pick.code ? pick.code : '')
 
   return (
     <div className="grid gap-5">
@@ -62,20 +89,37 @@ export function CargoFormFields({
               onChange={(e) => set('shipDate', e.target.value)}
             />
           </div>
+          {/* DF-17: страна — из справочника (Combobox, IC-16); город — текст */}
+          <ReferenceCombobox
+            dir="country"
+            value={form.originCountryCode}
+            onPick={setCountry('originCountryCode')}
+            label="Страна отправления"
+            placeholder="Например: Китай"
+            allowClear
+          />
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">Пункт отправления</Label>
             <Input
-              placeholder="Например: Китай, Чэнду"
-              value={form.from}
-              onChange={(e) => set('from', e.target.value)}
+              placeholder="Город или пункт, например: Чэнду"
+              value={form.originCity}
+              onChange={(e) => set('originCity', e.target.value)}
             />
           </div>
+          <ReferenceCombobox
+            dir="country"
+            value={form.destinationCountryCode}
+            onPick={setCountry('destinationCountryCode')}
+            label="Страна прибытия"
+            placeholder="Например: Россия"
+            allowClear
+          />
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">Пункт прибытия</Label>
             <Input
-              placeholder="Например: Россия, а/п Шереметьево"
-              value={form.to}
-              onChange={(e) => set('to', e.target.value)}
+              placeholder="Город или пункт, например: а/п Шереметьево"
+              value={form.destinationCity}
+              onChange={(e) => set('destinationCity', e.target.value)}
             />
           </div>
           <div className="grid gap-1.5 col-span-2">
@@ -109,14 +153,16 @@ export function CargoFormFields({
               onChange={(e) => set('hsCode', e.target.value)}
             />
           </div>
-          <div className="grid gap-1.5">
-            <Label className="text-xs text-muted-foreground">Тип упаковки</Label>
-            <Input
-              placeholder="Например: Коробки"
-              value={form.packaging}
-              onChange={(e) => set('packaging', e.target.value)}
-            />
-          </div>
+          {/* DF-17: упаковка — Combobox с вариантом «Другое…» (IC-16) */}
+          <ReferenceCombobox
+            dir="packaging"
+            value={form.packagingCode || form.packaging}
+            onPick={setPackaging}
+            label="Тип упаковки"
+            placeholder="Например: Коробка"
+            allowClear
+            allowOther
+          />
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">Количество мест</Label>
             <Input
@@ -152,6 +198,11 @@ export function CargoFormFields({
               onChange={(e) => set('cargoValue', e.target.value)}
             />
           </div>
+          {showIncoterm && (
+            <div className="col-span-2">
+              <IncotermPicker value={form.incotermCode} onPick={setIncoterm} />
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-3 col-span-2">
             {(
               [

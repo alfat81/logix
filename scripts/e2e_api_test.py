@@ -567,6 +567,63 @@ s,d=a.r('POST','/api/admin/notifications/df04-nonexistent/retry'); chk('DF-04: �
 s,d=a.r('GET','/api/admin/notifications?status=failed&take=50'); cnts=d.get('counts',{})
 chk('DF-04: журнал отдаёт counts по статусам (табы)',isinstance(cnts,dict) and all(k in cnts for k in('pending','sent','failed','skipped')),cnts)
 
+# --- DF-17: справочники и курсы ---
+# Критерий приёмки: «Страны, валюты, упаковка и условия поставки выбираются
+# из справочника во всех формах; курсы загружаются ежедневно; IC-16 зелёный».
+# API-уровень: клиент/брокер получают только активные записи; запрос с кодом
+# страны сохраняется и денормализуется именем; отключённая запись исчезает
+# из форм; старые заявки (без кодов) открываются. Экран /admin/references
+# и Combobox покрыты вручную/приёмкой — здесь контракты API.
+s,d=a.r('GET','/api/ref/currency'); codes=[x['code'] for x in d.get('items',[])]
+chk('DF-17: /api/ref/currency — активная четвёрка (сид)',s==200 and all(c in codes for c in('RUB','USD','EUR','CNY')),(s,codes[:10]))
+rub=[x for x in d.get('items',[]) if x['code']=='RUB']
+chk('DF-17: валюта из справочника несёт meta.minorUnits',bool(rub) and (rub[0].get('meta') or {}).get('minorUnits')==2,rub[:1])
+s,d=c3.r('GET','/api/ref/incoterm'); inc_codes=[x['code'] for x in d.get('items',[])]
+chk('DF-17: клиент видит только активные условия поставки (DAT ред. 2010 скрыт)',s==200 and 'DAT' not in inc_codes and 'FOB' in inc_codes,(s,inc_codes))
+fob=[x for x in d.get('items',[]) if x['code']=='FOB']
+chk('DF-17: разъяснение Инкотермс едет в meta (собственные формулировки, draft-пометка)',bool(fob) and bool((fob[0].get('meta') or {}).get('explanation')) and (fob[0].get('meta') or {}).get('draft') is True,fob[:1])
+# брокер: все ранние брокерские сессии в пргоне погашены намеренно
+# (деактивации DF-02A/DF-03 и брокера на строке «деактивация брокера гасит
+# сессию») — входим первичным пользователем брокера brk3 (он активен,
+# деактивирован был только второй человек) — свежая сессия для /api/ref
+b17=C(); s,d=b17.r('POST','/api/auth/broker/login',{'phone':ph(base+44),'password':'df03-pass-1'})
+chk('DF-17: активный пользователь брокера входит (свежая сессия)',s==200,(s,d))
+s,d=b17.r('GET','/api/ref/packaging'); pk=[x['code'] for x in d.get('items',[])]
+chk('DF-17: брокер читает справочник упаковки (коды источника Рек. 21)',s==200 and 'PX' in pk and 'CT' in pk,(s,pk[:12]))
+s,d=C().r('GET','/api/ref/country'); chk('DF-17: аноним справочник не читает → 401',s==401,s)
+# управление справочником: экран для мастера И менеджера (карточка DF-17).
+# Случайный трёхбуквенный код: сид уже содержит ходовые ISO-коды —
+# POST тестируем на заведомо свободном, включение/отключение — на нём же.
+zcode=('z'+u[:2]).upper()
+s,d=a.r('GET','/api/admin/references?dir=currency'); seed_c=[x for x in d.get('items',[]) if x['code']=='KZT']
+chk('DF-17: сид-валюта вне четвёрки хранится неактивной (включает мастер)',bool(seed_c) and seed_c[0].get('isActive') is False,seed_c[:1])
+s,d=a.r('POST','/api/admin/references',{'dir':'currency','code':zcode.lower(),'name':'Пробная валюта '+u,'nameEn':'Probe '+u}); zitem=(d.get('item') or {})
+chk('DF-17: мастер добавил валюту (код нормализован в ISO-регистр)',s==201 and zitem.get('code')==zcode,(s,d))
+s,d=a.r('POST','/api/admin/references',{'dir':'currency','code':zcode,'name':'дубль'}); chk('DF-17: дубль кода внутри dir → 409',s==409,s)
+s,d=bb.r('PATCH',f"/api/admin/references/{zitem.get('id')}",{'name':'Пробная валюта (правка)'}); chk('DF-17: менеджер правит подпись записи',s==200,(s,d))
+s,d=c3.r('GET','/api/ref/currency'); zz=[x['code'] for x in d.get('items',[]) if x['code']==zcode]
+chk('DF-17: включённая валюта видна клиенту в форме',s==200 and len(zz)==1,(s,zz))
+s,d=bb.r('PATCH',f"/api/admin/references/{zitem.get('id')}",{'isActive':False}); chk('DF-17: валюта отключена (мастер-режим)',s==200,(s,d))
+s,d=c3.r('GET','/api/ref/currency'); zz=[x['code'] for x in d.get('items',[]) if x['code']==zcode]
+chk('DF-17: отключённая валюта исчезла из форм клиента',s==200 and len(zz)==0,(s,zz))
+s,d=bb.r('PATCH',f"/api/admin/references/{zitem.get('id')}",{'code':'XYZ'}); chk('DF-17: код записи менять нельзя → 400 (сделки ссылаются)',s==400,s)
+# запрос с кодами: клиент шлёт только коды — сервер денормализует имена
+s,d=c3.r('POST','/api/client/leads',{'route':{'originCountryCode':'CN','destinationCountryCode':'RU','weightKg':55},'incotermCode':'fob'}); lid4=(d.get('lead') or d or {}).get('id')
+chk('DF-17: запрос клиента с кодами страны и FOB создан',s in(200,201),(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid4}'); L4=d.get('lead',d)
+chk('DF-17: коды сохранены, имена денормализованы (Китай/Россия)',L4.get('originCountryCode')=='CN' and L4.get('originCountry')=='Китай' and L4.get('destinationCountryCode')=='RU' and L4.get('destinationCountry')=='Россия',(L4.get('originCountryCode'),L4.get('originCountry'),L4.get('destinationCountryCode'),L4.get('destinationCountry')))
+chk('DF-17: Инкотермс-код сохранён (fob → FOB)',L4.get('incotermCode')=='FOB',L4.get('incotermCode'))
+s,d=c3.r('POST','/api/client/leads',{'route':{'originCountryCode':'XX'}}); chk('DF-17: неизвестный код страны → 400',s==400,(s,d))
+s,d=c3.r('POST','/api/client/leads',{'route':{'weightKg':1},'incotermCode':'DAT'}); chk('DF-17: неактивное условие поставки на новой записи → 400',s==400,(s,d))
+# старые заявки (без кодов) открываются — снимки не переписываются задним числом
+s,d=a.r('GET',f'/api/admin/leads/{lid}'); L5=d.get('lead',d)
+chk('DF-17: старый запрос открывается, легаси-страна «Китай» на месте',s==200 and L5.get('originCountry')=='Китай',(s,L5.get('originCountry'),L5.get('originCountryCode')))
+s,d=a.r('GET',f'/api/admin/orders/{oid3}'); chk('DF-17: старая заявка открывается (incoterm-снимок FOB)',s==200,(s,d))
+# адресный курс в админском списке валют: в e2e импорт выключен (CBR_IMPORT=off)
+# — rates=None; в проде — {date, items} последнего дня (пометка «курс на дату»)
+s,d=a.r('GET','/api/admin/references?dir=currency'); rates=d.get('rates')
+chk('DF-17: админский список валют — rates с датой либо None (импорт off)',s==200 and (rates is None or (bool(rates.get('date')) and isinstance(rates.get('items'),list))),(s,str(rates)[:120]))
+
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)
 hard=[r for r in R if not r[1] and not r[0].startswith('[ЦЕЛЬ')]

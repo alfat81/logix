@@ -180,6 +180,16 @@ model Order {
   volumeM3           Decimal?       @db.Decimal(10, 3)
   placesCount        Int?
 
+  // ─── DF-17: поля-коды из справочников (рядом со строками, expand) ──
+  // Коды берутся из Combobox справочника (IC-16); строковые колонки
+  // остаются и денормализуются именем из справочника на записи —
+  // отображения/печать/поиск работают без join (принцип снимка).
+  // incotermCode — рядом с легаси-текстом incoterm (та же семантика:
+  // подсказка менеджеру, логику не управляет до DF-19).
+  originCountryCode      String?
+  destinationCountryCode String?
+  incotermCode           String?
+
   contract    Contract             @relation(fields: [contractId], references: [id])
   legalEntity LegalEntity          @relation(fields: [legalEntityId], references: [id])
   customer    Customer             @relation(fields: [customerId], references: [id])
@@ -270,12 +280,11 @@ enum TransportType {
 // float и «рубли по умолчанию» запрещены. Коды английские (стабильные
 // в API), русские подписи и знаки — в lib/money.ts (formatMoney —
 // единственная точка форматирования денег).
-enum Currency {
-  RUB
-  USD
-  EUR
-  CNY
-}
+// enum Currency (RUB/USD/EUR/CNY) удалён в DF-17: валюты выбираются
+// из справочника RefItem(dir=currency) по ISO 4217, фиксированная
+// четвёрка больше не отвечает составу сделок. Колонки QuoteOption
+// currency/costCurrency переведены в TEXT (см. миграцию df_17_references);
+// запасная четвёрка на случай пустой таблицы — money.ts (CURRENCIES).
 
 // Режим НДС цены варианта (P1-04): метка цены, НЕ расчёт — маржа/НДС
 // не вычисляются и не отдаются наружу (D19, RULES 2.15). Подписи —
@@ -346,6 +355,13 @@ model Lead {
   volumeM3           Decimal?       @db.Decimal(10, 3)
   placesCount        Int?
 
+  // ─── DF-17: поля-коды из справочников (рядом со строками, expand) —
+  // см. Order: код из Combobox (IC-16), строка — денормализованное имя
+  // (снимок), incotermCode — выбор условия поставки в запросе клиента.
+  originCountryCode      String?
+  destinationCountryCode String?
+  incotermCode           String?
+
   customer   Customer?     @relation(fields: [customerId], references: [id])
   assignee   Employee?     @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   options    QuoteOption[]
@@ -384,11 +400,13 @@ model QuoteOption {
   // и клиентские проекции; costEstimate — только сотрудникам
   // (наружу не выходит никогда, D3); маржа не вычисляется.
   price          Decimal  @db.Decimal(14, 2)
-  currency       Currency @default(RUB)
+  // DF-17: TEXT вместо enum Currency — валюты из справочника ISO 4217
+  // (мастер включает/отключает), запасная четвёрка — money.ts
+  currency       String   @default("RUB")
   vatMode        VatMode  @default(WITHOUT_VAT)
   // Себестоимость (внутренняя, nullable — «ещё не посчитана»)
   costEstimate   Decimal? @db.Decimal(14, 2)
-  costCurrency   Currency @default(RUB)
+  costCurrency   String   @default("RUB")
   etaDays        Int
   // Чем вариант лучше других: speed | cost | safety.
   priorityFit    String
@@ -991,4 +1009,53 @@ model NotificationPreference {
   enabled       Boolean @default(true)
 
   @@unique([recipientKind, recipientId, channel])
+}
+
+// ─── DF-17: справочники и курсы (D37, O-10) ──────────────────────────
+// Универсальная таблица небольших справочников: страны (ISO 3166-1),
+// валюты (ISO 4217), упаковка (Рек. 21 ЕЭК ООН), условия поставки
+// (Инкотермс 2020). Места — отдельная таблица (DF-17B), ТН ВЭД —
+// своя (DF-17C). Источники и условия использования каждого dir —
+// docs/REFERENCES-SOURCES.md (IC-16).
+//
+// dir: country | currency | packaging | incoterm (whitelist lib/ref.ts).
+// code — стабильный код из источника: НЕ меняется после использования
+// (API-правки кода нет вообще; подпись name переопределяется). Валюты
+// и Инкотермс хранят в meta структурированные данные (minorUnits /
+// правила таможенной стоимости — черновик до утверждения брокером,
+// O-12), литералов перечней в коде нет (IC-16).
+model RefItem {
+  id        String   @id @default(cuid())
+  dir       String
+  code      String
+  // Русская подпись; null-переопределения нет — справочник заполняется
+  // сидом с именами источника, мастер правит подписи здесь.
+  name      String
+  nameEn    String?
+  meta      Json?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([dir, code])
+  @@index([dir, isActive])
+}
+
+// Официальные курсы Банка России (DF-17): ежедневный импорт проходом
+// диспетчера (lib/cbr.ts — XML_daily.asp, windows-1251, запятая как
+// десятичный разделитель, номинал). value — рублей за nominal единиц
+// (Decimal(14,4) — формат источника). (date, code) @unique — импорт
+// идемпотентен: повторный проход не дублирует; при сбое расчёты (DF-19)
+// берут последний известный курс с пометкой даты.
+model CurrencyRate {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date
+  code      String
+  nominal   Int      @default(1)
+  value     Decimal  @db.Decimal(14, 4)
+  createdAt DateTime @default(now())
+
+  @@unique([date, code])
+  @@index([code, date])
 }

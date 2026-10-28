@@ -19,6 +19,12 @@
 import { PrismaClient } from '@prisma/client'
 import { randomBytes, scryptSync } from 'crypto'
 
+// ── DF-17: данные справочников (IC-16: единственный импортёр — сид) ──
+import { ISO_3166_1, RU_NAME_OVERRIDES } from './ref-data/countries'
+import { CURRENCY_ITEMS } from './ref-data/currencies'
+import { PACKAGING_ITEMS } from './ref-data/packaging'
+import { INCOTERM_ITEMS } from './ref-data/incoterms'
+
 // ── Мини-загрузчик .env (без зависимости от dotenv): Prisma Client
 //    сам грузит .env, но при запуске через tsx без переменных окружения
 //    этот фолбэк гарантирует, что DATABASE_URL найдётся. ─────────────
@@ -167,12 +173,89 @@ async function seedLegalEntity(): Promise<void> {
   console.log('  + Юрлицо-образец: ООО «Логикс» (реквизиты заполнить)')
 }
 
+// ── DF-17: справочники (страны, валюты, упаковка, Инкотермс) ─────────
+// Данные — scripts/ref-data/* (IC-16: перечней в логике/UI нет; эти
+// файлы импортирует ТОЛЬКО этот сид). Идемпотентно: upsert по
+// (dir, code).
+//
+// Политика пересида: name/nameEn/isActive НЕ перезаписываются — их
+// владелец мастер (правки подписей и включённости через экран
+// /admin/references переживают пересид; Intl-имена стран фиксируются
+// при создании). Обновляются только структурные данные из источника:
+// meta (alpha3/числовой код страны, minorUnits валюты, флаги правил
+// Инкотермс) и sortOrder. Новые записи источника доезжают при
+// следующем сиде; создаются с активностью из данных (DAT — неактивен).
+async function seedReferences(): Promise<void> {
+  const ruNames = new Intl.DisplayNames(['ru'], { type: 'region' })
+  const enNames = new Intl.DisplayNames(['en'], { type: 'region' })
+
+  type Row = {
+    dir: string
+    code: string
+    name: string
+    nameEn: string | null
+    meta: unknown
+    isActive: boolean
+    sortOrder: number
+  }
+  const rows: Row[] = []
+
+  ISO_3166_1.forEach((raw, i) => {
+    const [alpha2, alpha3, numeric] = raw.split('|')
+    rows.push({
+      dir: 'country',
+      code: alpha2,
+      // Русское название: Intl.DisplayNames, терминология ВЭД — через
+      // overrides (карточка DF-17); правится мастером на экране.
+      name: RU_NAME_OVERRIDES[alpha2] ?? ruNames.of(alpha2) ?? alpha2,
+      nameEn: enNames.of(alpha2),
+      meta: { alpha3, numeric },
+      isActive: true,
+      sortOrder: i,
+    })
+  })
+
+  CURRENCY_ITEMS.forEach((c, i) => {
+    rows.push({
+      dir: 'currency',
+      code: c.code,
+      name: c.name,
+      nameEn: c.nameEn,
+      meta: { minorUnits: c.minorUnits },
+      isActive: c.active,
+      sortOrder: i,
+    })
+  })
+
+  PACKAGING_ITEMS.forEach((p, i) => {
+    rows.push({ dir: 'packaging', code: p.code, name: p.name, nameEn: p.nameEn, meta: null, isActive: true, sortOrder: i })
+  })
+
+  INCOTERM_ITEMS.forEach((t, i) => {
+    rows.push({ dir: 'incoterm', code: t.code, name: t.name, nameEn: t.nameEn, meta: t.meta, isActive: t.active, sortOrder: i })
+  })
+
+  for (const r of rows) {
+    await prisma.refItem.upsert({
+      where: { dir_code: { dir: r.dir, code: r.code } },
+      create: r,
+      update: { meta: r.meta, sortOrder: r.sortOrder },
+    })
+  }
+  const byDir = rows.reduce<Record<string, number>>((acc, r) => ((acc[r.dir] = (acc[r.dir] ?? 0) + 1), acc), {})
+  const parts = Object.entries(byDir)
+    .map(([d, n]) => `${d}: ${n}`)
+    .join(', ')
+  console.log(`  = Справочники DF-17 актуализированы (${parts}); name/isActive мастера не перезаписаны`)
+}
+
 async function main(): Promise<void> {
   assertMasterCredentials()
   console.log('Seed Logix:')
   await seedEmployee()
   await seedStageCatalog()
   await seedLegalEntity()
+  await seedReferences()
   console.log('Готово.')
 }
 

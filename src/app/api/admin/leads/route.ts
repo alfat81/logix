@@ -4,10 +4,10 @@ import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { CreateLeadSchema, LEAD_STATUSES, type LeadStatus } from '@/lib/leads'
 import {
-  readyDateInput,
   TRANSPORT_TYPE_CODES,
   type TransportTypeCode,
 } from '@/lib/route-fields'
+import { resolveRouteColumns, resolveActiveRefs } from '@/lib/ref-db'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { employeeActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
@@ -185,6 +185,23 @@ export async function POST(req: NextRequest) {
         ? data.rawContact.name
         : null
 
+    // DF-17: коды стран из справочника → валидация + денормализация имён
+    // (незнакомый/отключённый код — 400 с текстом).
+    const routeResolved = await resolveRouteColumns(data.route)
+    if (routeResolved.error) {
+      return NextResponse.json({ error: routeResolved.error }, { status: 400 })
+    }
+    // DF-17: условие поставки — код должен быть в справочнике и активен.
+    const incotermResolved = data.incotermCode
+      ? await resolveActiveRefs('incoterm', [data.incotermCode])
+      : null
+    if (incotermResolved && incotermResolved.invalid.length > 0) {
+      return NextResponse.json(
+        { error: `Условие поставки не найдено в справочнике: ${incotermResolved.invalid.join(', ')}` },
+        { status: 400 }
+      )
+    }
+
     const lead = await db.lead.create({
       data: {
         status: 'new',
@@ -208,17 +225,10 @@ export async function POST(req: NextRequest) {
               } as unknown as Prisma.InputJsonObject,
             }
           : {}),
-        // P1-03: маршрут/метрики — колонки (undefined = остаётся NULL,
-        // прямые свойства — без спредов-союзов)
-        originCity: data.route?.originCity,
-        originCountry: data.route?.originCountry,
-        destinationCity: data.route?.destinationCity,
-        destinationCountry: data.route?.destinationCountry,
-        transportType: data.route?.transportType,
-        readyDate: data.route ? readyDateInput(data.route.readyDate) : undefined,
-        weightKg: data.route?.weightKg,
-        volumeM3: data.route?.volumeM3,
-        placesCount: data.route?.placesCount,
+        // P1-03/DF-17: маршрут/метрики + коды стран с денормализованными
+        // именами (undefined = остаётся NULL, прямые свойства — без спредов-союзов)
+        ...routeResolved.columns,
+        incotermCode: data.incotermCode ?? null,
       },
       include: {
         customer: { select: { id: true, name: true, phone: true } },

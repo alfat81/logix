@@ -76,6 +76,8 @@ bun install
 | `APP_BASE_URL` | Vercel + `.env` | DF-03: публичный адрес приложения — ссылки в письмах (D11) |
 | `CRON_SECRET` | Vercel + GitHub Secrets | DF-03: Bearer-токен `POST /api/internal/notifications/dispatch` — внешний планировщик (workflow `scheduler.yml`, каждые 5 минут; допуск окна 15 минут) |
 | `EMAIL_ALLOWLIST` | Vercel + `.env` | DF-03: адреса/домены через запятую (`a@b.ru, test.example`); вне production письма уходят только на них, остальные — `skipped: not_allowlisted` (защита тестовых окружений) |
+| `CBR_IMPORT` | не задаётся (`on`) / `off` в CI | DF-17: импорт официальных курсов ЦБ РФ проходом диспетчера (раз в сутки, идемпотентен); `off` — выключатель для CI/e2e (без внешней сети). Сбой не валит проход — расчёты берут последний известный курс с пометкой даты |
+| `CBR_RATE_URL` | не задаётся | DF-17: переопределение адреса выгрузки ЦБ (по умолчанию `https://www.cbr.ru/scripts/XML_daily.asp`; источник и условия — docs/REFERENCES-SOURCES.md) |
 | `SHADOW_URL` | задаётся integrity_check.py | Shadow-БД для IC-01 (scripts/shadow-db.ts), вручную не задаётся |
 | `NODE_ENV` | платформа Vercel | `production` в проде |
 

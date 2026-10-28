@@ -123,9 +123,9 @@ export function CargoGroups({
     const v = legacy[k]
     return typeof v === 'string' && v.trim() ? v : null
   }
-  const origin = joinRouteText(r.originCountry, r.originCity) || txt('from') || legacyStr('origin')
+  const origin = joinRouteText(r.originCountry, r.originCity) || legacyStr('from') || legacyStr('origin')
   const destination =
-    joinRouteText(r.destinationCountry, r.destinationCity) || txt('to') || legacyStr('destination')
+    joinRouteText(r.destinationCountry, r.destinationCity) || legacyStr('to') || legacyStr('destination')
   const readyDate = dateToStr(r.readyDate) || dateTxtFallback(c.shipDate)
 
   const routeEntries: [string, string | null][] = [

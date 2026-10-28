@@ -8,7 +8,7 @@ import {
   mergeLeadCargo,
   ClientLeadEditSchema,
 } from '@/lib/lead-edit'
-import { readyDateInput } from '@/lib/route-fields'
+import { resolveRouteColumns } from '@/lib/ref-db'
 import { clientActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
 
@@ -115,6 +115,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const description = diffs.join('; ')
     const merged = mergeLeadCargo(lead.cargoInfo, cargoInfo ?? null)
 
+    // DF-17: коды стран — валидация + денормализация имён (клиент шлёт только код)
+    const routeResolved = await resolveRouteColumns(route)
+    if (routeResolved.error) {
+      return NextResponse.json({ error: routeResolved.error }, { status: 400 })
+    }
+
     await db.lead.update({
       where: { id },
       data: {
@@ -124,16 +130,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           merged === null
             ? Prisma.DbNull
             : (merged as unknown as Prisma.InputJsonObject),
-        // P1-03: маршрут/метрики — колонки (undefined = не трогаем)
-        originCity: route?.originCity,
-        originCountry: route?.originCountry,
-        destinationCity: route?.destinationCity,
-        destinationCountry: route?.destinationCountry,
-        transportType: route?.transportType,
-        readyDate: route ? readyDateInput(route.readyDate) : undefined,
-        weightKg: route?.weightKg,
-        volumeM3: route?.volumeM3,
-        placesCount: route?.placesCount,
+        // P1-03/DF-17: маршрут/метрики + коды стран (undefined = не трогаем)
+        ...routeResolved.columns,
       },
     })
     await emitEvent(db, {

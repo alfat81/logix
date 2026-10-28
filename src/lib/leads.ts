@@ -7,7 +7,8 @@ import {
   TRANSPORT_TYPE_LABELS,
   type TransportTypeCode,
 } from '@/lib/route-fields'
-import { CURRENCIES, VAT_MODES, moneyAmount } from '@/lib/money'
+import { VAT_MODES, moneyAmount } from '@/lib/money'
+import { currencyCodeSchema } from '@/lib/ref'
 
 // Константы статусов и zod-схемы лидов — файл БЕЗ серверных зависимостей
 // (db и т.п.): его импортируют и API-роуты, и будущий UI воронки (В5).
@@ -86,24 +87,34 @@ export type TransportType = (typeof TRANSPORT_TYPES)[number]
 // Состояние формы анкеты в UI: все поля — строки (числа парсятся при
 // сборке в buildLeadPayload), '' = «не заполнено», Да/Нет — 'yes'|'no'.
 export type LeadCargoForm = {
-  // Маршрут (бланк п.3, 17, 20, 4, 18)
+  // Маршрут (бланк п.3, 17, 20, 4, 18). DF-17: страна — Combobox
+  // справочника (IC-16): форма хранит КОД, имя берёт сервер из
+  // справочника (денормализация в текстовую колонку на записи).
   transportType: string
-  from: string
-  to: string
+  originCountryCode: string
+  originCity: string
+  destinationCountryCode: string
+  destinationCity: string
   routeNote: string
   shipDate: string
-  // Груз (бланк п.5–15)
+  // Груз (бланк п.5–15). Упаковка — Combobox с вариантом «Другое»:
+  // выбрали из справочника → packaging = имя, packagingCode = код;
+  // «Другое» → свободный текст, код пустой.
   cargoName: string
   hsCode: string
   placesCount: string
   weightKg: string
   volumeM3: string
   packaging: string
+  packagingCode: string
   cargoValue: string
   dangerous: string
   stackable: string
   tiltable: string
   specialRequirements: string
+  // DF-17: условие поставки — Combobox с разъяснением (в форме запроса
+  // клиента; у менеджера — при конвертации). Хранится кодом.
+  incotermCode: string
   // Грузоотправитель (п.16) и грузополучатель (п.19): наименование,
   // ИНН, адрес — как в бланке, блоками.
   shipperName: string
@@ -116,8 +127,10 @@ export type LeadCargoForm = {
 
 export const EMPTY_LEAD_CARGO_FORM: LeadCargoForm = {
   transportType: '',
-  from: '',
-  to: '',
+  originCountryCode: '',
+  originCity: '',
+  destinationCountryCode: '',
+  destinationCity: '',
   routeNote: '',
   shipDate: '',
   cargoName: '',
@@ -126,11 +139,13 @@ export const EMPTY_LEAD_CARGO_FORM: LeadCargoForm = {
   weightKg: '',
   volumeM3: '',
   packaging: '',
+  packagingCode: '',
   cargoValue: '',
   dangerous: '',
   stackable: '',
   tiltable: '',
   specialRequirements: '',
+  incotermCode: '',
   shipperName: '',
   shipperInn: '',
   shipperAddress: '',
@@ -143,8 +158,10 @@ export const EMPTY_LEAD_CARGO_FORM: LeadCargoForm = {
 // (порядок полей повторяет бланк заявки клиента).
 export const LEAD_CARGO_LABELS: Record<keyof LeadCargoForm, string> = {
   transportType: 'Тип перевозки',
-  from: 'Пункт отправления',
-  to: 'Пункт прибытия',
+  originCountryCode: 'Страна отправления',
+  originCity: 'Пункт отправления',
+  destinationCountryCode: 'Страна прибытия',
+  destinationCity: 'Пункт прибытия',
   routeNote: 'Маршрут (подробно)',
   shipDate: 'Предв. дата отправления',
   cargoName: 'Наименование груза',
@@ -153,11 +170,13 @@ export const LEAD_CARGO_LABELS: Record<keyof LeadCargoForm, string> = {
   weightKg: 'Общий вес брутто, кг',
   volumeM3: 'Общий объём, м³',
   packaging: 'Тип упаковки',
+  packagingCode: 'Упаковка (код)',
   cargoValue: 'Стоимость груза',
   dangerous: 'Опасный груз',
   stackable: 'Штабелирование',
   tiltable: 'Кантование',
   specialRequirements: 'Особые требования',
+  incotermCode: 'Условия поставки (Инкотермс)',
   shipperName: 'Наименование',
   shipperInn: 'ИНН',
   shipperAddress: 'Адрес',
@@ -182,8 +201,13 @@ export type LeadCargoPayload = {
     weightKg?: number | null
     volumeM3?: number | null
     placesCount?: number | null
+    originCountryCode?: string | null
+    destinationCountryCode?: string | null
   }
   cargo: Record<string, unknown> | null
+  // DF-17: условие поставки — код из справочника (колонка Lead,
+  // конвертация переносит в заявку). Пустая строка/отсутствие — поле не указано.
+  incotermCode?: string | null
 }
 
 export function buildLeadPayload(form: LeadCargoForm): LeadCargoPayload {
@@ -197,17 +221,18 @@ export function buildLeadPayload(form: LeadCargoForm): LeadCargoPayload {
   const bool = (v: string): boolean | undefined =>
     v === 'yes' ? true : v === 'no' ? false : undefined
 
-  const origin = parseRouteText(form.from)
-  const dest = parseRouteText(form.to)
   const shipDate = /^\d{4}-\d{2}-\d{2}$/.test(form.shipDate.trim())
     ? form.shipDate.trim()
     : null
 
+  // DF-17: маршрут — город текстом, страна КОДОМ из справочника
+  // (имя на сервере денормализует ref-db); текст «Страна, город» больше
+  // не пишется формами (легаси-колонки живут снимками).
   const route: LeadCargoPayload['route'] = {
-    originCity: origin.city,
-    originCountry: origin.country,
-    destinationCity: dest.city,
-    destinationCountry: dest.country,
+    originCity: s(form.originCity) || null,
+    destinationCity: s(form.destinationCity) || null,
+    originCountryCode: form.originCountryCode.trim() || null,
+    destinationCountryCode: form.destinationCountryCode.trim() || null,
     transportType: TRANSPORT_FORM_TO_CODE[form.transportType.trim()] ?? null,
     readyDate: shipDate,
     weightKg: num(form.weightKg),
@@ -220,6 +245,7 @@ export function buildLeadPayload(form: LeadCargoForm): LeadCargoPayload {
     cargoName: s(form.cargoName),
     hsCode: s(form.hsCode),
     packaging: s(form.packaging),
+    packagingCode: s(form.packagingCode),
     cargoValue: s(form.cargoValue),
     dangerous: bool(form.dangerous),
     stackable: bool(form.stackable),
@@ -236,13 +262,19 @@ export function buildLeadPayload(form: LeadCargoForm): LeadCargoPayload {
   for (const k of Object.keys(cargo)) {
     if (cargo[k] === undefined) delete cargo[k]
   }
-  return { route, cargo: Object.keys(cargo).length > 1 ? cargo : null }
+  return {
+    route,
+    cargo: Object.keys(cargo).length > 1 ? cargo : null,
+    incotermCode: form.incotermCode.trim() || null,
+  }
 }
 
 // Типизированное чтение cargoInfo в карточке: лиды со старой или
 // чужой структурой Json не роняют UI (unknown-ключи показываются
-// как есть, деградации нет).
-export type LeadCargoData = Partial<Record<keyof LeadCargoForm, unknown>>
+// как есть, деградации нет). Легаси-ключи (from/to/origin — до
+// миграции P1-03) читаются как unknown — отображения их используют
+// только как fallback.
+export type LeadCargoData = Partial<Record<keyof LeadCargoForm, unknown>> & Record<string, unknown>
 
 export function readLeadCargo(cargoInfo: unknown): LeadCargoData {
   return cargoInfo && typeof cargoInfo === 'object' && !Array.isArray(cargoInfo)
@@ -267,6 +299,9 @@ export function cargoFormFromData(row: {
   weightKg?: unknown
   volumeM3?: unknown
   placesCount?: unknown
+  originCountryCode?: unknown
+  destinationCountryCode?: unknown
+  incotermCode?: unknown
 }): LeadCargoForm {
   const s = (v: unknown): string => (typeof v === 'string' ? v : '')
   const n = (v: unknown): string => {
@@ -277,13 +312,16 @@ export function cargoFormFromData(row: {
   const b = (v: unknown): string => (v === true ? 'yes' : v === false ? 'no' : '')
   const data: LeadCargoData = readLeadCargo(row.cargoInfo)
 
-  // Маршрут: колонки (первичный источник), fallback — легаси Json
-  const fromCols = joinRouteText(row.originCountry, row.originCity)
-  const toCols = joinRouteText(row.destinationCountry, row.destinationCity)
+  // Маршрут: город — колонка (первичный источник), fallback — город из
+  // легаси-текста «Страна, город» (до миграции P1-03 страна и город
+  // жили одной строкой). Страна — КОД из колонки (DF-17); легаси-текст
+  // страны формы не показывает — код проставляет backfill/выбор
+  // в Combobox.
   const legacy = data as Record<string, unknown>
-  const from =
-    fromCols || joinRouteText(null, s(data.from) || s(legacy.origin))
-  const to = toCols || joinRouteText(null, s(data.to) || s(legacy.destination))
+  const legacyFrom = joinRouteText(row.originCountry, row.originCity) || s(data.from) || s(legacy.origin)
+  const legacyTo = joinRouteText(row.destinationCountry, row.destinationCity) || s(data.to) || s(legacy.destination)
+  const originCity = s(row.originCity) || parseRouteText(legacyFrom).city || ''
+  const destinationCity = s(row.destinationCity) || parseRouteText(legacyTo).city || ''
 
   // Тип перевозки: код колонки → подпись формы; fallback — Json-строка
   const code = typeof row.transportType === 'string' ? row.transportType : ''
@@ -306,8 +344,10 @@ export function cargoFormFromData(row: {
 
   return {
     transportType,
-    from,
-    to,
+    originCountryCode: s(row.originCountryCode),
+    originCity,
+    destinationCountryCode: s(row.destinationCountryCode),
+    destinationCity,
     routeNote: s(data.routeNote),
     shipDate,
     cargoName: s(data.cargoName),
@@ -316,11 +356,13 @@ export function cargoFormFromData(row: {
     weightKg: n(row.weightKg),
     volumeM3: n(row.volumeM3),
     packaging: s(data.packaging),
+    packagingCode: s(data.packagingCode),
     cargoValue: s(data.cargoValue),
     dangerous: b(data.dangerous),
     stackable: b(data.stackable),
     tiltable: b(data.tiltable),
     specialRequirements: s(data.specialRequirements),
+    incotermCode: s(row.incotermCode),
     shipperName: s(data.shipperName),
     shipperInn: s(data.shipperInn),
     shipperAddress: s(data.shipperAddress),
@@ -337,6 +379,9 @@ export const CreateLeadSchema = z
     cargoInfo: CargoInfoSchema.optional(),
     // P1-03: маршрут/метрики — колонки (см. lib/route-fields.ts)
     route: RouteFieldsSchema.optional(),
+    // DF-17: условие поставки — код из справочника (кабинет клиента;
+    // конвертация переносит в заявку)
+    incotermCode: z.string().trim().max(10).transform((v) => v.toUpperCase()).nullable().optional(),
   })
   .refine((d) => d.customerId || d.rawContact, {
     message: 'Укажите существующего клиента (customerId) или контакты (rawContact)',
@@ -365,6 +410,8 @@ export const PatchLeadSchema = z
     rawContact: RawContactSchema.optional(),
     cargoInfo: CargoInfoSchema.optional(),
     route: RouteFieldsSchema.optional(),
+    // DF-17: условие поставки кодом (null = очистить)
+    incotermCode: z.string().trim().max(10).transform((v) => v.toUpperCase()).nullable().optional(),
   })
   .refine(
     (d) =>
@@ -372,9 +419,10 @@ export const PatchLeadSchema = z
       d.assignedToId !== undefined ||
       d.rawContact !== undefined ||
       d.cargoInfo !== undefined ||
-      d.route !== undefined,
+      d.route !== undefined ||
+      d.incotermCode !== undefined,
     {
-      message: 'Нечего обновлять: укажите статус, assignedToId, rawContact, cargoInfo или route',
+      message: 'Нечего обновлять: укажите статус, assignedToId, rawContact, cargoInfo, route или incotermCode',
     }
   )
 export type PatchLeadInput = z.infer<typeof PatchLeadSchema>
@@ -388,7 +436,16 @@ export type PatchLeadInput = z.infer<typeof PatchLeadSchema>
 // (Б3): конвертация не должна быть строже ручного создания той же заявки.
 export const ConvertLeadSchema = z.object({
   legalEntityId: z.string().min(1, 'Выберите юрлицо'),
+  // DF-17: условие поставки кодом из справочника; легаси-ключ incoterm
+  // принимается (старые клиенты/скрипты) — при обоих приоритет у кода.
   incoterm: z.string().trim().max(10).optional().nullable(),
+  incotermCode: z
+    .string()
+    .trim()
+    .max(10)
+    .transform((v) => v.toUpperCase())
+    .optional()
+    .nullable(),
   hsCode: z.string().trim().max(20).optional().nullable(),
 })
 export type ConvertLeadInput = z.infer<typeof ConvertLeadSchema>
@@ -421,10 +478,10 @@ const QuoteOptionFieldsSchema = z.object({
   // себестоимость (costEstimate) — отдельное поле, наружу не выходит.
   // Все деньги — Decimal(14,2) в БД, до 2 знаков после запятой в API.
   price: moneyAmount('Цена'),
-  currency: z.enum(CURRENCIES).default('RUB'),
+  currency: currencyCodeSchema.default('RUB'),
   vatMode: z.enum(VAT_MODES).default('WITHOUT_VAT'),
   costEstimate: moneyAmount('Себестоимость').nullable().optional(),
-  costCurrency: z.enum(CURRENCIES).default('RUB'),
+  costCurrency: currencyCodeSchema.default('RUB'),
   etaDays: z.number().int('Срок — целое число дней').positive('Срок должен быть больше нуля (дней)'),
   priorityFit: z.enum(QUOTE_PRIORITY_FITS, {
     errorMap: () => ({ message: 'Неизвестный ориентир варианта (speed | cost | safety)' }),
@@ -460,7 +517,7 @@ export const QuoteSnapshotSchema = z
     // P1-04: цена с валютой и меткой НДС (cost в снимок не попадает —
     // заявка и её проекции наружу себестоимость не показывают).
     price: moneyAmount('Стоимость').optional(),
-    currency: z.enum(CURRENCIES).optional(),
+    currency: currencyCodeSchema.optional(),
     vatMode: z.enum(VAT_MODES).optional(),
     etaDays: z.number().int('Срок — целое число дней').positive('Срок должен быть больше нуля (дней)').optional(),
     priorityFit: z.enum(QUOTE_PRIORITY_FITS, {

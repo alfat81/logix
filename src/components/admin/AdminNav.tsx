@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
+  BookOpen,
   Building2,
   ClipboardList,
   FileSignature,
@@ -73,6 +74,9 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/admin/contractors', label: 'Подрядчики', icon: Truck },
       { href: '/admin/brokers', label: 'Брокеры', icon: Landmark },
       { href: '/admin/employees', label: 'Сотрудники', icon: UserCog, masterOnly: true },
+      // DF-17: страны/валюты/упаковка/условия поставки — источник выбора
+      // для всех форм (мастер и менеджер, правки write:true)
+      { href: '/admin/references', label: 'Справочники', icon: BookOpen },
     ],
   },
   {

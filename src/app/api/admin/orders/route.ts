@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
-import { ORDER_STATUSES, ORDER_ACTIVE_STATUSES, CARGO_PROFILES, type OrderStatus } from '@/lib/order-constants'
-import { createOrderWithStages, findOrCreateCustomer, summarizeOrderStages, calcOrderEta, todayUtcMidnight } from '@/lib/orders'
+import { ORDER_STATUSES, CARGO_PROFILES, type OrderStatus } from '@/lib/order-constants'
+import { createOrderWithStages, findOrCreateCustomer, summarizeOrderStages, calcOrderEta, todayUtcMidnight, buildOrderSearch, buildOrderListWhere } from '@/lib/orders'
 import { normalizePhone } from '@/lib/phone'
 import { employeeActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
-import { parseListQuery, ciContains } from '@/lib/list-query'
+import { parseListQuery } from '@/lib/list-query'
 import { ORDER_SORTS, orderOrderBy } from '@/lib/orders'
-import { TRANSPORT_TYPE_CODES, type TransportTypeCode } from '@/lib/route-fields'
+import { TRANSPORT_TYPE_CODES } from '@/lib/route-fields'
+import { resolveDealCodes } from '@/lib/ref-db'
 import { apiErrorResponse } from '@/lib/api-errors'
 
 // ─── GET /api/admin/orders — список заявок (Ж4: рабочий инструмент) ───
@@ -67,46 +67,18 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Поиск — только по заявке и её клиенту: номер, ТН ВЭД, имя, телефон.
-    const search: Prisma.OrderWhereInput | undefined = q
-      ? {
-          OR: [
-            { number: ciContains(q) },
-            { hsCode: ciContains(q) },
-            { customer: { name: ciContains(q) } },
-            { customer: { phone: ciContains(q) } },
-          ],
-        }
-      : undefined
-
-    const conds: Prisma.OrderWhereInput[] = []
-    // v0.3.1: статус ИЛИ группа «active» (BRANDBOOK §4.2 — таб «Активные»)
-    if (status === 'active') conds.push({ status: { in: [...ORDER_ACTIVE_STATUSES] } })
-    else if (status) conds.push({ status: status as OrderStatus })
-    // P1-01: mine — «заявку веду я»; unassigned — разбор без ответственного
-    if (assigned === 'mine') conds.push({ assignedToId: auth.employee.id })
-    if (assigned === 'unassigned') conds.push({ assignedToId: null })
-    // P1-03: фильтры по направлению и типу («Китай → Москва, Море»):
-    // направление — ILIKE и по стране, и по городу (свободный ввод)
-    if (origin) {
-      conds.push({
-        OR: [
-          { originCity: ciContains(origin) },
-          { originCountry: ciContains(origin) },
-        ],
-      })
-    }
-    if (destination) {
-      conds.push({
-        OR: [
-          { destinationCity: ciContains(destination) },
-          { destinationCountry: ciContains(destination) },
-        ],
-      })
-    }
-    if (transport) conds.push({ transportType: transport as TransportTypeCode })
-    if (search) conds.push(search)
-    const where: Prisma.OrderWhereInput = conds.length ? { AND: conds } : {}
+    // Поиск и where-фильтры — сборщики в lib/orders.ts (лимит 300 строк
+    // роута, RULES 2.14; счётчики табов — по поиску без фильтра таба).
+    const search = buildOrderSearch(q)
+    const where = buildOrderListWhere({
+      search,
+      status,
+      assigned,
+      employeeId: auth.employee.id,
+      origin,
+      destination,
+      transport,
+    })
 
     const [rows, grouped, catalog] = await Promise.all([
       db.order.findMany({
@@ -220,6 +192,15 @@ const CreateOrderSchema = z
     customerEmail: z.string().email('Некорректный email').optional().nullable(),
     legalEntityId: z.string().min(1, 'Выберите юрлицо'),
     incoterm: z.string().trim().max(10).optional().nullable(),
+    // DF-17: условие поставки КОДОМ из справочника (Combobox) — при
+    // обоих ключах приоритет у кода
+    incotermCode: z
+      .string()
+      .trim()
+      .max(10)
+      .transform((v) => v.toUpperCase())
+      .optional()
+      .nullable(),
     hsCode: z.string().trim().max(20).optional().nullable(),
     cargoProfile: z.enum(CARGO_PROFILES).default('standard'),
   })
@@ -242,6 +223,14 @@ export async function POST(req: NextRequest) {
     }
     const data = parsed.data
 
+    // DF-17: условие поставки — код должен быть в справочнике и активен
+    // (единая валидация lib/ref-db.ts; маршрут в POST заявки не задаётся)
+    const deal = await resolveDealCodes(undefined, data.incotermCode ?? null)
+    if (deal.error) {
+      return NextResponse.json({ error: deal.error }, { status: 400 })
+    }
+    const incotermCode = deal.incoterm
+
     const customer = await findOrCreateCustomer({
       customerId: data.customerId,
       name: data.customerName,
@@ -255,7 +244,8 @@ export async function POST(req: NextRequest) {
     const result = await createOrderWithStages({
       customerId: customer.id,
       legalEntityId: data.legalEntityId,
-      incoterm: data.incoterm || null,
+      incoterm: incotermCode ?? (data.incoterm || null),
+      incotermCode,
       hsCode: data.hsCode || null,
       cargoProfile: data.cargoProfile,
       // P1-01: при создании ответственный — текущий сотрудник (кто

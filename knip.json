@@ -9,7 +9,7 @@
     "scripts/shadow-db.ts",
     "src/lib/*.test.ts"
   ],
-  "project": ["src/**/*.ts", "src/**/*.tsx", "scripts/*.ts"],
+  "project": ["src/**/*.ts", "src/**/*.tsx", "scripts/*.ts", "scripts/ref-data/*.ts"],
   "ignoreDependencies": ["@types/bun", "tailwindcss", "tw-animate-css"],
   "ignoreExportsUsedInFile": true,
   "tags": ["-lint"]

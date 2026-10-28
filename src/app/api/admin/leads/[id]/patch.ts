@@ -7,8 +7,9 @@ import {
   buildLeadEditDiff,
   mergeLeadCargo,
   isLeadAnketaEditable,
+  validateAssigneeChange,
 } from '@/lib/lead-edit'
-import { readyDateInput } from '@/lib/route-fields'
+import { resolveDealCodes } from '@/lib/ref-db'
 import { checkLeadTransition } from '@/lib/status-machine'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { employeeActor } from '@/lib/activity'
@@ -52,7 +53,7 @@ export async function patchLead(
         { status: 400 }
       )
     }
-    const { status, lostReason, assignedToId, rawContact, cargoInfo, route } = parsed.data
+    const { status, lostReason, assignedToId, rawContact, cargoInfo, route, incotermCode } = parsed.data
 
     const existing = await db.lead.findUnique({
       where: { id },
@@ -96,7 +97,7 @@ export async function patchLead(
           { status: 409 }
         )
       }
-      const diffs = buildLeadEditDiff(existing, { rawContact, cargoInfo, route })
+      const diffs = buildLeadEditDiff(existing, { rawContact, cargoInfo, route, incotermCode })
       if (!diffs.length && status === undefined && assignedToId === undefined) {
         return NextResponse.json({ error: 'Анкета не изменилась' }, { status: 400 })
       }
@@ -120,20 +121,13 @@ export async function patchLead(
         )
       }
       if (assignedToId !== null) {
-        const target = await db.employee.findUnique({
-          where: { id: assignedToId },
-          select: { name: true, isActive: true },
-        })
-        if (!target) {
-          return NextResponse.json({ error: 'Сотрудник не найден' }, { status: 400 })
+        // P1-01: существование и активность целевого сотрудника —
+        // lib/lead-edit.ts (лимит 300 строк роута, RULES 2.14)
+        const target = await validateAssigneeChange(assignedToId)
+        if (target.error) {
+          return NextResponse.json({ error: target.error }, { status: 400 })
         }
-        if (!target.isActive) {
-          return NextResponse.json(
-            { error: `Сотрудник «${target.name}» деактивирован — назначить нельзя` },
-            { status: 400 }
-          )
-        }
-        newAssigneeName = target.name
+        newAssigneeName = target.name ?? null
       }
     }
 
@@ -188,6 +182,14 @@ export async function patchLead(
       }
     }
 
+    // DF-17: коды стран и условие поставки — единая валидация по
+    // справочнику с денормализацией имён (lib/ref-db.ts; «поле не трогать»
+    // при отсутствии ключа — ниже, семантика PATCH).
+    const deal = await resolveDealCodes(route, incotermCode)
+    if (deal.error) {
+      return NextResponse.json({ error: deal.error }, { status: 400 })
+    }
+
     const lead = await db.lead.update({
       where: { id },
       data: {
@@ -220,18 +222,10 @@ export async function patchLead(
             : mergedCargo === null
               ? Prisma.DbNull
               : (mergedCargo as unknown as Prisma.InputJsonObject),
-        // P1-03: маршрут/метрики — колонки. Прямые свойства (undefined =
-        // «не трогать», null = очистить) — без условных спредов: союз
-        // типов от спредов ломал вывод TS на большом data-объекте.
-        originCity: route?.originCity,
-        originCountry: route?.originCountry,
-        destinationCity: route?.destinationCity,
-        destinationCountry: route?.destinationCountry,
-        transportType: route?.transportType,
-        readyDate: route ? readyDateInput(route.readyDate) : undefined,
-        weightKg: route?.weightKg,
-        volumeM3: route?.volumeM3,
-        placesCount: route?.placesCount,
+        // P1-03/DF-17: маршрут/метрики + коды стран с денормализованными
+        // именами (undefined = «не трогать», null = очистить).
+        ...deal.columns,
+        incotermCode: incotermCode !== undefined ? deal.incoterm : undefined,
       },
       include: {
         customer: { select: { id: true, name: true, phone: true } },

@@ -14,11 +14,21 @@
 
 import { z } from 'zod'
 
+// ─── Валюты (DF-17) ──────────────────────────────────────────────────
+// Источник выбора валют — справочник RefItem(dir=currency) в БД
+// (lib/ref-db.ts: активные записи, мастер включает/отключает).
+// CURRENCIES — ЗАПАСНОЙ список на случай ПУСТОЙ таблицы (карточка
+// DF-17): свежий деплой без сидажа не должен ломать формы. Не добавлять
+// сюда валюты сверх запасных четырёх — пополнение только через
+// справочник (IC-16: перечней валют литералами в коде нет).
 export const CURRENCIES = ['RUB', 'USD', 'EUR', 'CNY'] as const
 export type CurrencyCode = (typeof CURRENCIES)[number]
 
 // Знаки валют — короткие символы в интерфейсе (Intl style:'currency'
 // даёт разные представления в зависимости от ICU — держим своё).
+// Это таблица СИМВОЛОВ отображения, не реестр валют (IC-16): выбор
+// валюты идёт только из справочника; незнакомому коду показываем сам
+// код (currencySign).
 export const CURRENCY_SIGNS: Record<CurrencyCode, string> = {
   RUB: '₽',
   USD: '$',
@@ -26,11 +36,26 @@ export const CURRENCY_SIGNS: Record<CurrencyCode, string> = {
   CNY: '¥',
 }
 
-export const CURRENCY_LABELS: Record<CurrencyCode, string> = {
-  RUB: 'Рубли (₽)',
-  USD: 'Доллары ($)',
-  EUR: 'Евро (€)',
-  CNY: 'Юани (¥)',
+// Дополнительные знаки ходовых в ВЭД валют (символы, не реестр —
+// реестр только справочник в БД).
+const EXTRA_CURRENCY_SIGNS: Record<string, string> = {
+  GBP: '£',
+  JPY: '¥',
+  CHF: '₣',
+  TRY: '₺',
+  KZT: '₸',
+  UAH: '₴',
+  KRW: '₩',
+  INR: '₹',
+  ILS: '₪',
+  VND: '₫',
+}
+
+// Знак для любого кода из справочника: известный символ либо сам код
+// (формат детерминированный: «1 450 KZT» — код как символ).
+export function currencySign(code: string): string {
+  const c = code.toUpperCase()
+  return CURRENCY_SIGNS[c as CurrencyCode] ?? EXTRA_CURRENCY_SIGNS[c] ?? c
 }
 
 export function isCurrencyCode(v: unknown): v is CurrencyCode {
@@ -61,7 +86,9 @@ function toNumber(amount: MoneyAmount): number {
 
 // «1 450 ₽» | «1 450,50 $» — детерминированный вывод для UI, ленты и
 // печатной формы. Дробная часть показывается только если она есть.
-export function formatMoney(amount: MoneyAmount, currency: CurrencyCode = 'RUB'): string {
+// DF-17: валюта — любой код справочника (string): знак из таблицы
+// символов, незнакомому коду показываем сам код.
+export function formatMoney(amount: MoneyAmount, currency: string = 'RUB'): string {
   const n = toNumber(amount)
   if (Number.isNaN(n)) return '—'
   const isWhole = Number.isInteger(n)
@@ -69,11 +96,11 @@ export function formatMoney(amount: MoneyAmount, currency: CurrencyCode = 'RUB')
     minimumFractionDigits: isWhole ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(n)
-  return `${digits} ${CURRENCY_SIGNS[currency] ?? currency}`
+  return `${digits} ${currencySign(currency)}`
 }
 
 // Строка «1 450 ₽ · без НДС» — цена варианта/снимка с режимом НДС.
-export function formatMoneyWithVat(amount: MoneyAmount, currency: CurrencyCode, vatMode: VatModeCode): string {
+export function formatMoneyWithVat(amount: MoneyAmount, currency: string, vatMode: VatModeCode): string {
   const label = VAT_MODE_LABELS[vatMode]
   return label ? `${formatMoney(amount, currency)} · ${label}` : formatMoney(amount, currency)
 }

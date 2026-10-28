@@ -37,9 +37,9 @@ export function ClientLeadCreateDialog({ onCreated }: { onCreated: () => void })
   const [cargo, setCargo] = useState<LeadCargoForm>({ ...EMPTY_LEAD_CARGO_FORM })
 
   const handleCreate = async () => {
-    // P1-03: форма → route (колонки) + cargoInfo-rest; непусто —
-    // хотя бы одно поле маршрута или анкеты
-    const { route, cargo: cargoInfo } = buildLeadPayload(cargo)
+    // P1-03: форма → route (колонки) + cargoInfo-rest; DF-17: условие
+    // поставки кодом; непусто — хотя бы одно поле маршрута или анкеты
+    const { route, cargo: cargoInfo, incotermCode } = buildLeadPayload(cargo)
     const hasRoute = Object.values(route).some((v) => v != null)
     if (!cargoInfo && !hasRoute) {
       toast({
@@ -54,7 +54,7 @@ export function ClientLeadCreateDialog({ onCreated }: { onCreated: () => void })
       const res = await fetch('/api/client/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cargoInfo, route }),
+        body: JSON.stringify({ cargoInfo, route, incotermCode }),
       })
       const data = await readApiResponse<{ error?: string }>(res)
       if (!res.ok) throw new Error(data.error || 'Не удалось отправить запрос')
@@ -91,7 +91,8 @@ export function ClientLeadCreateDialog({ onCreated }: { onCreated: () => void })
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-5">
-          <CargoFormFields form={cargo} onChange={setCargo} />
+          {/* DF-17: в форме запроса клиента — условие поставки с разъяснением */}
+          <CargoFormFields form={cargo} onChange={setCargo} showIncoterm />
         </div>
         <DialogFooter>
           <Button onClick={handleCreate} disabled={creating}>

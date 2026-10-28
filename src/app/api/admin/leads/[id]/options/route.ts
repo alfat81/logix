@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { CreateQuoteOptionSchema, LEAD_STATUS_LABELS } from '@/lib/leads'
 import { formatMoneyWithVat } from '@/lib/money'
+import { resolveActiveCurrencies } from '@/lib/ref-db'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { employeeActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
@@ -42,6 +43,16 @@ export async function POST(req: NextRequest, { params }: Params) {
       )
     }
     const data = parsed.data
+
+    // DF-17: валюты варианта — из справочника (активные); пустая таблица
+    // (свежий деплой без сидажа) — запасной список money.ts
+    const currencies = await resolveActiveCurrencies([data.currency, data.costCurrency])
+    if (currencies.invalid.length > 0) {
+      return NextResponse.json(
+        { error: `Валюта не найдена в справочнике или отключена: ${currencies.invalid.join(', ')}` },
+        { status: 400 }
+      )
+    }
 
     const lead = await db.lead.findUnique({
       where: { id },

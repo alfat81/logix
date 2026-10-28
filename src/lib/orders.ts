@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
-import type { CargoProfile } from '@/lib/order-constants'
+import { ORDER_ACTIVE_STATUSES, type CargoProfile, type OrderStatus } from '@/lib/order-constants'
+import { ciContains } from '@/lib/list-query'
+import type { TransportTypeCode } from '@/lib/route-fields'
 
 // СЕРВЕРНАЯ логика заявок: нумерация с retry-петлёй P2002, find-or-create
 // клиента/договора, защита обязательных этапов. Файл тянет db — его
@@ -99,6 +101,9 @@ export type CreateOrderInput = {
   customerId: string
   legalEntityId: string
   incoterm?: string | null
+  // DF-17: условие поставки КОДОМ из справочника (рядом с легаси-текстом);
+  // валидность кода проверяет вызывающий роут (resolveActiveRefs)
+  incotermCode?: string | null
   hsCode?: string | null
   cargoProfile?: CargoProfile
   leadId?: string
@@ -115,6 +120,10 @@ export type CreateOrderInput = {
         weightKg?: Prisma.Decimal | number | null
         volumeM3?: Prisma.Decimal | number | null
         placesCount?: number | null
+        // DF-17: коды стран из справочника (денормализация имён — на
+        // вызывающей стороне, resolveRouteColumns)
+        originCountryCode?: string | null
+        destinationCountryCode?: string | null
       }
     | null
   assignedToId?: string | null
@@ -154,6 +163,8 @@ export async function createOrderWithStages(
         legalEntityId: input.legalEntityId,
         customerId: input.customerId,
         incoterm: input.incoterm ?? null,
+        // DF-17: условие поставки кодом из справочника
+        incotermCode: input.incotermCode ?? null,
         hsCode: input.hsCode ?? null,
         cargoProfile: input.cargoProfile ?? 'standard',
         status: 'calculating',
@@ -171,6 +182,9 @@ export async function createOrderWithStages(
               weightKg: input.route.weightKg,
               volumeM3: input.route.volumeM3,
               placesCount: input.route.placesCount,
+              // DF-17: коды стран из справочника
+              originCountryCode: input.route.originCountryCode,
+              destinationCountryCode: input.route.destinationCountryCode,
             }
           : {}),
         ...(input.assignedToId ? { assignedToId: input.assignedToId } : {}),
@@ -249,4 +263,60 @@ export function orderOrderBy(sort: string): Prisma.OrderOrderByWithRelationInput
     default:
       return [{ createdAt: 'desc' }, { id: 'asc' }]
   }
+}
+
+// ─── Список заявок: сборщик условий выборки (Ж4) ────────────────────
+// Вынесено из GET /api/admin/orders (лимит 300 строк роута, RULES 2.14;
+// тот же приём, что ORDER_SORTS в v0.3.1). Валидация значений
+// фильтров — в роуте (он отвечает 400), здесь — только сборка where.
+
+// Поиск — только по заявке и её клиенту: номер, ТН ВЭД, имя, телефон.
+// Отдельно от where: счётчики табов считаются по ПОИСКУ без фильтра
+// таба (распределение найденного, не всей базы).
+export function buildOrderSearch(q: string | undefined): Prisma.OrderWhereInput | undefined {
+  return q
+    ? {
+        OR: [
+          { number: ciContains(q) },
+          { hsCode: ciContains(q) },
+          { customer: { name: ciContains(q) } },
+          { customer: { phone: ciContains(q) } },
+        ],
+      }
+    : undefined
+}
+
+// where списка: статус ИЛИ группа «active» (BRANDBOOK §4.2), фильтр
+// ответственного (P1-01), направление и тип (P1-03: ILIKE по стране
+// и городу — свободный ввод) и общий поиск.
+export function buildOrderListWhere(opts: {
+  search?: Prisma.OrderWhereInput
+  status?: string | null
+  assigned: string
+  employeeId: string
+  origin?: string
+  destination?: string
+  transport?: string
+}): Prisma.OrderWhereInput {
+  const conds: Prisma.OrderWhereInput[] = []
+  if (opts.status === 'active') conds.push({ status: { in: [...ORDER_ACTIVE_STATUSES] } })
+  else if (opts.status) conds.push({ status: opts.status as OrderStatus })
+  if (opts.assigned === 'mine') conds.push({ assignedToId: opts.employeeId })
+  if (opts.assigned === 'unassigned') conds.push({ assignedToId: null })
+  if (opts.origin) {
+    conds.push({
+      OR: [{ originCity: ciContains(opts.origin) }, { originCountry: ciContains(opts.origin) }],
+    })
+  }
+  if (opts.destination) {
+    conds.push({
+      OR: [
+        { destinationCity: ciContains(opts.destination) },
+        { destinationCountry: ciContains(opts.destination) },
+      ],
+    })
+  }
+  if (opts.transport) conds.push({ transportType: opts.transport as TransportTypeCode })
+  if (opts.search) conds.push(opts.search)
+  return conds.length ? { AND: conds } : {}
 }
