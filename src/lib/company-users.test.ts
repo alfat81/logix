@@ -69,8 +69,8 @@ beforeAll(async () => {
   customerA = a.id
   customerB = b.id
   customerC = c.id
-  const ba = await db.broker.create({ data: { companyName: 'DF02A-BA ' + RUN, phone: phone(4), password: 'x' } })
-  const bb = await db.broker.create({ data: { companyName: 'DF02A-BB ' + RUN, phone: phone(5), password: 'x' } })
+  const ba = await db.broker.create({ data: { companyName: 'DF02A-BA ' + RUN, phone: phone(4), password: 'scrypt:fixture-df02a' } })
+  const bb = await db.broker.create({ data: { companyName: 'DF02A-BB ' + RUN, phone: phone(5), password: 'scrypt:fixture-df02a' } })
   brokerA = ba.id
   brokerB = bb.id
 })
@@ -297,7 +297,7 @@ describe('вход (authenticate*) и сессии пользователя', ()
       isPrimary: true,
     })
     const ba = await db.broker.create({
-      data: { companyName: 'DF02A-BA-LOGIN ' + RUN, phone: phone(75), password: 'x' },
+      data: { companyName: 'DF02A-BA-LOGIN ' + RUN, phone: phone(75), password: 'scrypt:fixture-df02a' },
     })
     brokerOk = ba.id
     await createBrokerUser(db, brokerOk, {
@@ -307,7 +307,7 @@ describe('вход (authenticate*) и сессии пользователя', ()
       isPrimary: true,
     })
     const bb = await db.broker.create({
-      data: { companyName: 'DF02A-BB-LOGIN ' + RUN, phone: phone(77), password: 'x', isActive: false },
+      data: { companyName: 'DF02A-BB-LOGIN ' + RUN, phone: phone(77), password: 'scrypt:fixture-df02a', isActive: false },
     })
     brokerCompanyOff = bb.id
     await createBrokerUser(db, brokerCompanyOff, {
@@ -439,7 +439,7 @@ describe('роуты списка людей (Блок 5): access и brokers/[id
     })
     const c = await db.customer.create({ data: { name: 'DF02A-B5 ' + RUN, phone: phone(81) } })
     cust5 = c.id
-    const b = await db.broker.create({ data: { companyName: 'DF02A-B5-BR ' + RUN, phone: phone(82), password: 'x' } })
+    const b = await db.broker.create({ data: { companyName: 'DF02A-B5-BR ' + RUN, phone: phone(82), password: 'scrypt:fixture-df02a' } })
     brok5 = b.id
   })
 

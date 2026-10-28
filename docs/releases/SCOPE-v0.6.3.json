@@ -1,0 +1,17 @@
+{
+  "task": "CI-фикс v0.6.3: фикстуры company-users.test.ts получают scrypt-префикс паролей (стражник password.test.ts против гонки параллельных интеграционных тестов DF-02A — 5 брокеров-обёрток с открытым текстом 'x', в CI поймано 4); DEPRECATIONS: оценка contract-релиза 0.6.3→0.6.4 (0.6.3 занят хотфиксом); продукт-код, схема, миграции, env — без изменений",
+  "areas": [
+    "src/lib: company-users.test.ts — 5 фикстур брокеров-обёрток password 'x' → 'scrypt:fixture-df02a' (инвариант DF-00 «в БД нет открытых паролей» соблюдён в любой момент прогона при любом порядке тестов)",
+    "docs релиза: CHANGELOG.md (+[0.6.3]), docs/ROADMAP.md (статус-блок: v0.6.3, Предыдущий: v0.6.2), docs/DEPRECATIONS.md (версия удаления 0.6.3→0.6.4 ×5), package.json (0.6.2→0.6.3), SCOPE-v0.6.3.json, RELEASE-NOTES-v0.6.3.md, RELEASE-INSTRUCTIONS-v0.6.3.md"
+  ],
+  "globs": [
+    "src/lib/company-users.test.ts",
+    "package.json",
+    "CHANGELOG.md",
+    "docs/ROADMAP.md",
+    "docs/DEPRECATIONS.md",
+    "docs/releases/SCOPE-v0.6.3.json",
+    "docs/releases/RELEASE-NOTES-v0.6.3.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.6.3.md"
+  ]
+}
