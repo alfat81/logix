@@ -12,7 +12,7 @@ type Params = { params: Promise<{ id: string }> }
 // Заметка — событие общего журнала (type note_added, isInternal: true):
 // текст — description, автор — сотрудник из сессии, время — createdAt.
 // Лента карточки заявки показывает её с бейджем «Заметка»; подрядчику
-// и клиенту isInternal-события не отдаются (ACTIVITY_EXTERNAL_WHERE).
+// и клиенту staff-only-события не отдаются (eventWhereFor).
 // У заявки нет счётчика «движения» (экран Ж5 смотрит на планы этапов,
 // а не на обновления заявки) — touch, в отличие от лида, не нужен.
 const NoteSchema = z.object({

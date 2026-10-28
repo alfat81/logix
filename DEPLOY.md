@@ -68,6 +68,14 @@ bun install
 | `BASE_URL` | только e2e | База URL для `scripts/e2e_api_test.py` (локально `http://localhost:3000`) |
 | `VERCEL` | платформа Vercel | Признак окружения Vercel (используется `/api/health`) |
 | `VERCEL_GIT_COMMIT_SHA` | платформа Vercel | SHA деплоя для `/api/health` |
+| `VERCEL_ENV` | платформа Vercel | Окружение деплоя (production/preview): диспетчер уведомлений DF-03 разрешает письма вне allowlist только в `production` |
+| `VITEST` | задаёт тест-раннер | Отключает автоматический `scheduleDispatch` в тестах (диспетчер зовётся явно); вручную не ставить |
+| `EMAIL_PROVIDER` | Vercel + `.env` | DF-03: транспорт писем — `none` (по умолчанию; ничего не отправляется, статус `skipped`) / `fake` (e2e/CI — письмо считается доставленным, `providerId=fake:<id>`) / `resend` (боевой HTTP API Resend) |
+| `RESEND_API_KEY` | Vercel (секрет) | DF-03: ключ API Resend — отдельный для Logix (секрет в env, не в настройках — D32) |
+| `EMAIL_FROM` | Vercel + `.env` | DF-03: адрес отправителя на поддомене домена владельца (рекомендация O-2: `notify.fatyanov.com`; DNS SPF/DKIM — шаги владельца, см. RELEASE-INSTRUCTIONS) |
+| `APP_BASE_URL` | Vercel + `.env` | DF-03: публичный адрес приложения — ссылки в письмах (D11) |
+| `CRON_SECRET` | Vercel + GitHub Secrets | DF-03: Bearer-токен `POST /api/internal/notifications/dispatch` — внешний планировщик (workflow `scheduler.yml`, каждые 5 минут; допуск окна 15 минут) |
+| `EMAIL_ALLOWLIST` | Vercel + `.env` | DF-03: адреса/домены через запятую (`a@b.ru, test.example`); вне production письма уходят только на них, остальные — `skipped: not_allowlisted` (защита тестовых окружений) |
 | `SHADOW_URL` | задаётся integrity_check.py | Shadow-БД для IC-01 (scripts/shadow-db.ts), вручную не задаётся |
 | `NODE_ENV` | платформа Vercel | `production` в проде |
 
@@ -260,6 +268,27 @@ bun run set-master
 со сломанным кодом не даст зелёную отметку «checks passed».
 
 ---
+
+### 4.3. Планировщик уведомлений (DF-03, один раз)
+
+Письма трёх режимов (D33) рассылает внешний вызов диспетчера — время рассылок
+не зашито в код: эндпоинт сам решает по настройкам, что пора (окна 09:00/16:00
+по Москве, повторы, «красные»). Источник вызовов — workflow GitHub Actions
+`.github/workflows/scheduler.yml` (каждые 5 минут — минимум бесплатного
+тарифа; окно считается выполненным, если вызов пришёл в течение 15 минут после
+начала; задержки допустимы). Завести в GitHub: Settings → Secrets → Actions:
+
+1. `CRON_SECRET` — тот же, что в Vercel (Bearer-токен диспетчера).
+2. `APP_BASE_URL` — боевой адрес приложения (например, `https://logix.example.com`).
+
+Подстраховка — суточный Vercel Cron (`vercel.json`, `crons`) на случай
+недоступности Actions: окно 09:00 МСК выполняется вызовом либо из Actions,
+либо из Cron — дедупликация (`dedupKey`) двойной отправки не допускает.
+
+Боевая отправка (Resend) — отдельные шаги владельца в
+`docs/releases/RELEASE-INSTRUCTIONS-v0.6.5.md`: подтвердить домен, добавить
+DNS-записи SPF/DKIM/DMARC, выпустить ключ, положить `RESEND_API_KEY`/`EMAIL_FROM`
+в Vercel, отправить проверочное письмо на gmail и mail.ru/yandex.
 
 ## 5. Обновление продакшена
 

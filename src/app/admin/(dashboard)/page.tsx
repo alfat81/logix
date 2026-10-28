@@ -3,6 +3,7 @@ import { AttentionScreen } from '@/components/admin/AttentionScreen'
 import { SideActivityFeed, type SideActivityItem } from '@/components/admin/SideActivityFeed'
 import { eventWhereFor } from '@/lib/audience'
 import { projectActors, STAFF_READER } from '@/lib/actor-name'
+import { isStaffOnlyRow } from '@/lib/activity'
 
 // Ж5: главная страница — «Требует внимания» (просрочка, проблемы,
 // неназначенные исполнители, лиды без движения). Список заявок
@@ -30,7 +31,9 @@ export default async function AdminPage() {
     actorName: a.actorName,
     type: a.type,
     description: a.description,
-    isInternal: a.isInternal,
+    // df_03_contract: колонки isInternal больше нет — приватность
+    // события живёт в audience; бейдж «Заметка» рисуется для staff-only.
+    isInternal: isStaffOnlyRow(a),
     createdAt: a.createdAt,
     leadId: a.leadId,
     orderId: a.orderId,

@@ -13,16 +13,14 @@ describe('audience.ts (DF-01)', () => {
       expect(eventWhereFor('staff')).toEqual({})
     })
 
-    it('client: не внутреннее + адресовано клиенту', () => {
+    it('client: адресовано клиенту (df_03_contract: страховки isInternal больше нет)', () => {
       expect(eventWhereFor('client')).toEqual({
-        isInternal: false,
         audience: { has: 'client' },
       })
     })
 
-    it('broker: не внутреннее + адресовано брокеру', () => {
+    it('broker: адресовано брокеру', () => {
       expect(eventWhereFor('broker')).toEqual({
-        isInternal: false,
         audience: { has: 'broker' },
       })
     })

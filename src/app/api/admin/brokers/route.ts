@@ -100,11 +100,11 @@ export async function POST(req: NextRequest) {
     }
 
     // DF-02A: брокер рождается сразу с основным пользователем — источник
-    // входа с этого релиза (имя — название компании, телефон/пароль —
-    // те же учётные данные; createBrokerUser хеширует сам, проверит
-    // глобальную уникальность телефона среди пользователей брокера).
-    // Старое поле Broker.password остаётся (DEPRECATIONS, страховка
-    // отката до contract-релиза).
+    // входа (имя — название компании, телефон/пароль — те же учётные
+    // данные; createBrokerUser хеширует сам, проверит глобальную
+    // уникальность телефона среди пользователей брокера). Пароль на
+    // компании (Broker.password) удалён contract-миграцией df_03_contract
+    // (DEPRECATIONS 0.6.5): зеркало больше не пишется.
     const broker = await db.$transaction(async (tx) => {
       const created = await tx.broker.create({
         data: {
@@ -112,7 +112,6 @@ export async function POST(req: NextRequest) {
           phone,
           // DF-02: контактный email компании (необязателен).
           ...(parsed.data.email !== undefined ? { email: parsed.data.email } : {}),
-          password: hashPassword(parsed.data.password),
           isInHouse: parsed.data.isInHouse ?? false,
           ...(parsed.data.comment !== undefined && parsed.data.comment !== null
             ? { comment: parsed.data.comment }

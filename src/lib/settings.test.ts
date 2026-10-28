@@ -24,10 +24,12 @@ const MASTER = employeeActor({ id: 'df00d-test', name: 'Мастер DF-00D' })
 
 // Ключи карточки DF-00D — защита от случайного переименования (IC-15).
 const CARD_KEYS = [
-  // notifications (7)
+  // notifications (8)
   'notifications.client_digest_times', 'notifications.timezone',
   'notifications.max_regular_per_day', 'notifications.immediate_phases',
   'notifications.red_event_types', 'notifications.red_max_per_hour', 'notifications.staff_mode',
+  // DF-03: префикс темы красных писем (карточка DF-03, «из настроек»)
+  'notifications.red_subject_prefix',
   // owner_digest (2) · waiting (1) · permits (2) · files (1)
   'owner_digest.window_start', 'owner_digest.window_end', 'waiting.attention_hours',
   'permits.red_days_before', 'permits.remind_every_days', 'files.max_mb',
@@ -220,7 +222,6 @@ describe('setSetting — запись + событие setting_changed', () => {
     const ev = await lastChangeEvent('files.max_mb')
     expect(ev).not.toBeNull()
     expect(ev!.audience).toEqual(['staff'])
-    expect(ev!.isInternal).toBe(true)
     expect(ev!.actorType).toBe('employee')
     expect(ev!.actorName).toBe('Мастер DF-00D')
     expect(ev!.orderId).toBeNull()

@@ -1,129 +1,40 @@
 import { Prisma } from '@prisma/client'
 import { AUDIENCES, type Audience } from '@/lib/audience'
-// Только ТИПЫ — value-импорт создал бы цикл activity ↔ events
-// (activity.ts вызывает emitEvent). `import type` стирается компилятором.
+// Реестр типов событий вынесен в event-registry.ts (v0.6.5): правила
+// DF-03 читают его как value, не создавая цикл events ↔ rules.
+// Реэкспорт сохраняет прежние точки импорта (тесты, роуты).
 import type { ActivityActor, ActivityTarget, ActivityType } from '@/lib/activity'
+import { EVENT_TYPES } from '@/lib/event-registry'
 
-// ─── DF-01 «События как ось»: emitEvent + реестр EVENT_TYPES ────────
+export { EVENT_TYPES }
+
+// ─── DF-01 «События как ось»: emitEvent + очередь уведомлений DF-03 ──
 // Ось системы (D29): события сделки пишутся ТОЛЬКО здесь. Ленты
 // кабинетов, Пульс (DF-07), уведомления (DF-03) и сводка (DF-08)
 // строятся поверх одного журнала Activity — читают через
 // eventWhereFor() из lib/audience.ts, ничего не пересчитывают.
 //
+// С v0.6.5 emitEvent — ещё и единая точка постановки уведомлений в
+// очередь (карточка DF-03, шаг 6): после записи события правила
+// матрицы §8 (lib/notifications/rules.ts) создают строки очереди
+// Notification В ТОЙ ЖЕ транзакции — сбой постановки откатывает
+// событие вместе с данными (инвариант §1 п. 2: «письмо не должно
+// потеряться молча»; сбой ОТПРАВКИ, в отличие от постановки, на
+// пользователя не влияет — повторяет диспетчер).
+//
 // Файл тянет db-контекст транзакции — импорт из клиентских компонентов
 // запрещён (как и activity.ts).
+// Импорт enqueue/dispatch — ДИНАМИЧЕСКИЙ: enqueue → rules → settings,
+// а settings.ts эмитит setting_changed. Статические рёбра events →
+// enqueue и settings → events замкнули бы цикл; динамический импорт
+// рвёт его (модули загружаются после инициализации реестров).
 
-// Кто получит уведомление (DF-03, матрица §8 ROADMAP-DEALFLOW; точные
-// тексты и каналы уточняются O-4 в карточке DF-03 — здесь фиксируется
-// ПРАВИЛО, диспетчер писем его реализует):
-// - responsible — ответственному менеджеру (нет — активным мастерам);
-// - responsible-if-not-actor — ответственному, если менял не он сам;
-// - responsible-if-external-actor — ответственному, если действовал
-//   клиент или брокер (сотрудник сам видит факт в ленте);
-// - new-assignee — НОВОМУ ответственному при назначении/смене;
-// - client — клиенту сделки;
-// - client-neutral — клиенту в нейтральной формулировке («задержка на
-//   этапе», не «проблема» — находка аудита №16);
-// - broker — подключённому брокеру;
-// - client-broker-if-visible — клиенту и брокеру, если видят документ.
-export type NotifyRule =
-  | 'responsible'
-  | 'responsible-if-not-actor'
-  | 'responsible-if-external-actor'
-  | 'new-assignee'
-  | 'client'
-  | 'client-neutral'
-  | 'broker'
-  | 'client-broker-if-visible'
-
-// Метаданные типа события: подпись (для будущих фильтров/писем),
-// аудитория по умолчанию и правила уведомления. Реестр живёт РЯДОМ с
-// ACTIVITY_TYPES (lib/activity.ts — источник union-типа ActivityType):
-// Record<ActivityType, …> проверяет компилятором полноту — новый код
-// события не добавится без метаданных, дубликата нет.
-export type EventMeta = {
-  label: string
-  audience: Audience[]
-  notify: NotifyRule[]
-}
-
-export const EVENT_TYPES: Record<ActivityType, EventMeta> = {
-  // воронка запросов
-  lead_created: { label: 'Запрос создан', audience: ['staff', 'client'], notify: ['responsible'] },
-  lead_status_changed: { label: 'Статус запроса изменён', audience: ['staff', 'client'], notify: [] },
-  lead_assignee_changed: { label: 'Ответственный изменён', audience: ['staff', 'client'], notify: ['new-assignee'] },
-  lead_edited: { label: 'Запрос отредактирован', audience: ['staff', 'client'], notify: [] },
-  lead_converted: { label: 'Запрос сконвертирован в заявку', audience: ['staff', 'client'], notify: [] },
-  option_added: { label: 'Добавлен вариант расчёта', audience: ['staff', 'client'], notify: [] },
-  option_updated: { label: 'Вариант расчёта обновлён', audience: ['staff', 'client'], notify: [] },
-  option_selected: { label: 'Выбран вариант расчёта', audience: ['staff', 'client'], notify: [] },
-  option_removed: { label: 'Вариант расчёта удалён', audience: ['staff', 'client'], notify: [] },
-  // заявки
-  order_created: { label: 'Заявка создана', audience: ['staff', 'client'], notify: [] },
-  order_status_changed: { label: 'Статус заявки изменён', audience: ['staff', 'client'], notify: ['responsible-if-not-actor', 'client'] },
-  order_assignee_changed: { label: 'Ответственный по заявке изменён', audience: ['staff', 'client'], notify: ['new-assignee'] },
-  order_cargo_changed: { label: 'Груз изменён', audience: ['staff', 'client'], notify: [] },
-  order_quote_changed: { label: 'Условия расчёта изменены', audience: ['staff', 'client'], notify: [] },
-  order_fields_changed: { label: 'Поля заявки изменены', audience: ['staff', 'client'], notify: [] },
-  // этапы
-  stage_added: { label: 'Этап добавлен', audience: ['staff', 'client'], notify: [] },
-  // правило зависит от ЦЕЛЕВОГО статуса (done → client; problem →
-  // responsible + client-neutral) — решает диспетчер DF-03 по данным,
-  // реестр статично статусы не знает.
-  stage_status_changed: { label: 'Статус этапа изменён', audience: ['staff', 'client'], notify: [] },
-  // Имя подрядчика в description — клиенту/брокеру не отдаём
-  // (глоссарий RULES 2.6: Contractor — не показываем).
-  stage_contractor_changed: { label: 'Исполнитель этапа изменён', audience: ['staff'], notify: [] },
-  stage_planned_changed: { label: 'План этапа изменён', audience: ['staff', 'client'], notify: [] },
-  stage_updated: { label: 'Этап обновлён', audience: ['staff', 'client'], notify: [] },
-  stage_removed: { label: 'Этап удалён', audience: ['staff', 'client'], notify: [] },
-  // подрядчики — внутренний контур (кабинет заморожен, D31)
-  contractor_created: { label: 'Перевозчик добавлен', audience: ['staff'], notify: [] },
-  contractor_updated: { label: 'Данные перевозчика обновлены', audience: ['staff'], notify: [] },
-  contractor_pool_changed: { label: 'Пул перевозчиков изменён', audience: ['staff'], notify: [] },
-  contractor_password_changed: { label: 'Пароль ЛК перевозчика обновлён', audience: ['staff'], notify: [] },
-  // брокеры (Д)
-  lead_broker_attached: { label: 'Брокер подключён к запросу', audience: ['staff', 'broker'], notify: ['broker'] },
-  lead_broker_detached: { label: 'Брокер отключён от запроса', audience: ['staff', 'broker'], notify: [] },
-  order_broker_attached: { label: 'Брокер подключён к заявке', audience: ['staff', 'broker'], notify: ['broker'] },
-  order_broker_detached: { label: 'Брокер отключён от заявки', audience: ['staff', 'broker'], notify: [] },
-  broker_estimate_changed: { label: 'Оценка таможенных платежей изменена', audience: ['staff', 'broker'], notify: ['responsible'] },
-  // документы (Е): аудитория по умолчанию — внешний документ; для
-  // ВНУТРЕННЕГО точка вызова (documents.ts) переопределяет на
-  // documentEventAudience(true) = ['staff'] — внешний кабинет не должен
-  // даже узнать о факте существования внутреннего документа.
-  document_created: { label: 'Документ загружен', audience: ['staff', 'client', 'broker'], notify: ['responsible-if-external-actor'] },
-  document_version_added: { label: 'Добавлена версия документа', audience: ['staff', 'client', 'broker'], notify: ['client-broker-if-visible'] },
-  document_deleted: { label: 'Документ удалён', audience: ['staff', 'client', 'broker'], notify: [] },
-  // внутренние заметки (Ж3) — только staff, уведомлений нет (§8)
-  note_added: { label: 'Внутренняя заметка', audience: ['staff'], notify: [] },
-  // настройки системы (DF-00D, D32) — глобальное событие БЕЗ цели-сделки
-  // (target не передаётся); только staff, уведомлений нет: факт изменения
-  // виден в ленте сотрудникам, письма по настройкам не предусмотрены (§8).
-  // description несёт ключ, старое и новое значение — секретов в реестре
-  // нет по построению (секреты и адреса инфраструктуры живут в env).
-  setting_changed: { label: 'Настройка изменена', audience: ['staff'], notify: [] },
-}
-
-// Снимок имени системного актёра. Живёт здесь (а не в activity.ts),
-// чтобы emitEvent не тянул value-цикл: activity → events (value),
-// events → activity (только типы). Имя — снимок, локализация не
-// планируется (Ж3).
 export const SYSTEM_ACTOR_NAME = 'Система'
 
-// Аудитория события: явная > реестр. Канонизация — только элементы
-// AUDIENCES в их порядке (детерминированная запись, дедупликация).
-// 'contractor' и прочее — не аудитория (D31): чужие значения режутся,
-// а факт сигнализируется в консоль — это ошибка вызывающего кода
-// (тип Audience отсекает её на компиляции; сигнал — для данных,
-// пришедших из БД/JSON в обход типов).
-function normalizeAudience(list: readonly Audience[]): Audience[] {
-  const extra = list.filter((a) => !AUDIENCES.includes(a))
-  if (extra.length > 0) {
-    console.error('[emitEvent] в аудитории посторонние значения (вырезаны):', extra)
-  }
-  return AUDIENCES.filter((a) => list.includes(a))
-}
+// Подсказка правилам уведомлений для событий, где из самой записи
+// получателя не вывести: подключение брокера — письмо идёт ИМЕННО
+// подключаемому брокеру, а не всем уже подключённым (§8).
+export type NotifyHint = { brokerId?: string }
 
 export type EmitEventInput = {
   // Цель-сделка: ровно одна из трёх (см. ActivityTarget). НЕ задана —
@@ -141,30 +52,49 @@ export type EmitEventInput = {
   // Связь с этапом/документом без FK — схема df_01_event_audience.
   stageId?: string | null
   documentId?: string | null
+  // DF-03: уточнение правил уведомлений (подключаемый брокер).
+  notify?: NotifyHint
 }
 
-// Запись события сделки. Семантика ошибок — как у прежнего logActivity:
-// лента — наблюдение, не бизнес-данные, падать на ней нельзя; ошибка
-// записи глотается и логируется. При вызове ВНУТРИ $transaction (tx —
-// DoD 2.2 п.9) откат данных откатывает и событие; вне транзакции
-// передаётся db. isInternal пишется согласованно:
-// isInternal = (audience == {staff}) — двойная правда исключена;
-// колонка удаляется contract-релизом после DF-03.
+// Аудитория события: явная > реестр. Канонизация — только элементы
+// AUDIENCES в их порядке (детерминированная запись, дедупликация).
+// 'contractor' и прочее — не аудитория (D31): чужие значения режутся,
+// а факт сигнализируется в консоль — это ошибка вызывающего кода
+// (тип Audience отсекает её на компиляции; сигнал — для данных,
+// пришедших из БД/JSON в обход типов).
+function normalizeAudience(list: readonly Audience[]): Audience[] {
+  const extra = list.filter((a) => !AUDIENCES.includes(a))
+  if (extra.length > 0) {
+    console.error('[emitEvent] в аудитории посторонние значения (вырезаны):', extra)
+  }
+  return AUDIENCES.filter((a) => list.includes(a))
+}
+
+// Запись события сделки + постановка уведомлений в очередь.
+// Семантика ошибок РАЗДЕЛЬНАЯ (v0.6.5):
+//  • запись Activity — «лента наблюдение»: ошибка глотается и
+//    логируется, операция пользователя не валится (как в DF-01);
+//  • постановка Notification — бизнес-инвариант DF-03: сбой БРОСАЕТ,
+//    транзакция откатывает и данные, и событие, и письма (создание
+//    сделки без письма = молчаливая потеря — запрещено карточкой).
+// isInternal снят contract-миграцией df_03_contract: единственная
+// точка видимости — audience (eventWhereFor, lib/audience.ts).
+// Возвращает id события (null — запись не удалась, очередь пустая).
 export async function emitEvent(
   tx: Prisma.TransactionClient,
   input: EmitEventInput,
-): Promise<void> {
+): Promise<string | null> {
   const meta = EVENT_TYPES[input.type]
   const audience = normalizeAudience(input.audience ?? meta.audience)
   if (audience.length === 0) {
     // Пустая аудитория = событие без зрителей (рудимент); CHECK
     // activity_audience_nonempty в БД не даст и тихой записи.
     console.error('[emitEvent] пустая аудитория, событие не записано:', input.type)
-    return
+    return null
   }
-  const isInternal = audience.length === 1 && audience[0] === 'staff'
+  let created: { id: string }
   try {
-    await tx.activity.create({
+    created = await tx.activity.create({
       data: {
         ...(input.target ?? {}),
         actorType: input.actor.type,
@@ -172,13 +102,39 @@ export async function emitEvent(
         actorName: input.actor.type === 'system' ? SYSTEM_ACTOR_NAME : input.actor.name,
         type: input.type,
         description: input.description,
-        isInternal,
         audience,
         ...(input.stageId ? { stageId: input.stageId } : {}),
         ...(input.documentId ? { documentId: input.documentId } : {}),
       },
+      select: { id: true },
     })
   } catch (e) {
     console.error('[emitEvent] не записано:', input.type, input.description, e)
+    return null
   }
+  // ── DF-03: очередь уведомлений (та же транзакция) ──────────────────
+  // Динамический импорт — разрыв цикла events ↔ rules ↔ settings
+  // (см. шапку). Ошибка постановки НЕ глотается: откат всей операции.
+  const { enqueueNotifications } = await import('./notifications/enqueue')
+  await enqueueNotifications(tx, {
+    eventId: created.id,
+    type: input.type,
+    actor: input.actor,
+    target: input.target ?? null,
+    stageId: input.stageId ?? null,
+    documentId: input.documentId ?? null,
+    notifyHint: input.notify ?? null,
+    description: input.description,
+  })
+  // Немедленная попытка диспетчера для immediate/red (≤ 5 минут, D33):
+  // after() выполняет колбэк после завершения ответа = после COMMIT.
+  // Вне request-контекста (скрипты/тесты) after() бросает — это окно
+  // пропускаем: внешний cron (workflow, ≥ 5 мин) догонит по расписанию.
+  try {
+    const { scheduleDispatch } = await import('./notifications/dispatch')
+    scheduleDispatch()
+  } catch {
+    // нет request-контекста — dispatch по расписанию
+  }
+  return created.id
 }

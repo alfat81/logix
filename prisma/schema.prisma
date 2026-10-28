@@ -78,14 +78,13 @@ model Customer {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  // И1: доступ в клиентский кабинет. Nullable — доступ выдаётся
-  // опционально (не каждому клиенту справочника он нужен), логин —
-  // по телефону (+7XXXXXXXXXX, см. lib/phone.ts). Пароль задаёт
-  // менеджер через POST /api/admin/customers/[id]/access — той же
-  // моделью «менеджер выдаёт учётку», что у подрядчика (Г2),
-  // саморегистрации в MVP нет (нужна была бы SMS-верификация телефона).
-  // hashPassword() из src/lib/password.ts.
-  password String?
+  // И1: доступ в клиентский кабинет — у ЧЕЛОВЕКА (CustomerUser, DF-02A):
+  // логин — телефон пользователя, пароль задаёт менеджер через
+  // POST /api/admin/customers/[id]/access (саморегистрации в MVP нет —
+  // без SMS-верификации «регистрация на любой номер» открывала бы чужие
+  // заявки). Пароль на КОМПАНИИ (Customer.password) удалён contract-
+  // миграцией df_03_contract — страховка отката пережила релиз 0.6.4,
+  // вход давно идёт через authenticateCustomerLogin (company-users.ts).
 
   contracts Contract[]
   orders    Order[]
@@ -573,18 +572,17 @@ model Broker {
   // «экран назначить штатного» на старте не реализуем).
   id          String   @id @default(cuid())
   companyName String
-  // Логин урезанного ЛК (Д) — тот же паттерн, что Employee (А5) и
-  // Contractor (Г2): нормализованный +7XXXXXXXXXX, @unique.
+  // Бывший логин урезанного ЛК (Д) — сегодня phone остаётся СПРАВОЧНЫМ
+  // телефоном компании; вход — у человека (BrokerUser.phone @unique,
+  // DF-02A). Уникальность оставлена: номер компании не должен дублироваться.
   phone       String   @unique
   // DF-02: контактный email компании брокера для уведомлений
   // (адресат-человек живёт в BrokerUser.email, DF-03; это поле —
   // общий адрес компании, фолбэк recipientsOfBroker).
   email       String?
-  // hashPassword() из src/lib/password.ts. Пароль задаёт менеджер при
-  // создании (как сотрудникам Ж6в и клиентам И1 — брокер внешний
-  // пользователь, саморегистрации нет), смена — PATCH /[id] с разрывом
-  // сессий (паттерн Ж6в/И1).
-  password    String
+  // Пароль компании (Broker.password) удалён contract-миграцией
+  // df_03_contract: вход через authenticateBrokerLogin (BrokerUser),
+  // пароль человека задаётся в справочнике пользователей брокера.
   // Штатный/привлечённый — только пометка для справочника, на права
   // не влияет (роадмап 6: «деталь атрибута, не отдельная модель»).
   isInHouse   Boolean  @default(false)
@@ -834,12 +832,12 @@ model Activity {
   // и человекочитаемое описание с деталями — что именно изменилось.
   type         String
   description  String
-  // Ж3: внутренняя заметка (и другие приватные события) не показывается
-  // внешним кабинетам — подрядчику (Г4) и клиенту (И1). Внешние
-  // read-контексты обязаны фильтровать isInternal: false
-  // (ACTIVITY_EXTERNAL_WHERE в lib/activity.ts); админская лента видит
-  // всё. default false — события Ж2 остаются видимыми без правки данных.
-  isInternal   Boolean  @default(false)
+  // Ж3: приватность события несёт audience (staff-only = «не показывать
+  // внешним кабинетам»): read-контексты фильтруют через eventWhereFor
+  // (lib/audience.ts), админская лента видит всё. Колонка isInternal
+  // удалена contract-миграцией df_03_contract (DEPRECATIONS 0.6.5):
+  // двойная правда «isInternal ⇔ audience=={staff}» заменена одной
+  // колонкой audience.
   createdAt    DateTime @default(now())
 
   // DF-01: аудитория события — кому ВИДНО в лентах кабинетов
@@ -920,4 +918,77 @@ model Setting {
   value         Json
   updatedAt     DateTime @updatedAt
   updatedByName String
+}
+
+// ─── DF-03: очередь уведомлений и письма трёх режимов (D33) ──────────
+// Единая очередь исходящих уведомлений: событие сделки (Activity) →
+// правила матрицы §8 ROADMAP-DEALFLOW (lib/notifications/rules.ts) →
+// строки очереди → диспетчер (lib/notifications/dispatch.ts) →
+// транспорт (Resend HTTP API / fake / заглушки Telegram-WhatsApp).
+// Очередь — ЖУРНАЛ: переживает удаление сделки и события, FK не имеет
+// (паттерн actorId/Setting.updatedByName — ссылка живёт дольше цели).
+//
+// recipientKind: employee | client | broker ('contractor' зарезервирован
+// и не используется, D31 — кабинет заморожен, подрядчик писем не
+// получает). recipientId — id ЧЕЛОВЕКА-получателя: Employee.id либо
+// CustomerUser/BrokerUser.id (адресат-человек, DF-02A); null — письмо
+// на общий адрес компании (фолбэк recipientsOfCustomer/recipientsOfBroker).
+//
+// mode: immediate | regular | red (D33): immediate — согласование и
+// события сотрудников, ≤ 5 минут; regular — перевозка, копится в окна
+// notifications.client_digest_times (09:00/16:00 Europe/Moscow, не
+// больше notifications.max_regular_per_day в сутки, пустого письма
+// нет); red — вне окон и лимитов, антишторм 10-мин дедупликация +
+// notifications.red_max_per_hour.
+//
+// status: pending | sent | failed | skipped (skipped = not_configured /
+// not_allowlisted / no_email — целевое «не отправлено и не будет»).
+// windowKey — окно regular-письма и дайджеста «yyyy-mm-dd:HH:MM»
+// в поясе notifications.timezone; dedupKey @unique — защита от дублей
+// (одиночные: type:kind:recipient:target:10-мин окно; дайджест:
+// digest:kind:recipient:дата:окно) и от повторного прогона диспетчера.
+//
+// eventId — Activity.id без FK: событие может быть каскадно удалено
+// вместе со сделкой, журнал отправок (DF-04) должен это пережить.
+model Notification {
+  id            String    @id @default(cuid())
+  recipientKind String
+  recipientId   String?
+  // Снимок адреса на момент постановки в очередь: письмо уходит по адресу
+  // из правила (адресат-человек либо фолбэк компании); смена email
+  // получателем историю отправок не переписывает (паттерн actorName).
+  toAddress     String
+  channel       String    @default("email")
+  mode          String
+  eventId       String?
+  type          String
+  subject       String
+  body          String
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime?
+  sentAt        DateTime?
+  lastError     String?
+  providerId    String?
+  windowKey     String?
+  dedupKey      String    @unique
+  createdAt     DateTime  @default(now())
+
+  @@index([status, nextAttemptAt])
+  @@index([recipientKind, recipientId, createdAt])
+}
+
+// Настройки доставки на получателя (карточка DF-03): по умолчанию
+// email включён — строка может отсутствовать (отсутствие = включён).
+// Управление preference'ами — следующий релиз (DF-04/личные кабинеты),
+// модель и чтение правилами появляются здесь, чтобы не расширять
+// схему дважды.
+model NotificationPreference {
+  id            String  @id @default(cuid())
+  recipientKind String
+  recipientId   String
+  channel       String
+  enabled       Boolean @default(true)
+
+  @@unique([recipientKind, recipientId, channel])
 }

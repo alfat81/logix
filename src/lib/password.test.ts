@@ -20,18 +20,17 @@ describe('Password Verification (DF-00)', () => {
   })
 
   it('checks for un-prefixed passwords in database', async () => {
-    const [employees, customers, contractors, brokers] = await Promise.all([
+    // df_03_contract: Customer.password/Broker.password удалены —
+    // входы компаний живут у людей (CustomerUser/BrokerUser, их хеши
+    // стражник уже ловит через company-users.test.ts).
+    const [employees, contractors] = await Promise.all([
       db.employee.findMany({ select: { id: true, password: true } }),
-      db.customer.findMany({ select: { id: true, password: true } }),
       db.contractor.findMany({ select: { id: true, password: true } }),
-      db.broker.findMany({ select: { id: true, password: true } }),
     ])
 
     const unPrefixedCount = [
       ...employees.filter((e) => e.password && !e.password.startsWith('scrypt:')),
-      ...customers.filter((c) => c.password && !c.password.startsWith('scrypt:')),
       ...contractors.filter((c) => c.password && !c.password.startsWith('scrypt:')),
-      ...brokers.filter((b) => b.password && !b.password.startsWith('scrypt:')),
     ].length
 
     // All seeded users must have scrypt: hashes

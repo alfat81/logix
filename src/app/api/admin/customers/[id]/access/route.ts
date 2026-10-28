@@ -130,14 +130,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         ...parsed.data,
         isPrimary: isFirst,
       })
-      // Зеркало первичной выдачи: первый пользователь с паролем = тот,
-      // чей вход в v0.6.1 продолжил бы работать после отката.
-      if (isFirst && parsed.data.password) {
-        await tx.customer.update({
-          where: { id },
-          data: { password: hashPassword(parsed.data.password) },
-        })
-      }
+      // Зеркало Customer.password удалено contract-миграцией df_03_contract
+      // (DEPRECATIONS 0.6.5): пароль живёт только у пользователя.
       return user
     })
     return NextResponse.json({ ok: true, userId: created.id }, { status: 201 })
@@ -187,20 +181,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
       if (isActive !== undefined) {
         await setCustomerUserActive(tx, userId, isActive)
-      }
-      // Зеркало: менялся пароль ОСНОВНОГО пользователя — дубль в
-      // Customer.password (включая снятие: null = «отзыв» в старой
-      // семантике).
-      if (user.isPrimary && fields.password !== undefined) {
-        await tx.customer.update({
-          where: { id },
-          data: {
-            password:
-              fields.password === null
-                ? null
-                : hashPassword(fields.password),
-          },
-        })
       }
     })
     return NextResponse.json({ ok: true })

@@ -89,7 +89,7 @@ describe('EVENT_TYPES — реестр полон и валиден', () => {
 })
 
 describe('emitEvent — запись на реальной БД', () => {
-  it('без явной аудитории берёт дефолт из реестра; isInternal = (audience == {staff})', async () => {
+  it('без явной аудитории берёт дефолт из реестра (df_03_contract: isInternal снят)', async () => {
     await emitEvent(db, {
       target: { leadId },
       actor: employeeActor({ id: 'df01-test', name: 'Тест DF-01' }),
@@ -99,7 +99,6 @@ describe('emitEvent — запись на реальной БД', () => {
     const row = await lastEvent('дефолт из реестра')
     expect(row).not.toBeNull()
     expect(row!.audience).toEqual(['staff', 'client'])
-    expect(row!.isInternal).toBe(false)
     expect(row!.actorType).toBe('employee')
   })
 
@@ -113,7 +112,6 @@ describe('emitEvent — запись на реальной БД', () => {
     })
     const row = await lastEvent('явная аудитория')
     expect(row!.audience).toEqual(['staff'])
-    expect(row!.isInternal).toBe(true)
   })
 
   it('канонизация: порядок по AUDIENCES, дубликаты схлопываются', async () => {
@@ -137,7 +135,6 @@ describe('emitEvent — запись на реальной БД', () => {
     })
     const row = await lastEvent('contractor вырезан')
     expect(row!.audience).toEqual(['staff'])
-    expect(row!.isInternal).toBe(true)
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining('посторонние значения'),
       expect.anything()
@@ -192,7 +189,7 @@ describe('emitEvent — запись на реальной БД', () => {
         type: 'order_created',
         description: RUN + ' проглочено',
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toBeNull()
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining('не записано'),
       'order_created',

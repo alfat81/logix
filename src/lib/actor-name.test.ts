@@ -48,9 +48,7 @@ const SNAPSHOT_BR = BROKER_A
 beforeAll(async () => {
   const ca = await db.customer.create({ data: { name: COMPANY_A, phone: '+790' + String(RUN % 1e8).padStart(8, '0') } })
   const cb = await db.customer.create({ data: { name: COMPANY_B, phone: '+791' + String(RUN % 1e8).padStart(8, '0') } })
-  // Broker.password обязателен (схема) — фикстурная строка, вход не
-  // тестируется (это работа auth-тестов Блока 3).
-  const br = await db.broker.create({ data: { companyName: BROKER_A, phone: '+792' + String(RUN % 1e8).padStart(8, '0'), password: 'scrypt:fixture-df02a-b4' } })
+  const br = await db.broker.create({ data: { companyName: BROKER_A, phone: '+792' + String(RUN % 1e8).padStart(8, '0') } })
   customerA = ca.id
   customerB = cb.id
   brokerA = br.id
@@ -250,7 +248,6 @@ describe('обёртки для роутов (лента, версии, доку
         actorName: SNAPSHOT_A,
         type: 'lead_edited',
         description: 'DF02A-B4 проекция ' + RUN,
-        isInternal: false,
         audience: ['staff'],
       },
       select: { id: true, actorType: true, actorId: true, actorName: true },

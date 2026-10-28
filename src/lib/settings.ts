@@ -1,7 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { db } from './db'
 import { type ActivityActor } from '@/lib/activity'
-import { emitEvent, SYSTEM_ACTOR_NAME } from './events'
 import { SettingValidationError, asEventCodeList, asInt, asNonEmptyStr, asOneOf, asOptionalEmail, asOptionalStr, asStringList, asTime, asTimeList, asTimezone } from './settings-validators'
 
 // Единая поверхность импорта модуля настроек: потребители (API Блока 4,
@@ -115,6 +114,12 @@ export const SETTINGS = [
     defaultValue: 'immediate', validate: (v) => asOneOf(v, ['immediate', 'digest']),
   }),
   defineSetting({
+    key: 'notifications.red_subject_prefix', group: 'notifications', uiType: 'string',
+    label: 'Префикс темы «красных» писем',
+    hint: 'Тема красного письма начинается с этого префикса (DF-03). Пусто — без префикса.',
+    defaultValue: 'Срочно:', validate: (v) => asOptionalStr(v, 50),
+  }),
+  defineSetting({
     key: 'owner_digest.window_start', group: 'owner_digest', uiType: 'time',
     label: 'Начало окна сводки владельцу',
     hint: 'Сводка отправляется внутри окна (O-6: 09:00–10:00 по Москве).',
@@ -217,7 +222,7 @@ export async function getSetting<K extends SettingKey>(key: K): Promise<Settings
 // ─── Запись: валидатор + событие setting_changed (emitEvent) ─────────
 
 function actorName(a: ActivityActor): string {
-  return a.type === 'system' ? SYSTEM_ACTOR_NAME : a.name
+  return a.type === 'system' ? 'Система' : a.name
 }
 
 // Значение из БД приходит как JsonValue (может миновать типы реестра)
@@ -256,6 +261,9 @@ export async function setSetting<K extends SettingKey>(
   // Кэш сбрасываем сразу: getSetting после setSetting в том же запросе
   // обязан видеть новое значение, не дожидаясь TTL.
   cache.delete(key)
+  // Динамический импорт emitEvent (v0.6.5): events → enqueue → rules →
+  // settings — статическое ребро settings → events замыкало бы цикл.
+  const { emitEvent } = await import('./events')
   await emitEvent(tx, {
     target: null, // глобальное событие: настройка не belongs сделке (DF-00D)
     actor,
@@ -277,6 +285,7 @@ export async function resetSetting<K extends SettingKey>(
   if (!prev) return
   await tx.setting.delete({ where: { key } })
   cache.delete(key)
+  const { emitEvent } = await import('./events')
   await emitEvent(tx, {
     target: null,
     actor,

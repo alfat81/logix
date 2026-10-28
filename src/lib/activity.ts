@@ -11,8 +11,10 @@ import type { Audience } from '@/lib/audience'
 // из lib/events.ts (с DF-01), прямой db.activity.create в роутах
 // запрещён — инвариант «ровно одна цель» и формат актёра держатся
 // там, а не в пятнадцати местах. Здесь живут типы (актёр, цель, коды),
-// устаревшая обёртка logActivity (замороженный контур подрядчика, D31),
-// logInternalNote и проекция чтения ленты.
+// logInternalNote и проекция чтения ленты. Обёртка logActivity и
+// фрагмент ACTIVITY_EXTERNAL_WHERE удалены contract-миграцией
+// df_03_contract (DEPRECATIONS 0.6.5): замороженный роут подрядчика
+// переведён на emitEvent, видимость считает eventWhereFor.
 // Файл тянет db — импорт из клиентских компонентов запрещён (проекция
 // для UI — ACTIVITY_PUBLIC_FIELDS ниже, используется в GET-роутах).
 
@@ -64,14 +66,14 @@ export const ACTIVITY_TYPES = [
   'broker_estimate_changed',
   // документы (Е): создание/версии/удаление — цель событие лид ИЛИ
   // заявка (сделка, на которой живёт документ); события о ВНУТРЕННИХ
-  // документах пишутся с isInternal — внешний кабинет не должен
-  // даже узнать о факте их существования.
+  // документах пишутся staff-only (audience staff) — внешний кабинет
+  // не должен даже узнать о факте их существования.
   'document_created',
   'document_version_added',
   'document_deleted',
   // внутренние заметки (Ж3): по заявке и лиду; текст заметки —
   // description, автор — actor, время — createdAt. Попадают в
-  // ленту, внешним кабинетам не показываются (isInternal).
+  // ленту, внешним кабинетам не показываются (audience — staff-only).
   'note_added',
   // настройки системы (DF-00D, D32): изменение значения из реестра
   // SETTINGS. Цель событие — нет (настройка глобальна, не belongs
@@ -140,39 +142,6 @@ export type ActivityTarget =
   | { leadId: string }
   | { contractorId: string }
 
-// ── Запись события ──────────────────────────────────────────────────
-// С момента DF-01 запись идёт через emitEvent() (lib/events.ts) —
-// аудитория берётся из реестра EVENT_TYPES, isInternal синхронен audience.
-// tx — необязательный клиент транзакции: внутри $transaction (В3,
-// Г2-рождение, DoD 2.2 п.9) событие пишется в той же транзакции, что и
-// изменение — откат изменения откатывает и запись. Ошибка записи журнала
-// НЕ валит основную операцию (лента — наблюдение; глотает emitEvent).
-/**
- * @deprecated DF-01: используйте `emitEvent()` из '@/lib/events' —
- * аудитория события берётся из реестра EVENT_TYPES, а не подбирается
- * вручную. Обёртка сохраняет прежнюю сигнатуру ради непереведённых
- * роутов (в т.ч. замороженного контура подрядчика, D31) и удаляется
- * contract-релизом после DF-03 — см. docs/DEPRECATIONS.md.
- */
-export async function logActivity(
-  target: ActivityTarget,
-  actor: ActivityActor,
-  type: ActivityType,
-  description: string,
-  tx?: Prisma.TransactionClient,
-  opts?: { isInternal?: boolean },
-): Promise<void> {
-  await emitEvent(tx ?? db, {
-    target,
-    actor,
-    type,
-    description,
-    // Явная семантика opts.isInternal → staff-only (заметки Ж3,
-    // внутренние документы); иначе — аудитория по умолчанию из реестра.
-    ...(opts?.isInternal ? { audience: ['staff'] as Audience[] } : {}),
-  })
-}
-
 // ── Внутренние заметки (Ж3) ────────────────────────────────────────
 // NOTE_MAX_LENGTH живёт в lib/note-constants.ts (клиент-безопасный
 // файл): потолок нужен и роутам (zod), и NoteForm (maxLength), а этот
@@ -190,7 +159,10 @@ export type NoteRow = {
   actorName: string
   type: string
   description: string
-  isInternal: boolean
+  // Форма ответа UI; заметка всегда staff-only — флаг константный
+  // (колонка Activity.isInternal удалена contract-миграцией df_03_contract,
+  // единственная точка видимости — audience, lib/audience.ts).
+  isInternal: true
   createdAt: Date
 }
 
@@ -209,21 +181,24 @@ export async function logInternalNote(
       actorName: actor.type === 'system' ? SYSTEM_ACTOR_NAME : actor.name,
       type: 'note_added',
       description: text,
-      isInternal: true,
       // DF-01: заметка — staff-only (CHECK activity_audience_nonempty
       // требует непустую audience; note_added в реестре — ['staff']).
       audience: ['staff'],
     },
     select: ACTIVITY_PUBLIC_FIELDS,
   })
-  return created as NoteRow
+  // isInternal — константная форма ответа (заметка всегда staff-only),
+  // остальное — прямая проекция созданной строки.
+  return { ...created, isInternal: true } as NoteRow
 }
 
 // ── Чтение ленты (GET карточек) ─────────────────────────────────────
 // Публичная проекция. DF-02A (Блок 4): actorId включён — проекция
 // «Имя (Компания)» собирается при чтении (lib/actor-name.ts) по id
 // пользователя; id непрозрачен (cuid), имя-снимок остаётся строкой.
-// isInternal нужен UI: заметки рисуются иначе (бейдж «Заметка»).
+// audience включён вместо удалённого isInternal: UI выводит бейдж
+// «Заметка» (isActivityRow ниже) и другие приватные пометки из
+// audience — единственного носителя видимости после contract-релиза.
 export const ACTIVITY_PUBLIC_FIELDS = {
   id: true,
   actorType: true,
@@ -231,21 +206,15 @@ export const ACTIVITY_PUBLIC_FIELDS = {
   actorName: true,
   type: true,
   description: true,
-  isInternal: true,
+  audience: true,
   createdAt: true,
 } as const
 
-// Where-фрагмент «не внутреннее» — прежняя заглушка внешнего фильтра.
-// DF-01: реальных потребителей не имеет; единственная точка расчёта
-// видимости лент — eventWhereFor() из lib/audience.ts (учитывает и
-// колонку audience, не только isInternal). Символ оставлен до
-// contract-релиза (вместе с isInternal) и удаляется тогда же.
-/**
- * @deprecated DF-01: используйте `eventWhereFor(audience)` из
- * '@/lib/audience' — она заменяет этот фрагмент. Удаление —
- * contract-релиз после DF-03, см. docs/DEPRECATIONS.md.
- */
-export const ACTIVITY_EXTERNAL_WHERE = { isInternal: false } as const
+// Заметка (и другое staff-only событие) — для UI-пометок. Функция в
+// клиентском безопасном стиле: работает по проекции ACTIVITY_PUBLIC_FIELDS.
+export function isStaffOnlyRow(row: { audience: readonly string[] }): boolean {
+  return row.audience.length === 1 && row.audience[0] === 'staff'
+}
 
 // Лимит выдачи: лента без пагинации (Ж4 сделает постраничность для
 // списков, лента карточки — окно последних событий, 100 строк с

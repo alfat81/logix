@@ -46,6 +46,7 @@ EXCLUDE_DIRS = {
 EXCLUDE_FILES = {
     ".env", ".env.local", ".env.production", "next.log", ".DS_Store",
     "tsconfig.tsbuildinfo", "bun.lockb.tmp", ".scope-baseline.json",
+    "next-env.d.ts",
     # локальные утилиты песочницы, не являющиеся частью продукта
     "provision_pg.sh", "verify_release_diff.py", "make_fix1_zip.py",
 }

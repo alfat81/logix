@@ -69,8 +69,8 @@ beforeAll(async () => {
   customerA = a.id
   customerB = b.id
   customerC = c.id
-  const ba = await db.broker.create({ data: { companyName: 'DF02A-BA ' + RUN, phone: phone(4), password: 'scrypt:fixture-df02a' } })
-  const bb = await db.broker.create({ data: { companyName: 'DF02A-BB ' + RUN, phone: phone(5), password: 'scrypt:fixture-df02a' } })
+  const ba = await db.broker.create({ data: { companyName: 'DF02A-BA ' + RUN, phone: phone(4) } })
+  const bb = await db.broker.create({ data: { companyName: 'DF02A-BB ' + RUN, phone: phone(5) } })
   brokerA = ba.id
   brokerB = bb.id
 })
@@ -297,7 +297,7 @@ describe('вход (authenticate*) и сессии пользователя', ()
       isPrimary: true,
     })
     const ba = await db.broker.create({
-      data: { companyName: 'DF02A-BA-LOGIN ' + RUN, phone: phone(75), password: 'scrypt:fixture-df02a' },
+      data: { companyName: 'DF02A-BA-LOGIN ' + RUN, phone: phone(75) },
     })
     brokerOk = ba.id
     await createBrokerUser(db, brokerOk, {
@@ -307,7 +307,7 @@ describe('вход (authenticate*) и сессии пользователя', ()
       isPrimary: true,
     })
     const bb = await db.broker.create({
-      data: { companyName: 'DF02A-BB-LOGIN ' + RUN, phone: phone(77), password: 'scrypt:fixture-df02a', isActive: false },
+      data: { companyName: 'DF02A-BB-LOGIN ' + RUN, phone: phone(77), isActive: false },
     })
     brokerCompanyOff = bb.id
     await createBrokerUser(db, brokerCompanyOff, {
@@ -439,7 +439,7 @@ describe('роуты списка людей (Блок 5): access и brokers/[id
     })
     const c = await db.customer.create({ data: { name: 'DF02A-B5 ' + RUN, phone: phone(81) } })
     cust5 = c.id
-    const b = await db.broker.create({ data: { companyName: 'DF02A-B5-BR ' + RUN, phone: phone(82), password: 'scrypt:fixture-df02a' } })
+    const b = await db.broker.create({ data: { companyName: 'DF02A-B5-BR ' + RUN, phone: phone(82) } })
     brok5 = b.id
   })
 
@@ -451,7 +451,7 @@ describe('роуты списка людей (Блок 5): access и brokers/[id
 
   const p = (id: string) => ({ params: Promise.resolve({ id }) })
 
-  it('access: первый пользователь = primary, зеркало пароля в Customer.password', async () => {
+  it('access: первый пользователь = primary, пароль у человека (df_03_contract: без зеркала)', async () => {
     const res = await accessPost(
       new NextRequest('http://localhost/x', {
         method: 'POST',
@@ -465,9 +465,9 @@ describe('роуты списка людей (Блок 5): access и brokers/[id
 
     const user = await db.customerUser.findUniqueOrThrow({ where: { id: userId } })
     expect(user.isPrimary).toBe(true)
-
-    const company = await db.customer.findUniqueOrThrow({ where: { id: cust5 } })
-    expect(verifyPassword('primary-pass-1', company.password!)).toBe(true)
+    // Пароль живёт только у пользователя (зеркало Customer.password
+    // удалено contract-миграцией df_03_contract).
+    expect(verifyPassword('primary-pass-1', user.password!)).toBe(true)
 
     const list = await accessGet(empReq, p(cust5))
     const body = (await list.json()) as { users: Array<Record<string, unknown>> }
@@ -477,7 +477,7 @@ describe('роуты списка людей (Блок 5): access и brokers/[id
     expect('password' in body.users[0]).toBe(false)
   })
 
-  it('access: второй пользователь — не primary, зеркало не перетирает старый пароль', async () => {
+  it('access: второй пользователь — не primary, пароли людей независимы', async () => {
     const res = await accessPost(
       new NextRequest('http://localhost/x', {
         method: 'POST',
@@ -491,10 +491,13 @@ describe('роуты списка людей (Блок 5): access и brokers/[id
     const user = await db.customerUser.findUniqueOrThrow({ where: { id: userId } })
     expect(user.isPrimary).toBe(false)
 
-    const company = await db.customer.findUniqueOrThrow({ where: { id: cust5 } })
-    // в зеркале по-прежнему пароль PRIMARY, а не второго человека
-    expect(verifyPassword('primary-pass-1', company.password!)).toBe(true)
-    expect(verifyPassword('second-pass-1', company.password!)).toBe(false)
+    // У каждого человека свой пароль; «зеркала» больше нет.
+    const second = await db.customerUser.findUniqueOrThrow({ where: { id: userId } })
+    expect(verifyPassword('second-pass-1', second.password!)).toBe(true)
+    const primary = await db.customerUser.findFirstOrThrow({
+      where: { customerId: cust5, isPrimary: true },
+    })
+    expect(verifyPassword('primary-pass-1', primary.password!)).toBe(true)
   })
 
   it('access: дубли телефона 409, короткий пароль 400, пароль без телефона 400', async () => {
@@ -529,7 +532,7 @@ describe('роуты списка людей (Блок 5): access и brokers/[id
     expect(noPhone.status).toBe(400)
   })
 
-  it('access: смена пароля primary обновляет зеркало; деактивация primary 409, второй — сессии рвутся', async () => {
+  it('access: смена пароля primary меняет пароль человека; деактивация primary 409, второй — сессии рвутся', async () => {
     const users = await db.customerUser.findMany({ where: { customerId: cust5 } })
     const primary = users.find((u) => u.isPrimary)!
     const second = users.find((u) => !u.isPrimary)!
@@ -543,8 +546,8 @@ describe('роуты списка людей (Блок 5): access и brokers/[id
       p(cust5)
     )
     expect(changed.status).toBe(200)
-    const company = await db.customer.findUniqueOrThrow({ where: { id: cust5 } })
-    expect(verifyPassword('primary-pass-2', company.password!)).toBe(true)
+    const refreshed = await db.customerUser.findUniqueOrThrow({ where: { id: primary.id } })
+    expect(verifyPassword('primary-pass-2', refreshed.password!)).toBe(true)
 
     const offPrimary = await accessPatch(
       new NextRequest('http://localhost/x', {
@@ -588,8 +591,9 @@ describe('роуты списка людей (Блок 5): access и brokers/[id
     const { userId: primaryId } = (await first.json()) as { userId: string }
     const primaryRow = await db.brokerUser.findUniqueOrThrow({ where: { id: primaryId } })
     expect(primaryRow.isPrimary).toBe(true)
-    const company0 = await db.broker.findUniqueOrThrow({ where: { id: brok5 } })
-    expect(verifyPassword('primary-br-pass', company0.password)).toBe(true)
+    // Пароль живёт у пользователя (зеркало Broker.password удалено
+    // contract-миграцией df_03_contract).
+    expect(verifyPassword('primary-br-pass', primaryRow.password!)).toBe(true)
     const primary = { id: primaryId, isPrimary: true }
 
     const res = await brokerUsersPost(
@@ -614,8 +618,8 @@ describe('роуты списка людей (Блок 5): access и brokers/[id
       p(brok5)
     )
     expect(changed.status).toBe(200)
-    const company = await db.broker.findUniqueOrThrow({ where: { id: brok5 } })
-    expect(verifyPassword('primary-br-pass', company.password)).toBe(true)
+    const refreshed = await db.brokerUser.findUniqueOrThrow({ where: { id: primaryId } })
+    expect(verifyPassword('primary-br-pass', refreshed.password!)).toBe(true)
 
     const offPrimary = await brokerUsersPatch(
       new NextRequest('http://localhost/x', {

@@ -131,7 +131,6 @@ beforeAll(async () => {
         companyName: 'Брокер A ' + MARK,
         phone: phone(11),
         email: 'broker-a' + RUN + '@test.ru',
-        password: hashPassword('fixture-df02b-b1'),
         users: {
           create: [
             { name: 'Брокер 1', email: 'bu1' + RUN + '@test.ru' },
@@ -150,7 +149,6 @@ beforeAll(async () => {
         companyName: 'Брокер X ' + MARK,
         phone: phone(12),
         email: 'broker-x' + RUN + '@test.ru',
-        password: hashPassword('fixture-df02b-b2'),
         isActive: false,
         users: { create: [{ name: 'Брокер X юзер', email: 'bux' + RUN + '@test.ru' }] },
       },

@@ -1,0 +1,31 @@
+# Планировщик уведомлений DF-03 (docs/ROADMAP-DEALFLOW.md, карточка DF-03):
+# внешний вызов POST /api/internal/notifications/dispatch каждые 5 минут —
+# минимальный допустимый интервал (бесплатный тариф, возможны задержки:
+# окно считается выполненным, если вызов пришёл в течение 15 минут после
+# его начала — допуск учтён в диспетчере, src/lib/notifications/windows.ts).
+# Секреты задаёт владелец: CRON_SECRET, APP_BASE_URL (Settings → Secrets).
+# Подстраховка — суточный Vercel Cron (см. RELEASE-INSTRUCTIONS).
+name: Scheduler
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: notifications-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Диспетчер уведомлений
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /api/internal/notifications/dispatch
+        run: |
+          code=$(curl -s -o /tmp/dispatch.json -w "%{http_code}" --max-time 60 -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.APP_BASE_URL }}/api/internal/notifications/dispatch")
+          echo "HTTP $code: $(cat /tmp/dispatch.json)"
+          test "$code" = "200"

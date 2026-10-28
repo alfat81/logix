@@ -297,3 +297,29 @@ export async function recipientsOfCustomer(
 
   return customer.email ? [{ userId: null, email: customer.email }] : []
 }
+
+// Адресаты брокера (DF-03): зеркало recipientsOfCustomer — активные
+// пользователи брокера с email (адресат-человек, DF-02A); если ни у
+// одного активного пользователя email нет — фолбэк на общий адрес
+// компании (Broker.email). Неактивный брокер адресатов не имеет.
+export async function recipientsOfBroker(
+  tx: Prisma.TransactionClient,
+  brokerId: string
+): Promise<Recipient[]> {
+  const broker = await tx.broker.findUnique({
+    where: { id: brokerId },
+    select: { email: true, isActive: true },
+  })
+  if (!broker || !broker.isActive) return []
+
+  const users = await tx.brokerUser.findMany({
+    where: { brokerId, isActive: true },
+    select: { id: true, email: true },
+  })
+  const personRecipients = users
+    .filter((u): u is { id: string; email: string } => Boolean(u.email))
+    .map((u) => ({ userId: u.id, email: u.email }))
+  if (personRecipients.length > 0) return personRecipients
+
+  return broker.email ? [{ userId: null, email: broker.email }] : []
+}

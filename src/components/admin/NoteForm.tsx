@@ -11,9 +11,9 @@ import { NOTE_MAX_LENGTH } from '@/lib/note-constants'
 
 // ─── Форма внутренней заметки (Ж3) ─────────────────────────────────
 // Одна и та же форма на карточках заявки и лида: заметка пишется в
-// общий журнал (type note_added, isInternal: true) и сразу попадает в
+// общий журнал (type note_added, audience=['staff']) и сразу попадает в
 // ленту под формой. Подрядчику и клиенту заметки не видны — флаг
-// isInternal держат внешние read-контексты (ACTIVITY_EXTERNAL_WHERE).
+// staff-only-события отсекают внешние read-контексты (eventWhereFor).
 
 export function NoteForm({
   targetType,

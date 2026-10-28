@@ -124,16 +124,12 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const created = await db.$transaction(async (tx) => {
       const isFirst = (await tx.brokerUser.count({ where: { brokerId: id } })) === 0
+      // Зеркало Broker.password удалено contract-миграцией df_03_contract
+      // (DEPRECATIONS 0.6.5): пароль живёт только у пользователя.
       const user = await createBrokerUser(tx, id, {
         ...parsed.data,
         isPrimary: isFirst,
       })
-      if (isFirst && parsed.data.password) {
-        await tx.broker.update({
-          where: { id },
-          data: { password: hashPassword(parsed.data.password) },
-        })
-      }
       return user
     })
     return NextResponse.json({ ok: true, userId: created.id }, { status: 201 })
@@ -181,20 +177,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
       if (isActive !== undefined) {
         await setBrokerUserActive(tx, userId, isActive)
-      }
-      if (user.isPrimary && fields.password !== undefined) {
-        await tx.broker.update({
-          where: { id },
-          data: {
-            // Broker.password непустой (схема): «снятый» пароль — пустая
-            // строка, verifyPassword в v0.6.1 её не примет (префикс
-            // scrypt обязателен с DF-00) — отката-семантика та же.
-            password:
-              fields.password === null
-                ? ''
-                : hashPassword(fields.password),
-          },
-        })
       }
     })
     return NextResponse.json({ ok: true })

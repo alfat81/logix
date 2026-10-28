@@ -97,7 +97,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           ...(data.phone !== undefined ? { phone: data.phone } : {}),
           // DF-02: email; null — осознанная очистка, отсутствие — не менять.
           ...(data.email !== undefined ? { email: data.email } : {}),
-          ...(data.password !== undefined ? { password: hashPassword(data.password) } : {}),
           ...(data.isInHouse !== undefined ? { isInHouse: data.isInHouse } : {}),
           ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
           ...(data.comment !== undefined ? { comment: data.comment || null } : {}),
@@ -117,12 +116,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (mustTearSessions) {
         await tx.brokerSession.deleteMany({ where: { brokerId: id } })
       }
-      // DF-02A: основной пользователь — источник входа; телефон и
-      // пароль синхронизируются ему при правке справочника (dual-write
-      // со старыми полями до contract-релиза, DEPRECATIONS). Смена
-      // пароля у пользователя рвёт ЕГО сессии — компания уже погашена
-      // выше. Имя пользователя не трогаем: это имя человека, его правят
-      // в списке людей (Блок 5), а не вслед за названием компании.
+      // DF-02A: основной пользователь — единственный источник входа
+      // (зеркало Broker.password удалено contract-миграцией df_03_contract,
+      // DEPRECATIONS 0.6.5). Смена пароля у пользователя рвёт ЕГО сессии —
+      // компания уже погашена выше. Имя пользователя не трогаем: это имя
+      // человека, его правят в списке людей (Блок 5), а не вслед за
+      // названием компании.
       if (data.password !== undefined || data.phone !== undefined) {
         const primary = await getPrimaryBrokerUser(tx, id)
         if (primary) {

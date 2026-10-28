@@ -5,11 +5,12 @@ import path from 'node:path'
 // ─── DF-01 «События как ось»: охранный тест ─────────────────────────
 // Инвариант единственной точки записи (§1.3 ROADMAP-DEALFLOW): событие
 // сделки пишется ТОЛЬКО через emitEvent() (lib/events.ts) — формат
-// актёра, аудитория из реестра EVENT_TYPES и синхрон isInternal живут
-// в одном месте, а не в пятнадцати. Тест текстовый (как
-// permissions-guard): падает при появлении прямого db.activity.create,
-// прямого db.notification.create (задел под DF-03) или новых вызовов
-// deprecated-обёртки logActivity вне замороженного контура подрядчика.
+// актёра и аудитория из реестра EVENT_TYPES живут в одном месте, а не
+// в пятнадцати. Тест текстовый (как permissions-guard): падает при
+// появлении прямого db.activity.create вне легитимных точек и при
+// возврате удалённой обёртки logActivity. Очередь уведомлений DF-03
+// пишется ТОЛЬКО в lib/notifications/enqueue.ts (createMany) и
+// lib/notifications/digest.ts (единственный create дайджеста).
 // Дополнение (шаг 6 карточки DF-01): любой читатель ленты обязан
 // фильтровать через eventWhereFor() — копировать where-фрагменты
 // вручную запрещено.
@@ -56,28 +57,28 @@ describe('Events Guard (DF-01)', () => {
     ).toEqual([])
   })
 
-  it('db.notification.create — нигде (уведомления появятся в DF-03 через свой модуль)', () => {
-    // Задел под DF-03: когда появится модель Notification и диспетчер
-    // писем, его модуль добавляется сюда ЕДИНСТВЕННЫМ разрешённым —
-    // как activity.create выше, а не рассыпается по роутам.
-    const offenders = files.filter((f) => /notification\.create\(/.test(fs.readFileSync(f, 'utf-8')))
-    expect(offenders.map(rel), 'прямой db.notification.create запрещён до DF-03').toEqual([])
-  })
-
-  it('logActivity( — только определение-обёртка и замороженный роут подрядчика (D31)', () => {
-    // Обёртка @deprecated существует ради непереведённого замороженного
-    // контура (FROZEN.md, D31). Новый код обязан звать emitEvent() —
-    // появление logActivity( в любом другом файле = регресс перевода.
+  it('db.notification.create — только в lib/notifications (enqueue: createMany, digest: дайджест)', () => {
+    // DF-03: очередь пишется исключительно через notifications/enqueue.ts
+    // и notifications/digest.ts (единственная точка создания дайджеста) —
+    // рассыпание по роутам запрещено.
     const allowed = new Set([
-      'src/lib/activity.ts',
-      'src/app/api/contractor/orders/[id]/stages/[stageId]/route.ts',
+      'src/lib/notifications/enqueue.ts',
+      'src/lib/notifications/digest.ts',
     ])
     const offenders = files.filter(
-      (f) => /logActivity\(/.test(fs.readFileSync(f, 'utf-8')) && !allowed.has(rel(f))
+      (f) => /notification\.create(Many)?\(/.test(fs.readFileSync(f, 'utf-8')) && !allowed.has(rel(f))
     )
+    expect(offenders.map(rel), 'db.notification.create вне lib/notifications — очередь пишется через enqueue/digest').toEqual([])
+  })
+
+  it('logActivity( — нигде (обёртка удалена contract-миграцией df_03_contract)', () => {
+    // DEPRECATIONS 0.6.5: обёртка удалена, замороженный роут подрядчика
+    // переведён на emitEvent (перевод механический). Возвращение
+    // обёртки = регресс contract-релиза.
+    const offenders = files.filter((f) => /logActivity\(/.test(fs.readFileSync(f, 'utf-8')))
     expect(
       offenders.map(rel),
-      'logActivity() вне разрешённых файлов — используйте emitEvent() из @/lib/events'
+      'logActivity() удалён (DEPRECATIONS 0.6.5) — используйте emitEvent() из @/lib/events'
     ).toEqual([])
   })
 
@@ -88,9 +89,17 @@ describe('Events Guard (DF-01)', () => {
     // staff это пустой фрагмент, для client/broker — аудитория +
     // isInternal:false; «догадаться потом» дороже заложенного инварианта.
     const readerRegex = /activity\.findMany|activities:\s*\{/
+    // Не-лентовые читатели Activity (по явным id, без фильтра видимости):
+    // digest.ts собирает ТЕЛА писем по eventId строк очереди — видимость
+    // там не применима (событие уже попало в письмо адресату).
+    const nonFeedReaders = new Set(['src/lib/notifications/digest.ts'])
     const offenders = files.filter((f) => {
       const content = fs.readFileSync(f, 'utf-8')
-      return readerRegex.test(content) && !content.includes('eventWhereFor')
+      return (
+        readerRegex.test(content) &&
+        !content.includes('eventWhereFor') &&
+        !nonFeedReaders.has(rel(f))
+      )
     })
     expect(
       offenders.map(rel),

@@ -235,8 +235,8 @@ st2=st[1]; s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{st2["id"]}',{'contr
 note='Внутренняя заметка DF-01 '+u
 s,d=a.r('POST',f'/api/admin/orders/{oid}/notes',{'text':note}); chk('DF-01: внутренняя заметка создана',s in(200,201),(s,d))
 s,d=a.r('GET',f'/api/admin/orders/{oid}'); Oa=d.get('order',d); oacts=Oa.get('activities',[])
-chk('DF-01: заметка в ленте сотрудника (staff видит всё)',any(x['type']=='note_added' and x['isInternal'] and x['description']==note for x in oacts),[x['type'] for x in oacts[:6]])
-chk('DF-01: статус-событие заявки не внутреннее (адресовано клиенту)',any(x['type']=='order_status_changed' and not x['isInternal'] for x in oacts),[x['type'] for x in oacts[:6]])
+chk('DF-01: заметка в ленте сотрудника (staff видит всё; df_03_contract: приватность = audience)',any(x['type']=='note_added' and x.get('audience')==['staff'] and x['description']==note for x in oacts),[x['type'] for x in oacts[:6]])
+chk('DF-01: статус-событие заявки адресовано клиенту',any(x['type']=='order_status_changed' and 'client' in (x.get('audience') or []) for x in oacts),[x['type'] for x in oacts[:6]])
 # client access — DF-02A: выдача доступа создаёт ОСНОВНОГО пользователя
 # компании (имя человека задаёт менеджер); логин прежний — телефон
 # компании + пароль (критерий приёмки: вход без смены пароля)
@@ -356,7 +356,7 @@ s,d=bb.r('GET','/api/admin/settings'); chk('[ПРИЁМКА DF-00D] менедж
 s,d=bb.r('PATCH','/api/admin/settings',{'key':'files.max_mb','value':50}); chk('[ПРИЁМКА DF-00D] менеджер не меняет настройки → 403',s==403,s)
 s,d=C().r('GET','/api/admin/settings'); chk('DF-00D: аноним не читает настройки → 401',s==401,s)
 s,d=a.r('GET','/api/admin/settings'); st=d.get('settings',[]) if isinstance(d,dict) else []
-chk('[ПРИЁМКА DF-00D] мастер читает реестр: 17 ключей, группы, дефолты',s==200 and len(st)==17 and bool(d.get('groups')) and all('defaultValue' in x for x in st),(s,len(st)))
+chk('[ПРИЁМКА DF-00D] мастер читает реестр: 18 ключей, группы, дефолты',s==200 and len(st)==18 and bool(d.get('groups')) and all('defaultValue' in x for x in st),(s,len(st)))
 f0=[x for x in st if x['key']=='files.max_mb'][0]
 chk('DF-00D: пустая таблица — значение равно дефолту',f0['value']==25 and f0['isModified']==False,f0)
 s,d=a.r('PATCH','/api/admin/settings',{'key':'files.max_mb','value':50}); chk('[ПРИЁМКА DF-00D] мастер меняет значение, новое видно в ответе',s==200 and (d.get('setting') or {}).get('value')==50,(s,d))
@@ -430,6 +430,101 @@ s,d=a.r('POST','/api/admin/brokers',{'companyName':'DF02 брокер '+u,'phone
 s,d=a.r('PATCH',f'/api/admin/brokers/{brk_df02}',{'email':'broken-email'}); chk('DF-02: мусорный email брокера → 400',s==400,(s,d))
 s,d=a.r('PATCH',f'/api/admin/brokers/{brk_df02}',{'email':'df02-broker-fixed-'+u+'@test.ru'}); chk('DF-02: PATCH email брокера сохраняет',s==200 and d.get('broker',{}).get('email')=='df02-broker-fixed-'+u+'@test.ru',(s,d))
 s,d=a.r('GET','/api/admin/brokers'); blist=d.get('brokers',[]); chk('DF-02: список брокеров отдаёт email',bool(blist) and 'email' in blist[0],(blist[0] if blist else None))
+# --- DF-03: очередь уведомлений и письма трёх режимов (D33) ---
+# Стенд: EMAIL_PROVIDER=fake (письма уходят в очередь со статусом sent и
+# providerId fake:...). Диспетчер — POST /api/internal/notifications/dispatch
+# с Bearer CRON_SECRET (внешний планировщик — workflow scheduler.yml, ≥5 мин,
+# допуск окна 15 минут). Журнал — GET /api/admin/notifications (только мастер).
+CRON=os.environ.get('CRON_SECRET','')
+def disp():
+    return C().r('POST','/api/internal/notifications/dispatch',h={'Authorization':'Bearer '+CRON} if CRON else None)
+s,d=C().r('POST','/api/internal/notifications/dispatch'); chk('DF-03: диспетчер без токена → 403',s==403,s)
+s,d=C().r('POST','/api/internal/notifications/dispatch',h={'Authorization':'Bearer wrong-secret'}); chk('DF-03: диспетчер с неверным токеном → 403',s==403,s)
+s,d=C().r('GET','/api/admin/notifications'); chk('DF-03: аноним не читает очередь → 401',s==401,s)
+s,d=bb.r('GET','/api/admin/notifications'); chk('DF-03: менеджер не читает очередь → 403',s==403,s)
+# фикстуры: менеджер с email; сделка (лид → заявка); доступ и назначение —
+# ПОСЛЕ конвертации (клиент сделки рождается из rawContact, ответственный
+# по умолчанию — мастер без email: выдаём человеку email и назначаем менеджера)
+s,d=a.r('POST','/api/admin/employees',{'name':'DF03 менеджер '+u,'phone':ph(base+41),'password':'df03-pass-1','roles':['manager'],'email':'df03-staff-'+u+'@test.example'}); chk('DF-03: сотрудник с email создан',s==201,(s,d)); staff3=(d.get('employee') or {}).get('id')
+s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'DF03 сделка '+u,'phone':ph(base+46)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':100}}); lid3=(d.get('lead') or d)['id']
+s,d=a.r('POST',f'/api/admin/leads/{lid3}/options',{'description':'Море','transportModes':['Море'],'price':100000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':30,'priorityFit':'cost','isSelected':True})
+s,d=a.r('POST',f'/api/admin/leads/{lid3}/convert',{'legalEntityId':leid,'incoterm':'FOB'}); o3=(d.get('order') or d); oid3=o3['id']
+s,d=a.r('GET',f'/api/admin/orders/{oid3}'); cust3=((d.get('order') or d).get('customer') or {}).get('id'); chk('DF-03: клиент сделки определён',bool(cust3),cust3)
+s,d=a.r('POST',f'/api/admin/customers/{cust3}/access',{'name':'DF03 Иван','phone':ph(base+43),'password':'df03-pass-1','email':'df03-client-'+u+'@test.example'}); chk('DF-03: доступ клиенту сделки выдан (человек с email)',s in(200,201),(s,d))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid3}',{'assignedToId':staff3}); chk('DF-03: назначен менеджер с email',s==200,(s,d))
+s,d=a.r('POST','/api/admin/brokers',{'companyName':'DF03 брокер '+u,'phone':ph(base+44),'password':'df03-pass-1','email':'df03-broker-'+u+'@test.example'}); brk3=(d.get('broker') or d)['id']
+s,d=a.r('POST',f'/api/admin/brokers/{brk3}/users',{'name':'DF03 брокер-человек','phone':ph(base+45),'password':'df03-pass-1','email':'df03-buser-'+u+'@test.example'}); chk('DF-03: человек брокера создан с email',s in(200,201),(s,d))
+# согласование: статус → клиенту immediate; брокер подключён → письмо ему
+s,d=a.r('PATCH',f'/api/admin/orders/{oid3}',{'status':'confirmed'}); chk('DF-03: заявка переведена в согласование',s==200,(s,d))
+s,d=a.r('POST',f'/api/admin/orders/{oid3}/brokers',{'brokerId':brk3}); chk('DF-03: брокер подключён к заявке',s in(200,201),(s,d))
+s,d=disp(); chk('DF-03: диспетчер (с токеном) отработал',s==200 and isinstance(d,dict) and 'sent' in d,(s,d))
+s,d=a.r('GET','/api/admin/notifications?recipientKind=client&status=sent&take=200'); sent=d.get('notifications',[])
+cl=[x for x in sent if x.get('toAddress')=='df03-client-'+u+'@test.example' and x.get('type')=='order_status_changed']
+chk('DF-03: согласование — клиенту письмо сразу, статус sent (fake)',len(cl)>=1 and all((x.get('providerId') or '').startswith('fake:') for x in cl),(len(cl),s))
+chk('DF-03: письмо клиенту содержит ссылку в его кабинет',any('/client/orders/' in (x.get('body') or '') for x in cl),[(x.get('body') or '')[:120] for x in cl[:1]])
+s,d=a.r('GET','/api/admin/notifications?recipientKind=broker&take=50'); bro=[x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-buser-'+u+'@test.example' and x.get('type')=='order_broker_attached']
+chk('DF-03: подключение брокера — письмо ИМЕННО ему, сразу',len(bro)==1 and bro[0].get('mode')=='immediate',(len(bro),bro[:1]))
+# красное: этап в problem → немедленно, нейтрально клиенту
+s,d=a.r('GET',f'/api/admin/orders/{oid3}'); st3=(d.get('order') or d).get('stages',[])
+s,d=a.r('PATCH',f'/api/admin/orders/{oid3}/stages/{st3[0]["id"]}',{'status':'problem'}); chk('DF-03: этап в problem',s==200,(s,d))
+s,d=disp()
+s,d=a.r('GET','/api/admin/notifications?status=sent&take=200'); sent=d.get('notifications',[])
+redc=[x for x in sent if x.get('toAddress')=='df03-client-'+u+'@test.example' and x.get('mode')=='red']
+chk('DF-03: problem — клиенту красное письмо немедленно',len(redc)>=1,(len(redc),s))
+chk('DF-03: красное письмо — префикс темы из настройки, нейтральный текст',bool(redc) and redc[0].get('subject','').startswith('Срочно:') and 'задержка' in redc[0].get('body','') and 'проблем' not in redc[0].get('body','').lower(),redc[0].get('subject') if redc else None)
+reds=[x for x in sent if x.get('toAddress')=='df03-staff-'+u+'@test.example' and x.get('mode')=='red']
+chk('DF-03: problem — ответственному красное письмо',len(reds)>=1,(len(reds),s))
+# окна: три события перевозки → одно письмо в окне, не три
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+nowmsk=datetime.now(ZoneInfo('Europe/Moscow'))
+future=(nowmsk+timedelta(hours=2)).strftime('%H:%M')
+cur=nowmsk.strftime('%H:%M')
+s,d=a.r('PATCH','/api/admin/settings',{'key':'notifications.client_digest_times','value':[future]}); chk('DF-03: окно уведомлений сдвинуто в будущее',s==200,(s,d))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid3}',{'status':'in_progress'}); chk('DF-03: заявка в работе (перевозка — обычные письма в окнах)',s==200,(s,d))
+for stg in st3[1:4]:
+    s,d=a.r('PATCH',f'/api/admin/orders/{oid3}/stages/{stg["id"]}',{'status':'done'})
+s,d=disp()
+s,d=a.r('GET','/api/admin/notifications?type=digest&take=50'); dg=[x for x in d.get('notifications',[]) if x.get('windowKey') and x.get('toAddress')=='df03-client-'+u+'@test.example']
+chk('DF-03: вне окна дайджест не собирается (пустого письма нет)',len(dg)==0,(len(dg),s))
+s,d=a.r('PATCH','/api/admin/settings',{'key':'notifications.client_digest_times','value':[cur]})
+s,d=disp()
+s,d=a.r('GET','/api/admin/notifications?type=digest&take=50'); dg=[x for x in d.get('notifications',[]) if x.get('windowKey') and x.get('toAddress')=='df03-client-'+u+'@test.example']
+chk('DF-03: в окне — одно письмо-дайджест, а не три',len(dg)>=1,(len(dg),s))
+body=dg[0].get('body','') if dg else ''
+chk('DF-03: дайджест сгруппирован по заявке, события внутри',body.count('•')>=3 and '— заявка №' in body,(body.count('•'),body[:200]))
+chk('DF-03: дайджест доставлен fake-транспортом',bool(dg) and (dg[0].get('providerId') or '').startswith('fake:'),dg[0].get('providerId') if dg else None)
+s,d=a.r('DELETE','/api/admin/settings',{'key':'notifications.client_digest_times'}); chk('DF-03: окна сброшены к дефолту (09:00/16:00)',s==200,(s,d))
+# документы: загрузка клиентом → ответственному; версия → клиенту+брокеру;
+# деактивированный человек брокера писем не получает
+import time as _t
+_t.sleep(61)  # бакет «5 провалов/мин на IP» из секции rate-limit — ждём окно
+c3=C(); s,d=c3.r('POST','/api/auth/client/login',{'phone':ph(base+43),'password':'df03-pass-1'}); chk('DF-03: клиент входит',s==200,(s,d))
+body,ct=multipart({'type':'invoice','title':'DF03 счёт '+u},'inv3.pdf',b'%PDF-1.4 df03',"application/pdf")
+s,d=c3.r('POST',f'/api/client/orders/{oid3}/documents',raw=body,ct=ct); chk('DF-03: клиент загрузил документ',s in(200,201),(s,d)); doc3=(d.get('document') or d)['id']
+s,d=disp()
+s,d=a.r('GET','/api/admin/notifications?recipientKind=employee&status=sent&take=200'); docr=[x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-staff-'+u+'@test.example' and x.get('type')=='document_created']
+chk('DF-03: документ загружен клиентом → ответственному письмо',len(docr)>=1,(len(docr),s))
+s,d=a.r('GET','/api/admin/notifications?recipientKind=broker&take=200'); bcnt=len([x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-buser-'+u+'@test.example'])
+body,ct=multipart({'type':'invoice','title':'DF03 счёт '+u},'inv3b.pdf',b'%PDF-1.4 df03-v2',"application/pdf")
+s,d=c3.r('POST',f'/api/client/documents/{doc3}/versions',raw=body,ct=ct); chk('DF-03: клиент добавил версию (та же карточка)',s in(200,201),(s,d))
+s,d=disp()
+s,d=a.r('GET','/api/admin/notifications?recipientKind=broker&take=200'); b2=[x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-buser-'+u+'@test.example']
+chk('DF-03: новая версия документа → брокеру письмо (видит документ)',len(b2)>bcnt,(bcnt,len(b2)))
+s,d=a.r('GET',f'/api/admin/brokers/{brk3}/users'); bu=(d.get('users') or [])
+bud=[x for x in bu if x.get('email')=='df03-buser-'+u+'@test.example']
+s,d=a.r('PATCH',f'/api/admin/brokers/{brk3}/users',{'userId':bud[0]['id'],'isActive':False}); chk('DF-03: человек брокера деактивирован',s==200,(s,d))
+body,ct=multipart({'type':'invoice','title':'DF03 счёт '+u},'inv3c.pdf',b'%PDF-1.4 df03-v3',"application/pdf")
+s,d=c3.r('POST',f'/api/client/documents/{doc3}/versions',raw=body,ct=ct)
+s,d=disp()
+s,d=a.r('GET','/api/admin/notifications?recipientKind=broker&take=200'); b3=[x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-buser-'+u+'@test.example']
+chk('DF-03: деактивированный получатель письма не получает',len(b3)==len(b2),(len(b2),len(b3)))
+# внутренняя заметка — внешним ни одного письма
+s,d=a.r('GET','/api/admin/notifications?recipientKind=client&take=200'); before=len([x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-client-'+u+'@test.example'])
+s,d=a.r('POST',f'/api/admin/orders/{oid3}/notes',{'text':'DF03 внутренняя заметка '+u}); chk('DF-03: заметка создана',s in(200,201),(s,d))
+s,d=disp()
+s,d=a.r('GET','/api/admin/notifications?recipientKind=client&take=200'); aftern=len([x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-client-'+u+'@test.example']); chk('DF-03: внутренняя заметка — внешним ни одного письма',aftern==before,(before,aftern))
+
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)
 hard=[r for r in R if not r[1] and not r[0].startswith('[ЦЕЛЬ')]

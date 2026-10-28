@@ -12,7 +12,6 @@
 
 | Экспорт | Файл | Назначение (первая строка комментария) |
 |---|---|---|
-| `ACTIVITY_EXTERNAL_WHERE` | `src/lib/activity.ts` | — |
 | `ACTIVITY_FEED_TAKE` | `src/lib/activity.ts` | Лимит выдачи: лента без пагинации (Ж4 сделает постраничность для |
 | `ACTIVITY_PUBLIC_FIELDS` | `src/lib/activity.ts` | ── Чтение ленты (GET карточек) ───────────────────────────────────── |
 | `ACTIVITY_TYPES` | `src/lib/activity.ts` | Стабильные коды событий: расширение списка — правка здесь, значения |
@@ -31,6 +30,7 @@
 | `BROKER_PASSWORD_MIN` | `src/lib/brokers.ts` | Пароль урезанного ЛК брокера. Жёстче подрядчицкого (6, Г2 — только |
 | `BROKER_PUBLIC_FIELDS` | `src/lib/brokers.ts` | ─── Публичная проекция брокера (Д) ─────────────────────────────── |
 | `BROKER_SESSION_COOKIE` | `src/lib/broker-auth.ts` | Кабинет брокера (Д). Механизм сессий — lib/portal-auth.ts. |
+| `Brand` | `src/lib/brand.ts` | — |
 | `BrokerActor` | `src/lib/activity.ts` | — |
 | `BrokerEmailSchema` | `src/lib/brokers.ts` | — |
 | `BrokerEstimateInput` | `src/lib/brokers.ts` | — |
@@ -99,6 +99,9 @@
 | `DOC_TITLE_MAX_LENGTH` | `src/lib/document-constants.ts` | Пределы текстовых полей: название документа и комментарий версии. |
 | `DOC_VERSION_PUBLIC_FIELDS` | `src/lib/documents.ts` | — |
 | `DealParticipants` | `src/lib/participants.ts` | — |
+| `DealRef` | `src/lib/notifications/templates.ts` | — |
+| `DigestRun` | `src/lib/notifications/digest.ts` | — |
+| `DispatchRun` | `src/lib/notifications/dispatch.ts` | — |
 | `DocActor` | `src/lib/documents.ts` | — |
 | `DocAllowedMime` | `src/lib/document-constants.ts` | — |
 | `DocFilePayload` | `src/lib/documents.ts` | — |
@@ -118,13 +121,15 @@
 | `EMPLOYEE_ROLE_LABELS` | `src/lib/employees.ts` | — |
 | `EMPTY_LEAD_CARGO_FORM` | `src/lib/leads.ts` | — |
 | `ESTIMATE_NOTES_MAX` | `src/lib/brokers.ts` | — |
-| `EVENT_TYPES` | `src/lib/events.ts` | — |
+| `EVENT_TYPES` | `src/lib/event-registry.ts` | — |
+| `EmailProvider` | `src/lib/notifications/transports/email.ts` | — |
+| `EmailSender` | `src/lib/brand.ts` | — |
 | `EmitEventInput` | `src/lib/events.ts` | — |
 | `EmployeeActor` | `src/lib/activity.ts` | Конкретные типы актёров (Е: документы требуют ровно один из трёх |
 | `EmployeeEmailSchema` | `src/lib/employees.ts` | — |
 | `EmployeeRole` | `src/lib/auth.ts` | Роли — JSON-массив в Employee.roles (не enum БД): новая роль — правка |
 | `EmployeeRoleName` | `src/lib/employees.ts` | — |
-| `EventMeta` | `src/lib/events.ts` | Метаданные типа события: подпись (для будущих фильтров/писем), |
+| `EventMeta` | `src/lib/event-registry.ts` | Метаданные типа события: подпись (подпись письма/фильтры), аудитория |
 | `LEAD_ACTIVE_STATUSES` | `src/lib/leads.ts` | v0.3.1 (BRANDBOOK §4.1): счётчик навигации у «Лидов» — активные, |
 | `LEAD_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Лид: new/calculated — ждём (расчёт, выбор клиента), won — сделка |
 | `LEAD_CARGO_LABELS` | `src/lib/leads.ts` | Подписи полей анкеты — общие для диалога создания и карточки лида |
@@ -140,13 +145,19 @@
 | `LeadEditSchema` | `src/lib/lead-edit.ts` | Тело PATCH анкеты — админский роут (контакты + груз; контакты правятся |
 | `LeadSource` | `src/lib/leads.ts` | — |
 | `LeadStatus` | `src/lib/leads.ts` | — |
+| `LetterDraft` | `src/lib/notifications/templates.ts` | — |
 | `LoginKind` | `src/lib/login-guard.ts` | — |
 | `MAX_LIST_TAKE` | `src/lib/list-query.ts` | — |
 | `MAX_QUERY_LENGTH` | `src/lib/list-query.ts` | — |
 | `MIN_QUERY_LENGTH` | `src/lib/search-constants.ts` | Меньше 2 символов роут не ищет (200 с пустыми секциями): одиночная |
 | `NOTE_MAX_LENGTH` | `src/lib/note-constants.ts` | Потолок текста заметки: лента остаётся читаемой, textarea UI |
+| `NOT_CONFIGURED` | `src/lib/notifications/transport.ts` | Канал не настроен — терминальный статус skipped (не ошибка доставки: |
 | `NoteRow` | `src/lib/activity.ts` | Запись заметки. В отличие от logActivity (наблюдение над действием — |
-| `NotifyRule` | `src/lib/events.ts` | Кто получит уведомление (DF-03, матрица §8 ROADMAP-DEALFLOW; точные |
+| `NotificationEnvelope` | `src/lib/notifications/rules.ts` | Конверт — строка будущей очереди без текстов: кому (kind+id+адрес), |
+| `NotificationTransport` | `src/lib/notifications/transport.ts` | — |
+| `NotifyHint` | `src/lib/events.ts` | Подсказка правилам уведомлений для событий, где из самой записи |
+| `NotifyMode` | `src/lib/notifications/rules.ts` | — |
+| `NotifyRule` | `src/lib/event-registry.ts` | Кто получит уведомление (DF-03, матрица §8 ROADMAP-DEALFLOW; точные |
 | `ORDER_ACTIVE_STATUSES` | `src/lib/order-constants.ts` | v0.3.1 (BRANDBOOK §4.2): табы-группы списка заявок. «Активные» — |
 | `ORDER_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Заявка: расчёт и согласование — ожидание, в работе — движение, |
 | `ORDER_SORTS` | `src/lib/orders.ts` | ─── Сортировки списка заявок (Ж4; v0.3.1 — переезд из роута, ────── |
@@ -178,6 +189,7 @@
 | `PortalRequireResult` | `src/lib/portal-auth.ts` | — |
 | `QUOTE_PRIORITY_FITS` | `src/lib/leads.ts` | Ориентир варианта: под какой приоритет клиента этот вариант заточен |
 | `QUOTE_PRIORITY_FIT_LABELS` | `src/lib/leads.ts` | — |
+| `QueuedEventInput` | `src/lib/notifications/enqueue.ts` | — |
 | `QuotePriorityFit` | `src/lib/leads.ts` | — |
 | `QuoteSnapshotInput` | `src/lib/leads.ts` | — |
 | `QuoteSnapshotSchema` | `src/lib/leads.ts` | ─── Снимок условий сделки (Ж1) ───────────────────────────────────── |
@@ -186,7 +198,9 @@
 | `RawContactSchema` | `src/lib/leads.ts` | Черновая анкета контакта на этапе запроса (В1, rawContact Json). |
 | `RawContractorInfoSchema` | `src/lib/contractors.ts` | Черновая анкета кандидата (rawInfo Json, Г1) — толерантный record, как |
 | `Recipient` | `src/lib/participants.ts` | Адресат уведомления по компании-клиенту (recipientsOfCustomer): |
+| `RecipientKind` | `src/lib/notifications/rules.ts` | — |
 | `RequisiteField` | `src/lib/requisite-fields.ts` | — |
+| `ResolvedDealEvent` | `src/lib/notifications/rules.ts` | Событие в терминах правил (снимок из emitEvent, lib/events.ts). |
 | `RouteFieldsInput` | `src/lib/route-fields.ts` | — |
 | `RouteFieldsSchema` | `src/lib/route-fields.ts` | ── zod-схема route-полей (тела POST/PATCH) ───────────────────────── |
 | `SEARCH_TAKE` | `src/lib/search-constants.ts` | Сколько строк на секцию (заявки / лиды) возвращает глобальный поиск. |
@@ -199,7 +213,8 @@
 | `STAGE_STATUSES` | `src/lib/order-constants.ts` | Статус этапа внутри заявки (роадмап, раздел 3): не начат → в работе → |
 | `STAGE_STATUS_LABELS` | `src/lib/order-constants.ts` | — |
 | `SYSTEM_ACTOR` | `src/lib/activity.ts` | — |
-| `SYSTEM_ACTOR_NAME` | `src/lib/events.ts` | Снимок имени системного актёра. Живёт здесь (а не в activity.ts), |
+| `SYSTEM_ACTOR_NAME` | `src/lib/events.ts` | — |
+| `SendResult` | `src/lib/notifications/transport.ts` | — |
 | `SettingDef` | `src/lib/settings.ts` | — |
 | `SettingGroup` | `src/lib/settings.ts` | — |
 | `SettingKey` | `src/lib/settings.ts` | — |
@@ -218,6 +233,7 @@
 | `TRANSPORT_TYPE_LABELS` | `src/lib/route-fields.ts` | — |
 | `TransitionOption` | `src/lib/status-machine.ts` | ─── Проекции для UI (P1-05: показываем только допустимое) ──── |
 | `TransitionResult` | `src/lib/status-machine.ts` | — |
+| `TransportMessage` | `src/lib/notifications/transport.ts` | — |
 | `TransportModesSchema` | `src/lib/leads.ts` | Виды транспорта в варианте — свободный список непустых строк («Авто», |
 | `TransportType` | `src/lib/leads.ts` | — |
 | `TransportTypeCode` | `src/lib/route-fields.ts` | — |
@@ -229,6 +245,8 @@
 | `VAT_MODE_LABELS` | `src/lib/money.ts` | — |
 | `VatModeCode` | `src/lib/money.ts` | — |
 | `VisibleDocument` | `src/lib/documents.ts` | — |
+| `WINDOW_GRACE_MINUTES` | `src/lib/notifications/windows.ts` | Допуск планировщика (карточка DF-03): окно выполняется, если вызов |
+| `ZonedNow` | `src/lib/notifications/windows.ts` | — |
 | `addDocumentVersion` | `src/lib/documents.ts` | — |
 | `allowedLeadTransitionsLabeled` | `src/lib/status-machine.ts` | — |
 | `allowedOrderTransitionsLabeled` | `src/lib/status-machine.ts` | — |
@@ -270,9 +288,14 @@
 | `createContractorSession` | `src/lib/contractor-auth.ts` | — |
 | `createCustomerUser` | `src/lib/company-users.ts` | — |
 | `createDocumentOnDeal` | `src/lib/documents.ts` | — |
+| `createEmailTransport` | `src/lib/notifications/transports/email.ts` | Фабрика email-канала. fromName/replyTo приходят в сообщении |
 | `createEmployeeSession` | `src/lib/auth.ts` | — |
+| `createFakeTransport` | `src/lib/notifications/transports/fake.ts` | ─── DF-03: фиктивный транспорт (e2e/CI/стенд) ──────────────────────── |
 | `createOrderWithStages` | `src/lib/orders.ts` | — |
+| `createTelegramTransport` | `src/lib/notifications/transports/telegram.ts` | ─── DF-03: заглушка Telegram-транспорта ───────────────────────────── |
+| `createWhatsappTransport` | `src/lib/notifications/transports/whatsapp.ts` | ─── DF-03: заглушка WhatsApp-транспорта ───────────────────────────── |
 | `db` | `src/lib/db.ts` | — |
+| `dealLink` | `src/lib/notifications/templates.ts` | Ссылка на сделку в кабинете получателя (§8: клиент видит свою |
 | `definePortal` | `src/lib/portal-auth.ts` | — |
 | `deleteDocument` | `src/lib/documents.ts` | ── Удаление документа (только менеджер) ──────────────────────────── |
 | `destroyBrokerSession` | `src/lib/broker-auth.ts` | — |
@@ -282,12 +305,16 @@
 | `detachBrokerFromLead` | `src/lib/broker-links.ts` | Снять связь «брокер консультирует запрос» и записать |
 | `detachBrokerFromOrder` | `src/lib/broker-links.ts` | Снять видимость заявки у брокера и записать order_broker_detached. |
 | `detectFamily` | `src/lib/file-signature.ts` | — |
+| `dispatchNow` | `src/lib/notifications/dispatch.ts` | Полный проход: окна дайджестов + пачки до исчерпания (с потолком). |
+| `dispatchPendingBatch` | `src/lib/notifications/dispatch.ts` | Одна пачка: заявка → отправка вне транзакции → итог. |
 | `docFileError` | `src/lib/documents.ts` | — |
 | `documentEventAudience` | `src/lib/audience.ts` | Аудитория СОБЫТИЯ о документе: внутренний документ не должен даже |
 | `documentVisibleToBroker` | `src/lib/documents.ts` | — |
 | `documentVisibleToClient` | `src/lib/documents.ts` | — |
-| `emitEvent` | `src/lib/events.ts` | Запись события сделки. Семантика ошибок — как у прежнего logActivity: |
+| `dueWindow` | `src/lib/notifications/windows.ts` | Первое окно, которое пора исполнять прямо сейчас (с учётом допуска), |
+| `emitEvent` | `src/lib/events.ts` | Запись события сделки + постановка уведомлений в очередь. |
 | `employeeActor` | `src/lib/activity.ts` | — |
+| `enqueueNotifications` | `src/lib/notifications/enqueue.ts` | — |
 | `eventWhereFor` | `src/lib/audience.ts` | Where-фрагмент для чтения ленты данным кабинетом. |
 | `findOrCreateContract` | `src/lib/orders.ts` | Для новой пары рамочный договор создаётся прозрачно в момент первой |
 | `findOrCreateCustomer` | `src/lib/orders.ts` | Если передан customerId — берём его. Иначе: по телефону (если указан) |
@@ -299,6 +326,7 @@
 | `formatMoney` | `src/lib/money.ts` | «1 450 ₽» | «1 450,50 $» — детерминированный вывод для UI, ленты и |
 | `formatMoneyWithVat` | `src/lib/money.ts` | Строка «1 450 ₽ · без НДС» — цена варианта/снимка с режимом НДС. |
 | `formatPhoneInput` | `src/lib/phone.ts` | Маска телефона при вводе — форматирует по мере печатания |
+| `getBrand` | `src/lib/brand.ts` | — |
 | `getBrokerByToken` | `src/lib/broker-auth.ts` | — |
 | `getClientByToken` | `src/lib/client-auth.ts` | — |
 | `getClientIp` | `src/lib/login-guard.ts` | Доверенный IP клиента. |
@@ -307,12 +335,14 @@
 | `getCurrentClient` | `src/lib/client-auth.ts` | — |
 | `getCurrentContractor` | `src/lib/contractor-auth.ts` | — |
 | `getCurrentEmployee` | `src/lib/auth.ts` | — |
+| `getEmailSender` | `src/lib/brand.ts` | — |
 | `getEmployeeByToken` | `src/lib/auth.ts` | — |
 | `getIncompleteMandatoryStages` | `src/lib/orders.ts` | ─── Готовность обязательного ядра к завершению заявки (P1-05) ── |
 | `getPrimaryBrokerUser` | `src/lib/company-users.ts` | — |
 | `getPrimaryCustomerUser` | `src/lib/company-users.ts` | Основной пользователь — точка входа Блока 3 (перенос входа компании |
 | `getSetting` | `src/lib/settings.ts` | Пустая таблица легитимна: откат на значение по умолчанию — система |
 | `getSettingDef` | `src/lib/settings.ts` | Свободные ключи не допускаются: пишем только то, что знает экран |
+| `getTransport` | `src/lib/notifications/channel.ts` | ─── DF-03: выбор транспорта по каналу письма ──────────────────────── |
 | `hashPassword` | `src/lib/password.ts` | — |
 | `hashSessionToken` | `src/lib/portal-auth.ts` | — |
 | `isCurrencyCode` | `src/lib/money.ts` | — |
@@ -320,17 +350,19 @@
 | `isLeadAnketaEditable` | `src/lib/lead-edit.ts` | Окно правки анкеты (P1-02): new/calculated. won — история (правится |
 | `isPhoneNormalized` | `src/lib/phone.ts` | Проверка: это нормализованный телефон? (+7XXXXXXXXXX) |
 | `isSqliteDatabase` | `src/lib/list-query.ts` | — |
+| `isStaffOnlyRow` | `src/lib/activity.ts` | Заметка (и другое staff-only событие) — для UI-пометок. Функция в |
 | `isStageMandatory` | `src/lib/orders.ts` | — |
 | `isValidEmail` | `src/lib/phone.ts` | Проверка: это email (строгая)? |
 | `isVatMode` | `src/lib/money.ts` | — |
 | `joinRouteText` | `src/lib/route-fields.ts` | Обратная сборка для показа/редактирования: «Страна, город» / «Город» / |
-| `logActivity` | `src/lib/activity.ts` | — |
 | `logDocumentVersionAdded` | `src/lib/documents.ts` | Событие о новой версии — отдельно от транзакции (лента — наблюдение, |
 | `logInternalNote` | `src/lib/activity.ts` | — |
 | `mergeLeadCargo` | `src/lib/lead-edit.ts` | Полная замена известных полей анкеты груза с сохранением неизвестных |
 | `mergeTransportChips` | `src/lib/contractors.ts` | Слияние при записи чипов компетенций: менеджер переключает только |
 | `moneyAmount` | `src/lib/money.ts` | ─── zod-помощник для денежных полей API (P1-04) ─────────────────── |
+| `nextWindowTime` | `src/lib/notifications/windows.ts` | Ближайшее время СЛЕДУЮЩЕГО окна (для отложенных «красных» сверх |
 | `normalizePhone` | `src/lib/phone.ts` | Нормализация телефона в формат +7XXXXXXXXXX |
+| `nowInZone` | `src/lib/notifications/windows.ts` | Текущее «настенное» время в поясе IANA. |
 | `orderOrderBy` | `src/lib/orders.ts` | — |
 | `parseDocumentCreateForm` | `src/lib/documents.ts` | — |
 | `parseDocumentVersionForm` | `src/lib/documents.ts` | — |
@@ -338,23 +370,30 @@
 | `parseListQuery` | `src/lib/list-query.ts` | Парсинг параметров списка. Возвращает ошибку (строкой — роут отдаст |
 | `parseMoneyInput` | `src/lib/money.ts` | Разбор ввода менеджера: «1 450,50» / «1450.5» / «1 450» → число; |
 | `parseRouteText` | `src/lib/route-fields.ts` | ── Разбор свободного «Страна, город» ─────────────────────────────── |
+| `parseTimeToMinutes` | `src/lib/notifications/windows.ts` | — |
 | `participantsOf` | `src/lib/participants.ts` | Единая точка входа: ref.orderId либо ref.leadId (ровно один). |
 | `participantsOfLead` | `src/lib/participants.ts` | Участники запроса (Lead): до конвертации клиент может отсутствовать |
 | `participantsOfOrder` | `src/lib/participants.ts` | Участники заявки (Order): ответственный, клиент, брокеры, подрядчики |
 | `phoneVariants` | `src/lib/phone.ts` | Телефонные варианты поискового запроса (Ж7, переиспользован Ж6а). |
+| `processRegularDigests` | `src/lib/notifications/digest.ts` | — |
 | `projectActorName` | `src/lib/actor-name.ts` | ── Правило проекции (чистая функция) ─────────────────────────────── |
 | `projectActors` | `src/lib/actor-name.ts` | Лента событий (Activity): actorName → проекция. |
 | `projectAuthors` | `src/lib/actor-name.ts` | Плоские строки версий (DocumentVersion): authorName → проекция. |
 | `projectDocumentAuthors` | `src/lib/actor-name.ts` | Список документов: authorName во ВСЕХ версиях каждого документа, |
 | `readApiResponse` | `src/lib/api-client.ts` | — |
+| `readAppBaseUrl` | `src/lib/notifications/templates.ts` | — |
 | `readDocFile` | `src/lib/documents.ts` | Читает файл и проверяет сигнатуру. null — содержимое не прошло проверку. */ |
+| `readEmailProvider` | `src/lib/notifications/transports/email.ts` | — |
 | `readInfoString` | `src/lib/contractors.ts` | Толерантное чтение строковых полей анкеты (directions и пр.). |
 | `readLeadCargo` | `src/lib/leads.ts` | — |
 | `readPermits` | `src/lib/brokers.ts` | ─── Конвенции Json для UI (по образцу mergeTransportChips Г5) ──── |
 | `readTransportChips` | `src/lib/contractors.ts` | Толерантное чтение массива видов транспорта: не массив / не строки — |
 | `readyDateInput` | `src/lib/route-fields.ts` | Готовность к отгрузке: строка yyyy-mm-dd → UTC-полночь (даты бланка — |
+| `recipientsOfBroker` | `src/lib/participants.ts` | Адресаты брокера (DF-03): зеркало recipientsOfCustomer — активные |
 | `recipientsOfCustomer` | `src/lib/participants.ts` | ─── Получатели клиента (единственная точка изменения, DF-03) ──────── |
 | `recordLoginAttempt` | `src/lib/login-guard.ts` | — |
+| `renderFooter` | `src/lib/notifications/templates.ts` | Подвал: название и подпись — настройки; отключение — ответ на письмо |
+| `renderSingleLetter` | `src/lib/notifications/templates.ts` | Одиночное письмо по событию. Нейтральный вариант (аудит №16) не |
 | `requireBroker` | `src/lib/broker-auth.ts` | Единственный способ проверить брокера в роутах кабинета; опций нет — |
 | `requireClient` | `src/lib/client-auth.ts` | Единственный способ проверить клиента в роутах кабинета; опций нет — |
 | `requireContractor` | `src/lib/contractor-auth.ts` | Единственный способ проверить подрядчика в роутах кабинета; опций нет — |
@@ -362,9 +401,11 @@
 | `requisitesInn` | `src/lib/requisite-fields.ts` | ИНН — главный реквизит для строки списка (идентифицирует юрлицо |
 | `resetSetting` | `src/lib/settings.ts` | «Сбросить» на экране настроек: строка удаляется, getSetting возвращается |
 | `resolveFileMime` | `src/lib/file-signature.ts` | — |
+| `resolveRecipients` | `src/lib/notifications/rules.ts` | — |
 | `resolveUserNames` | `src/lib/actor-name.ts` | ── Батч-резолв пользователей ─────────────────────────────────────── |
 | `routeToDbColumns` | `src/lib/route-fields.ts` | RouteFieldsInput → данные для prisma create/update (readyDate — Date, |
 | `sanitizeFileName` | `src/lib/documents.ts` | Санитизация имени: без каталогов, без управляющих символов, без |
+| `scheduleDispatch` | `src/lib/notifications/dispatch.ts` | Немедленная попытка диспетчера после коммита write-операции |
 | `sessionCookieOptions` | `src/lib/auth.ts` | — |
 | `setBrokerUserActive` | `src/lib/company-users.ts` | — |
 | `setCustomerUserActive` | `src/lib/company-users.ts` | Деактивация закрывает сессии пользователя немедленно (по образцу |
@@ -377,6 +418,8 @@
 | `updateCustomerUser` | `src/lib/company-users.ts` | — |
 | `utcDayStart` | `src/lib/order-summary.ts` | — |
 | `verifyPassword` | `src/lib/password.ts` | — |
+| `windowKeyOf` | `src/lib/notifications/windows.ts` | Ключ окна: «yyyy-mm-dd:HH:MM» в поясе рассылок (Notification.windowKey, |
+| `zonedWallTimeToUtc` | `src/lib/notifications/windows.ts` | Двухпроходное преобразование «настенное время в поясе» → UTC Date |
 
 ## Компоненты
 
@@ -548,6 +591,7 @@
 | POST | `/api/admin/leads/{id}/options` | admin | employee | write | нет |
 | GET, POST | `/api/admin/legal-entities` | admin | employee | — | нет |
 | PATCH | `/api/admin/legal-entities/{id}` | admin | employee | — | нет |
+| GET | `/api/admin/notifications` | admin | employee | — | нет |
 | DELETE, PATCH | `/api/admin/options/{id}` | admin | employee | write | нет |
 | GET, POST | `/api/admin/orders` | admin | employee | write | нет |
 | GET, PATCH | `/api/admin/orders/{id}` | admin | employee | write | нет |
@@ -593,13 +637,14 @@
 | PATCH | `/api/contractor/orders/{id}/stages/{stageId}` | contractor | contractor | — | нет |
 | GET | `/api/document-versions/{id}/file` | public | — | — | нет |
 | GET | `/api/health` | public | — | — | нет |
+| POST | `/api/internal/notifications/dispatch` | public | — | — | нет |
 
 ## Модели Prisma
 
 | Модель | Полей | Где используется |
 |---|---|---|
-| `Activity` | 17 | src/app/admin/(dashboard)/page.tsx, src/lib/activity.ts |
-| `Broker` | 14 | src/app/api/admin/brokers/[id]/route.ts, src/app/api/admin/brokers/[id]/users/route.ts, src/app/api/admin/brokers/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts |
+| `Activity` | 16 | src/app/admin/(dashboard)/page.tsx, src/lib/activity.ts, src/lib/notifications/digest.ts |
+| `Broker` | 13 | src/app/api/admin/brokers/[id]/route.ts, src/app/api/admin/brokers/[id]/users/route.ts, src/app/api/admin/brokers/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts |
 | `BrokerEstimate` | 8 | src/app/api/broker/leads/[id]/estimate/route.ts |
 | `BrokerSession` | 8 | src/lib/broker-auth.ts |
 | `BrokerUser` | 12 | src/app/api/admin/brokers/[id]/users/route.ts, src/app/api/auth/broker/login/route.ts, src/lib/actor-name.ts, src/lib/company-users.ts |
@@ -608,17 +653,19 @@
 | `Contractor` | 15 | src/app/api/admin/contractor-leads/[id]/route.ts, src/app/api/admin/contractors/[id]/route.ts, src/app/api/admin/contractors/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/auth/contractor/login/route.ts |
 | `ContractorLead` | 9 | src/app/api/admin/contractor-leads/[id]/route.ts, src/app/api/admin/contractor-leads/route.ts |
 | `ContractorSession` | 6 | src/lib/contractor-auth.ts |
-| `Customer` | 13 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/customers/route.ts, src/app/api/admin/leads/route.ts, src/app/api/admin/orders/route.ts |
+| `Customer` | 12 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/customers/route.ts, src/app/api/admin/leads/route.ts, src/app/api/admin/orders/route.ts |
 | `CustomerUser` | 12 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/auth/client/login/route.ts, src/lib/actor-name.ts, src/lib/company-users.ts |
 | `Document` | 12 | src/app/api/admin/documents/[id]/versions/route.ts, src/app/api/admin/leads/[id]/documents/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/app/api/client/leads/[id]/documents/route.ts (+2) |
 | `DocumentVersion` | 13 | src/app/api/document-versions/[id]/file/route.ts |
 | `Employee` | 11 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/leads/[id]/patch.ts, src/app/api/admin/orders/[id]/patch.ts (+1) |
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts |
-| `Lead` | 26 | src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/leads/[id]/convert/helpers.ts, src/app/api/admin/leads/[id]/convert/route.ts (+11) |
+| `Lead` | 26 | src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/leads/[id]/convert/helpers.ts, src/app/api/admin/leads/[id]/convert/route.ts (+12) |
 | `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts |
 | `LegalEntity` | 7 | scripts/seed.ts, src/app/api/admin/leads/[id]/convert/route.ts, src/app/api/admin/legal-entities/[id]/route.ts, src/app/api/admin/legal-entities/route.ts |
 | `LoginAttempt` | 7 | src/lib/login-guard.ts |
-| `Order` | 34 | src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/admin/orders/[id]/notes/route.ts (+14) |
+| `Notification` | 19 | src/app/api/admin/notifications/route.ts, src/lib/notifications/digest.ts, src/lib/notifications/dispatch.ts |
+| `NotificationPreference` | 5 | — |
+| `Order` | 34 | src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/admin/orders/[id]/notes/route.ts (+15) |
 | `OrderBroker` | 6 | src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/lib/broker-links.ts |
 | `OrderStageCatalog` | 5 | scripts/seed.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/orders/[id]/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts (+11) |
 | `OrderStageInstance` | 11 | src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts, src/app/api/contractor/orders/[id]/stages/[stageId]/route.ts, src/lib/orders.ts |
@@ -631,17 +678,25 @@
 |---|---|---|---|
 | `ADMIN_PASSWORD` | 2 | да | да |
 | `ADMIN_PHONE` | 2 | да | да |
+| `APP_BASE_URL` | 1 | да | да |
 | `BASE_URL` | 2 | да | да |
 | `CONTRACTOR_PORTAL_ENABLED` | 1 | да | да |
+| `CRON_SECRET` | 2 | да | да |
 | `DATABASE_URL` | 5 | да | да |
 | `DISABLE_RATE_LIMIT` | 2 | да | да |
+| `EMAIL_ALLOWLIST` | 2 | да | да |
+| `EMAIL_FROM` | 1 | да | да |
+| `EMAIL_PROVIDER` | 2 | да | да |
 | `MASTER_PASSWORD` | 2 | да | да |
 | `MASTER_PHONE` | 2 | да | да |
-| `NODE_ENV` | 2 | — | да |
+| `NODE_ENV` | 3 | — | да |
+| `RESEND_API_KEY` | 1 | да | да |
 | `SHADOW_URL` | 1 | — | да |
 | `TRUSTED_PROXY` | 1 | да | да |
 | `VERCEL` | 1 | да | да |
+| `VERCEL_ENV` | 1 | да | да |
 | `VERCEL_GIT_COMMIT_SHA` | 1 | да | да |
+| `VITEST` | 1 | да | да |
 
 ## Скрипты package.json
 

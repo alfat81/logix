@@ -13,17 +13,15 @@ export const AUDIENCES = ['staff', 'client', 'broker'] as const
 export type Audience = (typeof AUDIENCES)[number]
 
 // Where-фрагмент для чтения ленты данным кабинетом.
-// - staff видит ВСЁ (включая isInternal-заметки Ж3) — пустой фрагмент;
+// - staff видит ВСЁ (включая staff-only заметки Ж3) — пустой фрагмент;
 //   сегодняшние три админские ленты работали именно так (без where).
 // - client/broker: событие должно быть адресовано аудитории явно
-//   (колонка audience, backfill df_01_event_audience) и не быть
-//   внутренним. Двойное условие избыточно при консистентных данных
-//   (audience={staff} ⇔ isInternal), но isInternal:false — это же
-//   условие проверяет ACTIVITY_EXTERNAL_WHERE и остаётся страховкой
-//   до contract-релиза, где isInternal удаляется.
+//   (колонка audience, backfill df_01_event_audience). Страховка
+//   isInternal:false снята contract-миграцией df_03_contract: колонки
+//   больше нет, audience — единственный носитель видимости.
 export function eventWhereFor(audience: Audience): Prisma.ActivityWhereInput {
   if (audience === 'staff') return {}
-  return { isInternal: false, audience: { has: audience } }
+  return { audience: { has: audience } }
 }
 
 // Видимость ДОКУМЕНТА аудитории (не сделки!): внутренний документ —

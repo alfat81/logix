@@ -4,7 +4,8 @@ import { db } from '@/lib/db'
 import { requireContractor } from '@/lib/contractor-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { STAGE_STATUS_LABELS, type StageStatus } from '@/lib/order-constants'
-import { logActivity, contractorActor } from '@/lib/activity'
+import { contractorActor } from '@/lib/activity'
+import { emitEvent } from '@/lib/events'
 
 type Params = { params: Promise<{ id: string; stageId: string }> }
 
@@ -91,14 +92,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { code: stage.stageCode },
       select: { name: true },
     })
-    await logActivity(
-      { orderId: id },
-      contractorActor(auth.contractor),
-      'stage_status_changed',
-      `Этап «${catalogEntry?.name ?? stage.stageCode}»: ${
+    // Contract 0.6.5: обёртка logActivity удалена (DEPRECATIONS) —
+    // замороженный роут пишет через emitEvent, как весь остальной код
+    // (перевод механический, поведение не меняется; D31 не нарушен:
+    // развитие кабинета по-прежнему запрещено).
+    await emitEvent(db, {
+      target: { orderId: id },
+      actor: contractorActor(auth.contractor),
+      type: 'stage_status_changed',
+      description: `Этап «${catalogEntry?.name ?? stage.stageCode}»: ${
         STAGE_STATUS_LABELS[stage.status as StageStatus] ?? stage.status
       } → ${STAGE_STATUS_LABELS[parsed.data.status]}`,
-    )
+    })
 
     return NextResponse.json({
       stage: updated,
