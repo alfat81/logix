@@ -39,6 +39,9 @@
     "key": "exports:src/lib/status-badges.ts|CONTRACTOR_LEAD_BADGE_VARIANTS"
   },
   {
+    "key": "files:scripts/e2e_seed_notification.ts|scripts/e2e_seed_notification.ts"
+  },
+  {
     "key": "types:src/components/admin/CargoGroups.tsx|RouteView"
   },
   {

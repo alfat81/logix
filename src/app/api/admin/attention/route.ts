@@ -9,7 +9,10 @@ import { apiErrorResponse } from '@/lib/api-errors'
 //   1. просроченный этап — не завершён и плановая дата раньше сегодняшней;
 //   2. этап в статусе «проблема»;
 //   3. ближайший незавершённый этап активной заявки без исполнителя;
-//   4. лид без изменений дольше 3 дней (Lead.updatedAt, Ж5).
+//   4. лид без изменений дольше 3 дней (Lead.updatedAt, Ж5);
+//   5. письма с доставкой failed (DF-04) — только мастеру: журнал
+//      отправок master-only, менеджеру счётчик не считается и не
+//      отдаётся (null) — секция на экране не рендерится.
 //
 // Осознанные решения сессии (зафиксированы, чтобы не «всплывали»):
 //   • «Активная заявка» = calculating | confirmed | in_progress.
@@ -171,6 +174,12 @@ export async function GET(req: NextRequest) {
       updatedAt: l.updatedAt.toISOString(),
     }))
 
+    // DF-04: failed-письма в внимании — только мастеру (журнал
+    // master-only; не-мастеру null — поле отсутствует по смыслу прав).
+    const notificationsFailed = auth.employee.roles.includes('master')
+      ? await db.notification.count({ where: { status: 'failed' } })
+      : null
+
     return NextResponse.json({
       generatedAt: now.toISOString(),
       // Срезы — лимитом, счётчики — полные: «и ещё N» в UI ведёт в списки.
@@ -184,6 +193,7 @@ export async function GET(req: NextRequest) {
         unassigned: unassignedStages.length,
         staleLeads: staleLeads.length,
       },
+      notificationsFailed,
     })
   } catch (e) {
     return apiErrorResponse(e, 'attention GET', 'Не удалось загрузить сводку внимания')

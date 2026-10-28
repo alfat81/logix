@@ -14,6 +14,11 @@ import { apiErrorResponse } from '@/lib/api-errors'
 // Тела писем возвращаются целиком: мастер — привилегированная роль
 // (RULES 2.4 про маскирование относится к логам/Sentry, журнал —
 // рабочий инструмент мастера; маскирование в UI-списке сделает DF-04).
+//
+// DF-04: counts — распределение найденного (с теми же фильтрами,
+// КРОМЕ status) по статусам — табы ListTabs на экране журнала
+// (BRANDBOOK §4.2: «число — распределение найденного по тому же
+// поиску»).
 export async function GET(req: NextRequest) {
   const auth = await requireEmployee(req, { roles: ['master'] })
   if (!auth.ok) return auth.response
@@ -55,7 +60,19 @@ export async function GET(req: NextRequest) {
         createdAt: true,
       },
     })
-    return NextResponse.json({ notifications })
+    // Табы журнала: числа — по тем же фильтрам получателя/режима,
+    // но без фильтра статуса (активный таб не сужает сам себя).
+    const groups = await db.notification.groupBy({
+      by: ['status'],
+      where: {
+        ...(recipientKind ? { recipientKind } : {}),
+        ...(mode ? { mode } : {}),
+      },
+      _count: { _all: true },
+    })
+    const counts: Record<string, number> = { pending: 0, sent: 0, failed: 0, skipped: 0 }
+    for (const g of groups) counts[g.status] = g._count._all
+    return NextResponse.json({ notifications, counts })
   } catch (e) {
     return apiErrorResponse(e, 'notifications GET', 'Не удалось загрузить очередь уведомлений')
   }

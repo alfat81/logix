@@ -33,6 +33,9 @@ export type AttentionData = {
   unassignedStages: StageAttention[]
   staleLeads: LeadAttention[]
   counts: { overdue: number; problem: number; unassigned: number; staleLeads: number }
+  // DF-04: счётчик failed-писем — только мастеру (журнал master-only);
+  // не-мастеру поле приходит null'ом — секция «Письма не ушли» скрыта.
+  notificationsFailed: number | null
 }
 
 export const fmtDate = (iso: string | null): string =>

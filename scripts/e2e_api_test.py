@@ -503,7 +503,16 @@ c3=C(); s,d=c3.r('POST','/api/auth/client/login',{'phone':ph(base+43),'password'
 body,ct=multipart({'type':'invoice','title':'DF03 счёт '+u},'inv3.pdf',b'%PDF-1.4 df03',"application/pdf")
 s,d=c3.r('POST',f'/api/client/orders/{oid3}/documents',raw=body,ct=ct); chk('DF-03: клиент загрузил документ',s in(200,201),(s,d)); doc3=(d.get('document') or d)['id']
 s,d=disp()
-s,d=a.r('GET','/api/admin/notifications?recipientKind=employee&status=sent&take=200'); docr=[x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-staff-'+u+'@test.example' and x.get('type')=='document_created']
+# Поллинг до 3 с: после ответа роута параллельно стартует after()-диспетчер
+# (троттлинг 15 с) — гонка claim→send оставляет строку pending на миллисекунды.
+# Продуктовое обещание — immediate ≤5 минут; харнесс ждёт 3 с, реальная
+# недоставка (письмо не создано) тест по-прежнему ловит.
+docr=[]
+for _ in range(6):
+    s,d=a.r('GET','/api/admin/notifications?recipientKind=employee&status=sent&take=200')
+    docr=[x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-staff-'+u+'@test.example' and x.get('type')=='document_created']
+    if docr: break
+    _t.sleep(0.5)
 chk('DF-03: документ загружен клиентом → ответственному письмо',len(docr)>=1,(len(docr),s))
 s,d=a.r('GET','/api/admin/notifications?recipientKind=broker&take=200'); bcnt=len([x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-buser-'+u+'@test.example'])
 body,ct=multipart({'type':'invoice','title':'DF03 счёт '+u},'inv3b.pdf',b'%PDF-1.4 df03-v2',"application/pdf")
@@ -524,6 +533,39 @@ s,d=a.r('GET','/api/admin/notifications?recipientKind=client&take=200'); before=
 s,d=a.r('POST',f'/api/admin/orders/{oid3}/notes',{'text':'DF03 внутренняя заметка '+u}); chk('DF-03: заметка создана',s in(200,201),(s,d))
 s,d=disp()
 s,d=a.r('GET','/api/admin/notifications?recipientKind=client&take=200'); aftern=len([x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-client-'+u+'@test.example']); chk('DF-03: внутренняя заметка — внешним ни одного письма',aftern==before,(before,aftern))
+
+# --- DF-04: журнал отправок и повтор для мастера ---
+# Критерий приёмки: «искусственно сломанный транспорт виден мастеру в
+# списке и в "Требует внимания"». В e2e EMAIL_PROVIDER=fake — транспорт
+# не падает, поэтому failed-строку создаёт сид-фикстура (bun+prisma,
+# тот же паттерн, что seed): письмо после пяти попыток диспетчера.
+# Права (manager → 403) уже покрыты в DF-03 — здесь repeat-семантика.
+import subprocess
+_seed=os.path.join(os.path.dirname(os.path.abspath(__file__)),'e2e_seed_notification.ts')
+addr4='df04-failed-'+u+'@test.example'
+p=subprocess.run(['bun',_seed,'--to',addr4,'--dedup','df04-failed-'+u],capture_output=True,text=True)
+sid4=None
+if p.returncode==0 and p.stdout.strip():
+    try: sid4=json.loads(p.stdout.strip().splitlines()[-1]).get('id')
+    except Exception: sid4=None
+chk('DF-04: фикстура failed-письма создана (сломанный транспорт)',bool(sid4),(p.stdout[-120:],p.stderr[-120:]))
+s,d=a.r('GET','/api/admin/notifications?status=failed&take=200')
+frow=[x for x in d.get('notifications',[]) if x.get('id')==sid4]
+chk('DF-04: мастер видит failed в журнале (lastError на месте)',len(frow)==1 and frow[0].get('status')=='failed' and bool(frow[0].get('lastError')),(len(frow),s))
+s,d=a.r('GET','/api/admin/attention'); nf4=d.get('notificationsFailed')
+chk('DF-04: «Требует внимания» мастера насчитал failed',isinstance(nf4,int) and nf4>=1,nf4)
+s,d=bb.r('GET','/api/admin/attention'); nfm4=d.get('notificationsFailed')
+chk('DF-04: счётчик failed не уходит менеджеру (null)',nfm4 is None,nfm4)
+s,d=a.r('POST',f'/api/admin/notifications/{sid4}/retry'); chk('DF-04: повтор failed → 200 (в очереди)',s==200,(s,d))
+s,d=a.r('POST',f'/api/admin/notifications/{sid4}/retry'); chk('DF-04: повтор не-failed/skipped → 409',s==409,(s,d))
+s,d=disp()
+s,d=a.r('GET','/api/admin/notifications?status=sent&take=200')
+srow=[x for x in d.get('notifications',[]) if x.get('id')==sid4]
+chk('DF-04: после повтора письмо доставлено fake-транспортом',len(srow)==1 and srow[0].get('status')=='sent' and (srow[0].get('providerId') or '').startswith('fake:'),(len(srow),s))
+s,d=a.r('GET','/api/admin/attention'); chk('DF-04: «Требует внимания» мастера снова чист (failed=0)',d.get('notificationsFailed')==0,d.get('notificationsFailed'))
+s,d=a.r('POST','/api/admin/notifications/df04-nonexistent/retry'); chk('DF-04: повтор несуществующего → 404',s==404,(s,d))
+s,d=a.r('GET','/api/admin/notifications?status=failed&take=50'); cnts=d.get('counts',{})
+chk('DF-04: журнал отдаёт counts по статусам (табы)',isinstance(cnts,dict) and all(k in cnts for k in('pending','sent','failed','skipped')),cnts)
 
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)

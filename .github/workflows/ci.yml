@@ -124,6 +124,13 @@ jobs:
       # получал 403 «Недостаточно прав», очередь оставалась pending,
       # каскадно падали 10 проверок отправки (250/260).
       CRON_SECRET: ci-e2e-cron-secret
+      # Урок 28.10 (вторая красная): EMAIL_PROVIDER не задан → дефолт
+      # «none» (email.ts) → диспетчер ставил письмам skipped вместо sent,
+      # 7 FAIL доставки (253/260). fake = фиктивная доставка, как в
+      # .env песочницы, где e2e проходил 260/260.
+      EMAIL_PROVIDER: fake
+      # D11: base для ссылок в письмах (пернат от пустой ссылки в теле)
+      APP_BASE_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

@@ -14,7 +14,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
-import { StageSection, StaleLeadsSection } from './attention/AttentionSections'
+import {
+  StageSection,
+  StaleLeadsSection,
+  NotificationsFailedSection,
+} from './attention/AttentionSections'
 import type { AttentionData } from './attention/types'
 
 // ─── Экран «Требует внимания» (Ж5) ─────────────────────────────
@@ -60,7 +64,11 @@ export function AttentionScreen() {
   }
 
   const counts = data?.counts ?? { overdue: 0, problem: 0, unassigned: 0, staleLeads: 0 }
-  const total = counts.overdue + counts.problem + counts.unassigned + counts.staleLeads
+  // DF-04: failed-письма — часть внимания мастера (счётчик приходит
+  // null'ом не-мастеру — в общем тотале не участвует).
+  const notificationsFailed = data?.notificationsFailed ?? 0
+  const total =
+    counts.overdue + counts.problem + counts.unassigned + counts.staleLeads + notificationsFailed
 
   return (
     <div className="grid gap-4">
@@ -102,6 +110,7 @@ export function AttentionScreen() {
         </Card>
       ) : (
         <>
+          <NotificationsFailedSection count={notificationsFailed} />
           <StageSection
             title="Просроченные этапы"
             subtitle="План прошёл, этап не завершён"

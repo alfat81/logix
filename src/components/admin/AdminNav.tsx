@@ -10,6 +10,7 @@ import {
   Inbox,
   Landmark,
   ListChecks,
+  Mail,
   Settings,
   Truck,
   UserCog,
@@ -76,7 +77,12 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     title: null,
-    items: [{ href: '/admin/settings', label: 'Настройки', icon: Settings, masterOnly: true }],
+    items: [
+      // DF-04: журнал отправок — инструмент мастера (очередь писем со
+      // всеми сторонами сделки); меню и раздел master-only (Ж6в).
+      { href: '/admin/notifications', label: 'Журнал отправок', icon: Mail, masterOnly: true },
+      { href: '/admin/settings', label: 'Настройки', icon: Settings, masterOnly: true },
+    ],
   },
 ]
 

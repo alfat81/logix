@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { PauseCircle } from 'lucide-react'
+import { MailX, PauseCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LEAD_STATUS_LABELS } from '@/lib/leads'
@@ -88,6 +88,42 @@ export function StageSection({
             </Link>
           </div>
         )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ── Секция «Письма не ушли» (DF-04, только мастер) ──────────────
+// Карточка DF-04: «счётчик failed — в "Требует внимания"», критерий
+// приёмки: «искусственно сломанный транспорт виден мастеру в списке и
+// в "Требует внимания"». Счётчик приходит null'ом не-мастеру (журнал
+// master-only) — секция рендерится только у мастера, и только когда
+// есть что показать (как StageSection — сама скрывается на нуле).
+export function NotificationsFailedSection({ count }: { count: number }) {
+  if (count === 0) return null
+
+  return (
+    <Card className="border-destructive/40">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <MailX className="size-4 text-destructive" />
+          Письма не ушли
+          <Badge className="bg-destructive text-destructive-foreground border-transparent">
+            {count}
+          </Badge>
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Доставка не удалась после всех повторов (или канал был не настроен) — адресаты не получили письма
+        </p>
+      </CardHeader>
+      <CardContent>
+        <Link
+          href="/admin/notifications"
+          className="flex items-center gap-2 rounded-md border p-3 text-sm transition-colors hover:border-ring"
+        >
+          <span className="font-medium">Открыть журнал отправок</span>
+          <span className="text-muted-foreground">разбор ошибок и кнопка «Повторить»</span>
+        </Link>
       </CardContent>
     </Card>
   )

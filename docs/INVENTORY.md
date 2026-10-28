@@ -201,6 +201,7 @@
 | `RecipientKind` | `src/lib/notifications/rules.ts` | — |
 | `RequisiteField` | `src/lib/requisite-fields.ts` | — |
 | `ResolvedDealEvent` | `src/lib/notifications/rules.ts` | Событие в терминах правил (снимок из emitEvent, lib/events.ts). |
+| `RetryOutcome` | `src/lib/notifications/retry.ts` | — |
 | `RouteFieldsInput` | `src/lib/route-fields.ts` | — |
 | `RouteFieldsSchema` | `src/lib/route-fields.ts` | ── zod-схема route-полей (тела POST/PATCH) ───────────────────────── |
 | `SEARCH_TAKE` | `src/lib/search-constants.ts` | Сколько строк на секцию (заявки / лиды) возвращает глобальный поиск. |
@@ -357,6 +358,7 @@
 | `joinRouteText` | `src/lib/route-fields.ts` | Обратная сборка для показа/редактирования: «Страна, город» / «Город» / |
 | `logDocumentVersionAdded` | `src/lib/documents.ts` | Событие о новой версии — отдельно от транзакции (лента — наблюдение, |
 | `logInternalNote` | `src/lib/activity.ts` | — |
+| `maskPII` | `src/lib/notifications/mask.ts` | — |
 | `mergeLeadCargo` | `src/lib/lead-edit.ts` | Полная замена известных полей анкеты груза с сохранением неизвестных |
 | `mergeTransportChips` | `src/lib/contractors.ts` | Слияние при записи чипов компетенций: менеджер переключает только |
 | `moneyAmount` | `src/lib/money.ts` | ─── zod-помощник для денежных полей API (P1-04) ─────────────────── |
@@ -403,6 +405,7 @@
 | `resolveFileMime` | `src/lib/file-signature.ts` | — |
 | `resolveRecipients` | `src/lib/notifications/rules.ts` | — |
 | `resolveUserNames` | `src/lib/actor-name.ts` | ── Батч-резолв пользователей ─────────────────────────────────────── |
+| `retryNotification` | `src/lib/notifications/retry.ts` | — |
 | `routeToDbColumns` | `src/lib/route-fields.ts` | RouteFieldsInput → данные для prisma create/update (readyDate — Date, |
 | `sanitizeFileName` | `src/lib/documents.ts` | Санитизация имени: без каталогов, без управляющих символов, без |
 | `scheduleDispatch` | `src/lib/notifications/dispatch.ts` | Немедленная попытка диспетчера после коммита write-операции |
@@ -478,6 +481,7 @@
 | `ListToolbar` | `src/components/admin/ListToolbar.tsx` |
 | `LogoutButton` | `src/components/admin/LogoutButton.tsx` |
 | `NoteForm` | `src/components/admin/NoteForm.tsx` |
+| `NotificationsJournal` | `src/components/admin/NotificationsJournal.tsx` |
 | `OrderCard` | `src/components/admin/OrderCard.tsx` |
 | `OrderCargoCard` | `src/components/admin/order/OrderCargoCard.tsx` |
 | `OrderCreateDialog` | `src/components/admin/OrderCreateDialog.tsx` |
@@ -592,6 +596,7 @@
 | GET, POST | `/api/admin/legal-entities` | admin | employee | — | нет |
 | PATCH | `/api/admin/legal-entities/{id}` | admin | employee | — | нет |
 | GET | `/api/admin/notifications` | admin | employee | — | нет |
+| POST | `/api/admin/notifications/{id}/retry` | admin | employee | — | нет |
 | DELETE, PATCH | `/api/admin/options/{id}` | admin | employee | write | нет |
 | GET, POST | `/api/admin/orders` | admin | employee | write | нет |
 | GET, PATCH | `/api/admin/orders/{id}` | admin | employee | write | нет |
@@ -663,7 +668,7 @@
 | `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts |
 | `LegalEntity` | 7 | scripts/seed.ts, src/app/api/admin/leads/[id]/convert/route.ts, src/app/api/admin/legal-entities/[id]/route.ts, src/app/api/admin/legal-entities/route.ts |
 | `LoginAttempt` | 7 | src/lib/login-guard.ts |
-| `Notification` | 19 | src/app/api/admin/notifications/route.ts, src/lib/notifications/digest.ts, src/lib/notifications/dispatch.ts |
+| `Notification` | 19 | scripts/e2e_seed_notification.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/notifications/route.ts, src/lib/notifications/digest.ts, src/lib/notifications/dispatch.ts, src/lib/notifications/retry.ts |
 | `NotificationPreference` | 5 | — |
 | `Order` | 34 | src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/admin/orders/[id]/notes/route.ts (+15) |
 | `OrderBroker` | 6 | src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/lib/broker-links.ts |

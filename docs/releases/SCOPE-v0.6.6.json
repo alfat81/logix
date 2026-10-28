@@ -1,0 +1,39 @@
+{
+  "task": "DF-04 «Журнал отправок и повтор для мастера» 0.6.6: экран /admin/notifications (только мастер, паттерн settings) — табы статусов ListTabs с counts из API, фильтр по получателю, ошибки доставки, тела маскируются RULES 2.4 (maskPII), полный текст по клику; POST /api/admin/notifications/[id]/retry (write:true, no-event) — failed/skipped → pending + scheduleDispatch, pending/sent → 409, 404; семантика в lib/notifications/retry.ts (интеграционные ×5); GET журнала +counts; attention +notificationsFailed (мастер-only) и секция «Письма не ушли»; AdminNav +пункт (masterOnly); e2e-фикстура e2e_seed_notification.ts (bun+prisma, сломанный транспорт), секция DF-04 ×10; ci.yml: EMAIL_PROVIDER=fake + APP_BASE_URL в env job e2e (перенос решения владельца — уроки красных пробежек 28.10); миграций нет, env продукта не менялся; vitest 176/176 (+13), e2e 270/270 (+10), tsc/lint/build чисто, integrity OK новых 0, knip 38=38, scope OK",
+  "areas": [
+    "lib: notifications/retry.ts (retryNotification: failed/skipped → pending с чистым attempts и пустым nextAttemptAt; pending/sent → not_retryable; not_found) + retry.test.ts (интеграция против PostgreSQL: 5 кейсов), notifications/mask.ts (maskPII по RULES 2.4 — email локальная часть → ***, телефон середина → *; чистая функция для UI) + mask.test.ts (×8)",
+    "роуты: POST /api/admin/notifications/[id]/retry (мастер write:true по P1-09; 200/409/404; scheduleDispatch после постановки; no-event: цель строка очереди, не сделка — след в самой строке), GET /api/admin/notifications +counts (groupBy по статусам с фильтрами получателя/режима без статуса — табы не сужают сами себя)",
+    "attention: GET /api/admin/attention +notificationsFailed (db.notification.count failed — только мастеру, не-мастеру null), attention/types.ts +поле; AttentionSections.tsx +NotificationsFailedSection (скрывается на нуле, ссылка в журнал), AttentionScreen.tsx — секция в рендер, счётчик в общем тотале",
+    "UI: страница src/app/admin/(dashboard)/notifications/page.tsx (мастер-only обёртка — паттерн /admin/settings, честная заглушка менеджеру), NotificationsJournal.tsx (ListTabs, фильтр получателя, карточки строк, маскирование тела maskPII + «Показать полностью», кнопка «Повторить» для failed/skipped с 409-обработкой, 375 px), AdminNav.tsx +«Журнал отправок» (masterOnly, иконка Mail)",
+    "e2e: scripts/e2e_seed_notification.ts (фикстура failed-строки — bun+prisma прямой сид: критерий приёмки «искусственно сломанный транспорт», в fake-окружении через API не создать), scripts/e2e_api_test.py +секция DF-04 ×10 (фикстура → журнал → внимание ≥1 → менеджеру null → retry 200/409 → диспетчер → sent fake: → внимание 0 → 404 → counts)",
+    "CI: .github/workflows/ci.yml — env job e2e +EMAIL_PROVIDER=fake (дефолт none ставил письма skipped → 253/260) и +APP_BASE_URL (урок 28.10; перенос решения владельца «со следующим релизом»)",
+    "доки: CHANGELOG (+[0.6.6]), ROADMAP.md (статус-блок v0.6.6), ROADMAP-DEALFLOW.md (§6 факт 0.6.6, карточка DF-04 [x]), INVENTORY.md (регенерация), package.json 0.6.6, scripts/knip-baseline.json (+фикстура вне TS-графа), тройка релиза v0.6.6 (NOTES/INSTRUCTIONS/SCOPE)"
+  ],
+  "globs": [
+    "package.json",
+    ".github/workflows/ci.yml",
+    "CHANGELOG.md",
+    "docs/ROADMAP.md",
+    "docs/ROADMAP-DEALFLOW.md",
+    "docs/INVENTORY.md",
+    "docs/releases/SCOPE-v0.6.6.json",
+    "docs/releases/RELEASE-NOTES-v0.6.6.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.6.6.md",
+    "scripts/e2e_api_test.py",
+    "scripts/e2e_seed_notification.ts",
+    "scripts/knip-baseline.json",
+    "src/app/api/admin/notifications/route.ts",
+    "src/app/api/admin/notifications/[id]/retry/route.ts",
+    "src/app/api/admin/attention/route.ts",
+    "src/app/admin/(dashboard)/notifications/page.tsx",
+    "src/components/admin/NotificationsJournal.tsx",
+    "src/components/admin/AdminNav.tsx",
+    "src/components/admin/AttentionScreen.tsx",
+    "src/components/admin/attention/AttentionSections.tsx",
+    "src/components/admin/attention/types.ts",
+    "src/lib/notifications/retry.ts",
+    "src/lib/notifications/retry.test.ts",
+    "src/lib/notifications/mask.ts",
+    "src/lib/notifications/mask.test.ts"
+  ]
+}
