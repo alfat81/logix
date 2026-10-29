@@ -92,36 +92,42 @@ async function main(): Promise<void> {
 
   const revDate = new Date(`${snap.version}T00:00:00Z`)
 
-  await prisma.$transaction(async (tx) => {
-    // Новая редакция: вставка листовых позиций (level = 10 — выгрузка
-    // содержит только их; иерархия 2/4/6 восстанавливается префиксом).
-    await tx.hsCode.createMany({
-      data: snap.items.map((it) => ({
-        code: it.code,
-        name: it.name,
-        level: snap.level,
-        unit: null, // доп. единицы в выгрузке нет — доезжает из PDF позже
-        etdDutyText: it.etdDutyText,
-        validFrom: revDate,
-        validTo: null,
-        sourceRev: snap.version,
-      })),
-      skipDuplicates: true,
-    })
-    // Закрыть предыдущие редакции: окно действия обрывается датой новой.
-    // Ничего не удаляем — старые сделки ссылаются на свои редакции.
-    const closed = await tx.hsCode.updateMany({
-      where: { sourceRev: { not: snap.version }, validTo: null },
-      data: { validTo: revDate },
-    })
-    await tx.hsImport.upsert({
-      where: { version: snap.version },
-      create: { version: snap.version, source: snap.source, itemCount: snap.items.length },
-      update: { source: snap.source, itemCount: snap.items.length },
-    })
-    console.log(`  + Вставлено ${snap.items.length} позиций (редакция ${snap.version})`)
-    console.log(`  ~ Закрыто записей предыдущих редакций: ${closed.count}`)
-  })
+  await prisma.$transaction(
+    async (tx) => {
+      // Новая редакция: вставка листовых позиций (level = 10 — выгрузка
+      // содержит только их; иерархия 2/4/6 восстанавливается префиксом).
+      await tx.hsCode.createMany({
+        data: snap.items.map((it) => ({
+          code: it.code,
+          name: it.name,
+          level: snap.level,
+          unit: null, // доп. единицы в выгрузке нет — доезжает из PDF позже
+          etdDutyText: it.etdDutyText,
+          validFrom: revDate,
+          validTo: null,
+          sourceRev: snap.version,
+        })),
+        skipDuplicates: true,
+      })
+      // Закрыть предыдущие редакции: окно действия обрывается датой новой.
+      // Ничего не удаляем — старые сделки ссылаются на свои редакции.
+      const closed = await tx.hsCode.updateMany({
+        where: { sourceRev: { not: snap.version }, validTo: null },
+        data: { validTo: revDate },
+      })
+      await tx.hsImport.upsert({
+        where: { version: snap.version },
+        create: { version: snap.version, source: snap.source, itemCount: snap.items.length },
+        update: { source: snap.source, itemCount: snap.items.length },
+      })
+      console.log(`  + Вставлено ${snap.items.length} позиций (редакция ${snap.version})`)
+      console.log(`  ~ Закрыто записей предыдущих редакций: ${closed.count}`)
+    },
+    // 13 294 строки одним createMany до Neon через WAN не укладываются в
+    // дефолтные 5 с интерактивной транзакции (P2028, обращение владельца
+    // 29.10.2026); локальной БД хватает с запасом — таймаут явный.
+    { timeout: 60_000, maxWait: 10_000 }
+  )
 
   console.log('Готово: справочник ТН ВЭД актуализирован, история сохранена.')
 }
