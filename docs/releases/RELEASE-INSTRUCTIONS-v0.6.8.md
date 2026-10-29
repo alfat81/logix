@@ -1,6 +1,6 @@
-# Release Instructions — v0.6.8 (29.10.2026) · rev. B (fix1+fix2, 29.10)
+# Release Instructions — v0.6.8 (29.10.2026) · rev. B (fix1+fix2+fix3, 29.10)
 
-Выполняется на машине владельца (PowerShell). Архивы: `logix-v0.6.8.zip` (база) + `logix-v0.6.8-fix1.zip` + `logix-v0.6.8-fix2.zip` (патчи, прецедент fix1/fix2/fix3 v0.6.7). Новых env нет. Миграции additive.
+Выполняется на машине владельца (PowerShell). Архивы: `logix-v0.6.8.zip` (база) + `logix-v0.6.8-fix1.zip` + `logix-v0.6.8-fix2.zip` + `logix-v0.6.8-fix3.zip` (патчи, прецедент fix1/fix2/fix3 v0.6.7). Новых env нет. Миграции additive.
 
 **rev. B — что изменилось (29.10.2026, после красного CI на снапшот-пуше `151978e`):**
 
@@ -9,6 +9,7 @@
 - служебный файл `.release-v068-state.json` (попал в базовый архив мимо списка «ожидается») удаляется перед коммитом;
 - Шаг 9 дополнен `npx prisma@6 generate` (fix1, обращение владельца: `migrate deploy` не перегенерирует Prisma Client — `import-hs.ts` падал на `prisma.hsImport.findMany`);
 - Шаг 9 дополнен патчем fix2 (обращение владельца: P2028 — дефолтные 5 с транзакции не хватало на вставку 13 294 строк до Neon через WAN; в fix2 таймаут явный 60 с);
+- примечание к списку КТ2 переформулировано без бэктик-путей (fix3, красный CI integrity IC-08: две ссылки на служебные скрипты конвейера, которые в архивы не входят и на origin отсутствуют);
 - КТ1/КТ2 и шаги CI/Vercel/миграции/смоук — без изменений.
 
 ## 0. Откат снапшот-пуша (RULES 2.16, Шаг 3)
@@ -38,6 +39,8 @@ git reset --hard origin/main
 ```powershell
 Expand-Archive -Path .\logix-v0.6.8.zip -DestinationPath . -Force
 Expand-Archive -Path .\logix-v0.6.8-fix1.zip -DestinationPath . -Force
+Expand-Archive -Path .\logix-v0.6.8-fix2.zip -DestinationPath . -Force
+Expand-Archive -Path .\logix-v0.6.8-fix3.zip -DestinationPath . -Force
 ```
 
 ## 3. Проверка версии (КТ1)
@@ -257,7 +260,7 @@ A       upload/pasted_image_1793278949282.png
 A       worklog.md
 ```
 
-Примечания к списку: строка `A .gitleaks.toml` — первая, из патч-архива `logix-v0.6.8-fix1.zip` (там же отредактированный `scripts/hs-source/ett-page.html`, эта инструкция и `docs/releases/RELEASE-NOTES-v0.6.8-fix1.md` — строка в списке учтена). Скрипты конвейера (`scripts/make_fix1_zip_v068.py`, `scripts/push_gitleaks_fix.sh`) в архивы не входят — в списке их нет.
+Примечания к списку: строка `A .gitleaks.toml` — первая, из патч-архива `logix-v0.6.8-fix1.zip` (там же отредактированный `scripts/hs-source/ett-page.html`, эта инструкция и `docs/releases/RELEASE-NOTES-v0.6.8-fix1.md` — строка в списке учтена). Служебные скрипты конвейера (сборка патч-архивов, локальный gitleaks-прогон) в архивы не входят и на origin отсутствуют — в списке их нет и быть не должно (урок fix3: бэктик-пути в прозе docs ловит IC-08).
 
 ## 5. Коммит и push
 
@@ -317,7 +320,7 @@ Expand-Archive -Path .\logix-v0.6.8-fix2.zip -DestinationPath . -Force
 npx tsx scripts/import-hs.ts
 ```
 
-После распаковки fix2 список Шага 4 дополняется строкой `M       scripts/import-hs.ts` (всего 191).
+После распаковки fix2 список Шага 4 дополняется строкой `M       scripts/import-hs.ts` (всего 191); после fix3 — ещё строкой с notes fix3 (всего 192).
 
 ## 10. Смоук (8 пунктов)
 
