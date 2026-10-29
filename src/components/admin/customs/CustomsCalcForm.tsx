@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { IncotermPicker } from '@/components/references/IncotermPicker'
 import { CustomsItemsEditor } from './CustomsItemsEditor'
+import { CustomsAllocationSelects } from './CustomsAllocationSelects'
 import { CustomsFxInputs } from './CustomsFxInputs'
 import { useIncotermFlags } from './use-incoterm-flags'
 import type { CustomsCalcRow, EstimatePrefill, FormItem, FreightSuggest } from './types'
@@ -252,32 +253,12 @@ export function CustomsCalcForm({
       <CustomsItemsEditor rows={rows} onChange={setRows} currencyOptions={currencyOptions} estimates={estimates} disabled={busy} />
 
       {rows.length > 1 && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Label className="grid gap-1.5">
-            <span className="text-sm">Распределение перевозки</span>
-            <select
-              aria-label="Метод распределения перевозки"
-              className="h-9 rounded-md border bg-background px-2 text-sm"
-              value={overrideFreight}
-              onChange={(e) => setOverrideFreight(e.target.value === 'value' ? 'value' : 'weight')}
-            >
-              <option value="weight">по весу нетто (ДТС-1)</option>
-              <option value="value">по стоимости</option>
-            </select>
-          </Label>
-          <Label className="grid gap-1.5">
-            <span className="text-sm">Распределение прочих расходов</span>
-            <select
-              aria-label="Метод распределения прочих расходов"
-              className="h-9 rounded-md border bg-background px-2 text-sm"
-              value={overrideOther}
-              onChange={(e) => setOverrideOther(e.target.value === 'weight' ? 'weight' : 'value')}
-            >
-              <option value="value">по стоимости (ДТС-1)</option>
-              <option value="weight">по весу нетто</option>
-            </select>
-          </Label>
-        </div>
+        <CustomsAllocationSelects
+          freight={overrideFreight}
+          other={overrideOther}
+          onFreight={setOverrideFreight}
+          onOther={setOverrideOther}
+        />
       )}
 
       <div className="flex flex-wrap items-center gap-2">

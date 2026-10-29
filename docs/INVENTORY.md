@@ -547,6 +547,7 @@
 | `CustomerCreateDialog` | `src/components/admin/CustomerCreateDialog.tsx` |
 | `CustomerUserDialog` | `src/components/admin/CustomerUserDialog.tsx` |
 | `CustomersList` | `src/components/admin/CustomersList.tsx` |
+| `CustomsAllocationSelects` | `src/components/admin/customs/CustomsAllocationSelects.tsx` |
 | `CustomsCalcForm` | `src/components/admin/customs/CustomsCalcForm.tsx` |
 | `CustomsCalcResult` | `src/components/admin/customs/CustomsCalcResult.tsx` |
 | `CustomsCalcScreen` | `src/components/admin/customs/CustomsCalcScreen.tsx` |
