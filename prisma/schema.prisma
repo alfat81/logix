@@ -189,6 +189,10 @@ model Order {
   originCountryCode      String?
   destinationCountryCode String?
   incotermCode           String?
+  // DF-19: место условия поставки («Истанбул, TR») — свободный текст
+  // рядом с кодом (справочника мест DF-17B ещё нет; при его появлении
+  // переезжает на код, expand-паттерн тот же).
+  incotermPlace          String?
 
   contract    Contract             @relation(fields: [contractId], references: [id])
   legalEntity LegalEntity          @relation(fields: [legalEntityId], references: [id])
@@ -204,6 +208,8 @@ model Order {
   // Е (роадмап 5): документы заявки — обмен клиент/брокер/менеджер
   // внутри сервиса. Внутренние (isInternal) наружу не отдаются.
   documents   Document[]
+  // DF-19: расчёты таможенных платежей (история версий)
+  customsCalculations CustomsCalculation[]
 
   @@unique([contractId, numberInContract])
   @@index([status])
@@ -361,6 +367,9 @@ model Lead {
   originCountryCode      String?
   destinationCountryCode String?
   incotermCode           String?
+  // DF-19: место условия поставки (свободный текст рядом с кодом —
+  // справочника мест DF-17B ещё нет; стартовое значение формы расчёта)
+  incotermPlace          String?
 
   customer   Customer?     @relation(fields: [customerId], references: [id])
   assignee   Employee?     @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
@@ -376,6 +385,10 @@ model Lead {
   // предварительный инвойс для расчёта пошлины брокером; при
   // конвертации В4 переносятся на заявку (leadId → orderId).
   documents  Document[]
+  // DF-19: расчёты таможенных платежей (история версий; при
+  // конвертации НЕ переносятся — лид остаётся источником истории,
+  // заявка считает свои расчёты с фрахтом от выбранного варианта)
+  customsCalculations CustomsCalculation[]
 
   @@index([status])
   @@index([customerId])
@@ -1148,4 +1161,151 @@ model HsImport {
   importedAt DateTime @default(now())
 
   @@index([importedAt])
+}
+
+// ─── DF-19: расчёт таможенных платежей в рублях (D38/D39) ─────────────
+// Оценка платежей по условиям поставки, стоимости, фрахту и официальному
+// курсу ЦБ РФ. РАСЧЁТ ВОСПРОИЗВОДИМ (D38, инвариант 11): входные данные,
+// курсы, запас и версия правил хранятся СНИМКОМ на момент расчёта —
+// смена курса в справочнике сохранённые числа не меняет. История версий:
+// пересчёт (POST) создаёт новую запись, прежняя остаётся isCurrent=false;
+// правки черновика (PUT) — только текущей версии. Валюта сделки в
+// эталонных ДТ может не совпадать с валютой счёта (эталон №2: цена EUR,
+// счёт TRY) — строки позиций несут СВОЮ валюту (D40: редактируемость).
+//
+// Цель — ровно одна: лид ИЛИ заявка (инвариант union на TS-уровне, как
+// Document/Activity). Расчёты лида при конвертации НЕ переносятся (В4):
+// лид остаётся историей расчёта, заявка считает свои.
+model CustomsCalculation {
+  id        String  @id @default(cuid())
+  leadId    String?
+  orderId   String?
+  // Условие поставки: КОД из справочника DF-17 + место текстом (снимок
+  // на момент расчёта; поля Lead/Order — стартовые значения формы).
+  // Флаги правил (что добавить/вычесть) читаются из meta справочника —
+  // НЕ из кода (D39/O-12); черновые правила (meta.draft) расчёт не
+  // применяет — 409 до сида справочников.
+  incoterm      String
+  incotermPlace String?
+  // Дата расчёта и дата курсов в снимке («курс от <дата>»). Для ТС
+  // применяется курс на дату регистрации ДТ — менеджер вводит дату
+  // (по умолчанию сегодня); финальные платежи определятся при
+  // декларировании, взаиморасчёты — по курсу на дату оплаты (D41).
+  calcDate      DateTime
+  fxDate        DateTime @db.Date
+  // Снимок курсов ЗА ОДНУ единицу валюты (номиналы ЦБ учтены при
+  // импорте, lib/cbr.ts): { "USD": { "rate": "73.1275", "date":
+  // "2026-05-18", "source": "cbr" | "manual" }, ... } — эталон №2
+  // (TRY котируется за 10: в снимке уже 1,75789 за единицу).
+  fxRates         Json
+  // Запас к курсу, % — СНИМОК настройки customs.fx_reserve_percent на
+  // момент расчёта (D41: оценка, не платёж).
+  fxReservePercent Decimal @db.Decimal(5, 2) @default(0)
+  // Расходы, влияющие на ТС (все — в валюте фрахта freightCurrency;
+  // разъезжающиеся валюты менеджер приводит к ней сам — D40):
+  // freightTotal — фрахт по счёту целиком; freightToArrival — часть
+  // ДО места прибытия на территорию ЕАЭС (умолчания: добавляющим
+  // терминам — freightTotal, вычитающим — 0); insurance — страхование,
+  // если фактически понесено покупателем сверх цены (D43); otherCosts —
+  // погрузка/разгрузка, посредники, упаковка.
+  freightTotal    Decimal @db.Decimal(14, 2)
+  freightCurrency String  @default("USD")
+  freightToArrival Decimal? @db.Decimal(14, 2)
+  insurance       Decimal @db.Decimal(14, 2) @default(0)
+  otherCosts      Decimal @db.Decimal(14, 2) @default(0)
+  // Вознаграждение брокера за ДТ — согласованная ФИКСИРОВАННАЯ сумма
+  // (ответ брокера 30.10.2026). Строка итогов ВНЕ таможенных платежей,
+  // в ТС и базы пошлин/НДС не входит (D42).
+  brokerFeeRub    Decimal? @db.Decimal(14, 2)
+  // Переопределение метода распределения начислений менеджером (D40):
+  // { freight: 'weight'|'value', other: 'weight'|'value' } — умолчания
+  // по правилам ДТС-1 (перевозка — вес НЕТТО гр. 38, прочие —
+  // стоимость); null/частичный Json — правила по умолчанию.
+  allocationOverride Json?
+  // Версия набора правил (формула, состав базы НДС, трактовка флагов) —
+  // константа CUSTOMS_RULES_VERSION (lib/customs.ts); воспроизводимость
+  // старого расчёта = снимок входа + эта строка.
+  rulesVersion String
+  // Таможенный сбор: снимок расчёта по шкале CustomsFeeScale либо
+  // ручной ввод до утверждения шкалы (feeManual).
+  feeRub    Decimal? @db.Decimal(14, 2)
+  feeManual Boolean  @default(false)
+  // Итоги расчёта: { customsValueTotal, dutyTotal, addDutyTotal,
+  // vatTotal, feeRub, paymentsTotal, brokerFeeRub, grandTotal, ... }
+  // — дублируют сумму строк для списков/печати без пересчёта.
+  totals Json
+  // Актуальная версия (последний пересчёт); история — isCurrent=false,
+  // правки (PUT) — только текущей.
+  isCurrent     Boolean  @default(true)
+  createdById   String?
+  // Снимок имени автора (паттерн actorName: история дольше справочника)
+  createdByName String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  lead  Lead?  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  items CustomsCalculationItem[]
+
+  @@index([leadId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([isCurrent])
+}
+
+// Строка расчёта по одному коду ТН ВЭД: стоимость товара и вес НЕТТО
+// (гр. 38 ДТ — распределение перевозки по весу считаем по НЕТТО,
+// ответ брокера 30.10.2026, D40), проценты — СНИМОК ответа брокера
+// (DF-18) на момент расчёта, результаты — в рублях по снимку курса.
+// brokerItemId — ссылка на строку ответа брокера БЕЗ FK (паттерн
+// actorId: оценка брокера перезаписывается deleteMany/createMany,
+// id живут короче расчёта; связь — для подсказки, не для каскадов).
+model CustomsCalculationItem {
+  id            String  @id @default(cuid())
+  calculationId String
+  // Порядок строки — как внесено (отображение и итоги стабильны)
+  sortOrder     Int
+  brokerItemId  String?
+  hsCode        String
+  goodsValue    Decimal @db.Decimal(14, 2)
+  goodsCurrency String
+  netWeightKg   Decimal @db.Decimal(12, 3)
+  // Снимок процентов брокера (null = «не указано»; ставка-строка
+  // rateNote из DF-18 в автрасчёт не попадает — isManualRate,
+  // lib/brokers.ts: такая строка правится менеджером вручную)
+  dutyPercent    Decimal? @db.Decimal(5, 2)
+  addDutyPercent Decimal? @db.Decimal(5, 2)
+  vatPercent     Decimal? @db.Decimal(5, 2)
+  // Результаты в рублях (Decimal, RULES 2.15): ТС позиции (стоимость
+  // по курсу + доля начислений − доля вычетов), пошлина/доп. пошлина
+  // (ТС × %), НДС ((ТС + пошлина + доп. пошлина) × %, сбор в базу НЕ
+  // входит — подтверждено эталонами №1–№3), allocatedCosts — доля
+  // дополнительных начислений позиции (сумма по кодам = базе).
+  customsValue   Decimal @db.Decimal(14, 2)
+  duty           Decimal @db.Decimal(14, 2) @default(0)
+  addDuty        Decimal @db.Decimal(14, 2) @default(0)
+  vat            Decimal @db.Decimal(14, 2) @default(0)
+  allocatedCosts Decimal @db.Decimal(14, 2) @default(0)
+
+  calculation CustomsCalculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+
+  @@index([calculationId, sortOrder])
+}
+
+// Шкала таможенных сборов «диапазон ТС → сбор» (D39: утверждает брокер;
+// с 01.01.2026 — ПП РФ от 28.11.2024 № 1637 в ред. ПП от 23.10.2025
+// № 1638, подтверждено эталонами №2–№3: скобка 2,7–4,2 млн → 18 465 ₽).
+// Данные — справочные (IC-16): сид scripts/ref-data/customs-fees.ts,
+// импортирует ТОЛЬКО scripts/seed.ts; смена редакции = новая дата
+// validFrom (обязательное поле — шкала индексируется), полная замена
+// строк редакции при пересиде. Сбор считается от ОБЩЕЙ ТС одной
+// ступенью; upperBound null — открытая верхняя скобка.
+model CustomsFeeScale {
+  id         String   @id @default(cuid())
+  validFrom  DateTime @db.Date
+  upperBound Decimal? @db.Decimal(14, 2)
+  feeRub     Decimal  @db.Decimal(14, 2)
+  sortOrder  Int      @default(0)
+
+  @@index([validFrom])
 }

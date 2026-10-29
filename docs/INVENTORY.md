@@ -54,6 +54,12 @@
 | `CONTRACTOR_SESSION_COOKIE` | `src/lib/contractor-auth.ts` | Кабинет подрядчика (Г4). Механизм сессий — lib/portal-auth.ts. |
 | `CURRENCIES` | `src/lib/money.ts` | ─── Валюты (DF-17) ────────────────────────────────────────────────── |
 | `CURRENCY_SIGNS` | `src/lib/money.ts` | Знаки валют — короткие символы в интерфейсе (Intl style:'currency' |
+| `CUSTOMS_EVALUATION_NOTE` | `src/lib/customs.ts` | Обязательная подпись расчёта в UI и печатных формах (D41). |
+| `CUSTOMS_ISO_DATE_RE` | `src/lib/customs.ts` | — |
+| `CUSTOMS_ITEMS_HARD_CAP` | `src/lib/customs.ts` | Потолок строк расчёта (свой, не broker.max_items: расчёт шире ответа |
+| `CUSTOMS_RULES_VERSION` | `src/lib/customs.ts` | — |
+| `CalcBodyResult` | `src/lib/customs-api.ts` | — |
+| `CalcWriteCtx` | `src/lib/customs-api.ts` | — |
 | `CargoInfoSchema` | `src/lib/leads.ts` | Свободная анкета груза на этапе запроса (груз/вес/объём/откуда-куда). |
 | `CargoProfile` | `src/lib/order-constants.ts` | — |
 | `CbrRate` | `src/lib/cbr.ts` | — |
@@ -64,6 +70,7 @@
 | `ClientLeadEditSchema` | `src/lib/lead-edit.ts` | Тело PATCH из кабинета клиента: клиент правит ТОЛЬКО анкету груза |
 | `CompanyLoginResult` | `src/lib/company-users.ts` | — |
 | `CompanyUserError` | `src/lib/company-users.ts` | Бизнес-ошибка управления пользователями: роуты отдают её клиенту |
+| `ComputeCustomsInput` | `src/lib/customs.ts` | — |
 | `ContractorCompetenciesSchema` | `src/lib/contractors.ts` | Компетенции подрядчика (competencies Json, Г1) — тоже record: виды |
 | `ContractorContactInfoSchema` | `src/lib/contractors.ts` | Контактные данные подрядчика (contactInfo Json, Г1) — сырой Json по |
 | `ContractorLeadStatus` | `src/lib/contractors.ts` | — |
@@ -87,6 +94,20 @@
 | `CurrentContractor` | `src/lib/contractor-auth.ts` | — |
 | `CurrentEmployee` | `src/lib/auth.ts` | — |
 | `CustomerLoginUser` | `src/lib/company-users.ts` | ── Вход (Блок 3, DF-02A): учётка — человек, UX прежний ────────────── |
+| `CustomsCalcInput` | `src/lib/customs.ts` | — |
+| `CustomsCalcInputSchema` | `src/lib/customs.ts` | — |
+| `CustomsCalcItemSchema` | `src/lib/customs.ts` | — |
+| `CustomsCalculationRow` | `src/lib/customs-server.ts` | — |
+| `CustomsComputedItem` | `src/lib/customs.ts` | — |
+| `CustomsFeeRow` | `src/lib/customs.ts` | — |
+| `CustomsFxEntry` | `src/lib/customs.ts` | Снимок курса за одну единицу: { USD: { rate: '73.1275', date: '2026-05-18', source: 'cbr' } } |
+| `CustomsFxSnapshot` | `src/lib/customs.ts` | — |
+| `CustomsInputError` | `src/lib/customs.ts` | — |
+| `CustomsItemInput` | `src/lib/customs.ts` | — |
+| `CustomsNotFoundError` | `src/lib/customs-server.ts` | Расчёт не найден (роут отдаёт 404) |
+| `CustomsRuleFlags` | `src/lib/customs.ts` | — |
+| `CustomsRulesDraftError` | `src/lib/customs-server.ts` | Правила условия поставки — черновик (meta.draft): расчёт не |
+| `CustomsTotals` | `src/lib/customs.ts` | — |
 | `DB_OUT_OF_SYNC_HINT` | `src/lib/api-errors.ts` | — |
 | `DEFAULT_LIST_TAKE` | `src/lib/list-query.ts` | — |
 | `DOCUMENT_TYPES` | `src/lib/document-constants.ts` | — |
@@ -268,6 +289,8 @@
 | `WINDOW_GRACE_MINUTES` | `src/lib/notifications/windows.ts` | Допуск планировщика (карточка DF-03): окно выполняется, если вызов |
 | `ZonedNow` | `src/lib/notifications/windows.ts` | — |
 | `addDocumentVersion` | `src/lib/documents.ts` | — |
+| `allocateComponent` | `src/lib/customs.ts` | Доли компонента baseCents по весам (одинаковый масштаб, BigInt): |
+| `allocationMethods` | `src/lib/customs.ts` | Метод компонента: переопределение менеджера > правило ДТС-1 |
 | `allowedLeadTransitionsLabeled` | `src/lib/status-machine.ts` | — |
 | `allowedOrderTransitionsLabeled` | `src/lib/status-machine.ts` | — |
 | `apiErrorResponse` | `src/lib/api-errors.ts` | — |
@@ -277,6 +300,7 @@
 | `asOneOf` | `src/lib/settings-validators.ts` | — |
 | `asOptionalEmail` | `src/lib/settings-validators.ts` | — |
 | `asOptionalStr` | `src/lib/settings-validators.ts` | Пустая строка легитимна («не задано»): brand.signature, email.reply_to. |
+| `asPercent` | `src/lib/settings-validators.ts` | Проценты с двумя знаками после запятой, 0..max (customs.fx_reserve_percent, |
 | `asStringList` | `src/lib/settings-validators.ts` | — |
 | `asTime` | `src/lib/settings-validators.ts` | — |
 | `asTimeList` | `src/lib/settings-validators.ts` | — |
@@ -285,15 +309,20 @@
 | `authenticateCustomerLogin` | `src/lib/company-users.ts` | — |
 | `brokerActor` | `src/lib/activity.ts` | Брокер портала (Д). DF-02A (Блок 4): актор — ЧЕЛОВЕК (userId), |
 | `brokerSessionCookieOptions` | `src/lib/broker-auth.ts` | — |
+| `buildFxSnapshot` | `src/lib/customs-server.ts` | ─── Снимок курсов: за ОДНУ единицу, источник cbr | manual ─────────── |
 | `buildLeadEditDiff` | `src/lib/lead-edit.ts` | Diff анкеты: список строк «Подпись: старое → новое» (только реально |
 | `buildLeadPayload` | `src/lib/leads.ts` | — |
 | `buildOrderListWhere` | `src/lib/orders.ts` | where списка: статус ИЛИ группа «active» (BRANDBOOK §4.2), фильтр |
 | `buildOrderSearch` | `src/lib/orders.ts` | Поиск — только по заявке и её клиенту: номер, ТН ВЭД, имя, телефон. |
+| `calcErrorResponse` | `src/lib/customs-api.ts` | Маппинг доменных ошибок DF-19: черновые правила — 409 (состояние |
 | `calcOrderEta` | `src/lib/order-summary.ts` | v0.3.1 (BRANDBOOK §4.3): ETA заявки — обещанная дата завершения. |
+| `calculationsListResponse` | `src/lib/customs-api.ts` | — |
 | `canSeeDocument` | `src/lib/audience.ts` | Видимость ДОКУМЕНТА аудитории (не сделки!): внутренний документ — |
 | `cargoFormFromData` | `src/lib/leads.ts` | Обратный разбор в состояние формы (Ж1: правка груза ЗАЯВКИ, правка |
 | `carryDocumentsToOrder` | `src/lib/documents.ts` | ── Перенос при конвертации (В4): лид → заявка ────────────────────── |
 | `cbrImportEnabled` | `src/lib/cbr.ts` | Выключатель для CI/e2e (без внешней сети): CBR_IMPORT=off. |
+| `centsOf` | `src/lib/customs.ts` | Строка с двумя знаками (наши же centsToStr) → копейки |
+| `centsToStr` | `src/lib/customs.ts` | Копейки → строка с двумя знаками (формат Decimal для БД и UI) |
 | `checkLeadTransition` | `src/lib/status-machine.ts` | — |
 | `checkLoginGuard` | `src/lib/login-guard.ts` | — |
 | `checkOrderTransition` | `src/lib/status-machine.ts` | — |
@@ -302,11 +331,14 @@
 | `clientActor` | `src/lib/activity.ts` | Клиент кабинета (И1). DF-02A (Блок 4): актор — ЧЕЛОВЕК (userId), |
 | `clientSessionCookieOptions` | `src/lib/client-auth.ts` | — |
 | `cn` | `src/lib/utils.ts` | — |
+| `computeCustomsCalculation` | `src/lib/customs.ts` | — |
 | `contractorActor` | `src/lib/activity.ts` | У подрядчика «имя» — companyName (люди не заведены, Г4). |
 | `contractorPortalEnabled` | `src/lib/flags.ts` | ─── Функциональные флаги (серверные) ─────────────────────────────── |
 | `contractorSessionCookieOptions` | `src/lib/contractor-auth.ts` | — |
+| `convertCentsRub` | `src/lib/customs.ts` | Перевод суммы в копейках foreign-валюты в копейки RUB по снимку |
 | `createBrokerSession` | `src/lib/broker-auth.ts` | — |
 | `createBrokerUser` | `src/lib/company-users.ts` | — |
+| `createCalculation` | `src/lib/customs-server.ts` | ─── POST: новый расчёт (версия) ───────────────────────────────────── |
 | `createClientSession` | `src/lib/client-auth.ts` | — |
 | `createContractorSession` | `src/lib/contractor-auth.ts` | — |
 | `createCustomerUser` | `src/lib/company-users.ts` | — |
@@ -339,6 +371,7 @@
 | `documentVisibleToClient` | `src/lib/documents.ts` | — |
 | `dueWindow` | `src/lib/notifications/windows.ts` | Первое окно, которое пора исполнять прямо сейчас (с учётом допуска), |
 | `emitEvent` | `src/lib/events.ts` | Запись события сделки + постановка уведомлений в очередь. |
+| `emitOrderEvents` | `src/lib/orders.ts` | — |
 | `employeeActor` | `src/lib/activity.ts` | — |
 | `enqueueNotifications` | `src/lib/notifications/enqueue.ts` | — |
 | `escapeHsLike` | `src/lib/hs.ts` | Экранирование %/_/\ в строке для Prisma contains (LIKE): без этого |
@@ -372,6 +405,7 @@
 | `getSetting` | `src/lib/settings.ts` | Пустая таблица легитимна: откат на значение по умолчанию — система |
 | `getSettingDef` | `src/lib/settings.ts` | Свободные ключи не допускаются: пишем только то, что знает экран |
 | `getTransport` | `src/lib/notifications/channel.ts` | ─── DF-03: выбор транспорта по каналу письма ──────────────────────── |
+| `halfUpDiv` | `src/lib/customs.ts` | half-up деление BigInt (делимое любого знака) |
 | `hashPassword` | `src/lib/password.ts` | — |
 | `hashSessionToken` | `src/lib/portal-auth.ts` | — |
 | `hsPrefixRange` | `src/lib/hs.ts` | Границы префиксного поиска по индексу (btree): code >= gte AND |
@@ -391,7 +425,9 @@
 | `isValidEmail` | `src/lib/phone.ts` | Проверка: это email (строгая)? |
 | `isVatMode` | `src/lib/money.ts` | — |
 | `joinRouteText` | `src/lib/route-fields.ts` | Обратная сборка для показа/редактирования: «Страна, город» / «Город» / |
+| `listCalculations` | `src/lib/customs-server.ts` | ─── Чтение: история расчётов сделки (новые сверху) ────────────────── |
 | `listRefItems` | `src/lib/ref-db.ts` | — |
+| `loadFeeRows` | `src/lib/customs-server.ts` | ─── Действующая редакция шкалы сборов (validFrom ≤ даты расчёта) ──── |
 | `logDocumentVersionAdded` | `src/lib/documents.ts` | Событие о новой версии — отдельно от транзакции (лента — наблюдение, |
 | `logInternalNote` | `src/lib/activity.ts` | — |
 | `maskPII` | `src/lib/notifications/mask.ts` | — |
@@ -421,6 +457,7 @@
 | `participantsOfOrder` | `src/lib/participants.ts` | Участники заявки (Order): ответственный, клиент, брокеры, подрядчики |
 | `percentValue` | `src/lib/brokers.ts` | Проценты — Decimal (RULES 2.15), «разумные границы» карточки: 0..100, |
 | `phoneVariants` | `src/lib/phone.ts` | Телефонные варианты поискового запроса (Ж7, переиспользован Ж6а). |
+| `pickFeeRub` | `src/lib/customs.ts` | — |
 | `planHsImport` | `src/lib/hs.ts` | Решение импорта по версиям (карточка: «импорт повторно не дублирует», |
 | `processRegularDigests` | `src/lib/notifications/digest.ts` | — |
 | `projectActorName` | `src/lib/actor-name.ts` | ── Правило проекции (чистая функция) ─────────────────────────────── |
@@ -429,6 +466,7 @@
 | `projectDocumentAuthors` | `src/lib/actor-name.ts` | Список документов: authorName во ВСЕХ версиях каждого документа, |
 | `readApiResponse` | `src/lib/api-client.ts` | — |
 | `readAppBaseUrl` | `src/lib/notifications/templates.ts` | — |
+| `readCalcInput` | `src/lib/customs-api.ts` | — |
 | `readDocFile` | `src/lib/documents.ts` | Читает файл и проверяет сигнатуру. null — содержимое не прошло проверку. */ |
 | `readEmailProvider` | `src/lib/notifications/transports/email.ts` | — |
 | `readInfoString` | `src/lib/contractors.ts` | Толерантное чтение строковых полей анкеты (directions и пр.). |
@@ -443,6 +481,7 @@
 | `renderFooter` | `src/lib/notifications/templates.ts` | Подвал: название и подпись — настройки; отключение — ответ на письмо |
 | `renderSingleLetter` | `src/lib/notifications/templates.ts` | Одиночное письмо по событию. Нейтральный вариант (аудит №16) не |
 | `requireBroker` | `src/lib/broker-auth.ts` | Единственный способ проверить брокера в роутах кабинета; опций нет — |
+| `requireCalcWriter` | `src/lib/customs-api.ts` | — |
 | `requireClient` | `src/lib/client-auth.ts` | Единственный способ проверить клиента в роутах кабинета; опций нет — |
 | `requireContractor` | `src/lib/contractor-auth.ts` | Единственный способ проверить подрядчика в роутах кабинета; опций нет — |
 | `requireEmployee` | `src/lib/auth.ts` | — |
@@ -469,6 +508,7 @@
 | `todayUtcMidnight` | `src/lib/order-summary.ts` | Граница «сегодня» по UTC: плановые даты приходят UTC-полуночью |
 | `unauthorized` | `src/lib/portal-auth.ts` | — |
 | `updateBrokerUser` | `src/lib/company-users.ts` | — |
+| `updateCalculation` | `src/lib/customs-server.ts` | ─── PUT: правка черновика (только актуальной версии) ──────────────── |
 | `updateCustomerUser` | `src/lib/company-users.ts` | — |
 | `utcDayStart` | `src/lib/order-summary.ts` | — |
 | `validateAssigneeChange` | `src/lib/lead-edit.ts` | — |
@@ -507,6 +547,11 @@
 | `CustomerCreateDialog` | `src/components/admin/CustomerCreateDialog.tsx` |
 | `CustomerUserDialog` | `src/components/admin/CustomerUserDialog.tsx` |
 | `CustomersList` | `src/components/admin/CustomersList.tsx` |
+| `CustomsCalcForm` | `src/components/admin/customs/CustomsCalcForm.tsx` |
+| `CustomsCalcResult` | `src/components/admin/customs/CustomsCalcResult.tsx` |
+| `CustomsCalcScreen` | `src/components/admin/customs/CustomsCalcScreen.tsx` |
+| `CustomsFxInputs` | `src/components/admin/customs/CustomsFxInputs.tsx` |
+| `CustomsItemsEditor` | `src/components/admin/customs/CustomsItemsEditor.tsx` |
 | `EMPTY_OPTION_FORM` | `src/components/admin/QuoteOptionFormFields.tsx` |
 | `EmployeeCard` | `src/components/admin/employee/EmployeeCard.tsx` |
 | `EmployeeCreateDialog` | `src/components/admin/employee/EmployeeCreateDialog.tsx` |
@@ -647,6 +692,7 @@
 | GET, POST | `/api/admin/customers` | admin | employee | write | нет |
 | GET | `/api/admin/customers/{id}` | admin | employee | — | нет |
 | GET, PATCH, POST | `/api/admin/customers/{id}/access` | admin | employee | write | нет |
+| PUT | `/api/admin/customs-calculations/{id}` | admin | — | — | нет |
 | DELETE | `/api/admin/documents/{id}` | admin | employee | write | нет |
 | POST | `/api/admin/documents/{id}/versions` | admin | employee | write | нет |
 | GET, POST | `/api/admin/employees` | admin | employee | — | нет |
@@ -656,6 +702,7 @@
 | POST | `/api/admin/leads/{id}/brokers` | admin | employee | write | нет |
 | DELETE | `/api/admin/leads/{id}/brokers/{brokerId}` | admin | employee | write | нет |
 | POST | `/api/admin/leads/{id}/convert` | admin | employee | write | нет |
+| GET, POST | `/api/admin/leads/{id}/customs-calculations` | admin | employee | — | нет |
 | GET, POST | `/api/admin/leads/{id}/documents` | admin | employee | write | нет |
 | POST | `/api/admin/leads/{id}/notes` | admin | employee | write | нет |
 | POST | `/api/admin/leads/{id}/options` | admin | employee | write | нет |
@@ -668,6 +715,7 @@
 | GET, PATCH | `/api/admin/orders/{id}` | admin | employee | write | нет |
 | POST | `/api/admin/orders/{id}/brokers` | admin | employee | write | нет |
 | DELETE | `/api/admin/orders/{id}/brokers/{brokerId}` | admin | employee | write | нет |
+| GET, POST | `/api/admin/orders/{id}/customs-calculations` | admin | employee | — | нет |
 | GET, POST | `/api/admin/orders/{id}/documents` | admin | employee | write | нет |
 | POST | `/api/admin/orders/{id}/notes` | admin | employee | write | нет |
 | POST | `/api/admin/orders/{id}/stages` | admin | employee | write | нет |
@@ -729,22 +777,25 @@
 | `Contractor` | 15 | src/app/api/admin/contractor-leads/[id]/route.ts, src/app/api/admin/contractors/[id]/route.ts, src/app/api/admin/contractors/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/auth/contractor/login/route.ts |
 | `ContractorLead` | 9 | src/app/api/admin/contractor-leads/[id]/route.ts, src/app/api/admin/contractor-leads/route.ts |
 | `ContractorSession` | 6 | src/lib/contractor-auth.ts |
-| `CurrencyRate` | 6 | src/app/api/admin/references/route.ts, src/lib/cbr.ts |
+| `CurrencyRate` | 6 | src/app/api/admin/references/route.ts, src/lib/cbr.ts, src/lib/customs-server.ts |
 | `Customer` | 12 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/customers/route.ts, src/app/api/admin/leads/route.ts, src/app/api/admin/orders/route.ts |
 | `CustomerUser` | 12 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/auth/client/login/route.ts, src/lib/actor-name.ts, src/lib/company-users.ts |
+| `CustomsCalculation` | 28 | src/app/admin/orders/[id]/print/page.tsx, src/lib/customs-server.ts |
+| `CustomsCalculationItem` | 17 | — |
+| `CustomsFeeScale` | 5 | scripts/seed.ts, src/lib/customs-server.ts |
 | `Document` | 12 | src/app/api/admin/documents/[id]/versions/route.ts, src/app/api/admin/leads/[id]/documents/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/app/api/client/leads/[id]/documents/route.ts (+2) |
 | `DocumentVersion` | 13 | src/app/api/document-versions/[id]/file/route.ts |
 | `Employee` | 11 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/orders/[id]/patch.ts, src/app/api/auth/employee/login/route.ts (+1) |
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts |
-| `HsCode` | 9 | scripts/import-hs.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/lib/hs-db.ts |
-| `HsImport` | 5 | scripts/import-hs.ts, src/lib/hs-db.ts |
-| `Lead` | 29 | src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/leads/[id]/convert/helpers.ts, src/app/api/admin/leads/[id]/convert/route.ts (+12) |
+| `HsCode` | 9 | scripts/import-hs.ts, scripts/verify-hs-db.ts, scripts/verify-hs-prefix.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/lib/hs-db.ts |
+| `HsImport` | 5 | scripts/import-hs.ts, scripts/verify-hs-db.ts, src/lib/hs-db.ts |
+| `Lead` | 31 | src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/leads/[id]/convert/helpers.ts, src/app/api/admin/leads/[id]/convert/route.ts (+14) |
 | `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts |
 | `LegalEntity` | 7 | scripts/seed.ts, src/app/api/admin/leads/[id]/convert/route.ts, src/app/api/admin/legal-entities/[id]/route.ts, src/app/api/admin/legal-entities/route.ts |
 | `LoginAttempt` | 7 | src/lib/login-guard.ts |
 | `Notification` | 19 | scripts/e2e_seed_notification.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/notifications/route.ts, src/lib/notifications/digest.ts, src/lib/notifications/dispatch.ts, src/lib/notifications/retry.ts |
 | `NotificationPreference` | 5 | — |
-| `Order` | 37 | src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/admin/orders/[id]/notes/route.ts (+15) |
+| `Order` | 39 | src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/customs-calculations/route.ts, src/app/api/admin/orders/[id]/documents/route.ts (+17) |
 | `OrderBroker` | 6 | src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/lib/broker-links.ts |
 | `OrderStageCatalog` | 5 | scripts/seed.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/orders/[id]/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts (+11) |
 | `OrderStageInstance` | 11 | src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts, src/app/api/contractor/orders/[id]/stages/[stageId]/route.ts, src/lib/orders.ts |

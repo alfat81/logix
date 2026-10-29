@@ -22,6 +22,8 @@ import { ActivityFeed } from '@/components/admin/ActivityFeed'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
 import { NoteForm } from '@/components/admin/NoteForm'
 import { BrokerLinksSection } from '@/components/admin/BrokerLinksSection'
+import { CustomsCalcScreen } from '@/components/admin/customs/CustomsCalcScreen'
+import { toEstimatePrefill } from '@/components/admin/customs/prefill'
 import type { LeadStatus } from '@/lib/leads'
 import { fmtDate, type LeadFull } from '@/components/admin/lead/types'
 import { LeadAnketaCard } from '@/components/admin/lead/LeadAnketaCard'
@@ -96,6 +98,16 @@ export function LeadCard() {
   // у lost возврат в работу — мастер, у won правка через заявку)
   const anketaEditable = lead.status === 'new' || lead.status === 'calculated'
 
+  // ── DF-19: предзаполнение — проценты из ответов брокера (DF-18),
+  // фрахт — из выбранного варианта расчёта (себестоимость, иначе цена)
+  const estimates = toEstimatePrefill(lead.brokers)
+  const freightSuggest = selectedOption
+    ? {
+        amount: selectedOption.costEstimate ?? selectedOption.price,
+        currency: selectedOption.costEstimate != null ? selectedOption.costCurrency : selectedOption.currency,
+      }
+    : null
+
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-6">
       {/* BRANDBOOK §4 (P1-18): рабочая область 1fr + правая панель
@@ -158,6 +170,21 @@ export function LeadCard() {
           onChanged={load}
           emptyText="Брокеры не подключены — подключите таможенного представителя для оценки платежей"
         />
+
+        {/* ── DF-19: расчёт таможенных платежей (оценка в рублях) —
+            проценты брокера + условия поставки + курс ЦБ. won — без
+            секции: сделка уехала в заявку, считайте на заявке. ── */}
+        {!isWon && (
+          <CustomsCalcScreen
+            targetType="lead"
+            targetId={String(id)}
+            estimates={estimates}
+            initialIncoterm={lead.incotermCode}
+            initialPlace={lead.incotermPlace}
+            freightSuggest={freightSuggest}
+            onChanged={load}
+          />
+        )}
 
         {/* ── Е: документы сделки (роадмап 5) — предварительный инвойс
             для расчёта пошлины живёт на расчёте. won — без секции: сделка

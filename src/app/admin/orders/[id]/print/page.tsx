@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { getEmployeeByToken, SESSION_COOKIE } from '@/lib/auth'
 import { OrderPrintToolbar } from '@/components/admin/OrderPrintToolbar'
 import { buildPrintModel } from './data'
+import { buildPrintCustoms } from './customs-data'
 import { PrintTable } from './PrintTable'
 import './print.css'
 
@@ -51,6 +52,32 @@ export default async function OrderPrintPage({
   }
 
   const model = buildPrintModel(order)
+
+  // DF-19: приложение с расчётом таможенных платежей — текущая версия
+  // расчёта заявки; нет расчёта — раздела нет (не рисуем заглушек)
+  const calc = await db.customsCalculation.findFirst({
+    where: { orderId: id, isCurrent: true },
+    include: { items: { orderBy: { sortOrder: 'asc' } } },
+  })
+  if (calc) {
+    model.customs = buildPrintCustoms({
+      incoterm: calc.incoterm,
+      incotermPlace: calc.incotermPlace,
+      calcDate: calc.calcDate,
+      fxDate: calc.fxDate,
+      fxRates: calc.fxRates,
+      fxReservePercent: calc.fxReservePercent,
+      totals: calc.totals,
+      items: calc.items.map((it) => ({
+        hsCode: it.hsCode,
+        customsValue: String(it.customsValue),
+        duty: String(it.duty),
+        addDuty: String(it.addDuty),
+        vat: String(it.vat),
+        allocatedCosts: String(it.allocatedCosts),
+      })),
+    })
+  }
 
   return (
     <>

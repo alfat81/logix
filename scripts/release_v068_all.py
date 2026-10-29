@@ -377,17 +377,25 @@ npx tsx scripts/import-hs.ts
 
 
 def expected_git_status_block():
-    lines = []
-    r = sh(["git", "diff", "--name-status", BASE_COMMIT], check=False)
-    for L in (r.stdout or "").splitlines():
-        if L.strip():
-            lines.append(L.rstrip())
+    # only real content changes: drop mode-only noise (numstat 0/0)
+    ns = {}
+    for line in (sh(["git", "diff", "--name-status", BASE_COMMIT], check=False).stdout or "").splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 2:
+            ns[parts[-1]] = parts[0]
+    content = set()
+    for line in (sh(["git", "diff", "--numstat", BASE_COMMIT], check=False).stdout or "").splitlines():
+        parts = line.split("\t")
+        if len(parts) == 3 and not (parts[0] == "0" and parts[1] == "0"):
+            content.add(parts[2])
+    lines = [ns[p] + "\t" + p for p in sorted(ns) if p in content]
     r2 = sh(["git", "ls-files", "--others", "--exclude-standard"], check=False)
     others = [u for u in (r2.stdout or "").splitlines() if u.strip()]
-    if "docs/releases/RELEASE-INSTRUCTIONS-v0.6.8.md" not in others:
+    if "docs/releases/RELEASE-INSTRUCTIONS-v0.6.8.md" not in others and \
+       "docs/releases/RELEASE-INSTRUCTIONS-v0.6.8.md" not in ns:
         others.append("docs/releases/RELEASE-INSTRUCTIONS-v0.6.8.md")
     for u in others:
-        lines.append("??\t" + u)
+        lines.append("?\t" + u)
     if not lines:
         return "```\n(пусто — рабочее дерево совпадает с main)\n```"
     return "```\n" + "\n".join(lines) + "\n```"
@@ -472,7 +480,8 @@ def stage_panel():
 
     dl = ROOT / "download"
     # 1) archive old panel zips physically, remove from index
-    old_dirs = [p for p in sorted(dl.glob("RELEASE-*")) if p.name != "RELEASE-v0.6.8"]
+    old_dirs = [p for p in sorted(dl.glob("RELEASE-*"))
+                if p.name != "RELEASE-v0.6.8" and p.is_dir()]
     for p in old_dirs:
         tgt = ARCHIVE_DIR / p.name
         tgt.mkdir(parents=True, exist_ok=True)

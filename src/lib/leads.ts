@@ -412,6 +412,8 @@ export const PatchLeadSchema = z
     route: RouteFieldsSchema.optional(),
     // DF-17: условие поставки кодом (null = очистить)
     incotermCode: z.string().trim().max(10).transform((v) => v.toUpperCase()).nullable().optional(),
+    // DF-19: место условия поставки (свободный текст, null = очистить)
+    incotermPlace: z.string().trim().max(200, 'Место — слишком длинное').nullable().optional(),
   })
   .refine(
     (d) =>
@@ -420,9 +422,10 @@ export const PatchLeadSchema = z
       d.rawContact !== undefined ||
       d.cargoInfo !== undefined ||
       d.route !== undefined ||
-      d.incotermCode !== undefined,
+      d.incotermCode !== undefined ||
+      d.incotermPlace !== undefined,
     {
-      message: 'Нечего обновлять: укажите статус, assignedToId, rawContact, cargoInfo, route или incotermCode',
+      message: 'Нечего обновлять: укажите статус, assignedToId, rawContact, cargoInfo, route, incotermCode или incotermPlace',
     }
   )
 export type PatchLeadInput = z.infer<typeof PatchLeadSchema>

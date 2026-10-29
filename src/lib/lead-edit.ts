@@ -182,12 +182,14 @@ type ExistingRow = {
   volumeM3?: unknown
   placesCount?: unknown
   incotermCode?: unknown
+  incotermPlace?: unknown
 }
 type IncomingEdit = {
   rawContact?: RawContact
   cargoInfo?: Record<string, unknown> | null
   route?: RouteFieldsInput
   incotermCode?: string | null
+  incotermPlace?: string | null
 }
 
 // Diff анкеты: список строк «Подпись: старое → новое» (только реально
@@ -280,6 +282,15 @@ export function buildLeadEditDiff(
     const next = incoming.incotermCode || null
     if (prev !== next) {
       out.push(`Условия поставки: ${prev ?? '—'} → ${next ?? '—'}`)
+    }
+  }
+
+  // DF-19: место условия поставки — свободный текст рядом с кодом
+  if (incoming.incotermPlace !== undefined) {
+    const prev = typeof existing.incotermPlace === 'string' ? existing.incotermPlace : null
+    const next = incoming.incotermPlace?.trim() || null
+    if (prev !== next) {
+      out.push(`Место поставки: ${prev ?? '—'} → ${next ?? '—'}`)
     }
   }
 

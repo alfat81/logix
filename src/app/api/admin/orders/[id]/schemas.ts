@@ -30,6 +30,8 @@ export const PatchOrderSchema = z.object({
     .transform((v) => v.toUpperCase())
     .nullable()
     .optional(),
+  // DF-19: место условия поставки (свободный текст, null = очистить)
+  incotermPlace: z.string().trim().max(200, 'Место — слишком длинное').nullable().optional(),
   hsCode: z.string().trim().max(20).nullable().optional(),
   cargoProfile: z.enum(CARGO_PROFILES).optional(),
   // Форма бланка груза — свободный объект (ключи проверяет UI,

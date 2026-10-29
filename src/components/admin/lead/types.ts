@@ -28,6 +28,8 @@ export type LeadFull = {
   originCountryCode?: string | null
   destinationCountryCode?: string | null
   incotermCode?: string | null
+  // DF-19: место условия поставки (стартовое значение формы расчёта)
+  incotermPlace?: string | null
   // P1-01: ответственный менеджер (null = не назначен — кабинетный запрос)
   assignee: { id: string; name: string } | null
   options: QuoteOptionRow[]

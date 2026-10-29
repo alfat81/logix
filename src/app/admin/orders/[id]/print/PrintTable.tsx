@@ -7,6 +7,7 @@ import {
   fmtRuDate,
   type PrintModel,
 } from './data'
+import { CustomsPrintBlock } from './CustomsPrintBlock'
 
 // v0.5.0 (P1-22): разметка печатной формы заявки (28 пунктов бланка
 // из S13) — выезд из page.tsx (резка под лимит 300, RULES 2.14).
@@ -282,6 +283,11 @@ export function PrintTable({ m }: { m: PrintModel }) {
           <div className="sign-line">подпись / печать</div>
         </div>
       </div>
+
+      {/* ── DF-19: приложение с расчётом таможенных платежей —
+          печатается только при сохранённом расчёте заявки; подпись
+          «Оценка…» внутри блока (D41) ── */}
+      {m.customs && <CustomsPrintBlock d={m.customs} />}
 
       <footer className="doc-footer">
         Документ сформирован автоматически в Logix · заявка №{' '}

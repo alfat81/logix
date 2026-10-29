@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { db } from './db'
 import { type ActivityActor } from '@/lib/activity'
-import { SettingValidationError, asEventCodeList, asInt, asNonEmptyStr, asOneOf, asOptionalEmail, asOptionalStr, asStringList, asTime, asTimeList, asTimezone } from './settings-validators'
+import { SettingValidationError, asEventCodeList, asInt, asNonEmptyStr, asOneOf, asOptionalEmail, asOptionalStr, asPercent, asStringList, asTime, asTimeList, asTimezone } from './settings-validators'
 
 // Единая поверхность импорта модуля настроек: потребители (API Блока 4,
 // DF-03/DF-08/DF-11) берут всё из settings.ts, внутренности валидаторов
@@ -25,6 +25,7 @@ export const SETTING_GROUPS = [
   'waiting',
   'permits',
   'broker',
+  'customs',
   'files',
   'brand',
   'email',
@@ -37,6 +38,7 @@ export const SETTING_GROUP_LABELS: Record<SettingGroup, string> = {
   waiting: 'Ожидания',
   permits: 'Разрешительные документы',
   broker: 'Брокеры',
+  customs: 'Таможенные расчёты',
   files: 'Файлы',
   brand: 'Бренд',
   email: 'Почта',
@@ -156,6 +158,12 @@ export const SETTINGS = [
     label: 'Строк в ответе брокера, максимум',
     hint: 'Потолок строк кодов ТН ВЭД в одном ответе брокера (DF-18, D38).',
     defaultValue: 30, validate: (v) => asInt(v, 1, 100),
+  }),
+  defineSetting({
+    key: 'customs.fx_reserve_percent', group: 'customs', uiType: 'number',
+    label: 'Запас к курсу ЦБ, %',
+    hint: 'Оценочный запас к официальному курсу в расчёте таможенных платежей (DF-19, D41). 0 — без запаса.',
+    defaultValue: 0, validate: (v) => asPercent(v, 20),
   }),
   defineSetting({
     key: 'files.max_mb', group: 'files', uiType: 'number',

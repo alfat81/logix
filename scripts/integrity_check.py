@@ -129,8 +129,14 @@ def ic02() -> None:
             # DF-17 (/api/ref/[dir]): роут для ТРЁХ кабинетов сразу — guard
             # собирает сессию любого кабинета нижнеуровневыми lookup'ами
             # (401 при отсутствии любой; e2e DF-17 проверяет анонима)
-            "getEmployeeByToken", "getClientByToken", "getBrokerByToken", "getContractorByToken"]
-        ok = (need and need in t) or (not need and any(g in t for g in guards))
+            "getEmployeeByToken", "getClientByToken", "getBrokerByToken", "getContractorByToken",
+            # DF-19 (customs-calculations PUT): guard делегирован lib/customs-api
+            # (requireCalcWriter — requireEmployee {write:true} внутри)
+            "requireCalcWriter"]
+        # DF-19: guard может быть делегирован lib/customs-api (requireCalcWriter —
+        # requireEmployee {write:true} внутри); узкое исключение, не ослабляет
+        # остальные кабинеты (их guard-строки проверяются как раньше).
+        ok = (need and (need in t or "requireCalcWriter" in t)) or (not need and any(g in t for g in guards))
         if not ok:
             add("IC-02", rel(f), f"роут без guard кабинета (ожидался {need or 'любой'})")
 
@@ -150,7 +156,8 @@ def ic03() -> None:
     event_call = (r"emitEvent\(|logActivity\(|logInternalNote\(|"
                   r"createDocumentOnDeal\(|addDocumentVersion\(|deleteDocument\(|"
                   r"patchLead\(|patchOrder\(|detachBrokerFromLead\(|detachBrokerFromOrder\(|"
-                  r"setSetting\(|resetSetting\(")
+                  r"setSetting\(|resetSetting\(|"
+                  r"createCalculation\(|updateCalculation\(")
     for f in rglob("src/app/api/**/route.ts"):
         t = text(f)
         url = rel(f)
@@ -159,7 +166,7 @@ def ic03() -> None:
         seg = url.split("/")[3] if url.count("/") >= 3 else ""
         if seg == "auth" or "CRON_SECRET" in t:
             continue
-        if seg == "admin" and re.search(r"\{\s*[^{}]*?write:\s*true", t) is None:
+        if seg == "admin" and re.search(r"\{\s*[^{}]*?write:\s*true|requireCalcWriter\(", t) is None:
             # Маркер ищем по месту в объекте опций, а не точной подстрокой:
             # master-only роуты передают { write: true, roles: [...] } (Ж6в, DF-00D) —
             # это тот же маркер P1-09; подстрока давала ложные FAIL (шесть записей

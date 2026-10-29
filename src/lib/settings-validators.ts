@@ -93,6 +93,15 @@ export function asOneOf(v: unknown, allowed: readonly string[]): string {
   return s
 }
 
+// Проценты с двумя знаками после запятой, 0..max (customs.fx_reserve_percent,
+// DF-19: оценочный запас к курсу ЦБ — 0,5% легитимен, не только целые)
+export function asPercent(v: unknown, max: number): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) throw new SettingValidationError('Ожидается число')
+  if (v < 0 || v > max) throw new SettingValidationError(`От 0 до ${max}`)
+  if (Math.abs(v * 100 - Math.round(v * 100)) > 1e-6) throw new SettingValidationError('Максимум 2 знака после запятой')
+  return v
+}
+
 // Коды «красных» событий — только из реестра ACTIVITY_TYPES: свободный
 // код диспетчер писем (DF-03) не поймёт. Пустой список легитимен:
 // красных событий в системе пока нет (появятся в DF-05/DF-16).

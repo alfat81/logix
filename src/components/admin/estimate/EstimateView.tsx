@@ -11,6 +11,9 @@ import { fmtDuty, fmtPercent, isManualRate, readPermits } from '@/lib/brokers'
 // отсутствовать (ответы до релиза DF-18).
 
 export type BrokerEstimateItemRow = {
+  // DF-19: id строки — ссылка brokerItemId в расчёте (предзаполнение
+  // «Из ответа брокера» сохраняет происхождение строки)
+  id?: string
   hsCode: string
   isManualCode?: boolean
   dutyPercent: number | string | null

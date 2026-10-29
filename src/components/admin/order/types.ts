@@ -31,6 +31,10 @@ export type OrderFull = {
   cargoProfile: CargoProfile
   hsCode: string | null
   createdAt: string
+  // DF-17/DF-19: условие поставки кодом + место (стартовые значения
+  // формы расчёта таможенных платежей)
+  incotermCode?: string | null
+  incotermPlace?: string | null
   // Ж1: суть заявки. cargoInfo — форма бланка (как у лида),
   // quoteSnapshot — снимок условий сделки; оба — копии с лида
   // при конвертации, дальше — источник правды сама заявка.

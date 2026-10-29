@@ -2,6 +2,7 @@ import { formatMoney, isCurrencyCode, isVatMode, VAT_MODE_LABELS } from '@/lib/m
 import { TRANSPORT_TYPE_LABELS, joinRouteText } from '@/lib/route-fields'
 import { readLeadCargo } from '@/lib/leads'
 import { requisitesInn } from '@/lib/requisite-fields'
+import type { PrintCustoms } from './customs-data'
 
 // v0.5.0 (P1-22): модель печатной формы заявки (Е) — выезд из
 // page.tsx (резка под лимит 300, RULES 2.14). Чистые вычисления без
@@ -74,6 +75,9 @@ export type PrintModel = {
   quotePrice: number | null
   quoteCurrency: string
   quoteVat: string
+  // DF-19: приложение с расчётом таможенных платежей (оценка) —
+  // заполняет страница при наличии текущего расчёта заявки
+  customs: PrintCustoms | null
   executorName: string
   executorPhone: string
   executorEmail: string
@@ -207,6 +211,7 @@ export function buildPrintModel(order: PrintOrder): PrintModel {
     quotePrice,
     quoteCurrency,
     quoteVat,
+    customs: null,
     executorName,
     executorPhone,
     executorEmail,

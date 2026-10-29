@@ -195,3 +195,64 @@ body {
   color: var(--muted-foreground);
   text-align: center;
 }
+
+/* ── DF-19: приложение «Расчёт таможенных платежей (оценка)» ──
+   Чёрный + брендовые токены через var() — новых hex нет (RULES 2.14). */
+.customs-block {
+  margin-top: 10mm;
+  padding-top: 6mm;
+  border-top: 1.5pt solid var(--ink);
+  page-break-inside: avoid;
+}
+.customs-title {
+  margin: 0 0 2mm;
+  font-size: 11pt;
+  font-weight: 700;
+}
+.customs-meta {
+  margin-bottom: 3mm;
+  font-size: 9pt;
+  color: var(--muted-foreground);
+}
+.customs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5pt;
+}
+.customs-table th,
+.customs-table td {
+  border: 0.75pt solid var(--ink);
+  padding: 1.5mm 2mm;
+  text-align: left;
+}
+.customs-table th {
+  background: var(--muted);
+  font-weight: 600;
+}
+.customs-table td.num,
+.customs-table th:nth-child(2),
+.customs-table th:nth-child(3),
+.customs-table th:nth-child(4),
+.customs-table th:nth-child(5) {
+  text-align: right;
+  white-space: nowrap;
+}
+.customs-table td.mono {
+  font-family: var(--font-mono, monospace);
+}
+.customs-table tr.totals td {
+  font-weight: 700;
+  background: var(--muted);
+}
+.customs-totals {
+  margin-top: 3mm;
+  display: grid;
+  gap: 1mm;
+  font-size: 10pt;
+}
+.customs-note {
+  margin-top: 3mm;
+  font-size: 8.5pt;
+  font-style: italic;
+  color: var(--muted-foreground);
+}

@@ -392,7 +392,7 @@ s,d=bb.r('GET','/api/admin/settings'); chk('[ПРИЁМКА DF-00D] менедж
 s,d=bb.r('PATCH','/api/admin/settings',{'key':'files.max_mb','value':50}); chk('[ПРИЁМКА DF-00D] менеджер не меняет настройки → 403',s==403,s)
 s,d=C().r('GET','/api/admin/settings'); chk('DF-00D: аноним не читает настройки → 401',s==401,s)
 s,d=a.r('GET','/api/admin/settings'); st=d.get('settings',[]) if isinstance(d,dict) else []
-chk('[ПРИЁМКА DF-00D] мастер читает реестр: 19 ключей (DF-18 +broker.max_items), группы, дефолты',s==200 and len(st)==19 and bool(d.get('groups')) and all('defaultValue' in x for x in st),(s,len(st)))
+chk('[ПРИЁМКА DF-00D] мастер читает реестр: 20 ключей (DF-19 +customs.fx_reserve_percent), группы, дефолты',s==200 and len(st)==20 and bool(d.get('groups')) and all('defaultValue' in x for x in st),(s,len(st)))
 f0=[x for x in st if x['key']=='files.max_mb'][0]
 chk('DF-00D: пустая таблица — значение равно дефолту',f0['value']==25 and f0['isModified']==False,f0)
 s,d=a.r('PATCH','/api/admin/settings',{'key':'files.max_mb','value':50}); chk('[ПРИЁМКА DF-00D] мастер меняет значение, новое видно в ответе',s==200 and (d.get('setting') or {}).get('value')==50,(s,d))
@@ -617,7 +617,9 @@ chk('DF-17: валюта из справочника несёт meta.minorUnits'
 s,d=c3.r('GET','/api/ref/incoterm'); inc_codes=[x['code'] for x in d.get('items',[])]
 chk('DF-17: клиент видит только активные условия поставки (DAT ред. 2010 скрыт)',s==200 and 'DAT' not in inc_codes and 'FOB' in inc_codes,(s,inc_codes))
 fob=[x for x in d.get('items',[]) if x['code']=='FOB']
-chk('DF-17: разъяснение Инкотермс едет в meta (собственные формулировки, draft-пометка)',bool(fob) and bool((fob[0].get('meta') or {}).get('explanation')) and (fob[0].get('meta') or {}).get('draft') is True,fob[:1])
+# D44 (30.10.2026): флаги утверждены брокером для тестового контура —
+# draft снят релизом 0.7.0; расчёт (DF-19) применяет правила
+chk('DF-17: разъяснение Инкотермс едет в meta (правила утверждены, draft снят — D44)',bool(fob) and bool((fob[0].get('meta') or {}).get('explanation')) and (fob[0].get('meta') or {}).get('draft') is False,fob[:1])
 # брокер: все ранние брокерские сессии в пргоне погашены намеренно
 # (деактивации DF-02A/DF-03 и брокера на строке «деактивация брокера гасит
 # сессию») — входим первичным пользователем брокера brk3 (он активен,
@@ -659,6 +661,66 @@ s,d=a.r('GET',f'/api/admin/orders/{oid3}'); chk('DF-17: старая заявк�
 # — rates=None; в проде — {date, items} последнего дня (пометка «курс на дату»)
 s,d=a.r('GET','/api/admin/references?dir=currency'); rates=d.get('rates')
 chk('DF-17: админский список валют — rates с датой либо None (импорт off)',s==200 and (rates is None or (bool(rates.get('date')) and isinstance(rates.get('items'),list))),(s,str(rates)[:120]))
+
+# --- DF-19: расчёт таможенных платежей в рублях (D38/D39) ---
+# Эталон №3 (ДТ 10702070/250326/5113751, FOB море): товар 34 517.80 +
+# фрахт 1 443.92 USD x 80.9604; пошлина 3%, НДС 22%, сбор 18 465.
+# ДТ считала фрахт без округления — допуск карточки ±1 ₽ на позицию.
+DF19_BODY={'incoterm':'FOB','incotermPlace':'Ningbo, CN','calcDate':'2026-03-25','fxDate':'2026-03-25',
+ 'fxRatesManual':{'USD':'80.9604'},'freightTotal':1443.92,'freightCurrency':'USD','insurance':0,'otherCosts':0,
+ 'brokerFeeRub':25000,'items':[{'hsCode':'8483402308','goodsValue':34517.80,'goodsCurrency':'USD','netWeightKg':12000,'dutyPercent':3,'addDutyPercent':None,'vatPercent':22}]}
+s,d=a.r('POST',f'/api/admin/leads/{lid4}/customs-calculations',DF19_BODY)
+chk('DF-19: эталон №3 сохранён на запросе (FOB, курс вручную)',s==201,(s,d))
+c1=(d.get('calculation') or {})
+t1=(c1.get('totals') or {})
+chk('DF-19: ТС в допуске ±1 ₽ к ДТ (2 911 474,90)',abs(float(t1.get('customsValueTotal',0))-2911474.90)<=1,t1)
+chk('DF-19: пошлина 3% в допуске (87 344,25)',abs(float(t1.get('dutyTotal',0))-87344.25)<=0.01,t1)
+chk('DF-19: НДС 22% в допуске (659 740,21)',abs(float(t1.get('vatTotal',0))-659740.21)<=1,t1)
+chk('DF-19: сбор по шкале ПП 1637 ровно 18 465 (скобка 2,7–4,2 млн)',t1.get('feeRub')=='18465.00',t1)
+chk('DF-19: платежи в допуске ±1 ₽ (765 549,46)',abs(float(t1.get('paymentsTotal',0))-765549.46)<=1,t1)
+chk('DF-19: вознаграждение брокера вне платежей (D42), итог с ним',float(t1.get('brokerFeeRub',0))==25000 and abs(float(t1.get('grandTotal',0))-765549.46-25000)<=1,t1)
+chk('DF-19: снимок курса за единицу с датой и источником (D41)',(c1.get('fxRates') or {}).get('USD',{}).get('rate')=='80.9604' and c1.get('fxDate','')[:10]=='2026-03-25',c1.get('fxRates'))
+chk('DF-19: версия правил в снимке',c1.get('rulesVersion')=='df19-2026.1',c1.get('rulesVersion'))
+p1_total=t1.get('paymentsTotal')
+s,d=a.r('GET',f'/api/admin/leads/{lid4}/customs-calculations'); hist=(d.get('calculations') or [])
+chk('DF-19: история — 1 версия, isCurrent',len(hist)==1 and hist[0].get('isCurrent') is True,len(hist))
+# пересчёт = новая версия (фиксация новой версией, прежняя — архив)
+s,d=a.r('POST',f'/api/admin/leads/{lid4}/customs-calculations',DF19_BODY)
+chk('DF-19: повторный расчёт — 201, вторая версия',s==201,(s,d))
+c2=(d.get('calculation') or {})
+s,d=a.r('GET',f'/api/admin/leads/{lid4}/customs-calculations'); hist=(d.get('calculations') or [])
+chk('DF-19: 2 версии, актуальна одна (последняя)',len(hist)==2 and sum(1 for x in hist if x.get('isCurrent'))==1 and hist[0].get('id')==c2.get('id'),[ (x.get('id'),x.get('isCurrent')) for x in hist])
+chk('DF-19: архив сохраняет свои числа (снимок)',(hist[1].get('totals') or {}).get('paymentsTotal')==p1_total,hist[1].get('totals'))
+# правка черновика (D40) — PUT только актуальной
+s,d=a.r('PUT',f"/api/admin/customs-calculations/{c2['id']}",dict(DF19_BODY,freightTotal=0))
+chk('DF-19: правка черновика → 200, фрахт 0 убрал надбавку (ТС = цена по курсу)',s==200 and abs(float((d.get('calculation') or {}).get('totals',{}).get('customsValueTotal',0))-2794574.90)<=1,(s,str(d)[:200]))
+s,d=a.r('PUT',f"/api/admin/customs-calculations/{hist[1]['id']}",DF19_BODY); chk('DF-19: правка архива → 400',s==400,s)
+# смена курса не меняет сохранённые расчёты (снимок, инвариант 11)
+s,d=a.r('POST',f'/api/admin/leads/{lid4}/customs-calculations',dict(DF19_BODY,fxRatesManual={'USD':'90'}))
+chk('DF-19: расчёт по курсу 90 создан',s==201,(s,d))
+c3x=(d.get('calculation') or {})
+chk('DF-19: новый курс применился (ТС выросла)',float((c3x.get('totals') or {}).get('customsValueTotal',0))>3200000,c3x.get('totals'))
+s,d=a.r('GET',f'/api/admin/leads/{lid4}'); L6=d.get('lead',d)
+acts6=L6.get('activities',[])
+chk('DF-19: событие customs_calc_saved в журнале запроса',bool(acts6) and acts6[0]['type']=='customs_calc_saved',(acts6[0] if acts6 else None))
+# изоляция: клиент и брокер расчёты не видят (401/403/404)
+s,_=c3.r('GET',f'/api/admin/leads/{lid4}/customs-calculations'); chk('DF-19: клиент не видит расчёты запроса',s in(401,403),s)
+s,_=c3.r('PUT',f"/api/admin/customs-calculations/{c2['id']}",DF19_BODY); chk('DF-19: клиент не правит расчёт',s in(401,403),s)
+s,_=b.r('GET',f'/api/admin/leads/{lid4}/customs-calculations'); chk('DF-19: брокер не видит расчёты запроса',s in(401,403),s)
+# валидация и правила из справочника
+s,d=a.r('POST',f'/api/admin/leads/{lid4}/customs-calculations',dict(DF19_BODY,incoterm='DAT')); chk('DF-19: неактивное условие поставки → 400',s==400,s)
+s,d=a.r('POST',f'/api/admin/leads/{lid4}/customs-calculations',dict(DF19_BODY,freightToArrival=9999)); chk('DF-19: фрахт до прибытия больше счёта → 400',s==400,s)
+s,d=a.r('POST',f'/api/admin/leads/{lid4}/customs-calculations',dict(DF19_BODY,items=[DF19_BODY['items'][0],DF19_BODY['items'][0]])); chk('DF-19: дубль кода → 400',s==400,s)
+s,d=a.r('POST',f'/api/admin/leads/{lid4}/customs-calculations',dict(DF19_BODY,items=[dict(DF19_BODY['items'][0],hsCode='123')])); chk('DF-19: код не 10 цифр → 400',s==400,s)
+# заявка: расчёт на oid3 + заявочные роуты
+s,d=a.r('POST',f'/api/admin/orders/{oid3}/customs-calculations',DF19_BODY)
+chk('DF-19: расчёт сохранён на заявке',s==201,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid3}/customs-calculations'); chk('DF-19: история заявки читается',s==200 and len(d.get('calculations') or [])==1,(s,len(d.get('calculations') or [])))
+s,_=c3.r('GET',f'/api/admin/orders/{oid3}/customs-calculations'); chk('DF-19: клиент не видит расчёты заявки',s in(401,403),s)
+s,_=b.r('GET',f'/api/admin/orders/{oid3}/customs-calculations'); chk('DF-19: брокер не видит расчёты заявки',s in(401,403),s)
+s,d=a.r('GET',f'/api/admin/orders/{oid3}'); chk('DF-19: incotermPlace заявки открывается (PATCH-поле)',s==200,(s,d))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid3}',{'incotermPlace':'Ningbo, CN'}); chk('DF-19: PATCH incotermPlace заявки → 200',s==200,(s,d))
+s,d=a.r('PATCH',f'/api/admin/leads/{lid4}',{'incotermPlace':'Ningbo, CN'}); chk('DF-19: PATCH incotermPlace запроса → 200',s==200,(s,d))
 
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)

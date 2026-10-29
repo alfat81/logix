@@ -24,6 +24,8 @@ import { ISO_3166_1, RU_NAME_OVERRIDES } from './ref-data/countries'
 import { CURRENCY_ITEMS } from './ref-data/currencies'
 import { PACKAGING_ITEMS } from './ref-data/packaging'
 import { INCOTERM_ITEMS } from './ref-data/incoterms'
+// ── DF-19: шкала таможенных сборов (IC-16: единственный импортёр — сид) ──
+import { CUSTOMS_FEE_SCALE_EDITIONS } from './ref-data/customs-fees'
 
 // ── Мини-загрузчик .env — вынесен в scripts/env-fallback.ts (общий
 //    для скриптов: seed и import-hs, reuse-first 2.13) ────────────────
@@ -232,6 +234,35 @@ async function seedReferences(): Promise<void> {
   console.log(`  = Справочники DF-17 актуализированы (${parts}); name/isActive мастера не перезаписаны`)
 }
 
+// ── DF-19: шкала таможенных сборов (CustomsFeeScale) ─────────────────
+// Редакции замещаются ЦЕЛИКОМ: при пересиде строки каждой validFrom
+// удаляются и создаются заново из источника (правки подписей — не
+// сценарий шкалы: сборы ставятся ПП, редакция = дата + полный список
+// скобок; смена ПП — новая validFrom в ref-data + пересид).
+async function seedCustomsFeeScale(): Promise<void> {
+  const byEdition = new Map<string, typeof CUSTOMS_FEE_SCALE_EDITIONS>()
+  for (const row of CUSTOMS_FEE_SCALE_EDITIONS) {
+    const list = byEdition.get(row.validFrom) ?? []
+    list.push(row)
+    byEdition.set(row.validFrom, list)
+  }
+  let total = 0
+  for (const [validFrom, rows] of byEdition) {
+    const day = new Date(`${validFrom}T00:00:00.000Z`)
+    await prisma.customsFeeScale.deleteMany({ where: { validFrom: day } })
+    await prisma.customsFeeScale.createMany({
+      data: rows.map((r) => ({
+        validFrom: day,
+        upperBound: r.upperBound,
+        feeRub: r.feeRub,
+        sortOrder: r.sortOrder,
+      })),
+    })
+    total += rows.length
+  }
+  console.log(`  = Шкала таможенных сборов DF-19 актуализирована (строк: ${total}, редакций: ${byEdition.size})`)
+}
+
 async function main(): Promise<void> {
   assertMasterCredentials()
   console.log('Seed Logix:')
@@ -239,6 +270,7 @@ async function main(): Promise<void> {
   await seedStageCatalog()
   await seedLegalEntity()
   await seedReferences()
+  await seedCustomsFeeScale()
   console.log('Готово.')
 }
 

@@ -17,9 +17,13 @@
 // placeKind — смысл указанного места (для формы подсказки);
 // warning — предупреждение особого случая (DDP и др.).
 //
-// ВАЖНО (O-12): таблица флагов — ЧЕРНОВИК до утверждения брокером;
-// draft: true у каждого термина, экран справочника показывает пометку,
-// расчёт (DF-19) черновые правила не применяет.
+// ВАЖНО (O-12, обновлено D44): таблица флагов УТВЕРЖДЕНА брокером для
+// тестового контура 30.10.2026 («утверждаю», «в тестовой версии
+// оставляем эти» — справочник редактируемый). Draft-пометка снята
+// релизом 0.7.0 с пометкой об утверждении; операционное подтверждение
+// на прод — после первого живого расчёта, сошедшегося с фактической
+// ДТ (карточка DF-19, шаг 1). Расчёт (DF-19) черновые правила
+// (meta.draft: true, если вернутся) не применяет.
 export type IncotermSeed = {
   code: string
   name: string
@@ -54,7 +58,7 @@ export const INCOTERM_ITEMS: IncotermSeed[] = [
       placeKind: 'origin',
       addFreightToArrival: true,
       addInsurance: true,
-      draft: true,
+      draft: false,
     },
   },
   {
@@ -73,7 +77,7 @@ export const INCOTERM_ITEMS: IncotermSeed[] = [
       placeKind: 'origin',
       addFreightToArrival: true,
       addInsurance: true,
-      draft: true,
+      draft: false,
     },
   },
   {
@@ -92,7 +96,7 @@ export const INCOTERM_ITEMS: IncotermSeed[] = [
       placeKind: 'destination',
       addFreightToArrival: false,
       deductPostArrival: true,
-      draft: true,
+      draft: false,
     },
   },
   {
@@ -112,7 +116,7 @@ export const INCOTERM_ITEMS: IncotermSeed[] = [
       addFreightToArrival: false,
       addInsurance: false,
       deductPostArrival: true,
-      draft: true,
+      draft: false,
     },
   },
   {
@@ -131,7 +135,7 @@ export const INCOTERM_ITEMS: IncotermSeed[] = [
       addFreightToArrival: false,
       addInsurance: false,
       deductPostArrival: true,
-      draft: true,
+      draft: false,
     },
   },
   {
@@ -149,7 +153,7 @@ export const INCOTERM_ITEMS: IncotermSeed[] = [
       addFreightToArrival: false,
       addInsurance: false,
       deductPostArrival: true,
-      draft: true,
+      draft: false,
     },
   },
   {
@@ -172,7 +176,7 @@ export const INCOTERM_ITEMS: IncotermSeed[] = [
         'таможенной стоимости они не добавляются и требуют ручного вычета. ' +
         'НДС импорта получает продавец-нерезидент — вариант часто неудобен ' +
         'обеим сторонам, согласуйте заранее.',
-      draft: true,
+      draft: false,
     },
   },
   {
@@ -190,7 +194,7 @@ export const INCOTERM_ITEMS: IncotermSeed[] = [
       placeKind: 'port_dispatch',
       addFreightToArrival: true,
       addInsurance: true,
-      draft: true,
+      draft: false,
     },
   },
   {
@@ -209,7 +213,7 @@ export const INCOTERM_ITEMS: IncotermSeed[] = [
       placeKind: 'port_dispatch',
       addFreightToArrival: true,
       addInsurance: true,
-      draft: true,
+      draft: false,
     },
   },
   {
@@ -228,7 +232,7 @@ export const INCOTERM_ITEMS: IncotermSeed[] = [
       addFreightToArrival: false,
       addInsurance: false,
       deductPostArrival: true,
-      draft: true,
+      draft: false,
     },
   },
   {
@@ -247,7 +251,7 @@ export const INCOTERM_ITEMS: IncotermSeed[] = [
       addFreightToArrival: false,
       addInsurance: false,
       deductPostArrival: true,
-      draft: true,
+      draft: false,
     },
   },
   {
@@ -268,7 +272,7 @@ export const INCOTERM_ITEMS: IncotermSeed[] = [
       addFreightToArrival: false,
       addInsurance: false,
       deductPostArrival: true,
-      draft: true,
+      draft: false,
     },
   },
 ]

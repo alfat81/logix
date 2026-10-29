@@ -53,7 +53,7 @@ export async function patchLead(
         { status: 400 }
       )
     }
-    const { status, lostReason, assignedToId, rawContact, cargoInfo, route, incotermCode } = parsed.data
+    const { status, lostReason, assignedToId, rawContact, cargoInfo, route, incotermCode, incotermPlace } = parsed.data
 
     const existing = await db.lead.findUnique({
       where: { id },
@@ -97,7 +97,7 @@ export async function patchLead(
           { status: 409 }
         )
       }
-      const diffs = buildLeadEditDiff(existing, { rawContact, cargoInfo, route, incotermCode })
+      const diffs = buildLeadEditDiff(existing, { rawContact, cargoInfo, route, incotermCode, incotermPlace })
       if (!diffs.length && status === undefined && assignedToId === undefined) {
         return NextResponse.json({ error: 'Анкета не изменилась' }, { status: 400 })
       }
@@ -226,6 +226,8 @@ export async function patchLead(
         // именами (undefined = «не трогать», null = очистить).
         ...deal.columns,
         incotermCode: incotermCode !== undefined ? deal.incoterm : undefined,
+        // DF-19: место условия поставки (null = очистить, undefined = не трогать)
+        incotermPlace: incotermPlace !== undefined ? incotermPlace || null : undefined,
       },
       include: {
         customer: { select: { id: true, name: true, phone: true } },

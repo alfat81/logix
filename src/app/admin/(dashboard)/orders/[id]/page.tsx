@@ -29,6 +29,8 @@ import { NoteForm } from '@/components/admin/NoteForm'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
 import { InfoField } from '@/components/admin/InfoField'
 import { BrokerLinksSection, type BrokerEstimateRow } from '@/components/admin/BrokerLinksSection'
+import { CustomsCalcScreen } from '@/components/admin/customs/CustomsCalcScreen'
+import { toEstimatePrefill } from '@/components/admin/customs/prefill'
 import { CARGO_PROFILE_LABELS } from '@/lib/order-constants'
 import {
   ORDER_STATUSES,
@@ -235,6 +237,19 @@ export default function OrderPage() {
           onChanged={load}
           emptyText="Брокеры не подключены — сделка видна только менеджеру и подключённым подрядчикам своих этапов"
         />
+
+        {/* ── DF-19: расчёт таможенных платежей заявки (оценка в рублях;
+            проценты брокера — с лида-источника, отменённая — без секции) */}
+        {order.status !== 'cancelled' && (
+          <CustomsCalcScreen
+            targetType="order"
+            targetId={String(id)}
+            estimates={toEstimatePrefill(order.lead?.brokers ?? [])}
+            initialIncoterm={order.incotermCode}
+            initialPlace={order.incotermPlace}
+            onChanged={load}
+          />
+        )}
 
         {/* ── Е: документы сделки (роадмап 5) — обмен клиент/брокер/
             менеджер внутри сервиса, версионность; менеджер видит всё,

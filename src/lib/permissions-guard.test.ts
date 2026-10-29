@@ -30,7 +30,10 @@ describe('Permissions Guard & Write Routes Check (DF-00 / P1-09)', () => {
         const hasWriteCheck =
           content.includes('write: true') ||
           content.includes('patchLead') ||
-          content.includes('patchOrder')
+          content.includes('patchOrder') ||
+          // DF-19: guard делегирован lib/customs-api (requireCalcWriter —
+          // requireEmployee { write: true } внутри)
+          content.includes('requireCalcWriter')
         expect(
           hasWriteCheck,
           `File ${path.relative(process.cwd(), file)} has mutating methods without write: true`

@@ -35,6 +35,8 @@ const CARD_KEYS = [
   'permits.red_days_before', 'permits.remind_every_days', 'files.max_mb',
   // DF-18: потолок строк ответа брокера (D38 — «настройка, по умолчанию 30»)
   'broker.max_items',
+  // DF-19: оценочный запас к курсу ЦБ (D41 — дефолт 0)
+  'customs.fx_reserve_percent',
   // brand (2) · email (2)
   'brand.name', 'brand.signature', 'email.from_name', 'email.reply_to',
 ]

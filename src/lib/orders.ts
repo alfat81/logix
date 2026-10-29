@@ -320,3 +320,26 @@ export function buildOrderListWhere(opts: {
   if (opts.search) conds.push(opts.search)
   return conds.length ? { AND: conds } : {}
 }
+
+// ─── DF-19/PATCH: запись событий правки заявки ────────────────────────
+// События собираются в patch.ts (разбор полей — там), запись — одной
+// точкой здесь: emitEvent для каждой строки, цель — заявка, актёр —
+// сотрудник (та же транзакция-семантика, что и в остальных write-
+// роутах: сбой записи события откатывает операцию).
+import { emitEvent } from '@/lib/events'
+import { employeeActor } from '@/lib/activity'
+
+export async function emitOrderEvents(
+  events: { type: Parameters<typeof emitEvent>[1]['type']; description: string }[],
+  orderId: string,
+  employee: { id: string; name: string }
+): Promise<void> {
+  for (const ev of events) {
+    await emitEvent(db, {
+      target: { orderId },
+      actor: employeeActor(employee),
+      type: ev.type,
+      description: ev.description,
+    })
+  }
+}

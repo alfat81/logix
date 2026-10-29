@@ -11,10 +11,9 @@ import {
 import { resolveRouteColumns, resolveActiveRefs, resolveActiveCurrencies } from '@/lib/ref-db'
 import { PatchOrderSchema } from './schemas'
 import { buildLeadEditDiff } from '@/lib/lead-edit'
-import { getIncompleteMandatoryStages } from '@/lib/orders'
+import { getIncompleteMandatoryStages, emitOrderEvents } from '@/lib/orders'
 import { checkOrderTransition, TERMINAL_ORDER_STATUSES } from '@/lib/status-machine'
-import { employeeActor, type ActivityType } from '@/lib/activity'
-import { emitEvent } from '@/lib/events'
+import type { ActivityType } from '@/lib/activity'
 
 // v0.5.0 (P1-22): PATCH /api/admin/orders/[id] — выезд из route.ts
 // (резка под лимит 300, RULES 2.14); zod-схема — в schemas.ts. Логика 1:1:
@@ -183,6 +182,7 @@ export async function patchOrder(
         ...(incotermCode !== undefined
           ? { incotermCode: incotermCode || null, ...(incotermCode ? { incoterm: incotermCode } : {}) }
           : {}),
+        ...(data.incotermPlace !== undefined ? { incotermPlace: data.incotermPlace || null } : {}), // DF-19
         ...(data.hsCode !== undefined ? { hsCode: data.hsCode || null } : {}),
         ...(data.cargoProfile ? { cargoProfile: data.cargoProfile } : {}),
         // Ж1: zod-объекты шире Prisma.InputJsonObject — явный каст на
@@ -267,6 +267,8 @@ export async function patchOrder(
     if (data.incoterm !== undefined) {
       fields.push(`Инкотермс: ${existing.incoterm ?? '—'} → ${data.incoterm || '—'}`)
     }
+    // DF-19: место условия поставки — рядом с diff кода
+    if (data.incotermPlace !== undefined) fields.push(`Место поставки: ${existing.incotermPlace ?? '—'} → ${data.incotermPlace || '—'}`)
     if (data.hsCode !== undefined) {
       fields.push(`ТН ВЭД: ${existing.hsCode ?? '—'} → ${data.hsCode || '—'}`)
     }
@@ -278,14 +280,7 @@ export async function patchOrder(
     if (fields.length > 0) {
       events.push({ type: 'order_fields_changed', description: `Поля заявки: ${fields.join('; ')}` })
     }
-    for (const ev of events) {
-      await emitEvent(db, {
-        target: { orderId: id },
-        actor: employeeActor(employee),
-        type: ev.type,
-        description: ev.description,
-      })
-    }
+    await emitOrderEvents(events, id, employee)
 
     return NextResponse.json({
       order,
