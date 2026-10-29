@@ -25,26 +25,9 @@ import { CURRENCY_ITEMS } from './ref-data/currencies'
 import { PACKAGING_ITEMS } from './ref-data/packaging'
 import { INCOTERM_ITEMS } from './ref-data/incoterms'
 
-// ── Мини-загрузчик .env (без зависимости от dotenv): Prisma Client
-//    сам грузит .env, но при запуске через tsx без переменных окружения
-//    этот фолбэк гарантирует, что DATABASE_URL найдётся. ─────────────
-import { readFileSync } from 'fs'
-import { join } from 'path'
-
-function loadEnvFallback(): void {
-  for (const candidate of [join(process.cwd(), '.env'), join(process.cwd(), 'prisma', '.env')]) {
-    try {
-      const text = readFileSync(candidate, 'utf-8')
-      for (const line of text.split('\n')) {
-        const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*"?([^"\n]*)"?\s*$/)
-        if (m && !(m[1] in process.env)) process.env[m[1]] = m[2]
-      }
-    } catch {
-      /* файла нет — пропускаем */
-    }
-  }
-}
-loadEnvFallback()
+// ── Мини-загрузчик .env — вынесен в scripts/env-fallback.ts (общий
+//    для скриптов: seed и import-hs, reuse-first 2.13) ────────────────
+import './env-fallback'
 
 const prisma = new PrismaClient()
 

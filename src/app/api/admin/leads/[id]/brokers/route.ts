@@ -91,7 +91,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       data: { leadId: id, brokerId: broker.id },
       include: {
         broker: { select: BROKER_PUBLIC_FIELDS },
-        estimate: true,
+        // DF-18: строки ответа — карточка после подключения перечитывает
+        // ленту/связи целиком, проекция должна совпадать с GET лида
+        estimate: { include: { items: { orderBy: { sortOrder: 'asc' } } } },
       },
     })
 

@@ -33,6 +33,7 @@
 | `Brand` | `src/lib/brand.ts` | — |
 | `BrokerActor` | `src/lib/activity.ts` | — |
 | `BrokerEmailSchema` | `src/lib/brokers.ts` | — |
+| `BrokerEstimateFullSchema` | `src/lib/brokers.ts` | Расширение контракта PUT оценки: старые поля принимаются как раньше, |
 | `BrokerEstimateInput` | `src/lib/brokers.ts` | — |
 | `BrokerEstimateSchema` | `src/lib/brokers.ts` | — |
 | `BrokerLinkSnapshot` | `src/lib/broker-links.ts` | Снимок связи для 404 и имени брокера в событии/ответе. |
@@ -121,7 +122,9 @@
 | `EMPLOYEE_ROLES` | `src/lib/employees.ts` | Роли сотрудников. Employee.roles в БД — JSON-строка ("["master"]"), |
 | `EMPLOYEE_ROLE_LABELS` | `src/lib/employees.ts` | — |
 | `EMPTY_LEAD_CARGO_FORM` | `src/lib/leads.ts` | — |
+| `ESTIMATE_ITEM_HARD_CAP` | `src/lib/brokers.ts` | ─── DF-18: строки ответа брокера по кодам ТН ВЭД (D38) ──────────── |
 | `ESTIMATE_NOTES_MAX` | `src/lib/brokers.ts` | — |
+| `ESTIMATE_NOTE_MAX` | `src/lib/brokers.ts` | — |
 | `EVENT_TYPES` | `src/lib/event-registry.ts` | — |
 | `EmailProvider` | `src/lib/notifications/transports/email.ts` | — |
 | `EmailSender` | `src/lib/brand.ts` | — |
@@ -130,7 +133,12 @@
 | `EmployeeEmailSchema` | `src/lib/employees.ts` | — |
 | `EmployeeRole` | `src/lib/auth.ts` | Роли — JSON-массив в Employee.roles (не enum БД): новая роль — правка |
 | `EmployeeRoleName` | `src/lib/employees.ts` | — |
+| `EstimateItemSchema` | `src/lib/brokers.ts` | — |
 | `EventMeta` | `src/lib/event-registry.ts` | Метаданные типа события: подпись (подпись письма/фильтры), аудитория |
+| `HS_SEARCH_LIMIT_DEFAULT` | `src/lib/hs-db.ts` | — |
+| `HS_SEARCH_LIMIT_MAX` | `src/lib/hs-db.ts` | — |
+| `HsSearchItem` | `src/lib/hs-db.ts` | — |
+| `HsSearchResult` | `src/lib/hs-db.ts` | — |
 | `INCOTERM_TRANSPORT_LABELS` | `src/lib/ref.ts` | — |
 | `IncotermMeta` | `src/lib/ref.ts` | ─── Инкотермс: meta-флаги (данные, не логика — DF-19 считает) ────── |
 | `LEAD_ACTIVE_STATUSES` | `src/lib/leads.ts` | v0.3.1 (BRANDBOOK §4.1): счётчик навигации у «Лидов» — активные, |
@@ -322,6 +330,7 @@
 | `detachBrokerFromLead` | `src/lib/broker-links.ts` | Снять связь «брокер консультирует запрос» и записать |
 | `detachBrokerFromOrder` | `src/lib/broker-links.ts` | Снять видимость заявки у брокера и записать order_broker_detached. |
 | `detectFamily` | `src/lib/file-signature.ts` | — |
+| `diffEstimateItems` | `src/lib/brokers.ts` | — |
 | `dispatchNow` | `src/lib/notifications/dispatch.ts` | Полный проход: импорт курсов ЦБ (раз в сутки, идемпотентен) + окна |
 | `dispatchPendingBatch` | `src/lib/notifications/dispatch.ts` | Одна пачка: заявка → отправка вне транзакции → итог. |
 | `docFileError` | `src/lib/documents.ts` | — |
@@ -332,11 +341,13 @@
 | `emitEvent` | `src/lib/events.ts` | Запись события сделки + постановка уведомлений в очередь. |
 | `employeeActor` | `src/lib/activity.ts` | — |
 | `enqueueNotifications` | `src/lib/notifications/enqueue.ts` | — |
+| `escapeHsLike` | `src/lib/hs.ts` | Экранирование %/_/\ в строке для Prisma contains (LIKE): без этого |
 | `eventWhereFor` | `src/lib/audience.ts` | Where-фрагмент для чтения ленты данным кабинетом. |
 | `findOrCreateContract` | `src/lib/orders.ts` | Для новой пары рамочный договор создаётся прозрачно в момент первой |
 | `findOrCreateCustomer` | `src/lib/orders.ts` | Если передан customerId — берём его. Иначе: по телефону (если указан) |
 | `fmtDiffNum` | `src/lib/lead-edit.ts` | ── Форматирование значений для diff ──────────────────────────────── |
 | `fmtDuty` | `src/lib/brokers.ts` | Строка «₽ / не указана» для UI обеих сторон (админка и портал). |
+| `fmtPercent` | `src/lib/brokers.ts` | Проценты в человекочитаемый вид для diff и карточек: Decimal из API |
 | `fmtRuDate` | `src/lib/activity.ts` | Дата для описаний событий: дд.мм.гггг по UTC. Плановые даты этапов |
 | `formBool` | `src/lib/documents.ts` | Чекбокс из FormData: значения — строки 'true'/'on' либо отсутствие. |
 | `formatDocSize` | `src/lib/document-constants.ts` | Человекочитаемый размер для списков (общий для трёх кабинетов). |
@@ -363,11 +374,15 @@
 | `getTransport` | `src/lib/notifications/channel.ts` | ─── DF-03: выбор транспорта по каналу письма ──────────────────────── |
 | `hashPassword` | `src/lib/password.ts` | — |
 | `hashSessionToken` | `src/lib/portal-auth.ts` | — |
+| `hsPrefixRange` | `src/lib/hs.ts` | Границы префиксного поиска по индексу (btree): code >= gte AND |
 | `importCbrRates` | `src/lib/cbr.ts` | Импорт курсов за последний доступный день. Возвращается число |
 | `incotermMetaOf` | `src/lib/ref.ts` | — |
 | `isCurrencyCode` | `src/lib/money.ts` | — |
 | `isEmail` | `src/lib/phone.ts` | Проверка: это email? |
+| `isHsCodeQuery` | `src/lib/hs.ts` | Цифровой запрос → поиск по префиксу кода; есть буквы → по названию. |
+| `isHsValidOn` | `src/lib/hs.ts` | «Код действовал на дату»: validFrom <= date < validTo (или бессрочно). |
 | `isLeadAnketaEditable` | `src/lib/lead-edit.ts` | Окно правки анкеты (P1-02): new/calculated. won — история (правится |
+| `isManualRate` | `src/lib/brokers.ts` | Строка с нестандартной ставкой (rateNote заполнен) считается брокером |
 | `isPhoneNormalized` | `src/lib/phone.ts` | Проверка: это нормализованный телефон? (+7XXXXXXXXXX) |
 | `isRefDir` | `src/lib/ref.ts` | — |
 | `isSqliteDatabase` | `src/lib/list-query.ts` | — |
@@ -380,12 +395,14 @@
 | `logDocumentVersionAdded` | `src/lib/documents.ts` | Событие о новой версии — отдельно от транзакции (лента — наблюдение, |
 | `logInternalNote` | `src/lib/activity.ts` | — |
 | `maskPII` | `src/lib/notifications/mask.ts` | — |
+| `matchHsName` | `src/lib/hs.ts` | Фильтр по названию (регистр не важен). В БД то же самое делает |
 | `matchRefOptions` | `src/lib/ref.ts` | Регистронезависимо: «кит» находит Китай; «CN»/«cn» — по коду; |
 | `mergeLeadCargo` | `src/lib/lead-edit.ts` | Полная замена известных полей анкеты груза с сохранением неизвестных |
 | `mergeTransportChips` | `src/lib/contractors.ts` | Слияние при записи чипов компетенций: менеджер переключает только |
 | `moneyAmount` | `src/lib/money.ts` | ─── zod-помощник для денежных полей API (P1-04) ─────────────────── |
 | `mskToday` | `src/lib/cbr.ts` | Сегодняшняя дата в Москве (yyyy-mm-dd): курс считается «у нас» по МСК — |
 | `nextWindowTime` | `src/lib/notifications/windows.ts` | Ближайшее время СЛЕДУЮЩЕГО окна (для отложенных «красных» сверх |
+| `normalizeHsQuery` | `src/lib/hs.ts` | Нормализация запроса: пробелы/дефисы/точки выкидываются («0101 21» и |
 | `normalizePhone` | `src/lib/phone.ts` | Нормализация телефона в формат +7XXXXXXXXXX |
 | `normalizeRefCode` | `src/lib/ref.ts` | Нормализация кода при записи/поиске: страны и валюты — ISO верхний |
 | `nowInZone` | `src/lib/notifications/windows.ts` | Текущее «настенное» время в поясе IANA. |
@@ -402,7 +419,9 @@
 | `participantsOf` | `src/lib/participants.ts` | Единая точка входа: ref.orderId либо ref.leadId (ровно один). |
 | `participantsOfLead` | `src/lib/participants.ts` | Участники запроса (Lead): до конвертации клиент может отсутствовать |
 | `participantsOfOrder` | `src/lib/participants.ts` | Участники заявки (Order): ответственный, клиент, брокеры, подрядчики |
+| `percentValue` | `src/lib/brokers.ts` | Проценты — Decimal (RULES 2.15), «разумные границы» карточки: 0..100, |
 | `phoneVariants` | `src/lib/phone.ts` | Телефонные варианты поискового запроса (Ж7, переиспользован Ж6а). |
+| `planHsImport` | `src/lib/hs.ts` | Решение импорта по версиям (карточка: «импорт повторно не дублирует», |
 | `processRegularDigests` | `src/lib/notifications/digest.ts` | — |
 | `projectActorName` | `src/lib/actor-name.ts` | ── Правило проекции (чистая функция) ─────────────────────────────── |
 | `projectActors` | `src/lib/actor-name.ts` | Лента событий (Activity): actorName → проекция. |
@@ -440,6 +459,7 @@
 | `routeToDbColumns` | `src/lib/route-fields.ts` | RouteFieldsInput → данные для prisma create/update (readyDate — Date, |
 | `sanitizeFileName` | `src/lib/documents.ts` | Санитизация имени: без каталогов, без управляющих символов, без |
 | `scheduleDispatch` | `src/lib/notifications/dispatch.ts` | Немедленная попытка диспетчера после коммита write-операции |
+| `searchHsCodes` | `src/lib/hs-db.ts` | Поиск: цифровой запрос — префикс кода (btree-диапазон), иначе — |
 | `sessionCookieOptions` | `src/lib/auth.ts` | — |
 | `setBrokerUserActive` | `src/lib/company-users.ts` | — |
 | `setCustomerUserActive` | `src/lib/company-users.ts` | Деактивация закрывает сессии пользователя немедленно (по образцу |
@@ -493,6 +513,7 @@
 | `EmployeeEditDialog` | `src/components/admin/employee/EmployeeEditDialog.tsx` |
 | `EmployeeResetPasswordDialog` | `src/components/admin/employee/EmployeeResetPasswordDialog.tsx` |
 | `EmployeesList` | `src/components/admin/EmployeesList.tsx` |
+| `EstimateView` | `src/components/admin/estimate/EstimateView.tsx` |
 | `GlobalSearch` | `src/components/admin/GlobalSearch.tsx` |
 | `InfoField` | `src/components/admin/InfoField.tsx` |
 | `LeadAnketaCard` | `src/components/admin/lead/LeadAnketaCard.tsx` |
@@ -556,6 +577,8 @@
 | `BrokerOrderCard` | `src/components/broker/BrokerOrderCard.tsx` |
 | `BrokerOrderStatusBadge` | `src/components/broker/BrokerBadges.tsx` |
 | `BrokerUserForm` | `src/components/admin/broker/BrokerUserForm.tsx` |
+| `EMPTY_ITEM` | `src/components/broker/estimate/ItemsEditor.tsx` |
+| `PermitsEditor` | `src/components/broker/estimate/FormBlocks.tsx` |
 
 ### src/components/client
 
@@ -572,6 +595,8 @@
 
 | Компонент | Файл |
 |---|---|
+| `ComboOptionRow` | `src/components/references/ComboOptionRow.tsx` |
+| `HsCodeCombobox` | `src/components/references/HsCodeCombobox.tsx` |
 | `IncotermPicker` | `src/components/references/IncotermPicker.tsx` |
 | `ReferenceCombobox` | `src/components/references/ReferenceCombobox.tsx` |
 
@@ -685,6 +710,7 @@
 | PATCH | `/api/contractor/orders/{id}/stages/{stageId}` | contractor | contractor | — | нет |
 | GET | `/api/document-versions/{id}/file` | public | — | — | нет |
 | GET | `/api/health` | public | — | — | нет |
+| GET | `/api/hs/search` | public | — | — | нет |
 | POST | `/api/internal/notifications/dispatch` | public | — | — | нет |
 | GET | `/api/ref/{dir}` | public | — | — | нет |
 
@@ -694,7 +720,8 @@
 |---|---|---|
 | `Activity` | 16 | src/app/admin/(dashboard)/page.tsx, src/lib/activity.ts, src/lib/notifications/digest.ts |
 | `Broker` | 13 | src/app/api/admin/brokers/[id]/route.ts, src/app/api/admin/brokers/[id]/users/route.ts, src/app/api/admin/brokers/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts |
-| `BrokerEstimate` | 8 | src/app/api/broker/leads/[id]/estimate/route.ts |
+| `BrokerEstimate` | 11 | src/app/api/broker/leads/[id]/estimate/route.ts |
+| `BrokerEstimateItem` | 12 | — |
 | `BrokerSession` | 8 | src/lib/broker-auth.ts |
 | `BrokerUser` | 12 | src/app/api/admin/brokers/[id]/users/route.ts, src/app/api/auth/broker/login/route.ts, src/lib/actor-name.ts, src/lib/company-users.ts |
 | `ClientSession` | 8 | src/lib/client-auth.ts |
@@ -709,6 +736,8 @@
 | `DocumentVersion` | 13 | src/app/api/document-versions/[id]/file/route.ts |
 | `Employee` | 11 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/orders/[id]/patch.ts, src/app/api/auth/employee/login/route.ts (+1) |
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts |
+| `HsCode` | 9 | scripts/import-hs.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/lib/hs-db.ts |
+| `HsImport` | 5 | scripts/import-hs.ts, src/lib/hs-db.ts |
 | `Lead` | 29 | src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/leads/[id]/convert/helpers.ts, src/app/api/admin/leads/[id]/convert/route.ts (+12) |
 | `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts |
 | `LegalEntity` | 7 | scripts/seed.ts, src/app/api/admin/leads/[id]/convert/route.ts, src/app/api/admin/legal-entities/[id]/route.ts, src/app/api/admin/legal-entities/route.ts |

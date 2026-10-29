@@ -38,6 +38,8 @@ const TYPE_LABEL: Record<string, string> = {
   option_updated: 'Вариант правлен',
   option_deleted: 'Вариант удалён',
   broker_estimate_changed: 'Оценка брокера',
+  broker_estimate_sent: 'Ответ брокера',
+  estimate_updated: 'Ответ брокера правлен',
   order_created: 'Заявка создана',
   order_status_changed: 'Статус заявки',
   stage_created: 'Этап добавлен',

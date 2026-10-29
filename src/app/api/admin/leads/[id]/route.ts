@@ -35,7 +35,8 @@ export async function GET(req: NextRequest, { params }: Params) {
           orderBy: { createdAt: 'asc' },
           include: {
             broker: { select: { id: true, companyName: true, phone: true, isActive: true, isInHouse: true } },
-            estimate: true,
+            // DF-18: со строками кодов ТН ВЭД — таблица в BrokerLinksSection
+            estimate: { include: { items: { orderBy: { sortOrder: 'asc' } } } },
           },
         },
         // Ж2: лента событий — свежие сверху, окно ACTIVITY_FEED_TAKE.

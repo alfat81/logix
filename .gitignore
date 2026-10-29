@@ -38,3 +38,6 @@ package-lock.json
 
 # локальные бинари/данные PostgreSQL песочницы (scripts/provision_pg.sh)
 .pg/
+
+# legacy-копии песочницы (автоснапшот реанимировал в git 29.10 — сняты с трекинга)
+.zscripts/

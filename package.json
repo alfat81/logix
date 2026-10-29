@@ -1,6 +1,6 @@
 {
   "name": "logix",
-  "version": "0.6.7",
+  "version": "0.6.8",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
@@ -20,6 +20,9 @@
     "inventory": "python3 scripts/inventory.py",
     "scope:init": "python3 scripts/scope.py init",
     "scope:check": "python3 scripts/scope.py check"
+  },
+  "prisma": {
+    "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",

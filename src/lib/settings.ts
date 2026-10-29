@@ -24,6 +24,7 @@ export const SETTING_GROUPS = [
   'owner_digest',
   'waiting',
   'permits',
+  'broker',
   'files',
   'brand',
   'email',
@@ -35,6 +36,7 @@ export const SETTING_GROUP_LABELS: Record<SettingGroup, string> = {
   owner_digest: 'Сводка владельцу',
   waiting: 'Ожидания',
   permits: 'Разрешительные документы',
+  broker: 'Брокеры',
   files: 'Файлы',
   brand: 'Бренд',
   email: 'Почта',
@@ -148,6 +150,12 @@ export const SETTINGS = [
     label: 'Период напоминаний, дней',
     hint: 'Раз в N дней напоминание об ожидаемом разрешительном документе (DF-16).',
     defaultValue: 2, validate: (v) => asInt(v, 1, 30),
+  }),
+  defineSetting({
+    key: 'broker.max_items', group: 'broker', uiType: 'number',
+    label: 'Строк в ответе брокера, максимум',
+    hint: 'Потолок строк кодов ТН ВЭД в одном ответе брокера (DF-18, D38).',
+    defaultValue: 30, validate: (v) => asInt(v, 1, 100),
   }),
   defineSetting({
     key: 'files.max_mb', group: 'files', uiType: 'number',

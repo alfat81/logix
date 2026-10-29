@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CalendarClock, Landmark, Loader2, Plus, UserX } from 'lucide-react'
+import { Landmark, Loader2, Plus, UserX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -14,23 +14,22 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
-import { readPermits, fmtDuty, BROKER_KIND_LABELS } from '@/lib/brokers'
+import { BROKER_KIND_LABELS } from '@/lib/brokers'
+import { EstimateView } from '@/components/admin/estimate/EstimateView'
+import type { BrokerEstimateRow } from '@/components/admin/estimate/EstimateView'
 
 // ─── Брокеры сделки: секция карточек лида и заявки (Д) ────────────
 // Подключение/отключение (POST/DELETE /api/admin/{leads|orders}/[id]/
 // brokers) и показ оценок таможенных платежей. Один компонент на оба
 // контекста: у лида оценка живёт НА связи (link.estimate), у заявки —
 // на связи лида-источника (estimatesByBrokerId, перенос при
-// конвертации В4).
+// конвертации В4). Просмотр ответа брокера — EstimateView (DF-18,
+// вынесен по RULES 2.14 — файл ≤ 300 строк); типы переэкспортируются,
+// прежние точки импорта потребителей не менялись.
 
-export type BrokerEstimateRow = {
-  // P1-04: Decimal из API приходит строкой (раньше — число)
-  customsDutyEstimate: number | string | null
-  requiredPermits: unknown
-  notes: string | null
-  createdAt: string
-  updatedAt: string
-}
+// Только BrokerEstimateRow нужен потребителям (order/types, страница
+// заявки); BrokerEstimateItemRow живёт в EstimateView.
+export type { BrokerEstimateRow } from '@/components/admin/estimate/EstimateView'
 
 export type BrokerLinkRow = {
   id: string
@@ -45,15 +44,6 @@ export type BrokerLinkRow = {
   // Только у связей лида (1:1 с BrokerEstimate)
   estimate?: BrokerEstimateRow | null
 }
-
-const fmtDateTime = (iso: string): string =>
-  new Date(iso).toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 
 export function BrokerLinksSection({
   targetType,
@@ -173,7 +163,6 @@ export function BrokerLinksSection({
             {links.map((l) => {
               // У лида оценка на связи; у заявки — через лид-источник
               const estimate = l.estimate ?? estimatesByBrokerId?.[l.broker.id] ?? null
-              const permits = estimate ? readPermits(estimate.requiredPermits) : []
               return (
                 <div
                   key={l.id}
@@ -208,33 +197,7 @@ export function BrokerLinksSection({
                     )}
                   </div>
                   {estimate ? (
-                    <div className="grid gap-1 text-sm border-t pt-2">
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                        <span>
-                          <span className="text-muted-foreground">Платежи: </span>
-                          <span className="font-semibold tabular-nums">
-                            {fmtDuty(estimate.customsDutyEstimate)}
-                          </span>
-                        </span>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <CalendarClock className="size-3" />
-                          обновлена {fmtDateTime(estimate.updatedAt)}
-                        </span>
-                      </div>
-                      {permits.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground">Разрешительные:</span>
-                          {permits.map((p) => (
-                            <Badge key={p} variant="outline" className="text-xxs">
-                              {p}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                      {estimate.notes && (
-                        <div className="text-xs text-muted-foreground">{estimate.notes}</div>
-                      )}
-                    </div>
+                    <EstimateView estimate={estimate} />
                   ) : (
                     <div className="text-xs text-muted-foreground border-t pt-2">
                       {targetType === 'order'

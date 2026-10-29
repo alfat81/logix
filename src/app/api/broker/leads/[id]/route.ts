@@ -33,7 +33,7 @@ export async function GET(req: NextRequest, { params }: Params) {
             order: { select: { id: true, number: true } },
           },
         },
-        estimate: true,
+        estimate: { include: { items: { orderBy: { sortOrder: 'asc' } } } },
       },
     })
     if (!link) {
@@ -54,6 +54,20 @@ export async function GET(req: NextRequest, { params }: Params) {
               customsDutyEstimate: link.estimate.customsDutyEstimate,
               requiredPermits: readPermits(link.estimate.requiredPermits),
               notes: link.estimate.notes,
+              // DF-18: статус и строки ответа — форма предзаполняется,
+              // брокер видит, отправлен ответ или черновик.
+              status: link.estimate.status,
+              sentAt: link.estimate.sentAt,
+              items: link.estimate.items.map((i) => ({
+                hsCode: i.hsCode,
+                isManualCode: i.isManualCode,
+                dutyPercent: i.dutyPercent,
+                addDutyPercent: i.addDutyPercent,
+                addDutyNote: i.addDutyNote,
+                vatPercent: i.vatPercent,
+                rateNote: i.rateNote,
+                sortOrder: i.sortOrder,
+              })),
               createdAt: link.estimate.createdAt,
               updatedAt: link.estimate.updatedAt,
             }

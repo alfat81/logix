@@ -1,41 +1,64 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CalendarClock, Loader2, Save } from 'lucide-react'
+import { CalendarClock, Loader2, Save, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
-import { fmtDuty } from '@/lib/brokers'
 import { parseMoneyInput } from '@/lib/money'
+import {
+  EstimateItemsEditor,
+  parsePercentInput,
+  type ItemForm,
+} from '@/components/broker/estimate/ItemsEditor'
+import { PermitsEditor, DutyTotals } from '@/components/broker/estimate/FormBlocks'
 
-// ─── Форма оценки таможенных платежей (Д, роадмап 5а) ──────────────
-// Единственный write портала брокера: (а) ожидаемый размер платежей
-// и (б) список разрешительных документов. Общая для карточки расчёта
+// ─── Форма ответа брокера (Д, 5а; DF-18 — коды ТН ВЭД и проценты) ───
+// Единственный write портала брокера. Форма короткая (D38): по каждому
+// коду ТН ВЭД три процента + пометки, никаких полей Альты и ничего
+// похожего на заполнение ДТ. Общая для карточки расчёта
 // (/broker/leads/[id]) и карточки заявки (/broker/orders/[id] — оценка
-// живёт на связи с лидом и переживает конвертацию, заявка знает
-// leadId). Сохранение — ПОЛНАЯ ЗАМЕНА (PUT): пустые поля обнуляются.
+// живёт на связи с лидом и переживает конвертацию). Сохранение — ПОЛНАЯ
+// ЗАМЕНА (PUT): пустые поля обнуляются. «Отправить ответ» — статус sent
+// (уведомление ответственному); правки после отправки — событие с
+// разницей строк, статус обратно в черновик не раскрывается. Крупные
+// блоки вынесены (RULES 2.14, ≤300 строк): строки — EstimateItemsEditor,
+// разрешительные и сводка — FormBlocks.
+
+export type BrokerEstimateItemRow = {
+  hsCode: string
+  isManualCode?: boolean
+  dutyPercent: number | string | null
+  addDutyPercent: number | string | null
+  addDutyNote?: string | null
+  vatPercent: number | string | null
+  rateNote?: string | null
+  sortOrder?: number
+}
 
 export type BrokerEstimate = {
   // P1-04: Decimal из API приходит строкой (раньше — число)
   customsDutyEstimate: number | string | null
   requiredPermits: string[]
   notes: string | null
+  // DF-18: статус ответа и строки (старые ответы — undefined, поля опциональны)
+  status?: string
+  sentAt?: string | null
+  items?: BrokerEstimateItemRow[]
   updatedAt?: string
 }
 
 type EstimateForm = {
   duty: string
   permits: string[]
-  permitDraft: string
   notes: string
+  items: ItemForm[]
 }
 
-const EMPTY_FORM: EstimateForm = { duty: '', permits: [], permitDraft: '', notes: '' }
+const EMPTY_FORM: EstimateForm = { duty: '', permits: [], notes: '', items: [] }
 
 const fmtDateTime = (iso: string | undefined): string =>
   iso
@@ -60,10 +83,13 @@ export function BrokerEstimateForm({
   const { toast } = useToast()
   const [form, setForm] = useState<EstimateForm>({ ...EMPTY_FORM })
   const [saving, setSaving] = useState(false)
+  const [sending, setSending] = useState(false)
+
+  const sent = estimate?.status === 'sent'
+  const busy = saving || sending
 
   // Предзаполнение при загрузке/обновлении оценки (props приходит из
   // карточки — после сохранения родитель перечитает и вернёт свежую).
-  // P1-04: Decimal приходит строкой — String() не нужен, но безвреден
   useEffect(() => {
     setForm({
       duty:
@@ -71,45 +97,87 @@ export function BrokerEstimateForm({
           ? ''
           : String(estimate.customsDutyEstimate),
       permits: estimate?.requiredPermits ?? [],
-      permitDraft: '',
       notes: estimate?.notes ?? '',
+      items: (estimate?.items ?? []).map((i) => ({
+        code: i.hsCode,
+        codeName: '',
+        duty: i.dutyPercent === null || i.dutyPercent === undefined ? '' : String(i.dutyPercent),
+        addDuty:
+          i.addDutyPercent === null || i.addDutyPercent === undefined ? '' : String(i.addDutyPercent),
+        addDutyNote: i.addDutyNote ?? '',
+        vat: i.vatPercent === null || i.vatPercent === undefined ? '' : String(i.vatPercent),
+        rateNote: i.rateNote ?? '',
+      })),
     })
   }, [estimate])
 
-  const addPermit = () => {
-    const v = form.permitDraft.trim()
-    if (!v) return
-    if (form.permits.includes(v)) {
-      toast({ title: 'Такой документ уже в списке', variant: 'destructive' })
-      return
-    }
-    setForm((f) => ({ ...f, permits: [...f.permits, v], permitDraft: '' }))
-  }
-
-  const save = async () => {
-    // P1-04: Decimal — до 2 знаков после запятой (parseMoneyInput)
+  // Сборка тела: null-проценты = «нет», rateNote — нестандартная ставка
+  // (isManualRate — строка считается брокером вручную). Возвращает null
+  // и показывает toast при ошибке валидации (сервер перепроверит).
+  const buildBody = (mode: 'draft' | 'send') => {
     const duty = form.duty.trim() ? parseMoneyInput(form.duty) : null
     if (form.duty.trim() && (duty === null || duty < 0)) {
-      toast({
-        title: 'Таможенные платежи — число, не меньше нуля, до 2 знаков',
-        variant: 'destructive',
-      })
-      return
+      toast({ title: 'Итог, ₽ — число, не меньше нуля, до 2 знаков', variant: 'destructive' })
+      return null
     }
-    setSaving(true)
+    const items: object[] = []
+    for (let idx = 0; idx < form.items.length; idx++) {
+      const it = form.items[idx]
+      if (it.code.trim().length !== 10 || !/^\d{10}$/.test(it.code.trim())) {
+        toast({
+          title: `Строка ${idx + 1}: код ТН ВЭД — ровно 10 цифр (выберите из справочника)`,
+          variant: 'destructive',
+        })
+        return null
+      }
+      const dutyP = parsePercentInput(it.duty)
+      if (dutyP === 'invalid') {
+        toast({ title: `Строка ${idx + 1}: пошлина — число 0…100, до 2 знаков`, variant: 'destructive' })
+        return null
+      }
+      const addP = parsePercentInput(it.addDuty)
+      if (addP === 'invalid') {
+        toast({ title: `Строка ${idx + 1}: доп. пошлина — число 0…100, до 2 знаков`, variant: 'destructive' })
+        return null
+      }
+      const vatP = parsePercentInput(it.vat)
+      if (vatP === 'invalid') {
+        toast({ title: `Строка ${idx + 1}: НДС — число 0…100, до 2 знаков`, variant: 'destructive' })
+        return null
+      }
+      items.push({
+        hsCode: it.code.trim(),
+        dutyPercent: dutyP,
+        addDutyPercent: addP,
+        addDutyNote: it.addDutyNote.trim() || null,
+        vatPercent: vatP,
+        rateNote: it.rateNote.trim() || null,
+      })
+    }
+    return {
+      customsDutyEstimate: duty,
+      requiredPermits: form.permits,
+      notes: form.notes.trim() || null,
+      items,
+      send: mode === 'send',
+    }
+  }
+
+  const save = async (mode: 'draft' | 'send') => {
+    const body = buildBody(mode)
+    if (!body) return
+    // Два флага: блокируют все поля формы, спиннер — на нажатой кнопке
+    if (mode === 'send') setSending(true)
+    else setSaving(true)
     try {
       const res = await fetch(`/api/broker/leads/${leadId}/estimate`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customsDutyEstimate: duty,
-          requiredPermits: form.permits,
-          notes: form.notes.trim() || null,
-        }),
+        body: JSON.stringify(body),
       })
       const data = await readApiResponse<{ message?: string; error?: string }>(res)
-      if (!res.ok) throw new Error(data.error || 'Не удалось сохранить оценку')
-      toast({ title: data.message || 'Оценка сохранена' })
+      if (!res.ok) throw new Error(data.error || 'Не удалось сохранить ответ')
+      toast({ title: data.message || 'Ответ сохранён' })
       onSaved?.()
     } catch (e) {
       toast({
@@ -119,95 +187,51 @@ export function BrokerEstimateForm({
       })
     } finally {
       setSaving(false)
+      setSending(false)
     }
   }
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Оценка таможенных платежей</CardTitle>
+        <CardTitle className="text-base">Ответ брокера — коды ТН ВЭД и проценты</CardTitle>
         <CardDescription>
-          Обязанность брокера с этапа расчёта: ожидаемый размер платежей и какие
-          разрешительные документы потребуются. Сохранение заменяет оценку целиком;
-          сумму можно уточнить и после создания заявки.
+          По каждому коду три процента из вашей Альты; сумму и НДС в рублях посчитает
+          менеджер. Ставка из подсказки ЕТТ — только справка, вносите ставку из своей
+          системы. {sent ? 'Ответ уже отправлен — правки уйдут менеджеру с разницей строк.' : 'Сначала можно сохранить черновик.'}
         </CardDescription>
+        {sent && estimate?.sentAt && (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <CalendarClock className="size-3" />
+            отправлен {fmtDateTime(estimate.sentAt)}
+          </span>
+        )}
       </CardHeader>
       <CardContent className="grid gap-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-2">
-            <Label htmlFor="est-duty">Платежи, ₽</Label>
-            <Input
-              id="est-duty"
-              inputMode="numeric"
-              placeholder="150000"
-              value={form.duty}
-              onChange={(e) => setForm((f) => ({ ...f, duty: e.target.value }))}
-              disabled={saving}
-            />
-            <span className="text-xs text-muted-foreground">
-              Ожидаемый размер таможенных платежей по анкете груза
-            </span>
-          </div>
-          <div className="grid gap-2">
-            <Label>Текущая оценка</Label>
-            <div className="text-sm">
-              <span className="font-semibold tabular-nums">{fmtDuty(estimate?.customsDutyEstimate)}</span>
-              {estimate?.requiredPermits && estimate.requiredPermits.length > 0 && (
-                <span className="text-muted-foreground">
-                  {' '}
-                  · документов: {estimate.requiredPermits.length}
-                </span>
-              )}
-            </div>
-            {estimate?.updatedAt && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <CalendarClock className="size-3" />
-                обновлена {fmtDateTime(estimate.updatedAt)}
-              </span>
-            )}
-            {!estimate && <span className="text-xs text-muted-foreground">ещё не сообщалась</span>}
-          </div>
-        </div>
+        {/* Строки «код · пошлина % · доп. % · НДС %» */}
+        <EstimateItemsEditor
+          items={form.items}
+          disabled={busy}
+          onChange={(items) => setForm((f) => ({ ...f, items }))}
+        />
 
-        <div className="grid gap-2">
-          <Label htmlFor="est-permit">Разрешительные документы</Label>
-          <div className="flex gap-2">
-            <Input
-              id="est-permit"
-              placeholder="Например: Сертификат соответствия ТР ТС"
-              value={form.permitDraft}
-              onChange={(e) => setForm((f) => ({ ...f, permitDraft: e.target.value }))}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  addPermit()
-                }
-              }}
-              disabled={saving}
-            />
-            <Button type="button" variant="outline" onClick={addPermit} disabled={saving || !form.permitDraft.trim()}>
-              Добавить
-            </Button>
-          </div>
-          {form.permits.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {form.permits.map((p) => (
-                <Badge key={p} variant="outline" className="gap-1 text-xs">
-                  {p}
-                  <button
-                    type="button"
-                    className="text-muted-foreground hover:text-destructive"
-                    disabled={saving}
-                    onClick={() => setForm((f) => ({ ...f, permits: f.permits.filter((x) => x !== p) }))}
-                    title="Убрать документ"
-                  >
-                    ×
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Итог, ₽ + текущая оценка */}
+        <DutyTotals
+          duty={form.duty}
+          disabled={busy}
+          onDutyChange={(duty) => setForm((f) => ({ ...f, duty }))}
+          dutyEstimate={estimate?.customsDutyEstimate ?? null}
+          permitsCount={estimate?.requiredPermits?.length ?? 0}
+          itemsCount={estimate?.items?.length ?? 0}
+          updatedAt={estimate?.updatedAt}
+        />
+
+        {/* Разрешительные документы */}
+        <PermitsEditor
+          value={form.permits}
+          disabled={busy}
+          onChange={(permits) => setForm((f) => ({ ...f, permits }))}
+        />
 
         <div className="grid gap-2">
           <Label htmlFor="est-notes">Комментарий</Label>
@@ -217,17 +241,34 @@ export function BrokerEstimateForm({
             placeholder="Оговорки по ставкам, коду ТН ВЭД, условиям поставки…"
             value={form.notes}
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-            disabled={saving}
+            disabled={busy}
           />
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button onClick={save} disabled={saving}>
-            {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-            Сохранить оценку
-          </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          {sent ? (
+            // Правка отправленного: статус обратно не раскрывается —
+            // сохранение уходит событием estimate_updated с разницей строк
+            <Button onClick={() => save('send')} disabled={busy}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              Сохранить ответ
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => save('draft')} disabled={busy}>
+                {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                Сохранить черновик
+              </Button>
+              <Button onClick={() => save('send')} disabled={busy}>
+                {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                Отправить ответ
+              </Button>
+            </>
+          )}
           <span className="text-xs text-muted-foreground">
-            Менеджер увидит обновление в ленте сделки
+            {sent
+              ? 'Менеджер увидит разницу строк в ленте сделки'
+              : 'После отправки менеджер получит уведомление'}
           </span>
         </div>
       </CardContent>

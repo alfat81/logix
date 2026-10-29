@@ -90,6 +90,13 @@ export const EVENT_TYPES: Record<ActivityType, EventMeta> = {
   order_broker_attached: { label: 'Брокер подключён к заявке', audience: ['staff', 'broker'], notify: ['broker'] },
   order_broker_detached: { label: 'Брокер отключён от заявки', audience: ['staff', 'broker'], notify: [] },
   broker_estimate_changed: { label: 'Оценка таможенных платежей изменена', audience: ['staff', 'broker'], notify: ['responsible'] },
+  // DF-18: черновик/отправка ответа брокера. Клиенту не показывается
+  // (D38: клиент видит только цену варианта, проценты — внутренние);
+  // брокеру собственная лента лида и так не видна — аудитория staff.
+  broker_estimate_sent: { label: 'Ответ брокера отправлен', audience: ['staff'], notify: ['responsible'] },
+  // Правки после отправки — с разницей строк в description (карточка DF-18);
+  // ответственный получает уведомление, как и при первой отправке.
+  estimate_updated: { label: 'Ответ брокера обновлён после отправки', audience: ['staff'], notify: ['responsible'] },
   // документы (Е): аудитория по умолчанию — внешний документ; для
   // ВНУТРЕННЕГО точка вызова (documents.ts) переопределяет на
   // documentEventAudience(true) = ['staff'] — внешний кабинет не должен

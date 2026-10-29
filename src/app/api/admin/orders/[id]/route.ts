@@ -43,7 +43,8 @@ export async function GET(req: NextRequest, { params }: Params) {
             orderBy: { createdAt: 'asc' },
             include: {
               broker: { select: { id: true, companyName: true, isActive: true } },
-              estimate: true,
+              // DF-18: оценки с лида-источника, со строками кодов
+              estimate: { include: { items: { orderBy: { sortOrder: 'asc' } } } },
             },
           },
         },

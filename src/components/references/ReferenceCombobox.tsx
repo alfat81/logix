@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Check, ChevronDown, Loader2, Search } from 'lucide-react'
+import { ChevronDown, Loader2, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { matchRefOptions, type RefDir } from '@/lib/ref'
+import { ComboOptionRow } from '@/components/references/ComboOptionRow'
 
 // ─── DF-17: Combobox справочника (IC-16) ────────────────────────────
 // Единый компонент выбора из справочника для всех форм (страна, валюта,
@@ -217,26 +218,14 @@ export function ReferenceCombobox({
                     <div className="px-3 py-3 text-sm text-muted-foreground">Ничего не найдено</div>
                   )}
                   {filtered.map((item, i) => (
-                    <button
+                    <ComboOptionRow
                       key={item.code}
-                      type="button"
-                      role="option"
-                      aria-selected={value === item.code}
-                      onMouseDown={(e) => {
-                        // mousedown: до blur родителя — иначе клик теряется
-                        e.preventDefault()
-                        pick(item)
-                      }}
-                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm ${
-                        i === active ? 'bg-accent/60' : ''
-                      }`}
-                    >
-                      <span className="w-12 shrink-0 font-mono text-xs text-muted-foreground">
-                        {item.code}
-                      </span>
-                      <span className="truncate">{item.name}</span>
-                      {value === item.code && <Check className="ml-auto size-4 shrink-0 text-primary" />}
-                    </button>
+                      code={item.code}
+                      name={item.name}
+                      selected={value === item.code}
+                      active={i === active}
+                      onPick={() => pick(item)}
+                    />
                   ))}
                   {allowOther && (
                     <button

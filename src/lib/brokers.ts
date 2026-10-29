@@ -131,6 +131,119 @@ export const BrokerEstimateSchema = z.object({
 })
 export type BrokerEstimateInput = z.infer<typeof BrokerEstimateSchema>
 
+// ─── DF-18: строки ответа брокера по кодам ТН ВЭД (D38) ────────────
+// Форма короткая (решение D38): по каждому коду три процента + пометки.
+// Никаких полей Альты и ничего похожего на заполнение ДТ. Живой лимит
+// строк — настройка broker.max_items (дефолт 30) — проверяет роут;
+// здесь жёсткий потолок схемы (защита от мусора в теле запроса).
+export const ESTIMATE_ITEM_HARD_CAP = 200
+export const ESTIMATE_NOTE_MAX = 200
+
+// Проценты — Decimal (RULES 2.15), «разумные границы» карточки: 0..100,
+// до 2 знаков после запятой. 0 допустим (льготные коды, НДС 0).
+export function percentValue(label: string) {
+  return z
+    .number({ errorMap: () => ({ message: `${label} — число` }) })
+    .min(0, `${label} — не меньше нуля`)
+    .max(100, `${label} — не больше 100`)
+    .refine((v) => Number.isFinite(v), `${label} — число`)
+    .refine((v) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6, `${label} — максимум 2 знака после запятой`)
+}
+
+export const EstimateItemSchema = z.object({
+  // Ровно 10 цифр (карточка DF-18): справочник DF-17C хранит 10-значные
+  // коды; поиск с пробелами («0101 21») обрабатывает HsCodeCombobox —
+  // сюда приходит уже нормализованный код выбранной позиции.
+  hsCode: z
+    .string()
+    .trim()
+    .regex(/^\d{10}$/, 'Код ТН ВЭД — ровно 10 цифр'),
+  dutyPercent: percentValue('Пошлина').nullable().optional(),
+  addDutyPercent: percentValue('Доп. пошлина').nullable().optional(),
+  // «антидемпинговая», «компенсационная»…
+  addDutyNote: z.string().trim().max(ESTIMATE_NOTE_MAX, 'Примечание — слишком длинное').nullable().optional(),
+  vatPercent: percentValue('НДС').nullable().optional(),
+  // Нестандартная ставка («2 €/кг»): строка с ней считается вручную
+  // (isManualRate) — система её не вычисляет (DF-19 не трогает).
+  rateNote: z.string().trim().max(ESTIMATE_NOTE_MAX, 'Примечание — слишком длинное').nullable().optional(),
+})
+
+// Расширение контракта PUT оценки: старые поля принимаются как раньше,
+// новые добавлены (карточка DF-18, G2 — контракт не ломать).
+export const BrokerEstimateFullSchema = BrokerEstimateSchema.extend({
+  items: z.array(EstimateItemSchema).max(ESTIMATE_ITEM_HARD_CAP, `Строк — не больше ${ESTIMATE_ITEM_HARD_CAP}`).optional(),
+  // false/не передан → черновик (как раньше, событие broker_estimate_changed);
+  // true → «Отправить ответ» (статус sent, событие broker_estimate_sent).
+  send: z.boolean().optional(),
+})
+
+// Строка с нестандартной ставкой (rateNote заполнен) считается брокером
+// вручную — карточка DF-18. Единственная точка этого правила: ею пользуются
+// форма, карточки и будущий расчёт DF-19.
+export function isManualRate(item: { rateNote?: string | null } | null | undefined): boolean {
+  return Boolean(item?.rateNote && item.rateNote.trim().length > 0)
+}
+
+// Проценты в человекочитаемый вид для diff и карточек: Decimal из API
+// приходит строкой/числом; «5.00» → «5», «12.50» → «12,5», null → «—».
+export function fmtPercent(v: number | string | null | undefined): string {
+  if (v === null || v === undefined || v === '') return '—'
+  const n = typeof v === 'number' ? v : Number(v)
+  if (!Number.isFinite(n)) return '—'
+  const s = String(Math.round(n * 100) / 100)
+  return s.replace('.', ',')
+}
+
+// ─── DF-18: разница строк для события estimate_updated ──────────────
+// Правки ПОСЛЕ отправки пишутся событием с разницей (карточка DF-18):
+// что добавлено, что убрано, у каких кодов поменялись проценты. Чистая
+// функция — e2e проверяет текст события, unit — построение.
+type DiffItem = {
+  hsCode: string
+  dutyPercent?: number | string | null
+  addDutyPercent?: number | string | null
+  vatPercent?: number | string | null
+}
+
+export function diffEstimateItems(oldItems: DiffItem[], newItems: DiffItem[]): string {
+  const byCode = (list: DiffItem[]) => new Map(list.map((i) => [i.hsCode, i]))
+  const before = byCode(oldItems)
+  const after = byCode(newItems)
+  const parts: string[] = []
+  // Порядок детерминированный: сначала добавленные, потом изменённые,
+  // потом убранные — все по коду.
+  for (const [code, item] of after) {
+    if (!before.has(code)) {
+      parts.push(`+ ${code} (${fmtPercent(item.dutyPercent)} / ${fmtPercent(item.addDutyPercent)} / ${fmtPercent(item.vatPercent)})`)
+    }
+  }
+  // Decimal из API сериализуется строкой ('5.00'); сравниваем ЧИСЛОВОЕ
+  // значение с округлением до 2 знаков — иначе «5.00» ≠ 5 и diff ложит
+  // изменение туда, где его нет.
+  const normPct = (v: number | string | null | undefined): string => {
+    if (v === null || v === undefined || v === '') return ''
+    const n = Number(v)
+    return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : String(v)
+  }
+  const changedFields: Array<[keyof DiffItem, string]> = [
+    ['dutyPercent', 'пошлина'],
+    ['addDutyPercent', 'доп. пошлина'],
+    ['vatPercent', 'НДС'],
+  ]
+  for (const [code, item] of after) {
+    const prev = before.get(code)
+    if (!prev) continue
+    const changes = changedFields
+      .filter(([field]) => normPct(prev[field]) !== normPct(item[field]))
+      .map(([field, label]) => `${label} ${fmtPercent(prev[field])}→${fmtPercent(item[field])}`)
+    if (changes.length > 0) parts.push(`${code}: ${changes.join(', ')}`)
+  }
+  for (const code of before.keys()) {
+    if (!after.has(code)) parts.push(`− ${code}`)
+  }
+  return parts.join('; ')
+}
+
 // ─── Конвенции Json для UI (по образцу mergeTransportChips Г5) ────
 // API хранит requiredPermits как Json; UI читает толерантно — чужая
 // структура не роняет карточки.

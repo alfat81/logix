@@ -282,6 +282,42 @@ s,d=a.r('GET',f'/api/admin/orders/{oid}'); oacts2=(d.get('order',d)).get('activi
 chk('DF-01: order_broker_detached в ленте с именем брокера',any(x['type']=='order_broker_detached' and ('Брокер-2 '+u) in x['description'] for x in oacts2),[x['type'] for x in oacts2[:6]])
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); acts=d.get('lead',d).get('activities',[])
 chk('P1-04: лента — оценка брокера отформатирована («85 000,50 ₽»)',bool(acts) and any('платежи: 85\u00a0000,50 ₽' in x['description'] for x in acts),[x['description'] for x in acts[:3]])
+# --- DF-18: ответ брокера — коды ТН ВЭД и проценты (D38) ---
+ITEM1={'hsCode':'0101210000','dutyPercent':5,'vatPercent':20}
+ITEM2={'hsCode':'9999999999','dutyPercent':2.5,'addDutyPercent':12.5,'addDutyNote':'антидемпинговая','vatPercent':10,'rateNote':'2 \u20bd/\u043a\u0433'}
+s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'customsDutyEstimate':150000,'items':[ITEM1,ITEM2]})
+chk('DF-18: черновик со строками сохранён',s in(200,201),(s,d))
+est=(d.get('estimate') or {})
+chk('DF-18: статус черновик, отправка не задним числом',est.get('status')=='draft' and not est.get('sentAt'),est)
+items=est.get('items') or []
+chk('DF-18: две строки, порядок сохранён',[i.get('hsCode') for i in items]==['0101210000','9999999999'],items)
+chk('DF-18: isManualCode — булево от сервера (верификация по справочнику)',all(isinstance(i.get('isManualCode'),bool) for i in items),items)
+s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'items':[{'hsCode':'010121','dutyPercent':5}]}); chk('DF-18: код не 10 цифр → 400',s==400,s)
+s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'items':[{'hsCode':'0101210000','dutyPercent':101}]}); chk('DF-18: процент 101 → 400',s==400,s)
+s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'items':[{'hsCode':'0101210000','dutyPercent':5.255}]}); chk('DF-18: 3 знака в проценте → 400',s==400,s)
+s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'items':[{'hsCode':'0101210000','dutyPercent':5},{'hsCode':'0101210000','vatPercent':20}]}); chk('DF-18: дубль кода в двух строках → 400',s==400,s)
+s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'items':[{'hsCode':str(i).zfill(10)} for i in range(31)]}); chk('DF-18: 31 строка → 400 (broker.max_items, дефолт 30)',s==400,(s,d))
+# отправка ответа: статус sent + уведомление ответственному (реестр DF-18)
+s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'customsDutyEstimate':150000,'items':[ITEM1,ITEM2],'send':True})
+chk('DF-18: ответ отправлен (sent, sentAt проставлен)',s in(200,201) and (d.get('estimate') or {}).get('status')=='sent' and bool((d.get('estimate') or {}).get('sentAt')),(s,d))
+# менеджер видит строки и статус (карточка лида, BrokerLinksSection)
+s,d=a.r('GET',f'/api/admin/leads/{lid}'); lrow=next((l.get('estimate') for l in d.get('lead',d).get('brokers',[]) if (l.get('broker') or {}).get('id')==bid),None)
+chk('DF-18: менеджер видит две строки и статус sent',lrow and len(lrow.get('items') or [])==2 and lrow.get('status')=='sent',lrow)
+# клиент ответ не видит (D38: клиент видит только цену варианта)
+s,d=c.r('GET',f'/api/client/orders/{oid}'); txt=json.dumps(d,ensure_ascii=False)
+chk('DF-18: клиент не видит строки ответа брокера',('dutyPercent' not in txt and 'isManualCode' not in txt and 'hsCode' not in txt),txt[:150])
+# правка после отправки — событие estimate_updated с разницей строк
+s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'customsDutyEstimate':160000,'items':[{'hsCode':'0101210000','dutyPercent':10,'vatPercent':20}],'send':True})
+chk('DF-18: правка после отправки сохранена (статус остаётся sent)',s in(200,201) and (d.get('estimate') or {}).get('status')=='sent',(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid}'); acts=d.get('lead',d).get('activities',[])
+chk('DF-18: событие broker_estimate_sent в ленте',any(x['type']=='broker_estimate_sent' and ('кодов ТН ВЭД: 2' in x['description']) for x in acts),[x['type'] for x in acts[:8]])
+chk('DF-18: estimate_updated с разницей строк (пошлина 5→10, − код)',any(x['type']=='estimate_updated' and ('0101210000: пошлина 5→10' in x['description']) and ('9999999999' in x['description']) for x in acts),[x['description'] for x in acts[:8]])
+# чужой брокер (bid2 связан с заявкой, но НЕ с лидом) — 404
+b2=C(); s,d=b2.r('POST','/api/auth/broker/login',{'phone':ph(base+6),'password':'broker-pass-2'}); chk('DF-18: брокер-2 вошёл',s==200,(s,d))
+s,d=b2.r('PUT',f'/api/broker/leads/{lid}/estimate',{'items':[]}); chk('DF-18: чужой брокер правит чужой ответ → 404',s==404,s)
+# старый формат тела (только сумма и список) принимается — контракт G2
+s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'customsDutyEstimate':85000.5,'requiredPermits':['Сертификат соответствия']})
+chk('DF-18: старый ответ (только сумма и список) открывается/сохраняется',s in(200,201),(s,d))
 # --- DF-02A: сотрудники компании — отдельные входы, автор-человек ---
 # Список людей: primary создан выдачей доступа выше (имя человека
 # задал менеджер), lastLoginAt проставлен входом; хеши не покидают сервер
@@ -356,7 +392,7 @@ s,d=bb.r('GET','/api/admin/settings'); chk('[ПРИЁМКА DF-00D] менедж
 s,d=bb.r('PATCH','/api/admin/settings',{'key':'files.max_mb','value':50}); chk('[ПРИЁМКА DF-00D] менеджер не меняет настройки → 403',s==403,s)
 s,d=C().r('GET','/api/admin/settings'); chk('DF-00D: аноним не читает настройки → 401',s==401,s)
 s,d=a.r('GET','/api/admin/settings'); st=d.get('settings',[]) if isinstance(d,dict) else []
-chk('[ПРИЁМКА DF-00D] мастер читает реестр: 18 ключей, группы, дефолты',s==200 and len(st)==18 and bool(d.get('groups')) and all('defaultValue' in x for x in st),(s,len(st)))
+chk('[ПРИЁМКА DF-00D] мастер читает реестр: 19 ключей (DF-18 +broker.max_items), группы, дефолты',s==200 and len(st)==19 and bool(d.get('groups')) and all('defaultValue' in x for x in st),(s,len(st)))
 f0=[x for x in st if x['key']=='files.max_mb'][0]
 chk('DF-00D: пустая таблица — значение равно дефолту',f0['value']==25 and f0['isModified']==False,f0)
 s,d=a.r('PATCH','/api/admin/settings',{'key':'files.max_mb','value':50}); chk('[ПРИЁМКА DF-00D] мастер меняет значение, новое видно в ответе',s==200 and (d.get('setting') or {}).get('value')==50,(s,d))

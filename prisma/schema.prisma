@@ -728,12 +728,52 @@ model BrokerEstimate {
   // сейчас это свободный список.
   requiredPermits     Json?
   notes               String?
+  // DF-18: статус ответа брокера. draft — черновик (меняется свободно,
+  // событие broker_estimate_changed как раньше); sent — отправлен
+  // менеджеру (событие broker_estimate_sent, ответственный получает
+  // уведомление). Правки после отправки пишутся estimate_updated с
+  // разницей строк; sentAt — момент ПЕРВОЙ отправки, не перезаписывается.
+  status              String   @default("draft")
+  sentAt              DateTime?
   createdAt           DateTime @default(now())
   // @updatedAt: оценка уточняется (точные платежи после классификации
   // товара) — менеджеру важно видеть, насколько свежие цифры.
   updatedAt           DateTime @default(now()) @updatedAt
 
+  // Строки по кодам ТН ВЭД (DF-18): «код · пошлина % · доп. пошлина % · НДС %».
+  items BrokerEstimateItem[]
+
   leadBroker LeadBroker @relation(fields: [leadBrokerId], references: [id], onDelete: Cascade)
+}
+
+// DF-18: строка ответа брокера по одному коду ТН ВЭД (D38). Брокер
+// считает в Альте — система хранит ТОЛЬКО проценты и пометки, никакой
+// арифметики ДТ. Проценты — Decimal (RULES 2.15), null = «не указано»;
+// addDutyPercent null означает «доп. пошлины нет». rateNote — нестандартная
+// ставка («2 €/кг»): строка с ней считается вручную (isManualRate,
+// lib/brokers.ts) — в DF-19 такая строка не вычисляется автоматически.
+model BrokerEstimateItem {
+  id             String   @id @default(cuid())
+  estimateId     String
+  // Порядок строки — как внесли в форме (отображение и diff сохраняют порядок).
+  sortOrder      Int
+  // 10 цифр ТН ВЭД — из справочника DF-17C или вручную. isManualCode
+  // верифицирует СЕРВЕР по справочнику на момент сохранения (пометку
+  // клиента не верим); «вручную» = код не найден среди действующих.
+  hsCode         String
+  isManualCode   Boolean  @default(false)
+  dutyPercent    Decimal? @db.Decimal(5, 2)
+  addDutyPercent Decimal? @db.Decimal(5, 2)
+  // «антидемпинговая», «компенсационная»… — к какому виду относится доп. пошлина
+  addDutyNote    String?
+  vatPercent     Decimal? @db.Decimal(5, 2)
+  // Нестандартная ставка («2 €/кг», «от 0,1 до 2,1 €/кг») — вместо процентов
+  rateNote       String?
+  createdAt      DateTime @default(now())
+
+  estimate BrokerEstimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+
+  @@index([estimateId, sortOrder])
 }
 
 // ─── Дорожка Е: документооборот внутри сервиса (роадмап 5) ────────
@@ -1058,4 +1098,54 @@ model CurrencyRate {
 
   @@unique([date, code])
   @@index([code, date])
+}
+
+// ─── DF-17C: справочник ТН ВЭД ЕАЭС (ЕТТ) ────────────────────────────
+// Карточка DF-17C: код 10 знаков, наименование, ставка ЕТТ текстом;
+// импорт скриптом БЕЗ удаления старого (история действия: старые сделки
+// хранят код и редакцию, по которой он выбран). Единственный импортёр —
+// scripts/import-hs.ts (аналог IC-16 для RefItem), данные —
+// scripts/ref-data/hs/tnved-tws.json (снапшот открытой выгрузки
+// tws.by/tws/tnved/download/excel — см. docs/REFERENCES-SOURCES.md, hs).
+//
+// Источник отдаёт только 10-значные листовые позиции (13 294), поэтому
+// level = 10 у всех записей; поле — по карточке (иерархия 2/4/6
+// восстанавливается префиксом кода, наименования-пути несут контекст).
+// unit (доп. единица) в выгрузке отсутствует — nullable, доезжает из
+// официальных PDF ходовых групп позже (не блокер, карточка DF-17C).
+//
+// Ставка ЕТТ (etdDutyText) — ПОДСКАЗКА брокеру рядом с кодом, НЕ
+// подставляется автоматически: он вносит ставку из своей Альты (DF-18).
+model HsCode {
+  id          String    @id @default(cuid())
+  code        String
+  // Наименование-путь источника («родитель / … / собственное имя») —
+  // поиск по названию идёт по всему пути (контекст группы виден).
+  name        String
+  level       Int
+  unit        String?
+  etdDutyText String?
+  // Окно действия редакции: validFrom — дата данных источника; при
+  // импорте новой редакции предыдущая закрывается validTo = её дате
+  // (записи не удаляются — история действия, карточка DF-17C).
+  validFrom   DateTime  @db.Date
+  validTo     DateTime? @db.Date
+  sourceRev   String
+
+  @@unique([code, sourceRev])
+  @@index([code])
+  @@index([sourceRev, validTo])
+}
+
+// Журнал импортов ТН ВЭД (DF-17C): одна строка на редакцию — версия,
+// дата импорта, источник, число позиций. version @unique — повторный
+// импорт той же редакции НЕ дублирует ни записи, ни журнал.
+model HsImport {
+  id         String   @id @default(cuid())
+  version    String   @unique
+  source     String
+  itemCount  Int
+  importedAt DateTime @default(now())
+
+  @@index([importedAt])
 }

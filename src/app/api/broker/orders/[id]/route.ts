@@ -36,7 +36,7 @@ export async function GET(req: NextRequest, { params }: Params) {
             brokers: {
               where: { brokerId: auth.broker.id },
               select: {
-                estimate: true,
+                estimate: { include: { items: { orderBy: { sortOrder: 'asc' } } } },
               },
             },
           },
@@ -84,6 +84,20 @@ export async function GET(req: NextRequest, { params }: Params) {
               customsDutyEstimate: myLink.estimate.customsDutyEstimate,
               requiredPermits: readPermits(myLink.estimate.requiredPermits),
               notes: myLink.estimate.notes,
+              // DF-18: статус и строки — форма на карточке заявки
+              // предзаполняется так же, как на карточке расчёта.
+              status: myLink.estimate.status,
+              sentAt: myLink.estimate.sentAt,
+              items: myLink.estimate.items.map((i) => ({
+                hsCode: i.hsCode,
+                isManualCode: i.isManualCode,
+                dutyPercent: i.dutyPercent,
+                addDutyPercent: i.addDutyPercent,
+                addDutyNote: i.addDutyNote,
+                vatPercent: i.vatPercent,
+                rateNote: i.rateNote,
+                sortOrder: i.sortOrder,
+              })),
               createdAt: myLink.estimate.createdAt,
               updatedAt: myLink.estimate.updatedAt,
             }
