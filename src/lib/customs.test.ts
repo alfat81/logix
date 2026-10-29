@@ -439,4 +439,30 @@ describe('DF-19: zod-схема входа', () => {
       })
     ).toThrow(/10 цифр/)
   })
+
+  // fix1: запятая — штатный разделитель на cbr.ru и в плейсхолдере поля;
+  // урок 30.10 — расчёт «не сохранялся» на проде при курсе «80,9604»
+  it('ручной курс с запятой принимается и нормализуется к точке (fix1)', () => {
+    const parsed = CustomsCalcInputSchema.parse({
+      ...base,
+      fxRatesManual: { USD: '80,9604', EUR: '91,5' },
+    })
+    expect(parsed.fxRatesManual).toEqual({ USD: '80.9604', EUR: '91.5' })
+    // точка по-прежнему валидна и не меняется
+    expect(CustomsCalcInputSchema.parse({ ...base, fxRatesManual: { USD: '80.9604' } }).fxRatesManual).toEqual({
+      USD: '80.9604',
+    })
+  })
+
+  it('битый курс — отказ (две запятые, буквы, 5 знаков после разделителя)', () => {
+    expect(() => CustomsCalcInputSchema.parse({ ...base, fxRatesManual: { USD: '80,9,604' } })).toThrow(
+      /до 4 знакам/,
+    )
+    expect(() => CustomsCalcInputSchema.parse({ ...base, fxRatesManual: { USD: 'восемьдесят' } })).toThrow(
+      /до 4 знакам/,
+    )
+    expect(() => CustomsCalcInputSchema.parse({ ...base, fxRatesManual: { USD: '80.96045' } })).toThrow(
+      /до 4 знакам/,
+    )
+  })
 })

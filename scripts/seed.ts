@@ -64,12 +64,67 @@ function isLocalMode(): boolean {
 // без подключения. Сообщение перечисляет, чего именно не хватает,
 // и показывает, как задать; сама строка подключения не логируется
 // (урок debug-env из предыдущего проекта — URL содержит секреты).
+//
+// fix1: кроме пустых значений отвергаются ПЛЕЙСХОЛДЕРЫ из скопированных
+// команд (урок 30.10: в боевую базу создалась мастер-учётка с телефоном
+// «+7XXXXXXXXXX» и паролем из переписки — значения были непустыми и
+// гард их пропустил). Телефон — строгий формат, пароль — признаки
+// шаблона; примеры в подсказке сами гард не проходят — чтобы копипаст
+// шаблона не мог создать учётку.
+function placeholderProblem(phone: string, password: string): string | null {
+  if (!/^\+\d{7,15}$/.test(phone.trim())) {
+    return `MASTER_PHONE не похож на телефон («${phone.trim()}»): нужен формат +79001234567 — плюс и цифры, без букв, X и скобок.`
+  }
+  // Точные совпадения-шаблоны и явные признаки (скобки, xxx, «заменя…»).
+  // Подстроки вроде 'password' НЕ проверяем: одноразовый пароль CI
+  // «ci-e2e-master-password» — легитимный, гард не должен ломать CI.
+  const s = password.trim()
+  const weakExact = [
+    'password',
+    'пароль',
+    'changeme',
+    'placeholder',
+    'example',
+    'сильный пароль',
+    'надёжный_пароль',
+    'надёжный пароль',
+  ]
+  const weak = /[<>]/.test(s) || /x{3,}/i.test(s) || /заменя/i.test(s) || weakExact.includes(s.toLowerCase())
+  if (weak) {
+    return 'MASTER_PASSWORD выглядит как плейсхолдер из шаблона команды — задайте настоящий сильный пароль (при существующем мастере он всё равно не используется, но должен быть непустым и правдоподобным).'
+  }
+  return null
+}
+
 function assertMasterCredentials(): void {
   if (isLocalMode()) return
   const missing: string[] = []
   if (!process.env.MASTER_PHONE) missing.push('MASTER_PHONE')
   if (!process.env.MASTER_PASSWORD) missing.push('MASTER_PASSWORD')
-  if (missing.length === 0) return
+  if (missing.length === 0) {
+    const problem = placeholderProblem(process.env.MASTER_PHONE!, process.env.MASTER_PASSWORD!)
+    if (problem) {
+      console.error(
+        [
+          'Seed Logix: ОТКАЗ — в переменные попал шаблон, а не настоящее значение (З1 / DF-00).',
+          '',
+          problem,
+          'Сид останавливается ДО записи в БД: шаблонные учётки в боевой базе —',
+          'открытый вход (инцидент 30.10: мастер «+7XXXXXXXXXX»).',
+          '',
+          'Подставьте свои значения ЦЕЛИКОМ (телефон существующего мастера —',
+          'сид не меняет пароль существующей учётки):',
+          '  bash:       MASTER_PHONE="+79001234567" MASTER_PASSWORD="надёжный_пароль" bun run seed',
+          '  PowerShell: $env:MASTER_PHONE = "+79001234567"; $env:MASTER_PASSWORD = "надёжный_пароль"; bun run seed',
+          '',
+          'Локальный режим (значения по умолчанию разрешены):',
+          '  - флаг --dev только при подключении к localhost или 127.0.0.1.',
+        ].join('\n'),
+      )
+      process.exit(1)
+    }
+    return
+  }
   console.error(
     [
       'Seed Logix: ОТКАЗ — бой не на пароле по умолчанию (З1 / DF-00).',
@@ -80,7 +135,8 @@ function assertMasterCredentials(): void {
       'открытый вход. Сид останавливается ДО записи в БД.',
       '',
       'Что задать перед запуском (нужны ОБА значения):',
-      '  MASTER_PHONE="+79001234567" MASTER_PASSWORD="<сильный пароль>" bun run seed',
+      '  bash:       MASTER_PHONE="+79001234567" MASTER_PASSWORD="надёжный_пароль" bun run seed',
+      '  PowerShell: $env:MASTER_PHONE = "+79001234567"; $env:MASTER_PASSWORD = "надёжный_пароль"; bun run seed',
       '',
       'Локальный режим (значения по умолчанию разрешены):',
       '  - флаг --dev только при подключении к localhost или 127.0.0.1.',

@@ -106,8 +106,12 @@ export function CustomsCalcForm({
     [freightCurrency, rows]
   )
 
+  // fix1: запятая → точка при отправке (формат cbr.ru; сервер до fix1
+  // отвергал запятую) — курс «80,9604» превращается в «80.9604»
   const manualRates: Record<string, string> = Object.fromEntries(
-    Object.entries(fxManual).filter(([, v]) => v.trim() !== '')
+    Object.entries(fxManual)
+      .filter(([, v]) => v.trim() !== '')
+      .map(([code, v]) => [code, v.trim().replace(',', '.')])
   )
 
   const canSubmit =
@@ -291,7 +295,11 @@ export function CustomsCalcForm({
           Отмена
         </Button>
         {!canSubmit && (
-          <span className="text-xs text-muted-foreground">Условие поставки и полные строки кодов обязательны</span>
+          <span className="text-xs text-muted-foreground">
+            {!incoterm
+              ? 'Выберите условие поставки — без него правила расчёта неизвестны'
+              : 'В каждой строке кода нужны код ТН ВЭД, стоимость товара и вес нетто'}
+          </span>
         )}
       </div>
     </div>
