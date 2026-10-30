@@ -200,6 +200,7 @@
 | `ORDER_TRANSITIONS` | `src/lib/status-machine.ts` | ─── Заявка: Расчёт → Согласование → В работе → Завершена ───── |
 | `OrderStagesSummary` | `src/lib/order-summary.ts` | — |
 | `OrderStatus` | `src/lib/order-constants.ts` | — |
+| `OrderStatusSuggestion` | `src/lib/status-suggest.ts` | — |
 | `PERMIT_MAX_COUNT` | `src/lib/brokers.ts` | ─── Оценка таможенных платежей (BrokerEstimate, роадмап 5а) ────── |
 | `PERMIT_MAX_LENGTH` | `src/lib/brokers.ts` | — |
 | `PLACE_KIND_LABELS` | `src/lib/ref.ts` | — |
@@ -534,6 +535,7 @@
 | `setCustomerUserActive` | `src/lib/company-users.ts` | Деактивация закрывает сессии пользователя немедленно (по образцу |
 | `setSetting` | `src/lib/settings.ts` | Актёр — тот, кто сохранил (мастер; API Блока 4 передаёт employeeActor). |
 | `stageVisual` | `src/lib/stage-visuals.ts` | — |
+| `suggestOrderStatus` | `src/lib/status-suggest.ts` | — |
 | `summarizeOrderStages` | `src/lib/order-summary.ts` | Этапы заявки (по sequence asc) → сводка: первый незавершённый этап |
 | `todayUtcMidnight` | `src/lib/order-summary.ts` | Граница «сегодня» по UTC: плановые даты приходят UTC-полуночью |
 | `unauthorized` | `src/lib/portal-auth.ts` | — |
@@ -636,6 +638,7 @@
 | `StageCreateDialog` | `src/components/admin/stagecatalog/StageCreateDialog.tsx` |
 | `StageEditDialog` | `src/components/admin/stagecatalog/StageEditDialog.tsx` |
 | `StageSection` | `src/components/admin/attention/AttentionSections.tsx` |
+| `StatusSuggestion` | `src/components/admin/order/StatusSuggestion.tsx` |
 | `TransportChips` | `src/components/admin/contractorlead/TransportChips.tsx` |
 | `WaitingBadge` | `src/components/admin/WaitingBadge.tsx` |
 

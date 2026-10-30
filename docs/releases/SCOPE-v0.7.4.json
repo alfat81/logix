@@ -1,0 +1,23 @@
+{
+  "task": "DF-06 «Подсказка статуса заявки по этапам» (0.7.4): статус ведётся вручную и расходится с этапами — подсказка-действие одним нажатием в шапке карточки заявки. Чистая функция suggestOrderStatus(stages, current) в новом lib/status-suggest.ts (реюз ORDER_TRANSITIONS/TERMINAL_ORDER_STATUSES из status-machine): все этапы done + переход разрешён матрицей → «Все этапы завершены — завершить заявку?» (только из in_progress); работа началась (этап in_progress|done|problem) из calculating/confirmed → «Работа началась — перевести в „В работе“?»; терминальные подсказок не получают (возврат — мастер+причина в роуте, найдено тест-матрицей); лестница для застывшей заявки. UI — новый order/StatusSuggestion.tsx (muted + outline-кнопка, applying, 375 px, без красного §3.3), применение — существующий PATCH /api/admin/orders/[id]; статусная машина, ручной Select и роут не менялись, новых API нет (e2e не менялся). Страница заявки ровно 300 строк (IC-09). Без миграций, без новых env, без новых зависимостей; кабинет подрядчика и уведомления не затронуты (D31).",
+  "areas": [
+    "правило: src/lib/status-suggest.ts (новый чистый модуль: тип OrderStatusSuggestion, suggestOrderStatus, WORK_STARTED)",
+    "тесты: src/lib/status-suggest.test.ts (новый: матрица 18 кейсов)",
+    "UI: src/components/admin/order/StatusSuggestion.tsx (новый компонент подсказки), src/app/admin/(dashboard)/orders/[id]/page.tsx (интеграция одной точкой, лимит 300 сохранён)",
+    "документы: CHANGELOG.md, docs/ROADMAP.md (статус-блок), docs/ROADMAP-DEALFLOW.md (карточка DF-06 [x], очередь), docs/INVENTORY.md (перегенерирован), docs/releases/RELEASE-NOTES-v0.7.4.md, docs/releases/RELEASE-INSTRUCTIONS-v0.7.4.md, docs/releases/SCOPE-v0.7.4.json, package.json (версия 0.7.4)"
+  ],
+  "globs": [
+    "CHANGELOG.md",
+    "docs/INVENTORY.md",
+    "docs/ROADMAP-DEALFLOW.md",
+    "docs/ROADMAP.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.7.4.md",
+    "docs/releases/RELEASE-NOTES-v0.7.4.md",
+    "docs/releases/SCOPE-v0.7.4.json",
+    "package.json",
+    "src/app/admin/(dashboard)/orders/[id]/page.tsx",
+    "src/components/admin/order/StatusSuggestion.tsx",
+    "src/lib/status-suggest.test.ts",
+    "src/lib/status-suggest.ts"
+  ]
+}

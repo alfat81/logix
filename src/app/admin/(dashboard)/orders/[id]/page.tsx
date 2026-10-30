@@ -41,6 +41,7 @@ import { fmtDate, type OrderFull } from '@/components/admin/order/types'
 import { OrderCargoCard } from '@/components/admin/order/OrderCargoCard'
 import { OrderQuoteCard } from '@/components/admin/order/OrderQuoteCard'
 import { OrderStages } from '@/components/admin/order/OrderStages'
+import { StatusSuggestion } from '@/components/admin/order/StatusSuggestion'
 
 export default function OrderPage() {
   const { id } = useParams<{ id: string }>()
@@ -174,6 +175,14 @@ export default function OrderPage() {
           value={order.assignee?.id ?? null}
           currentName={order.assignee?.name ?? null}
           onSave={(employeeId) => patchOrder({ assignedToId: employeeId })}
+        />
+
+        {/* DF-06: подсказка статуса по этапам одним нажатием — только
+            разрешённые матрицей переходы; ручной Select выше не менялся */}
+        <StatusSuggestion
+          stages={order.stages}
+          current={order.status}
+          onApply={(to) => patchOrder({ status: to })}
         />
 
         <Card>
