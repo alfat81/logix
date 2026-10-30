@@ -18,7 +18,12 @@ BASELINE = ROOT / ".scope-baseline.json"
 FROZEN = ROOT / "docs" / "FROZEN.md"
 
 EXCLUDE_DIRS = {".git", "node_modules", ".next", ".staging", ".zscripts",
-                "tool-results", "skills", "db", ".pg", ".turbo"}
+                "tool-results", "skills", "db", ".pg", ".turbo",
+                # v0.7.9: локальные артефакты песочницы (архивы релизов,
+                # скриншоты отчёта, загрузки владельца) — в git не попадают
+                # (владелец больше не коммитит download/), выровнено с
+                # EXCLUDE_DIRS build-release.py
+                "download", "upload"}
 EXCLUDE_FILES = {".scope-baseline.json", "next-env.d.ts", "tsconfig.tsbuildinfo",
                  # локальные секреты (gitignored) — не часть области изменений
                  ".env"}
@@ -32,6 +37,11 @@ ALWAYS_ALLOWED = ["docs/INVENTORY.md"]
 def excluded(p: Path) -> bool:
     parts = p.relative_to(ROOT).parts
     if any(seg in EXCLUDE_DIRS for seg in parts):
+        return True
+    # v0.7.9: каталог вывода архива «releases/» отсекается ТОЛЬКО в корне
+    # (приём build-release.py): «releases» как сегмент исключил бы и
+    # docs/releases/, и docs/archive/releases/ — часть репозитория.
+    if parts[0] == "releases":
         return True
     if p.name in EXCLUDE_FILES:
         return True

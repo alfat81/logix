@@ -1,0 +1,20 @@
+{
+  "task": "0.7.9 — Роадмап: DF-22 в очереди — общий вид секций и табов (docs-only). Находка владельца на проде 0.7.8: секции «Этапы» и «Квалификация»/«Пул» не приведены к общему виду после DF-21. Аудит всех вкладок/секций админки (код + скриншоты на продовой сборке): 4 секции в старом стиле «голый h2 text-lg» без Card («Этапы» order/OrderStages.tsx, «Варианты расчёта» QuoteOptionsSection.tsx, «Квалификация»/«Пул» ContractorLeadsSection/ContractorPoolSection) + пограничные «Настройки» (SettingsPanel, text-lg внутри Card); остальные экраны сверены и соответствуют эталону. В роадмап добавлена карточка DF-22 (оценка 1 д, зависимость DF-21, строка 16 порядка, план 0.7.x), итого ≈ 70 дней. Код не менялся: только ROADMAP.md, ROADMAP-DEALFLOW.md, CHANGELOG.md, package.json (версия) и релиз-доки. Прод не задет; без миграций/env/зависимостей.",
+  "areas": [
+    "роадмап: docs/ROADMAP-DEALFLOW.md (карточка DF-22 + строка 16 таблицы порядка + итого), docs/ROADMAP.md (статус-строка v0.7.9)",
+    "версия: package.json 0.7.8 → 0.7.9",
+    "журнал: CHANGELOG.md (запись 0.7.9 docs-only)",
+    "аудит-материалы: скриншоты download/screenshots-v0.7.8/07–08 (приложены к отчёту владельцу, в архив не едут)",
+    "гейт скоупа: scripts/scope.py — EXCLUDE_DIRS дополнен download/upload/releases (локальные артефакты песочницы, владелец больше не коммитит download/; выровнено с build-release.py)"
+  ],
+  "globs": [
+    "CHANGELOG.md",
+    "docs/ROADMAP-DEALFLOW.md",
+    "docs/ROADMAP.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.7.9.md",
+    "docs/releases/RELEASE-NOTES-v0.7.9.md",
+    "docs/releases/SCOPE-v0.7.9.json",
+    "package.json",
+    "scripts/scope.py"
+  ]
+}
