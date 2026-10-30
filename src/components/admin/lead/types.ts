@@ -11,6 +11,10 @@ export type LeadFull = {
   lostReason: string | null
   createdAt: string
   source: string
+  // DF-05: вычисляемое ожидание — плашка в шапке карточки запроса
+  waitingOnKind?: string | null
+  waitingReason?: string | null
+  waitingSince?: string | null
   rawContact: { name: string; phone?: string; email?: string } | null
   cargoInfo: Record<string, unknown> | null
   customer: { id: string; name: string; phone: string | null; email: string | null } | null

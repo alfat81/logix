@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { LeadStatusBadge } from '@/components/admin/LeadsList'
+import { WaitingBadge } from '@/components/admin/WaitingBadge'
 import { Breadcrumbs } from '@/components/admin/Breadcrumbs'
 import { AssigneeField } from '@/components/admin/AssigneeField'
 import { LeadEditDialog } from '@/components/admin/LeadEditDialog'
@@ -126,6 +127,12 @@ export function LeadCard() {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">Запрос от {fmtDate(lead.createdAt)}</h1>
           <LeadStatusBadge status={lead.status} />
+          {/* DF-05: «у кого мяч» рядом со статусом */}
+          <WaitingBadge
+            kind={lead.waitingOnKind ?? null}
+            reason={lead.waitingReason ?? null}
+            since={lead.waitingSince ?? null}
+          />
           {/* И1: запрос из клиентского кабинета */}
           {lead.source === 'cabinet' && <Badge variant="outline">Кабинет</Badge>}
           <LeadStatusControls

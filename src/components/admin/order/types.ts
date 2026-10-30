@@ -31,6 +31,10 @@ export type OrderFull = {
   cargoProfile: CargoProfile
   hsCode: string | null
   createdAt: string
+  // DF-05: вычисляемое ожидание — плашка в шапке карточки заявки
+  waitingOnKind?: string | null
+  waitingReason?: string | null
+  waitingSince?: string | null
   // DF-17/DF-19: условие поставки кодом + место (стартовые значения
   // формы расчёта таможенных платежей)
   incotermCode?: string | null

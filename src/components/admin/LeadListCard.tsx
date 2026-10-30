@@ -7,6 +7,7 @@ import {
 } from '@/lib/route-fields'
 import { formatMoney, isCurrencyCode } from '@/lib/money'
 import { LeadStatusBadge } from '@/components/admin/LeadStatusBadge'
+import { WaitingBadge } from '@/components/admin/WaitingBadge'
 import { readLeadCargo, type LeadStatus } from '@/lib/leads'
 
 // ─── Карточка лида в списке (В5) — v0.4.0 (BRANDBOOK §4.3) ──────────
@@ -42,6 +43,10 @@ export type LeadRow = {
   id: string
   status: LeadStatus
   createdAt: string
+  // DF-05: вычисляемое ожидание (кто держит мяч) — плашка у статуса
+  waitingOnKind?: string | null
+  waitingReason?: string | null
+  waitingSince?: string | null
   // И1: 'manual' | 'cabinet' — бейдж «Кабинет» на карточке
   source: string
   rawContact: { name: string; phone?: string; email?: string } | null
@@ -153,6 +158,7 @@ export function LeadListCard({ lead }: { lead: LeadRow }) {
                 от {fmtDate(lead.createdAt)}
               </span>
               <LeadStatusBadge status={lead.status} />
+              <WaitingBadge kind={lead.waitingOnKind ?? null} reason={lead.waitingReason ?? null} since={lead.waitingSince ?? null} />
               {/* И1: запрос пришёл из клиентского кабинета — менеджеру
                   видно происхождение до открытия карточки */}
               {lead.source === 'cabinet' && <Badge variant="outline">Кабинет</Badge>}

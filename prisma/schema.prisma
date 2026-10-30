@@ -167,6 +167,16 @@ model Order {
   // ручных операций в БД; история назначений живёт в Activity-снимках.
   assignedToId     String?
 
+  // ─── DF-05 «У кого мяч»: вычисляемое ожидание ─────────────────
+  // Пишет ТОЛЬКО recomputeWaiting (lib/waiting-db.ts) из emitEvent —
+  // роуты эти колонки не задают. kind 'none' = мяча нет (терминальная
+  // или нет подходящего правила); NULL = ещё не пересчитано (до
+  // backfill). waitingSince сдвигается только при смене kind/reason.
+  waitingOnKind  String?
+  waitingOnId    String?
+  waitingReason  String?
+  waitingSince   DateTime?
+
   // ─── P1-03: маршрут и груз — те же колонки, что на Lead (см. там) ──
   // Заявка — источник правды после конвертации: копируется с лида
   // снимком (convert), правится PATCH (Ж1) вместе с cargoInfo.
@@ -213,6 +223,7 @@ model Order {
 
   @@unique([contractId, numberInContract])
   @@index([status])
+  @@index([waitingOnKind, waitingSince])
   @@index([customerId])
   @@index([assignedToId])
   @@index([updatedAt])
@@ -343,6 +354,13 @@ model Lead {
   // история назначений живёт в Activity-снимках.
   assignedToId String?
 
+  // ─── DF-05 «У кого мяч»: вычисляемое ожидание — см. Order (правила
+  // фазы расчёта свои: proforma/брокер/варианты, карточка DF-05).
+  waitingOnKind  String?
+  waitingOnId    String?
+  waitingReason  String?
+  waitingSince   DateTime?
+
   // ─── P1-03: маршрут и груз — поля, а не только JSON ─────────────
   // Структурированные поля бланка: фильтры списков, сортировки и
   // печатная форма (п.3/17/18/20) читают колонки; cargoInfo хранит
@@ -397,6 +415,7 @@ model Lead {
   @@index([transportType])
   @@index([originCountry])
   @@index([destinationCountry])
+  @@index([waitingOnKind, waitingSince])
 }
 
 model QuoteOption {

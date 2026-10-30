@@ -22,6 +22,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { OrderStatusBadge } from '@/components/admin/OrdersList'
+import { WaitingBadge } from '@/components/admin/WaitingBadge'
 import { ActivityFeed } from '@/components/admin/ActivityFeed'
 import { Breadcrumbs } from '@/components/admin/Breadcrumbs'
 import { AssigneeField } from '@/components/admin/AssigneeField'
@@ -130,6 +131,12 @@ export default function OrderPage() {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight font-mono">{order.number}</h1>
           <OrderStatusBadge status={order.status} />
+          {/* DF-05: «у кого мяч» рядом со статусом */}
+          <WaitingBadge
+            kind={order.waitingOnKind ?? null}
+            reason={order.waitingReason ?? null}
+            since={order.waitingSince ?? null}
+          />
           {/* Е: печатная форма заявки — приложение к договору по
               реальному бланку из S13 */}
           <a

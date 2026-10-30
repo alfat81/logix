@@ -32,10 +32,31 @@ export type AttentionData = {
   problemStages: StageAttention[]
   unassignedStages: StageAttention[]
   staleLeads: LeadAttention[]
-  counts: { overdue: number; problem: number; unassigned: number; staleLeads: number }
+  counts: {
+    overdue: number
+    problem: number
+    unassigned: number
+    staleLeads: number
+    waitingLong: number
+  }
   // DF-04: счётчик failed-писем — только мастеру (журнал master-only);
   // не-мастеру поле приходит null'ом — секция «Письма не ушли» скрыта.
   notificationsFailed: number | null
+  // DF-05: секция «Ждут дольше N часов» (порог — настройка
+  // waiting.attention_hours, значение приходит для подписи).
+  waitingLong: WaitingLongAttention[]
+  attentionHours: number
+}
+
+// DF-05: сделка, чей «мяч» висит дольше порога — заявки и запросы
+// одним списком, ссылки разводятся по dealKind.
+export type WaitingLongAttention = {
+  dealId: string
+  dealKind: 'order' | 'lead'
+  label: string
+  status: string
+  waitingOnKind: string
+  hoursWaiting: number
 }
 
 export const fmtDate = (iso: string | null): string =>
@@ -48,6 +69,15 @@ export function daysWord(n: number): string {
   if (mod10 === 1 && mod100 !== 11) return 'день'
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'дня'
   return 'дней'
+}
+
+// Русская плюрализация часов: 1 час / 2 часа / 5 часов (DF-05).
+export function hoursWord(n: number): string {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return 'час'
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'часа'
+  return 'часов'
 }
 
 export { LEAD_STATUS_LABELS, ORDER_STATUS_LABELS }

@@ -5,6 +5,7 @@ import { AUDIENCES, type Audience } from '@/lib/audience'
 // Реэкспорт сохраняет прежние точки импорта (тесты, роуты).
 import type { ActivityActor, ActivityTarget, ActivityType } from '@/lib/activity'
 import { EVENT_TYPES } from '@/lib/event-registry'
+import { recomputeAfterEvent } from '@/lib/waiting-db'
 
 export { EVENT_TYPES }
 
@@ -111,6 +112,18 @@ export async function emitEvent(
   } catch (e) {
     console.error('[emitEvent] не записано:', input.type, input.description, e)
     return null
+  }
+  // ── DF-05 «У кого мяч»: пересчёт ожидания в той же транзакции ──────
+  // Событие с целью-сделкой (заявка/запрос) может менять состояние —
+  // после записи события пересчитывается waitingOn* той же сделки
+  // (событие лида пересчитывает и его заявку — оценки живут на связи
+  // лида, см. recomputeAfterEvent). Ошибка пересчёта НЕ глотается
+  // (как постановка писем): устаревший «мяч» — недопустимое состояние
+  // для «Требует внимания», Пульса (DF-07) и сводки (DF-08); откат
+  // всей операции, повтор безопасен. Глобальные события
+  // (setting_changed) и события подрядчика (D31) пересчёта не касаются.
+  if (input.target && ('orderId' in input.target || 'leadId' in input.target)) {
+    await recomputeAfterEvent(tx, input.target)
   }
   // ── DF-03: очередь уведомлений (та же транзакция) ──────────────────
   // Динамический импорт — разрыв цикла events ↔ rules ↔ settings

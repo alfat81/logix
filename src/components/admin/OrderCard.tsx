@@ -6,6 +6,7 @@ import { TRANSPORT_TYPE_LABELS, type TransportTypeCode } from '@/lib/route-field
 import { type OrderStatus } from '@/lib/order-constants'
 import { OrderStepper, type StepperStage } from '@/components/admin/OrderStepper'
 import { OrderStatusBadge } from '@/components/admin/OrderStatusBadge'
+import { WaitingBadge } from '@/components/admin/WaitingBadge'
 
 // v0.3.1 (BRANDBOOK §4.3): анатомия карточки заявки в списке —
 // по референс-макету владельца «Admin Workspace» (D24):
@@ -31,6 +32,10 @@ export type OrderRow = {
   incoterm: string | null
   cargoProfile: string
   createdAt: string
+  // DF-05: вычисляемое ожидание (кто держит мяч) — плашка у статуса
+  waitingOnKind?: string | null
+  waitingReason?: string | null
+  waitingSince?: string | null
   // P1-01: ответственный менеджер и маркер движения
   assignee: { id: string; name: string } | null
   updatedAt: string
@@ -134,6 +139,7 @@ export function OrderCard({ order }: { order: OrderRow }) {
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-muted-foreground tabular-nums">#{order.number}</span>
               <OrderStatusBadge status={order.status} />
+              <WaitingBadge kind={order.waitingOnKind ?? null} reason={order.waitingReason ?? null} since={order.waitingSince ?? null} />
             </div>
             <RouteLine order={order} />
             <div className="truncate text-sm text-muted-foreground">

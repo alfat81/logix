@@ -62,6 +62,7 @@ lead=(d.get('lead') or d); lid=lead['id']
 s,d=a.r('GET','/api/auth/employee/me'); aid=(d.get('employee') or {}).get('id'); chk('P1-01: id текущего сотрудника (me)',bool(aid),(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); L=d.get('lead',d)
 chk('P1-01: запрос при создании получает ответственного-создателя',(L.get('assignee') or {}).get('id')==aid,L.get('assignee'))
+chk('DF-05: запрос без описания и проформы — мяч у клиента (awaiting_proforma)',(L.get('waitingOnKind'),L.get('waitingReason'))==('client','awaiting_proforma'),(L.get('waitingOnKind'),L.get('waitingReason')))
 b2ph=ph(base+4)
 s,d=a.r('POST','/api/admin/employees',{'name':'Менеджер B '+u,'phone':b2ph,'password':'manager-pass-1','roles':['manager']}); chk('P1-01: менеджер B создан',s in(200,201),(s,d)); bid2=(d.get('employee') or d)['id']
 bb=C(); s,_=bb.r('POST','/api/auth/employee/login',{'phone':b2ph,'password':'manager-pass-1'})
@@ -111,6 +112,7 @@ s,d=a.r('POST',f'/api/admin/leads/{lid}/options',{'description':'Море+ЖД',
 s,d=a.r('POST',f'/api/admin/leads/{lid}/options',{'description':'Авиа','price':1200000,'currency':'RUB','vatMode':'WITH_VAT','etaDays':7,'priorityFit':'speed','isSelected':True}); chk('вариант 2 isSelected',s in(200,201),(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); L=d.get('lead',d); sel=[o for o in L.get('options',[]) if o['isSelected']]
 chk('ровно один выбранный вариант',len(sel)==1,[o['isSelected'] for o in L.get('options',[])]); chk('статус запроса calculated',L.get('status')=='calculated',L.get('status'))
+chk('DF-05: приоритет правила 1 — без описания мяч у клиента даже с вариантами',(L.get('waitingOnKind'),L.get('waitingReason'))==('client','awaiting_proforma'),(L.get('waitingOnKind'),L.get('waitingReason')))
 s,d=a.r('POST',f'/api/admin/leads/{lid}/options',{'description':'X','price':-5,'etaDays':0,'priorityFit':'cost'}); chk('отрицательная цена → 400',s==400,s)
 # --- P1-04: деньги — Decimal, валюта, НДС, себестоимость ---
 s,d=a.r('POST',f'/api/admin/leads/{lid}/options',{'description':'X','price':1.234,'etaDays':5,'priorityFit':'cost'}); chk('P1-04: цена с 3 знаками → 400',s==400,s)
@@ -158,6 +160,7 @@ conv_phone='+7999%07d'%(base+5)
 chk('параллельная конвертация: один клиент на телефон (без дублей)',sum(1 for x in cl if x.get('phone')==conv_phone)==1,[x.get('phone') for x in cl if x.get('phone')==conv_phone])
 s,d=a.r('GET',f'/api/admin/orders/{oid}'); O=d.get('order',d)
 chk('обязательные этапы подставлены',len(O.get('stages',[]))>=6,len(O.get('stages',[])))
+chk('DF-05: заявка в расчёте — мяч у менеджера (calculating)',(O.get('waitingOnKind'),O.get('waitingReason'))==('manager','calculating'),(O.get('waitingOnKind'),O.get('waitingReason')))
 chk('снимок цены перенесён',(O.get('quoteSnapshot') or {}).get('price')==1200000,O.get('quoteSnapshot'))
 chk('P1-04: снимок несёт валюту и НДС',(O.get('quoteSnapshot') or {}).get('currency')=='RUB' and (O.get('quoteSnapshot') or {}).get('vatMode')=='WITH_VAT' and 'costEstimate' not in (O.get('quoteSnapshot') or {}),O.get('quoteSnapshot'))
 # --- P1-01: ответственный на заявке ---
@@ -231,6 +234,12 @@ s,d=a.r('POST','/api/admin/contractor-leads',{'companyName':'Перевозчи�
 cph=ph(base+2); s,d=a.r('PATCH',f'/api/admin/contractor-leads/{clid}',{'status':'contracted','phone':cph,'password':'contr-pass-1'}); chk('подрядчик рождён',s in(200,201),(s,d))
 s,d=a.r('GET','/api/admin/contractors'); cs=d.get('contractors',d); cid=[c for c in cs if c['phone']==cph][0]['id']
 st2=st[1]; s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{st2["id"]}',{'contractorId':cid}); chk('подрядчик назначен на этап',s==200,(s,d))
+# --- DF-05: «У кого мяч» — правило 5 на заявке: брокеры переносятся с лида
+# при конвертации, оценка ещё не дана (PUT оценки — ниже по скрипту) ---
+s,d=a.r('GET',f'/api/admin/orders/{oid}'); O5a=d.get('order',d)
+chk('DF-05: брокер заявки без оценки — мяч у брокера (правило 5)',(O5a.get('waitingOnKind'),O5a.get('waitingReason'))==('broker','awaiting_broker_estimate'),(O5a.get('waitingOnKind'),O5a.get('waitingReason')))
+chk('DF-05: waitingOnId = id брокера заявки',O5a.get('waitingOnId')==bid,O5a.get('waitingOnId'))
+chk('DF-05: waitingSince проставлен',bool(O5a.get('waitingSince')),O5a.get('waitingSince'))
 # --- DF-01: события как ось — заметка staff-only, аудитория событий ---
 note='Внутренняя заметка DF-01 '+u
 s,d=a.r('POST',f'/api/admin/orders/{oid}/notes',{'text':note}); chk('DF-01: внутренняя заметка создана',s in(200,201),(s,d))
@@ -253,9 +262,61 @@ chk('P1-04: клиент НЕ видит себестоимость',('costEstim
 chk('клиент НЕ видит подрядчика',('Перевозчик '+u) not in txt,'contractor name leaked')
 chk('DF-01: клиент НЕ видит ленту событий (activities)',('activities' not in txt),'activities leaked to client')
 chk('DF-01: клиент НЕ видит внутреннюю заметку',(note not in txt),'note leaked to client')
+chk('DF-05: мяч не у клиента — waiting наружу не идёт',(d.get('order') or {}).get('waiting') is None,d.get('order',{}).get('waiting'))
+chk('DF-05: служебные waiting-колонки не утекают клиенту',('waitingOnKind' not in txt and 'waitingReason' not in txt and 'waitingSince' not in txt),'waiting leak')
 s,d=c.r('GET',f'/api/client/orders/{oid}/documents'); txt=json.dumps(d,ensure_ascii=False)
 chk('клиент НЕ видит внутренний документ',('Тариф подрядчика' not in txt),txt[:200])
 s,d=c.r('GET','/api/admin/orders'); chk('клиент не попадает в админ-API',s==401,s)
+# --- DF-05: жизненный цикл ожидания на новом запросе/заявке (v0.7.2) ---
+s,d=a.r('POST','/api/admin/leads',{'customerId':cust,'rawContact':{'name':'Иван Клиентов '+u},'cargoInfo':{'cargoName':'Станок ЧПУ '+u},'route':{'originCity':'Шанхай','destinationCity':'Москва'}})
+chk('DF-05: запрос с описанием создан',s in(200,201),(s,d)); lid5=(d.get('lead') or d)['id']
+s,d=a.r('GET',f'/api/admin/leads/{lid5}'); L5=d.get('lead',d)
+chk('DF-05: описание есть, брокеров нет, вариантов нет — мяч у менеджера (no_quote)',(L5.get('waitingOnKind'),L5.get('waitingReason'))==('manager','no_quote'),(L5.get('waitingOnKind'),L5.get('waitingReason')))
+s,d=a.r('POST','/api/admin/brokers',{'companyName':'Брокер DF-05 '+u,'phone':ph(base+14),'password':'broker-pass-5'}); chk('DF-05: брокер создан',s in(200,201),(s,d)); bid5=(d.get('broker') or d)['id']
+s,d=a.r('POST',f'/api/admin/leads/{lid5}/brokers',{'brokerId':bid5}); chk('DF-05: брокер подключён к запросу',s in(200,201),(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid5}'); L5=d.get('lead',d)
+chk('DF-05: брокер без оценки — мяч у брокера',(L5.get('waitingOnKind'),L5.get('waitingReason'))==('broker','awaiting_broker_estimate'),(L5.get('waitingOnKind'),L5.get('waitingReason')))
+chk('DF-05: waitingOnId = id брокера',L5.get('waitingOnId')==bid5,L5.get('waitingOnId'))
+b5=C(); s,d=b5.r('POST','/api/auth/broker/login',{'phone':ph(base+14),'password':'broker-pass-5'}); chk('DF-05: брокер вошёл',s==200,s)
+s,d=b5.r('PUT',f'/api/broker/leads/{lid5}/estimate',{'items':[{'hsCode':'0101210000','dutyPercent':5,'vatPercent':22}]}); chk('DF-05: черновик оценки сохранён',s in(200,201),(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid5}'); L5=d.get('lead',d)
+chk('DF-05: черновик оценки считается ответом — мяч вернулся менеджеру',(L5.get('waitingOnKind'),L5.get('waitingReason'))==('manager','no_quote'),(L5.get('waitingOnKind'),L5.get('waitingReason')))
+s,d=a.r('POST',f'/api/admin/leads/{lid5}/options',{'description':'Авиа DF-05','price':900000,'currency':'RUB','vatMode':'WITH_VAT','etaDays':10,'priorityFit':'speed','isSelected':True}); chk('DF-05: вариант создан',s in(200,201),(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid5}'); L5=d.get('lead',d)
+chk('DF-05: варианты есть, действия выбора клиента в системе нет — мяча нет (открытый вопрос карточки)',L5.get('waitingOnKind')=='none',(L5.get('waitingOnKind'),L5.get('waitingReason')))
+s,d=a.r('POST',f'/api/admin/leads/{lid5}/convert',{'legalEntityId':leid}); chk('DF-05: конвертация → заявка',s in(200,201),(s,d)); oid5=(d.get('order') or d)['id']
+s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5=d.get('order',d)
+chk('DF-05: заявка в расчёте — мяч у менеджера',(O5.get('waitingOnKind'),O5.get('waitingReason'))==('manager','calculating'),(O5.get('waitingOnKind'),O5.get('waitingReason')))
+since1=O5.get('waitingSince')
+s,d=a.r('PATCH',f'/api/admin/orders/{oid5}',{'status':'confirmed'}); chk('DF-05: статус → Согласование',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5=d.get('order',d)
+chk('DF-05: согласование — мяч у клиента',(O5.get('waitingOnKind'),O5.get('waitingReason'))==('client','awaiting_client_approval'),(O5.get('waitingOnKind'),O5.get('waitingReason')))
+chk('DF-05: waitingSince сдвинулся при смене kind',bool(O5.get('waitingSince')) and O5.get('waitingSince')!=since1,(since1,O5.get('waitingSince')))
+s,d=c.r('GET',f'/api/client/orders/{oid5}'); C5=(d.get('order') or {})
+chk('DF-05: клиент видит нейтральное ожидание своего мяча',(C5.get('waiting') or {}).get('reason')=='awaiting_client_approval' and bool((C5.get('waiting') or {}).get('since')),C5.get('waiting'))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid5}',{'route':{'weightKg':800}}); chk('DF-05: правка маршрута → 200',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5b=d.get('order',d)
+chk('DF-05: waitingSince не сдвигается без смены kind/reason',O5b.get('waitingSince')==O5.get('waitingSince'),(O5.get('waitingSince'),O5b.get('waitingSince')))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid5}',{'status':'in_progress'}); chk('DF-05: статус → В работе',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5=d.get('order',d)
+chk('DF-05: ближайший этап без исполнителя — мяч у менеджера (stage_unassigned)',(O5.get('waitingOnKind'),O5.get('waitingReason'))==('manager','stage_unassigned'),(O5.get('waitingOnKind'),O5.get('waitingReason')))
+st5=O5['stages']
+s,d=a.r('PATCH',f'/api/admin/orders/{oid5}/stages/{st5[0]["id"]}',{'contractorId':cid,'plannedDate':'2027-06-01T00:00:00.000Z'}); chk('DF-05: исполнитель и план назначены',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5=d.get('order',d)
+chk('DF-05: этап у перевозчика в срок — мяч у перевозчика',(O5.get('waitingOnKind'),O5.get('waitingReason'))==('contractor','stage_not_started'),(O5.get('waitingOnKind'),O5.get('waitingReason')))
+s,d=c.r('GET',f'/api/client/orders/{oid5}'); txt5=json.dumps(d,ensure_ascii=False)
+chk('DF-05: мяч у перевозчика — клиенту waiting не отдаётся',(d.get('order') or {}).get('waiting') is None and 'waitingOnKind' not in txt5,txt5[:150])
+s,d=a.r('PATCH',f'/api/admin/orders/{oid5}/stages/{st5[0]["id"]}',{'plannedDate':'2026-10-01T00:00:00.000Z'}); chk('DF-05: план ближайшего этапа в прошлом',s==200,s)
+s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5=d.get('order',d)
+chk('DF-05: просрочка ближайшего этапа — мяч у менеджера (6б)',(O5.get('waitingOnKind'),O5.get('waitingReason'))==('manager','stage_overdue_followup'),(O5.get('waitingOnKind'),O5.get('waitingReason')))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid5}/stages/{st5[0]["id"]}',{'status':'problem'}); chk('DF-05: этап в problem',s==200,s)
+s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5=d.get('order',d)
+chk('DF-05: проблема сильнее просрочки (правило 2)',(O5.get('waitingOnKind'),O5.get('waitingReason'))==('manager','stage_problem'),(O5.get('waitingOnKind'),O5.get('waitingReason')))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid5}',{'status':'cancelled'}); chk('DF-05: заявка отменена',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5=d.get('order',d)
+chk('DF-05: терминальный статус — мяча нет, since обнулён',(O5.get('waitingOnKind'),O5.get('waitingReason'),O5.get('waitingSince'))==('none',None,None),(O5.get('waitingOnKind'),O5.get('waitingSince')))
+s,d=a.r('GET','/api/admin/attention'); ATT=d
+chk('DF-05: секция «Ждут дольше N часов» — список, счётчик, порог из настроек',isinstance(ATT.get('waitingLong'),list) and (ATT.get('counts') or {}).get('waitingLong')==0 and ATT.get('attentionHours')==24,((ATT.get('counts') or {}).get('waitingLong'),ATT.get('attentionHours')))
 for i in range(11):
     s,d=c.r('POST','/api/client/leads',{'cargoInfo':{'origin':'Стамбул','note':str(i)}})
 chk('дневной лимит запросов клиента срабатывает',s==429 or s==409 or s==400,(s,d))
@@ -271,6 +332,10 @@ if s==405: s,d=b.r('PATCH',f'/api/broker/leads/{lid}/estimate',{'customsDutyEsti
 if s==405: s,d=b.r('POST',f'/api/broker/leads/{lid}/estimate',{'customsDutyEstimate':85000.5,'requiredPermits':['Сертификат соответствия']})
 chk('брокер даёт оценку платежей (дробные, P1-04)',s in(200,201),(s,d))
 chk('P1-04: Decimal оценки в ответе',str((d.get('estimate') or {}).get('customsDutyEstimate')) in('85000.5','85000.50'),d)
+# DF-05: оценка получена — правило 5 отпускает, мяч переходит к ближайшему этапу
+# (этап 2 с исполнителем и планом в будущем — назначены выше по скрипту)
+s,d=a.r('GET',f'/api/admin/orders/{oid}'); O5c=d.get('order',d)
+chk('DF-05: после оценки брокера мяч у перевозчика ближайшего этапа',(O5c.get('waitingOnKind'),O5c.get('waitingReason'))==('contractor','stage_not_started'),(O5c.get('waitingOnKind'),O5c.get('waitingReason')))
 s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'customsDutyEstimate':1.234}); chk('P1-04: 3 знака в оценке → 400',s==400,s)
 # --- DF-01/G3: отключение брокера — общий хвост lib/broker-links.ts ---
 s,d=a.r('POST','/api/admin/brokers',{'companyName':'Брокер-2 '+u,'phone':ph(base+6),'password':'broker-pass-2'}); chk('DF-01: брокер-2 создан',s in(200,201),(s,d)); bid2=(d.get('broker') or d)['id']

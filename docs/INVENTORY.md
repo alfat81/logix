@@ -286,7 +286,20 @@
 | `VAT_MODE_LABELS` | `src/lib/money.ts` | — |
 | `VatModeCode` | `src/lib/money.ts` | — |
 | `VisibleDocument` | `src/lib/documents.ts` | — |
+| `WAITING_CLIENT_LABELS` | `src/lib/waiting.ts` | Нейтральные формулировки для клиента (кабинет клиента показывает |
+| `WAITING_KINDS` | `src/lib/waiting.ts` | — |
+| `WAITING_KIND_LABELS` | `src/lib/waiting.ts` | Подписи для плашки «Ждёт: …» (родительный падеж). В UI сотрудника. |
+| `WAITING_NONE` | `src/lib/waiting.ts` | — |
+| `WAITING_REASONS` | `src/lib/waiting.ts` | — |
+| `WAITING_REASON_LABELS` | `src/lib/waiting.ts` | — |
 | `WINDOW_GRACE_MINUTES` | `src/lib/notifications/windows.ts` | Допуск планировщика (карточка DF-03): окно выполняется, если вызов |
+| `WaitingBrokerSnapshot` | `src/lib/waiting.ts` | — |
+| `WaitingKind` | `src/lib/waiting.ts` | — |
+| `WaitingLeadSnapshot` | `src/lib/waiting.ts` | — |
+| `WaitingOrderSnapshot` | `src/lib/waiting.ts` | — |
+| `WaitingOutcome` | `src/lib/waiting.ts` | Результат правила: kind 'none' — мяча нет (id/reason пустые). |
+| `WaitingReason` | `src/lib/waiting.ts` | — |
+| `WaitingStageSnapshot` | `src/lib/waiting.ts` | — |
 | `ZonedNow` | `src/lib/notifications/windows.ts` | — |
 | `addDocumentVersion` | `src/lib/documents.ts` | — |
 | `allocateComponent` | `src/lib/customs.ts` | Доли компонента baseCents по весам (одинаковый масштаб, BigInt): |
@@ -332,6 +345,8 @@
 | `clientSessionCookieOptions` | `src/lib/client-auth.ts` | — |
 | `cn` | `src/lib/utils.ts` | — |
 | `computeCustomsCalculation` | `src/lib/customs.ts` | — |
+| `computeWaitingLead` | `src/lib/waiting.ts` | — |
+| `computeWaitingOrder` | `src/lib/waiting.ts` | — |
 | `contractorActor` | `src/lib/activity.ts` | У подрядчика «имя» — companyName (люди не заведены, Г4). |
 | `contractorPortalEnabled` | `src/lib/flags.ts` | ─── Функциональные флаги (серверные) ─────────────────────────────── |
 | `contractorSessionCookieOptions` | `src/lib/contractor-auth.ts` | — |
@@ -422,6 +437,7 @@
 | `isSqliteDatabase` | `src/lib/list-query.ts` | — |
 | `isStaffOnlyRow` | `src/lib/activity.ts` | Заметка (и другое staff-only событие) — для UI-пометок. Функция в |
 | `isStageMandatory` | `src/lib/orders.ts` | — |
+| `isStageOverdue` | `src/lib/waiting.ts` | «Просрочка» плана этапа — ТА ЖЕ семантика, что на «Требует внимания» |
 | `isValidEmail` | `src/lib/phone.ts` | Проверка: это email (строгая)? |
 | `isVatMode` | `src/lib/money.ts` | — |
 | `joinRouteText` | `src/lib/route-fields.ts` | Обратная сборка для показа/редактирования: «Страна, город» / «Город» / |
@@ -437,6 +453,7 @@
 | `mergeTransportChips` | `src/lib/contractors.ts` | Слияние при записи чипов компетенций: менеджер переключает только |
 | `moneyAmount` | `src/lib/money.ts` | ─── zod-помощник для денежных полей API (P1-04) ─────────────────── |
 | `mskToday` | `src/lib/cbr.ts` | Сегодняшняя дата в Москве (yyyy-mm-dd): курс считается «у нас» по МСК — |
+| `nearestUnfinishedStage` | `src/lib/waiting.ts` | Ближайший незавершённый этап = первый по sequence со статусом != done |
 | `nextWindowTime` | `src/lib/notifications/windows.ts` | Ближайшее время СЛЕДУЮЩЕГО окна (для отложенных «красных» сверх |
 | `normalizeHsQuery` | `src/lib/hs.ts` | Нормализация запроса: пробелы/дефисы/точки выкидываются («0101 21» и |
 | `normalizePhone` | `src/lib/phone.ts` | Нормализация телефона в формат +7XXXXXXXXXX |
@@ -476,6 +493,9 @@
 | `readyDateInput` | `src/lib/route-fields.ts` | Готовность к отгрузке: строка yyyy-mm-dd → UTC-полночь (даты бланка — |
 | `recipientsOfBroker` | `src/lib/participants.ts` | Адресаты брокера (DF-03): зеркало recipientsOfCustomer — активные |
 | `recipientsOfCustomer` | `src/lib/participants.ts` | ─── Получатели клиента (единственная точка изменения, DF-03) ──────── |
+| `recomputeAfterEvent` | `src/lib/waiting-db.ts` | Пересчёт по цели события (вызывается из emitEvent). Событие ЛИДА |
+| `recomputeWaitingLead` | `src/lib/waiting-db.ts` | — |
+| `recomputeWaitingOrder` | `src/lib/waiting-db.ts` | — |
 | `recordLoginAttempt` | `src/lib/login-guard.ts` | — |
 | `refCodeField` | `src/lib/ref.ts` | — |
 | `renderFooter` | `src/lib/notifications/templates.ts` | Подвал: название и подпись — настройки; отключение — ответ на письмо |
@@ -607,6 +627,7 @@
 | `StageEditDialog` | `src/components/admin/stagecatalog/StageEditDialog.tsx` |
 | `StageSection` | `src/components/admin/attention/AttentionSections.tsx` |
 | `TransportChips` | `src/components/admin/contractorlead/TransportChips.tsx` |
+| `WaitingBadge` | `src/components/admin/WaitingBadge.tsx` |
 
 ### src/components/broker
 
@@ -790,13 +811,13 @@
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts |
 | `HsCode` | 9 | scripts/import-hs.ts, scripts/verify-hs-db.ts, scripts/verify-hs-prefix.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/lib/hs-db.ts |
 | `HsImport` | 5 | scripts/import-hs.ts, scripts/verify-hs-db.ts, src/lib/hs-db.ts |
-| `Lead` | 31 | src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/leads/[id]/convert/helpers.ts, src/app/api/admin/leads/[id]/convert/route.ts (+14) |
+| `Lead` | 35 | scripts/backfill_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/leads/[id]/convert/helpers.ts (+15) |
 | `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts |
 | `LegalEntity` | 7 | scripts/seed.ts, src/app/api/admin/leads/[id]/convert/route.ts, src/app/api/admin/legal-entities/[id]/route.ts, src/app/api/admin/legal-entities/route.ts |
 | `LoginAttempt` | 7 | src/lib/login-guard.ts |
 | `Notification` | 19 | scripts/e2e_seed_notification.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/notifications/route.ts, src/lib/notifications/digest.ts, src/lib/notifications/dispatch.ts, src/lib/notifications/retry.ts |
 | `NotificationPreference` | 5 | — |
-| `Order` | 39 | src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/customs-calculations/route.ts, src/app/api/admin/orders/[id]/documents/route.ts (+17) |
+| `Order` | 43 | scripts/backfill_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/customs-calculations/route.ts (+18) |
 | `OrderBroker` | 6 | src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/lib/broker-links.ts |
 | `OrderStageCatalog` | 5 | scripts/seed.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/orders/[id]/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts (+11) |
 | `OrderStageInstance` | 11 | src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts, src/app/api/contractor/orders/[id]/stages/[stageId]/route.ts, src/lib/orders.ts |

@@ -18,6 +18,7 @@ import {
   StageSection,
   StaleLeadsSection,
   NotificationsFailedSection,
+  WaitingLongSection,
 } from './attention/AttentionSections'
 import type { AttentionData } from './attention/types'
 
@@ -63,12 +64,18 @@ export function AttentionScreen() {
     )
   }
 
-  const counts = data?.counts ?? { overdue: 0, problem: 0, unassigned: 0, staleLeads: 0 }
+  const counts =
+    data?.counts ?? { overdue: 0, problem: 0, unassigned: 0, staleLeads: 0, waitingLong: 0 }
   // DF-04: failed-письма — часть внимания мастера (счётчик приходит
   // null'ом не-мастеру — в общем тотале не участвует).
   const notificationsFailed = data?.notificationsFailed ?? 0
   const total =
-    counts.overdue + counts.problem + counts.unassigned + counts.staleLeads + notificationsFailed
+    counts.overdue +
+    counts.problem +
+    counts.unassigned +
+    counts.staleLeads +
+    (counts.waitingLong ?? 0) +
+    notificationsFailed
 
   return (
     <div className="grid gap-4">
@@ -138,6 +145,11 @@ export function AttentionScreen() {
           <StaleLeadsSection
             count={counts.staleLeads}
             rows={data?.staleLeads ?? []}
+          />
+          <WaitingLongSection
+            count={counts.waitingLong ?? 0}
+            rows={data?.waitingLong ?? []}
+            hours={data?.attentionHours ?? 24}
           />
         </>
       )}

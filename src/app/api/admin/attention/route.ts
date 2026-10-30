@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { apiErrorResponse } from '@/lib/api-errors'
+import { getSetting } from '@/lib/settings'
 
 // ─── GET /api/admin/attention — экран «Требует внимания» (Ж5) ────
 // Главная страница кабинета вместо дубля списка заявок. Правила
@@ -58,6 +59,18 @@ type LeadAttention = {
   updatedAt: string
 }
 
+// DF-05: сделка, чей «мяч» висит дольше порога (настройка
+// waiting.attention_hours). dealKind разводит ссылки: заявка →
+// /admin/orders, запрос → /admin/leads.
+type WaitingLongAttention = {
+  dealId: string
+  dealKind: 'order' | 'lead'
+  label: string
+  status: string
+  waitingOnKind: string
+  hoursWaiting: number
+}
+
 function daysBetween(from: number, to: number): number {
   return Math.floor((to - from) / DAY_MS)
 }
@@ -70,8 +83,12 @@ export async function GET(req: NextRequest) {
     const now = new Date()
     const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
     const staleCutoff = new Date(now.getTime() - STALE_LEAD_DAYS * DAY_MS)
+    // DF-05: порог секции «Ждут дольше N часов» — из реестра настроек
+    // (DF-00D, ключ waiting.attention_hours — предзарегистрирован там).
+    const attentionHours = await getSetting('waiting.attention_hours')
+    const waitingCutoff = new Date(now.getTime() - attentionHours * 60 * 60 * 1000)
 
-    const [activeOrders, staleLeadRows, catalog] = await Promise.all([
+    const [activeOrders, staleLeadRows, catalog, longOrders, longLeads] = await Promise.all([
       // Этапы в заявке — единицы, отдельные aggregate-запросы на каждую
       // категорию дороже одного прохода по заявкам в JS (тот же размен,
       // что в списке Ж4). MVP-масштаб: сотни заявок — копейки.
@@ -109,6 +126,41 @@ export async function GET(req: NextRequest) {
         },
       }),
       db.orderStageCatalog.findMany({ select: { code: true, name: true } }),
+      // DF-05 «Ждут дольше N часов»: kind != none и waitingSince старше
+      // порога. NULL waitingSince (ещё не пересчитано) отсекается самим
+      // сравнением < (SQL: NULL < x → NULL → строка не проходит).
+      db.order.findMany({
+        where: {
+          status: { in: [...ACTIVE_ORDER_STATUSES] },
+          waitingOnKind: { notIn: ['none'] },
+          waitingSince: { lt: waitingCutoff },
+        },
+        orderBy: { waitingSince: 'asc' },
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          customer: { select: { name: true } },
+          waitingOnKind: true,
+          waitingSince: true,
+        },
+      }),
+      db.lead.findMany({
+        where: {
+          status: { in: [...ACTIVE_LEAD_STATUSES] },
+          waitingOnKind: { notIn: ['none'] },
+          waitingSince: { lt: waitingCutoff },
+        },
+        orderBy: { waitingSince: 'asc' },
+        select: {
+          id: true,
+          status: true,
+          customer: { select: { name: true } },
+          rawContact: true,
+          waitingOnKind: true,
+          waitingSince: true,
+        },
+      }),
     ])
 
     const stageNames = new Map(catalog.map((c) => [c.code, c.name]))
@@ -174,6 +226,37 @@ export async function GET(req: NextRequest) {
       updatedAt: l.updatedAt.toISOString(),
     }))
 
+    // DF-05: единый список «Ждут дольше N часов» — заявки и запросы
+    // вместе, самые давние сверху.
+    const waitingLong: WaitingLongAttention[] = [
+      ...longOrders.map((o) => ({
+        dealId: o.id,
+        dealKind: 'order' as const,
+        label: `${o.number} · ${o.customer.name}`,
+        status: o.status,
+        waitingOnKind: o.waitingOnKind ?? 'none',
+        hoursWaiting: Math.max(
+          0,
+          Math.floor((now.getTime() - (o.waitingSince?.getTime() ?? now.getTime())) / (60 * 60 * 1000))
+        ),
+      })),
+      ...longLeads.map((l) => ({
+        dealId: l.id,
+        dealKind: 'lead' as const,
+        label:
+          l.customer?.name ??
+          (l.rawContact && typeof l.rawContact === 'object' && !Array.isArray(l.rawContact)
+            ? String((l.rawContact as { name?: unknown }).name ?? '—')
+            : '—'),
+        status: l.status,
+        waitingOnKind: l.waitingOnKind ?? 'none',
+        hoursWaiting: Math.max(
+          0,
+          Math.floor((now.getTime() - (l.waitingSince?.getTime() ?? now.getTime())) / (60 * 60 * 1000))
+        ),
+      })),
+    ].sort((a, b) => b.hoursWaiting - a.hoursWaiting)
+
     // DF-04: failed-письма в внимании — только мастеру (журнал
     // master-only; не-мастеру null — поле отсутствует по смыслу прав).
     const notificationsFailed = auth.employee.roles.includes('master')
@@ -187,12 +270,16 @@ export async function GET(req: NextRequest) {
       problemStages: problemStages.slice(0, SECTION_LIMIT),
       unassignedStages: unassignedStages.slice(0, SECTION_LIMIT),
       staleLeads: staleLeads.slice(0, SECTION_LIMIT),
+      waitingLong: waitingLong.slice(0, SECTION_LIMIT),
       counts: {
         overdue: overdueStages.length,
         problem: problemStages.length,
         unassigned: unassignedStages.length,
         staleLeads: staleLeads.length,
+        waitingLong: waitingLong.length,
       },
+      // Порог секции — для подписи в UI («Ждут дольше N часов»).
+      attentionHours,
       notificationsFailed,
     })
   } catch (e) {

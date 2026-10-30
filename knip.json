@@ -7,6 +7,7 @@
     "scripts/seed.ts",
     "scripts/set-master-password.ts",
     "scripts/shadow-db.ts",
+    "scripts/backfill_waiting.ts",
     "src/lib/*.test.ts"
   ],
   "project": ["src/**/*.ts", "src/**/*.tsx", "scripts/*.ts", "scripts/ref-data/*.ts"],

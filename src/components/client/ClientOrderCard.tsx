@@ -15,6 +15,8 @@ import {
   ClientOrderStatusBadge,
   ClientStageStatusBadge,
 } from '@/components/client/ClientBadges'
+import { WAITING_CLIENT_LABELS, type WaitingReason } from '@/lib/waiting'
+import { Clock } from 'lucide-react'
 import type { OrderStatus, StageStatus } from '@/lib/order-constants'
 
 // Карточка заявки в кабинете клиента (И1): номер, статус, собственная
@@ -38,6 +40,10 @@ type ClientOrder = {
   createdAt: string
   cargoInfo: Record<string, unknown> | null
   stages: ClientStage[]
+  // DF-05: нейтральное ожидание — приходит ТОЛЬКО когда мяч у клиента
+  // (роут client/orders/[id] отдаёт служебные kind наружу нельзя);
+  // текст — WAITING_CLIENT_LABELS, никаких «менеджер/брокер/этап».
+  waiting: { reason: string | null; since: string } | null
 }
 
 const fmtDate = (iso: string | null): string =>
@@ -100,6 +106,15 @@ export function ClientOrderCard() {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <h1 className="text-2xl font-semibold tracking-tight font-mono">{order.number}</h1>
         <ClientOrderStatusBadge status={order.status} />
+        {/* DF-05: нейтральная плашка «что ждём от вас» — без служебных
+            терминов (аудиторный тест §4.5) */}
+        {order.waiting && (
+          <span className="inline-flex items-center gap-1.5 rounded-md border bg-muted px-2 py-1 text-xs text-muted-foreground">
+            <Clock className="size-3 shrink-0" aria-hidden />
+            {WAITING_CLIENT_LABELS[(order.waiting.reason ?? '') as WaitingReason] ??
+              'Ожидает вашего подтверждения'}
+          </span>
+        )}
         <span className="text-xs text-muted-foreground flex items-center gap-1">
           <CalendarDays className="size-3" />
           создана {fmtDate(order.createdAt)}

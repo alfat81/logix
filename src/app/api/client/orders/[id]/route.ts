@@ -26,6 +26,11 @@ export async function GET(req: NextRequest, { params }: Params) {
         status: true,
         createdAt: true,
         cargoInfo: true,
+        // DF-05: данные ожидания — наружу уходит ТОЛЬКО нейтральная
+        // плашка «мяч у клиента» (см. сборку ответа ниже).
+        waitingOnKind: true,
+        waitingReason: true,
+        waitingSince: true,
         stages: {
           orderBy: { sequence: 'asc' },
           select: {
@@ -46,9 +51,25 @@ export async function GET(req: NextRequest, { params }: Params) {
     const catalog = await db.orderStageCatalog.findMany({ select: { code: true, name: true } })
     const nameByCode = new Map(catalog.map((c) => [c.code, c.name]))
 
+    // Служебные колонки ожидания НЕ идут в ответ сырыми (в ключе
+    // waitingOnKind может лежать 'contractor'/'manager' — наружу это
+    // нельзя); из них собирается нейтральный waiting-объект ниже.
+    const { waitingOnKind, waitingReason, waitingSince, ...orderSafe } = order
+
     return NextResponse.json({
       order: {
-        ...order,
+        ...orderSafe,
+        // DF-05: клиент видит ожидание только когда мяч у НЕГО
+        // («Ожидает вашего подтверждения»); служебные kind
+        // (manager/broker/contractor) и их причины наружу не идут —
+        // тест утечки аудитории (§4.5), D31: перевозчика клиент не видит.
+        waiting:
+          waitingOnKind === 'client' && waitingSince
+            ? {
+                reason: waitingReason,
+                since: waitingSince.toISOString(),
+              }
+            : null,
         stages: order.stages.map((s) => ({
           id: s.id,
           name: nameByCode.get(s.stageCode) ?? s.stageCode,

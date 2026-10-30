@@ -1,12 +1,20 @@
 'use client'
 
 import Link from 'next/link'
-import { MailX, PauseCircle } from 'lucide-react'
+import { Hourglass, MailX, PauseCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LEAD_STATUS_LABELS } from '@/lib/leads'
 import { ORDER_STATUS_LABELS } from '@/lib/order-constants'
-import { daysWord, fmtDate, type LeadAttention, type StageAttention } from './types'
+import { WAITING_KIND_LABELS } from '@/lib/waiting'
+import {
+  daysWord,
+  fmtDate,
+  hoursWord,
+  type LeadAttention,
+  type StageAttention,
+  type WaitingLongAttention,
+} from './types'
 
 // v0.5.0 (P1-22): секции экрана «Требует внимания» — выезд из
 // AttentionScreen.tsx (резка под лимит 300, RULES 2.14). Разметка
@@ -124,6 +132,69 @@ export function NotificationsFailedSection({ count }: { count: number }) {
           <span className="font-medium">Открыть журнал отправок</span>
           <span className="text-muted-foreground">разбор ошибок и кнопка «Повторить»</span>
         </Link>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ── Секция «Ждут дольше N часов» (DF-05) ─────────────────────
+// Заявки и запросы, чей «мяч» (waitingOn) висит дольше порога
+// waiting.attention_hours. Перевозчик в подписи — глоссарий 2.6.
+export function WaitingLongSection({
+  count,
+  rows,
+  hours,
+}: {
+  count: number
+  rows: WaitingLongAttention[]
+  hours: number
+}) {
+  if (count === 0) return null
+  const hidden = count - rows.length
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Hourglass className="size-4 text-warning-foreground" />
+          Ждут дольше {hours} {hoursWord(hours)}
+          <Badge variant="outline" className="bg-warning/10 text-warning-foreground border-warning/30">
+            {count}
+          </Badge>
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          «Мяч» у кого-то дольше порога (настройка «Порог «ждёт дольше», часов») —
+          стоит напомнить себе и сторонам
+        </p>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        {rows.map((r) => (
+          <Link
+            key={`${r.dealKind}-${r.dealId}`}
+            href={r.dealKind === 'order' ? `/admin/orders/${r.dealId}` : `/admin/leads/${r.dealId}`}
+            className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border p-3 transition-colors hover:border-ring"
+          >
+            <span className="font-medium min-w-40 flex-1">{r.label}</span>
+            <Badge variant="outline" className="text-xs text-muted-foreground">
+              {r.dealKind === 'order'
+                ? (ORDER_STATUS_LABELS[r.status as keyof typeof ORDER_STATUS_LABELS] ?? r.status)
+                : (LEAD_STATUS_LABELS[r.status as keyof typeof LEAD_STATUS_LABELS] ?? r.status)}
+            </Badge>
+            <span className="text-sm tabular-nums">
+              Ждёт: {WAITING_KIND_LABELS[r.waitingOnKind as keyof typeof WAITING_KIND_LABELS] ?? r.waitingOnKind}
+              {' · '}
+              {r.hoursWaiting} {hoursWord(r.hoursWaiting)}
+            </span>
+          </Link>
+        ))}
+        {hidden > 0 && (
+          <div className="text-xs text-muted-foreground text-center pt-1">
+            И ещё {hidden} —{' '}
+            <Link href="/admin/orders" className="underline underline-offset-2">
+              открыть список заявок
+            </Link>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

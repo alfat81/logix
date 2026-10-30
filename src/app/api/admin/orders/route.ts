@@ -147,6 +147,10 @@ export async function GET(req: NextRequest) {
         // P1-01: ответственный и маркер движения — колонки списка
         assignee: o.assignee,
         updatedAt: o.updatedAt,
+        // DF-05: вычисляемое ожидание — плашка «Ждёт: …» в карточке
+        waitingOnKind: o.waitingOnKind,
+        waitingReason: o.waitingReason,
+        waitingSince: o.waitingSince?.toISOString() ?? null,
         customer: o.customer,
         contract: o.contract,
         legalEntity: o.legalEntity,
