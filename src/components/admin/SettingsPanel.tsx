@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,6 +20,10 @@ import { useToast } from '@/hooks/use-toast'
 // новых hex нет; сохранение — основное действие, сброс — вторичное.
 // Типы повторяют ответ API локально: lib/settings.ts серверный
 // (тянет db), импорт из клиентского компонента запрещён.
+//
+// v0.7.10 (DF-22): группы — эталонная шапка Card (CardHeader pb-3 →
+// CardTitle text-base с иконкой) вместо голого h2 text-lg —
+// как в секциях эталона DF-21.
 
 type SettingEntry = {
   key: string
@@ -150,59 +155,66 @@ export function SettingsPanel() {
         </p>
       </div>
       {grouped.map(([group, list]) => (
-        <Card key={group} className="grid gap-4 p-5">
-          <h2 className="text-lg font-semibold">{groups[group] ?? group}</h2>
-          {list.map((entry) => {
-            const draft = drafts[entry.key] ?? ''
-            const dirty = draft !== toDraft(entry.value, entry.uiType)
-            const busy = Boolean(saving[entry.key])
-            const multiline = entry.uiType === 'text' || entry.uiType === 'string_list'
-            return (
-              <div key={entry.key} className="grid gap-1.5">
-                <Label htmlFor={entry.key} className="text-sm font-medium">
-                  {entry.label}
-                </Label>
-                <p className="text-xs text-muted-foreground">{entry.hint}</p>
-                {multiline ? (
-                  <Textarea
-                    id={entry.key}
-                    rows={entry.uiType === 'string_list' ? 4 : 2}
-                    value={draft}
-                    onChange={(e) => setDrafts((d) => ({ ...d, [entry.key]: e.target.value }))}
-                    disabled={busy}
-                    className="max-w-xl"
-                  />
-                ) : (
-                  <Input
-                    id={entry.key}
-                    type={entry.uiType === 'number' ? 'number' : 'text'}
-                    value={draft}
-                    onChange={(e) => setDrafts((d) => ({ ...d, [entry.key]: e.target.value }))}
-                    disabled={busy}
-                    placeholder={entry.uiType === 'time' ? 'ЧЧ:ММ' : entry.uiType === 'time_list' ? '09:00, 16:00' : undefined}
-                    className="max-w-xs"
-                  />
-                )}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button size="sm" onClick={() => request('PATCH', entry, fromDraft(draft, entry.uiType))} disabled={!dirty || busy}>
-                    Сохранить
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => request('DELETE', entry)}
-                    disabled={busy || (!entry.isModified && !dirty)}
-                  >
-                    Сбросить
-                  </Button>
-                  <span className="text-xs text-muted-foreground">По умолчанию: {fmt(entry.defaultValue)}</span>
+        <Card key={group}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <SlidersHorizontal className="size-4 text-muted-foreground" />
+              {groups[group] ?? group}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            {list.map((entry) => {
+              const draft = drafts[entry.key] ?? ''
+              const dirty = draft !== toDraft(entry.value, entry.uiType)
+              const busy = Boolean(saving[entry.key])
+              const multiline = entry.uiType === 'text' || entry.uiType === 'string_list'
+              return (
+                <div key={entry.key} className="grid gap-1.5">
+                  <Label htmlFor={entry.key} className="text-sm font-medium">
+                    {entry.label}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">{entry.hint}</p>
+                  {multiline ? (
+                    <Textarea
+                      id={entry.key}
+                      rows={entry.uiType === 'string_list' ? 4 : 2}
+                      value={draft}
+                      onChange={(e) => setDrafts((d) => ({ ...d, [entry.key]: e.target.value }))}
+                      disabled={busy}
+                      className="max-w-xl"
+                    />
+                  ) : (
+                    <Input
+                      id={entry.key}
+                      type={entry.uiType === 'number' ? 'number' : 'text'}
+                      value={draft}
+                      onChange={(e) => setDrafts((d) => ({ ...d, [entry.key]: e.target.value }))}
+                      disabled={busy}
+                      placeholder={entry.uiType === 'time' ? 'ЧЧ:ММ' : entry.uiType === 'time_list' ? '09:00, 16:00' : undefined}
+                      className="max-w-xs"
+                    />
+                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" onClick={() => request('PATCH', entry, fromDraft(draft, entry.uiType))} disabled={!dirty || busy}>
+                      Сохранить
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => request('DELETE', entry)}
+                      disabled={busy || (!entry.isModified && !dirty)}
+                    >
+                      Сбросить
+                    </Button>
+                    <span className="text-xs text-muted-foreground">По умолчанию: {fmt(entry.defaultValue)}</span>
+                  </div>
+                  {entry.isModified && (
+                    <p className="text-xs text-muted-foreground">Изменено: {entry.updatedByName}</p>
+                  )}
                 </div>
-                {entry.isModified && (
-                  <p className="text-xs text-muted-foreground">Изменено: {entry.updatedByName}</p>
-                )}
-              </div>
-            )
-          })}
+              )
+            })}
+          </CardContent>
         </Card>
       ))}
     </div>

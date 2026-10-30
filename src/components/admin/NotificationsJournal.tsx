@@ -49,11 +49,14 @@ const STATUS_TABS = [
   { key: 'skipped', label: 'Пропущены' },
 ]
 
-const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  pending: { label: 'Ждёт', className: 'bg-muted text-muted-foreground' },
-  sent: { label: 'Отправлено', className: 'bg-success text-success-foreground border-transparent' },
-  failed: { label: 'Ошибка', className: 'bg-destructive text-destructive-foreground border-transparent' },
-  skipped: { label: 'Пропущено', className: 'bg-muted text-muted-foreground' },
+// v0.7.10 (DF-22): статусы — варианты бейджей §3.2 (delivered —
+// успех-пара с точкой, critical — единственный сплошной красный,
+// version — нейтральная пара) вместо до-DF-20 сплошных заливок.
+const STATUS_BADGE: Record<string, { label: string; variant: 'delivered' | 'critical' | 'version' }> = {
+  pending: { label: 'Ждёт', variant: 'version' },
+  sent: { label: 'Отправлено', variant: 'delivered' },
+  failed: { label: 'Ошибка', variant: 'critical' },
+  skipped: { label: 'Пропущено', variant: 'version' },
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -191,14 +194,14 @@ export function NotificationsJournal() {
           {data?.notifications.map((n) => {
             const badge = STATUS_BADGE[n.status] ?? {
               label: n.status,
-              className: 'bg-muted text-muted-foreground',
+              variant: 'version' as const,
             }
             const canRetry = n.status === 'failed' || n.status === 'skipped'
             const isOpen = expanded[n.id] ?? false
             return (
               <Card key={n.id} className="p-4 grid gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge className={badge.className}>{badge.label}</Badge>
+                  <Badge variant={badge.variant}>{badge.label}</Badge>
                   <span className="text-xs text-muted-foreground">
                     {KIND_LABELS[n.recipientKind] ?? n.recipientKind}
                     {n.mode !== 'regular' && n.type !== 'digest' && ` · ${MODE_LABELS[n.mode] ?? n.mode}`}

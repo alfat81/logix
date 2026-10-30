@@ -1,12 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Pencil } from 'lucide-react'
+import { Loader2, Pencil, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
+import { ListTabs } from '@/components/admin/ListTabs'
 import {
   COMPETENCIES_DIRECTIONS_KEY,
   COMPETENCIES_TRANSPORT_KEY,
@@ -26,6 +26,11 @@ import { fmtPoolDate, type ContractorRow, type PoolFilter } from './contractorpo
 //
 // v0.5.0 (P1-22): диалог правки/исключения — выезд в contractorpool/
 // (резка под лимит 300, RULES 2.14).
+// v0.7.10 (DF-22): секция — эталонная обёртка Card, фильтры — общий
+// ListTabs (§4.2); карточка — анатомия §4.3-lite по эталону «Юрлица»:
+// строка 1 — «с {дата}» + бейдж состояния, строка 2 — название
+// semibold, строка 3 — телефон/договор; справа — счётчик этапов и
+// компетенции-чипы.
 export function ContractorPoolSection({
   refreshKey = 0,
   portalEnabled,
@@ -75,105 +80,104 @@ export function ContractorPoolSection({
   }, [filter, load, refreshKey])
 
   return (
-    <section className="grid gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Пул</h2>
-          <p className="text-sm text-muted-foreground">
+    <section>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Users className="size-4 text-muted-foreground" />
+            Пул
+          </CardTitle>
+          <CardDescription>
             Квалифицированные исполнители. Исключение — мягкое: новые назначения блокируются,
             текущие этапы и вход в ЛК живут
-          </p>
-        </div>
-      </div>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <ListTabs
+            tabs={[
+              { key: 'active', label: 'В пуле' },
+              { key: 'excluded', label: 'Исключённые' },
+              { key: 'all', label: 'Все' },
+            ]}
+            active={filter}
+            onChange={(k) => setFilter(k as PoolFilter)}
+          />
 
-      <div className="flex flex-wrap gap-2">
-        {(
-          [
-            ['active', 'В пуле'],
-            ['excluded', 'Исключённые'],
-            ['all', 'Все'],
-          ] as const
-        ).map(([value, label]) => (
-          <Button
-            key={value}
-            size="sm"
-            variant={filter === value ? 'default' : 'outline'}
-            onClick={() => setFilter(value)}
-          >
-            {label}
-          </Button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="flex items-center gap-2 text-muted-foreground text-sm py-6 justify-center">
-          <Loader2 className="size-4 animate-spin" />
-          Загрузка…
-        </div>
-      ) : contractors.length === 0 ? (
-        <Card className="p-6 text-center text-muted-foreground text-sm">
-          {filter === 'active'
-            ? 'Пул пуст — переведите первого кандидата в квалификации.'
-            : filter === 'excluded'
-              ? 'Исключённых подрядчиков нет.'
-              : 'Подрядчиков пока нет.'}
-        </Card>
-      ) : (
-        <div className="grid gap-2">
-          {contractors.map((c) => {
-            const chips = readTransportChips((c.competencies ?? {})[COMPETENCIES_TRANSPORT_KEY])
-            const directions = readInfoString((c.competencies ?? {})[COMPETENCIES_DIRECTIONS_KEY])
-            return (
-              <Card
-                key={c.id}
-                className="p-4 flex flex-wrap items-center gap-x-6 gap-y-2 cursor-pointer transition-colors hover:border-ring"
-                onClick={() => setSelected(c)}
-              >
-                <div className="min-w-44 flex-1">
-                  <div className="font-medium truncate">{c.companyName}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {c.phone}
-                    {c.contractNumber ? ` · договор № ${c.contractNumber}` : ''}
-                    {c.contractSignedAt ? ` от ${fmtPoolDate(c.contractSignedAt)}` : ''}
-                  </div>
-                  {c.comment && (
-                    <div className="text-xs text-muted-foreground truncate mt-0.5">{c.comment}</div>
-                  )}
-                </div>
-                <div className="min-w-36 flex-1">
-                  <div className="flex flex-wrap gap-1">
-                    {chips.length ? (
-                      chips.map((t) => (
-                        <Badge key={t} variant="outline" className="text-xs">
-                          {t}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-xs text-muted-foreground">компетенции не указаны</span>
-                    )}
-                  </div>
-                  {directions && (
-                    <div className="text-xs text-muted-foreground truncate mt-0.5">{directions}</div>
-                  )}
-                </div>
-                <div className="text-sm text-muted-foreground whitespace-nowrap">
-                  {c._count.stages > 0 ? `${c._count.stages} этап(ов) назначено` : 'без назначений'}
-                </div>
-                {c.isActive ? (
-                  <Badge variant="delivered">
-                    в пуле
-                  </Badge>
-                ) : (
-                  <Badge variant="version">
-                    исключён
-                  </Badge>
-                )}
-                <Pencil className="size-4 text-muted-foreground" />
-              </Card>
-            )
-          })}
-        </div>
-      )}
+          {loading ? (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm py-6 justify-center">
+              <Loader2 className="size-4 animate-spin" />
+              Загрузка…
+            </div>
+          ) : contractors.length === 0 ? (
+            <span className="text-center text-muted-foreground text-sm py-2">
+              {filter === 'active'
+                ? 'Пул пуст — переведите первого кандидата в квалификации.'
+                : filter === 'excluded'
+                  ? 'Исключённых подрядчиков нет.'
+                  : 'Подрядчиков пока нет.'}
+            </span>
+          ) : (
+            <div className="grid gap-2">
+              {contractors.map((c) => {
+                const chips = readTransportChips((c.competencies ?? {})[COMPETENCIES_TRANSPORT_KEY])
+                const directions = readInfoString((c.competencies ?? {})[COMPETENCIES_DIRECTIONS_KEY])
+                return (
+                  <Card
+                    key={c.id}
+                    className="p-4 cursor-pointer transition-colors hover:border-ring"
+                    onClick={() => setSelected(c)}
+                  >
+                    {/* Анатомия §4.3-lite (эталон — «Юрлица») */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="text-muted-foreground tabular-nums">
+                            с {fmtPoolDate(c.createdAt)}
+                          </span>
+                          {c.isActive ? (
+                            <Badge variant="delivered">в пуле</Badge>
+                          ) : (
+                            <Badge variant="version">исключён</Badge>
+                          )}
+                        </div>
+                        <div className="mt-0.5 truncate font-semibold">{c.companyName}</div>
+                        <div className="mt-0.5 truncate text-sm text-muted-foreground">
+                          {c.phone}
+                          {c.contractNumber ? ` · договор № ${c.contractNumber}` : ''}
+                          {c.contractSignedAt ? ` от ${fmtPoolDate(c.contractSignedAt)}` : ''}
+                        </div>
+                        {c.comment && (
+                          <div className="mt-0.5 truncate text-xs text-muted-foreground">{c.comment}</div>
+                        )}
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-sm font-semibold tabular-nums">
+                          {c._count.stages > 0 ? `${c._count.stages} этап(ов) назначено` : 'без назначений'}
+                        </div>
+                        <div className="mt-1 flex max-w-56 flex-wrap justify-end gap-1">
+                          {chips.length ? (
+                            chips.map((t) => (
+                              <Badge key={t} variant="outline" className="text-xs">
+                                {t}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs text-muted-foreground">компетенции не указаны</span>
+                          )}
+                        </div>
+                        {directions && (
+                          <div className="mt-0.5 truncate text-xs text-muted-foreground">{directions}</div>
+                        )}
+                        <Pencil className="mt-1 ml-auto size-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <ContractorPoolEditDialog
         contractor={selected}

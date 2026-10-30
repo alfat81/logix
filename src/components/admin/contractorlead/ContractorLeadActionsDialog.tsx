@@ -122,13 +122,9 @@ export function ContractorLeadActionsDialog({
                 <span className="font-medium">{current.contractor.companyName}</span>
                 <span className="text-muted-foreground">{current.contractor.phone}</span>
                 {current.contractor.isActive ? (
-                  <Badge className="bg-success text-success-foreground border-transparent" variant="outline">
-                    в пуле
-                  </Badge>
+                  <Badge variant="delivered">в пуле</Badge>
                 ) : (
-                  <Badge className="bg-destructive text-destructive-foreground border-transparent" variant="outline">
-                    исключён
-                  </Badge>
+                  <Badge variant="version">исключён</Badge>
                 )}
               </div>
             )}

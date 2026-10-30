@@ -1,11 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Plus } from 'lucide-react'
+import { Loader2, Plus, UserSearch } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
+import { ListTabs } from '@/components/admin/ListTabs'
 import {
   CONTRACTOR_LEAD_STATUSES,
   CONTRACTOR_LEAD_STATUS_LABELS,
@@ -29,6 +30,12 @@ import { fmtLeadDate, type ContractorLeadRow } from './contractorlead/types'
 //
 // v0.5.0 (P1-22): диалоги и общие части выезды в contractorlead/
 // (TransportChips — общий с пулом; резка под лимит 300, RULES 2.14).
+// v0.7.10 (DF-22): секция — эталонная обёртка Card (CardTitle text-base
+// с иконкой, действие — CardAction в заголовке, как у брокеров);
+// фильтры статусов — общий ListTabs (BRANDBOOK §4.2) вместо пилюль;
+// карточка кандидата — анатомия §4.3-lite по эталону «Юрлица»
+// (LegalEntityCard): строка 1 — «с {дата}» + бейдж статуса, строка 2 —
+// название semibold, строка 3 — контакт muted; справа — зоны.
 export function ContractorLeadsSection({
   refreshKey = 0,
   portalEnabled,
@@ -105,81 +112,90 @@ export function ContractorLeadsSection({
   }
 
   return (
-    <section className="grid gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Квалификация</h2>
-          <p className="text-sm text-muted-foreground">
+    <section>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <UserSearch className="size-4 text-muted-foreground" />
+            Квалификация
+          </CardTitle>
+          <CardDescription>
             Кандидаты: знакомство → переговоры → пул. Переводы — руками, автоматов нет (роадмап 8.1)
-          </p>
-        </div>
-        <Button variant="outline" onClick={() => setCreateOpen(true)}>
-          <Plus className="size-4" />
-          Новый кандидат
-        </Button>
-      </div>
+          </CardDescription>
+          <CardAction>
+            <Button variant="outline" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" />
+              Новый кандидат
+            </Button>
+          </CardAction>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {/* Табы по статусам воронки (паттерн лидов В5, ?status= из Г2;
+              DF-22: общий ListTabs §4.2 — counts не показываем, выборка
+              грузится по одному статусу) */}
+          <ListTabs
+            tabs={[
+              { key: 'all', label: 'Все' },
+              ...CONTRACTOR_LEAD_STATUSES.map((s) => ({
+                key: s,
+                label: CONTRACTOR_LEAD_STATUS_LABELS[s],
+              })),
+            ]}
+            active={statusFilter}
+            onChange={(k) => setStatusFilter(k as 'all' | ContractorLeadStatus)}
+          />
 
-      {/* Табы по статусам воронки (паттерн лидов В5, ?status= из Г2) */}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant={statusFilter === 'all' ? 'default' : 'outline'}
-          onClick={() => setStatusFilter('all')}
-        >
-          Все
-        </Button>
-        {CONTRACTOR_LEAD_STATUSES.map((s) => (
-          <Button
-            key={s}
-            size="sm"
-            variant={statusFilter === s ? 'default' : 'outline'}
-            onClick={() => setStatusFilter(s)}
-          >
-            {CONTRACTOR_LEAD_STATUS_LABELS[s]}
-          </Button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="flex items-center gap-2 text-muted-foreground text-sm py-6 justify-center">
-          <Loader2 className="size-4 animate-spin" />
-          Загрузка…
-        </div>
-      ) : leads.length === 0 ? (
-        <Card className="p-6 text-center text-muted-foreground text-sm">
-          {statusFilter === 'all'
-            ? 'Кандидатов пока нет — добавьте первого.'
-            : `Кандидатов со статусом «${CONTRACTOR_LEAD_STATUS_LABELS[statusFilter]}» нет.`}
-        </Card>
-      ) : (
-        <div className="grid gap-2">
-          {leads.map((l) => {
-            const raw = l.rawInfo ?? {}
-            const person = readInfoString(raw.contactPerson)
-            const phone = readInfoString(raw.phone)
-            const directions = readInfoString(raw.directions)
-            return (
-              <Card
-                key={l.id}
-                className="p-4 flex flex-wrap items-center gap-x-6 gap-y-2 cursor-pointer transition-colors hover:border-ring"
-                onClick={() => setSelected(l)}
-              >
-                <div className="min-w-44 flex-1">
-                  <div className="font-medium truncate">{l.companyName}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {[person || 'без контактного лица', phone].filter(Boolean).join(' · ')} ·{' '}
-                    {fmtLeadDate(l.createdAt)}
-                  </div>
-                </div>
-                <div className="min-w-40 flex-1 text-sm">
-                  {directions || <span className="text-muted-foreground">Зоны не указаны</span>}
-                </div>
-                <ContractorLeadStatusBadge status={l.status} />
-              </Card>
-            )
-          })}
-        </div>
-      )}
+          {loading ? (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm py-6 justify-center">
+              <Loader2 className="size-4 animate-spin" />
+              Загрузка…
+            </div>
+          ) : leads.length === 0 ? (
+            <span className="text-center text-muted-foreground text-sm py-2">
+              {statusFilter === 'all'
+                ? 'Кандидатов пока нет — добавьте первого.'
+                : `Кандидатов со статусом «${CONTRACTOR_LEAD_STATUS_LABELS[statusFilter]}» нет.`}
+            </span>
+          ) : (
+            <div className="grid gap-2">
+              {leads.map((l) => {
+                const raw = l.rawInfo ?? {}
+                const person = readInfoString(raw.contactPerson)
+                const phone = readInfoString(raw.phone)
+                const directions = readInfoString(raw.directions)
+                return (
+                  <Card
+                    key={l.id}
+                    className="p-4 cursor-pointer transition-colors hover:border-ring"
+                    onClick={() => setSelected(l)}
+                  >
+                    {/* Анатомия §4.3-lite (эталон — «Юрлица») */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="text-muted-foreground tabular-nums">
+                            с {fmtLeadDate(l.createdAt)}
+                          </span>
+                          <ContractorLeadStatusBadge status={l.status} />
+                        </div>
+                        <div className="mt-0.5 truncate font-semibold">{l.companyName}</div>
+                        <div className="mt-0.5 truncate text-sm text-muted-foreground">
+                          {[person || 'без контактного лица', phone].filter(Boolean).join(' · ')}
+                        </div>
+                      </div>
+                      <div className="shrink-0 max-w-48 text-right">
+                        <div className="truncate text-sm text-muted-foreground">
+                          {directions || 'Зоны не указаны'}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <ContractorLeadCreateDialog
         open={createOpen}

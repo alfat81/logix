@@ -62,11 +62,10 @@ export function AttentionScreen() {
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Требует внимания</h1>
         {total > 0 ? (
-          <Badge className="bg-destructive text-destructive-foreground border-transparent">
-            {total}
-          </Badge>
+          // Сигнал критичного — сплошной Brick-strong (§3.2/§3.3)
+          <Badge variant="critical">{total}</Badge>
         ) : (
-          <Badge className="bg-success text-success-foreground border-transparent">чисто</Badge>
+          <Badge variant="delivered">чисто</Badge>
         )}
         <div className="ml-auto flex gap-2">
           <Button size="sm" variant="outline" onClick={reload}>

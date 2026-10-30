@@ -23,6 +23,13 @@ import type { RefDialogSave, RefRow, RatesData } from './ref-types'
 //
 // IC-16: для каждого справочника показан источник и условия
 // использования (коротко здесь, полностью — docs/REFERENCES-SOURCES.md).
+//
+// v0.7.10 (DF-22): шапка — по эталону «Юрлица» (заголовок+подпись
+// слева, действия справа); строка справочника — анатомия §4.3-lite:
+// строка 1 — код + атрибутные бейджи (пары §3.2: «Отключено» и
+// «Правила — черновик» — нейтральная version-пара; amber вне
+// палитры брендбука), строка 2 — название semibold, строка 3 —
+// английское название muted; правый блок — курс и «Править» outline.
 
 // Источники и условия использования (IC-16) — полные записи в
 // docs/REFERENCES-SOURCES.md; здесь — краткие пометки на экране.
@@ -116,9 +123,19 @@ export function ReferencesScreen({ canWrite }: { canWrite: boolean }) {
 
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Справочники</h1>
-        <div className="ml-auto flex items-center gap-2">
+      {/* Шапка по эталону «Юрлица» (§4.2, DF-22): заголовок+подпись слева,
+          действия справа */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Справочники</h1>
+          <p className="max-w-3xl text-sm text-muted-foreground">
+            Страны, валюты, упаковка и условия поставки — единый источник выбора во всех формах.
+            Код записи неизменяем; подписи можно править, запись — отключить (исчезнет из форм, старые
+            сделки сохранят снимок). Источники и условия использования —{' '}
+            <span className="font-mono text-xs">docs/REFERENCES-SOURCES.md</span>.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={load}>
             <RefreshCw className="size-4" />
             Обновить
@@ -131,12 +148,6 @@ export function ReferencesScreen({ canWrite }: { canWrite: boolean }) {
           )}
         </div>
       </div>
-      <p className="text-sm text-muted-foreground -mt-2">
-        Страны, валюты, упаковка и условия поставки — единый источник выбора во всех формах.
-        Код записи неизменяем; подписи можно править, запись — отключить (исчезнет из форм, старые
-        сделки сохранят снимок). Источники и условия использования —{' '}
-        <span className="font-mono text-xs">docs/REFERENCES-SOURCES.md</span>.
-      </p>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <ListTabs tabs={tabs} active={dir} onChange={(d) => setDir(d as RefDir)} />
@@ -176,35 +187,40 @@ export function ReferencesScreen({ canWrite }: { canWrite: boolean }) {
             const meta = dir === 'incoterm' ? incotermMetaOf(row.meta) : null
             const rate = rateByCode.get(row.code)
             return (
-              <Card key={row.id} className="p-3 flex flex-wrap items-center gap-x-4 gap-y-1">
-                <span className="font-mono text-xs text-muted-foreground w-14 shrink-0">{row.code}</span>
-                <span className="text-sm font-medium">{row.name}</span>
-                {row.nameEn && (
-                  <span className="text-sm text-muted-foreground">{row.nameEn}</span>
-                )}
-                {!row.isActive && (
-                  <Badge className="bg-muted text-muted-foreground border-transparent">Отключено</Badge>
-                )}
-                {meta?.draft && (
-                  <Badge className="bg-amber-100 text-amber-900 border-transparent">Правила — черновик (O-12)</Badge>
-                )}
-                {rate && (
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    курс: {rate.nominal !== 1 && `${rate.nominal} ед. = `}
-                    {fmtRate(rate.value)} ₽
-                  </span>
-                )}
-                {canWrite && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="ml-auto"
-                    onClick={() => setEditing(row)}
-                  >
-                    <Pencil className="size-4" />
-                    Править
-                  </Button>
-                )}
+              <Card key={row.id} className="p-4">
+                {/* Анатомия §4.3-lite (эталон — «Юрлица», DF-22) */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="w-14 shrink-0 font-mono text-muted-foreground tabular-nums">{row.code}</span>
+                      {!row.isActive && <Badge variant="version">Отключено</Badge>}
+                      {meta?.draft && <Badge variant="version">Правила — черновик (O-12)</Badge>}
+                    </div>
+                    <div className="mt-0.5 truncate font-semibold">{row.name}</div>
+                    {row.nameEn && (
+                      <div className="mt-0.5 truncate text-sm text-muted-foreground">{row.nameEn}</div>
+                    )}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    {rate && (
+                      <div className="text-xs text-muted-foreground tabular-nums">
+                        курс: {rate.nominal !== 1 && `${rate.nominal} ед. = `}
+                        {fmtRate(rate.value)} ₽
+                      </div>
+                    )}
+                    {canWrite && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={rate ? 'mt-1' : undefined}
+                        onClick={() => setEditing(row)}
+                      >
+                        <Pencil className="size-4" />
+                        Править
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </Card>
             )
           })}

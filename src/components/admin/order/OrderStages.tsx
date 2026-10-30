@@ -4,9 +4,14 @@
 // этапа — StageCard.tsx, RULES 2.14) ─────────────────────────────────
 // Каталог и пул подрядчиков грузятся здесь (нужны только этапам).
 // Статусы — бейджи §3.2 (lib/status-badges.ts).
+//
+// v0.7.10 (DF-22): секция — эталонная обёртка Card (CardTitle
+// text-base с иконкой, действие — CardAction в заголовке, как у
+// брокеров) вместо голого h2 text-lg рядом с Card-секциями страницы.
 import { useEffect, useState } from 'react'
-import { Loader2, Plus } from 'lucide-react'
+import { Loader2, ListOrdered, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -174,51 +179,55 @@ export function OrderStages({
   const sorted = [...stages].sort((a, b) => a.sequence - b.sequence)
 
   return (
-    <>
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Этапы</h2>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
-            <Plus className="size-4" />
-            Добавить этап
-          </Button>
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Добавить этап из каталога</DialogTitle>
-              <DialogDescription>
-                Необязательные этапы поверх обязательного ядра. Обязательные уже
-                в заявке и удалить их нельзя.
-              </DialogDescription>
-            </DialogHeader>
-            <Select value={addCode} onValueChange={setAddCode}>
-              <SelectTrigger>
-                <SelectValue placeholder="Выберите этап" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableStages.length === 0 ? (
-                  <div className="text-sm text-muted-foreground px-2 py-3">
-                    Все этапы каталога уже в заявке
-                  </div>
-                ) : (
-                  availableStages.map((c) => (
-                    <SelectItem key={c.code} value={c.code}>
-                      {c.name}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            <DialogFooter>
-              <Button onClick={addStage} disabled={adding || !addCode}>
-                {adding && <Loader2 className="size-4 animate-spin" />}
-                Добавить
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <div className="grid gap-2">
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <ListOrdered className="size-4 text-muted-foreground" />
+          Этапы
+        </CardTitle>
+        <CardAction>
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
+              <Plus className="size-4" />
+              Добавить этап
+            </Button>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Добавить этап из каталога</DialogTitle>
+                <DialogDescription>
+                  Необязательные этапы поверх обязательного ядра. Обязательные уже
+                  в заявке и удалить их нельзя.
+                </DialogDescription>
+              </DialogHeader>
+              <Select value={addCode} onValueChange={setAddCode}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Выберите этап" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableStages.length === 0 ? (
+                    <div className="text-sm text-muted-foreground px-2 py-3">
+                      Все этапы каталога уже в заявке
+                    </div>
+                  ) : (
+                    availableStages.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <DialogFooter>
+                <Button onClick={addStage} disabled={adding || !addCode}>
+                  {adding && <Loader2 className="size-4 animate-spin" />}
+                  Добавить
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="grid gap-2">
         {sorted.map((s, i) => (
           <StageCard
             key={s.id}
@@ -237,7 +246,7 @@ export function OrderStages({
             onDelete={() => void deleteStage(s.id, s.name)}
           />
         ))}
-      </div>
-    </>
+      </CardContent>
+    </Card>
   )
 }

@@ -31,6 +31,12 @@ import { MANDATORY_WARNING, type StageRow } from './stagecatalog/types'
 //
 // v0.5.0 (P1-22): диалоги создания/правки — выезд в stagecatalog/
 // (резка под лимит 300, RULES 2.14).
+//
+// v0.7.10 (DF-22): карточка этапа — анатомия §4.3-lite по эталону
+// «Юрлица» (LegalEntityCard): строка 1 — номер + бейдж атрибута
+// (нейтральная пара version §3.2 — сплошной Coral-бейдж вне таблицы
+// статусов запрещён: красный только для срочного), строка 2 —
+// название semibold, строка 3 — код; «Править» — outline справа.
 export function StageCatalogList({ isMaster }: { isMaster: boolean }) {
   const { toast } = useToast()
 
@@ -121,45 +127,56 @@ export function StageCatalogList({ isMaster }: { isMaster: boolean }) {
       ) : (
         <div className="grid gap-2">
           {stages.map((row, i) => (
-            <Card key={row.id} className="p-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-              <div className="flex flex-col gap-1 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Переместить «${row.name}» выше`}
-                  disabled={i === 0 || movingId !== null}
-                  onClick={() => handleMove(row, 'up')}
-                >
-                  {movingId === row.id ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <ArrowUp className="size-4" />
-                  )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Переместить «${row.name}» ниже`}
-                  disabled={i === stages.length - 1 || movingId !== null}
-                  onClick={() => handleMove(row, 'down')}
-                >
-                  <ArrowDown className="size-4" />
-                </Button>
-              </div>
-              <div className="min-w-40 flex-1">
-                <div className="font-medium flex flex-wrap items-center gap-2">
-                  <span className="text-muted-foreground tabular-nums">{i + 1}.</span>
-                  {row.name}
-                  {row.isMandatory && (
-                    <Badge title={MANDATORY_WARNING}>Обязательный</Badge>
-                  )}
+            <Card key={row.id} className="p-4">
+              {/* Анатомия §4.3-lite (эталон — «Юрлица», DF-22): строка 1 —
+                  номер + бейдж обязательности (нейтральная пара §3.2 —
+                  красный только для срочного), строка 2 — название
+                  semibold, строка 3 — код; стрелки порядка слева,
+                  «Править» справа, как в правом блоке юрлица */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex shrink-0 flex-col gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Переместить «${row.name}» выше`}
+                      disabled={i === 0 || movingId !== null}
+                      onClick={() => handleMove(row, 'up')}
+                    >
+                      {movingId === row.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <ArrowUp className="size-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Переместить «${row.name}» ниже`}
+                      disabled={i === stages.length - 1 || movingId !== null}
+                      onClick={() => handleMove(row, 'down')}
+                    >
+                      <ArrowDown className="size-4" />
+                    </Button>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="text-muted-foreground tabular-nums">{i + 1}.</span>
+                      {row.isMandatory && (
+                        <Badge variant="version" title={MANDATORY_WARNING}>
+                          Обязательный
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="mt-0.5 truncate font-semibold">{row.name}</div>
+                    <div className="mt-0.5 truncate text-sm text-muted-foreground font-mono">{row.code}</div>
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground font-mono truncate">{row.code}</div>
+                <Button variant="outline" size="sm" className="shrink-0" onClick={() => setEditRow(row)}>
+                  <Pencil className="size-4" />
+                  Править
+                </Button>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setEditRow(row)}>
-                <Pencil className="size-4" />
-                Править
-              </Button>
             </Card>
           ))}
         </div>

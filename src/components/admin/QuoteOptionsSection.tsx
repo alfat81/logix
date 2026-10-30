@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Layers, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
@@ -25,6 +25,11 @@ import { QuoteOptionDialog } from '@/components/admin/QuoteOptionDialog'
 // НДС) и себестоимость — раздельно; себестоимость видна только
 // сотрудникам (наружу не выходит), маржа не вычисляется. Формат —
 // только formatMoney/formatMoneyWithVat (lib/money.ts).
+//
+// v0.7.10 (DF-22): секция — эталонная обёртка Card (CardTitle
+// text-base с иконкой, действие — CardAction в заголовке, как у
+// брокеров) вместо голого h2 text-lg; пустое состояние — строка muted
+// в CardContent, как у секции брокеров.
 
 export type QuoteOptionRow = {
   id: string
@@ -85,31 +90,35 @@ export function QuoteOptionsSection({
   }
 
   return (
-    <>
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Варианты расчёта</h2>
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Layers className="size-4 text-muted-foreground" />
+          Варианты расчёта
+        </CardTitle>
         {!disabled && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setEditingOption(null)
-              setOptionOpen(true)
-            }}
-          >
-            <Plus className="size-4" />
-            Добавить вариант
-          </Button>
+          <CardAction>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setEditingOption(null)
+                setOptionOpen(true)
+              }}
+            >
+              <Plus className="size-4" />
+              Добавить вариант
+            </Button>
+          </CardAction>
         )}
-      </div>
-
-      {options.length === 0 ? (
-        <Card className="p-8 text-center text-muted-foreground text-sm">
-          Вариантов пока нет. Первый добавленный вариант переведёт запрос в «Рассчитан».
-        </Card>
-      ) : (
-        <div className="grid gap-2">
-          {options.map((o) => {
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        {options.length === 0 ? (
+          <span className="text-muted-foreground text-sm">
+            Вариантов пока нет. Первый добавленный вариант переведёт запрос в «Рассчитан».
+          </span>
+        ) : (
+          options.map((o) => {
             const modes = Array.isArray(o.transportModes)
               ? o.transportModes.filter((m): m is string => typeof m === 'string')
               : []
@@ -198,9 +207,9 @@ export function QuoteOptionsSection({
                 </div>
               </Card>
             )
-          })}
-        </div>
-      )}
+          })
+        )}
+      </CardContent>
 
       <QuoteOptionDialog
         open={optionOpen}
@@ -209,6 +218,6 @@ export function QuoteOptionsSection({
         editing={editingOption}
         onSaved={onChanged}
       />
-    </>
+    </Card>
   )
 }
