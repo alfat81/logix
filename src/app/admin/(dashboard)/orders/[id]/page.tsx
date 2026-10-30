@@ -36,11 +36,9 @@ import { InfoField } from '@/components/admin/InfoField'
 import { BrokerLinksSection, type BrokerEstimateRow } from '@/components/admin/BrokerLinksSection'
 import { toEstimatePrefill } from '@/components/admin/customs/prefill'
 import { OrderSidePanel } from '@/components/admin/order/OrderSidePanel'
+import { PermitsSection } from '@/components/permits/PermitsSection'
 import { CARGO_PROFILE_LABELS } from '@/lib/order-constants'
-import {
-  ORDER_STATUSES,
-  ORDER_STATUS_LABELS,
-} from '@/lib/order-constants'
+import { ORDER_STATUSES, ORDER_STATUS_LABELS } from '@/lib/order-constants'
 import { fmtDate, type OrderFull } from '@/components/admin/order/types'
 import { OrderCargoCard } from '@/components/admin/order/OrderCargoCard'
 import { OrderQuoteCard } from '@/components/admin/order/OrderQuoteCard'
@@ -256,9 +254,8 @@ export default function OrderPage() {
           onChanged={load}
         />
 
-        {/* ── Д: брокеры сделки (роадмап 5а) — видимость заявки целиком;
-            оценки — с лида-источника, живые (брокер уточняет и после
-            конвертации). */}
+        {/* ── Д: брокеры сделки (5а) — видимость заявки целиком; оценки
+            — с лида-источника, живые (брокер уточняет и после В4) ── */}
         <BrokerLinksSection
           targetType="order"
           targetId={String(id)}
@@ -266,6 +263,17 @@ export default function OrderPage() {
           estimatesByBrokerId={estimatesByBrokerId}
           onChanged={load}
           emptyText="Брокеры не подключены — сделка видна только менеджеру и подключённым подрядчикам своих этапов"
+        />
+
+        {/* ── DF-16: разрешительные — обязательства из ответа брокера и
+            добавленные вручную; закрытие загрузкой файла в строке ── */}
+        <PermitsSection
+          viewer="staff"
+          permitsUrl={`/api/admin/orders/${id}/permits`}
+          createUrl={`/api/admin/orders/${id}/permits`}
+          patchUrlFor={(permitId) => `/api/admin/permits/${permitId}`}
+          documentUrlFor={(permitId) => `/api/admin/permits/${permitId}/document`}
+          onChanged={load}
         />
 
         <OrderStages orderId={String(id)} stages={order.stages} onChanged={load} />

@@ -2,7 +2,7 @@
 
 import { CalendarClock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { fmtDuty, fmtPercent, isManualRate, readPermits } from '@/lib/brokers'
+import { fmtDuty, fmtPercent, isManualRate } from '@/lib/brokers'
 
 // ─── DF-18: просмотр ответа брокера в карточках сделки (админка) ────
 // Блок «Платежи · статус · строки кодов · разрешительные · примечания»
@@ -48,7 +48,6 @@ const fmtDateTime = (iso: string): string =>
   })
 
 export function EstimateView({ estimate }: { estimate: BrokerEstimateRow }) {
-  const permits = readPermits(estimate.requiredPermits)
   const items = estimate.items ?? []
   return (
     <div className="grid gap-1 text-sm border-t pt-2">
@@ -105,16 +104,10 @@ export function EstimateView({ estimate }: { estimate: BrokerEstimateRow }) {
           ))}
         </div>
       )}
-      {permits.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">Разрешительные:</span>
-          {permits.map((p) => (
-            <Badge key={p} variant="outline" className="text-xs">
-              {p}
-            </Badge>
-          ))}
-        </div>
-      )}
+      {/* DF-16: свободный список requiredPermits больше не показываем —
+          строки ответа брокера синхронизируются в PermitRequirement и
+          живут секцией «Разрешительные документы» карточки (sync при
+          сохранении оценки; поле остаётся до contract-релиза). */}
       {estimate.notes && <div className="text-xs text-muted-foreground">{estimate.notes}</div>}
     </div>
   )

@@ -93,8 +93,10 @@ describe('Реестр SETTINGS — полнота и самосогласова
     }
   })
 
-  it('красные события по умолчанию пусты,staff_mode = immediate (карточка)', () => {
-    expect(getSettingDef('notifications.red_event_types').defaultValue).toEqual([])
+  it('красные события — permit_overdue (DF-16, §8), staff_mode = immediate (карточка)', () => {
+    // DF-16: «просроченное блокирующее разрешительное» — в дефолтном
+    // красном списке (§8); остальные красные добавляются настройкой.
+    expect(getSettingDef('notifications.red_event_types').defaultValue).toEqual(['permit_overdue'])
     expect(getSettingDef('notifications.staff_mode').defaultValue).toBe('immediate')
   })
 

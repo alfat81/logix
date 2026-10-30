@@ -8,6 +8,7 @@ import {
 } from '@/lib/activity'
 import { eventWhereFor } from '@/lib/audience'
 import { projectActors, STAFF_READER } from '@/lib/actor-name'
+import { PERMIT_FIELDS } from '@/lib/permits-db'
 import { patchLead } from './patch'
 
 type Params = { params: Promise<{ id: string }> }
@@ -47,6 +48,11 @@ export async function GET(req: NextRequest, { params }: Params) {
           orderBy: { createdAt: 'desc' },
           take: ACTIVITY_FEED_TAKE,
           select: ACTIVITY_PUBLIC_FIELDS,
+        },
+        // DF-16: разрешительные запроса (полная проекция — сотруднику).
+        permitRequirements: {
+          orderBy: [{ isBlocking: 'desc' }, { createdAt: 'asc' } as const],
+          select: PERMIT_FIELDS,
         },
       },
     })

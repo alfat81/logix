@@ -88,6 +88,8 @@
 | `CreateLeadInput` | `src/lib/leads.ts` | — |
 | `CreateLeadSchema` | `src/lib/leads.ts` | — |
 | `CreateOrderInput` | `src/lib/orders.ts` | — |
+| `CreatePermitInput` | `src/lib/permits.ts` | — |
+| `CreatePermitSchema` | `src/lib/permits.ts` | POST /api/{admin|broker}/.../permits — добавляет брокер или сотрудник. |
 | `CreateQuoteOptionInput` | `src/lib/leads.ts` | — |
 | `CreateQuoteOptionSchema` | `src/lib/leads.ts` | — |
 | `CurrencyCode` | `src/lib/money.ts` | — |
@@ -206,8 +208,20 @@
 | `OwnerDigestDecision` | `src/lib/notifications/owner-digest.ts` | — |
 | `OwnerDigestLetterInput` | `src/lib/notifications/owner-digest.ts` | — |
 | `OwnerDigestRun` | `src/lib/notifications/owner-digest.ts` | — |
+| `OwnerPermitRow` | `src/lib/notifications/owner-digest.ts` | DF-16: строка «ждём от вас» в сводке — незакрытые разрешительные |
+| `PERMIT_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Разрешительный (DF-16): ожидается — ждёт действия (пара движения, |
+| `PERMIT_EXTERNAL_FIELDS` | `src/lib/permits-db.ts` | Наружная проекция (клиент/брокер): внутренняя заметка и служебные |
+| `PERMIT_FIELDS` | `src/lib/permits-db.ts` | Полная проекция (staff; включает внутреннюю заметку строки). |
+| `PERMIT_ITEM_ID_MAX` | `src/lib/permits.ts` | — |
 | `PERMIT_MAX_COUNT` | `src/lib/brokers.ts` | ─── Оценка таможенных платежей (BrokerEstimate, роадмап 5а) ────── |
 | `PERMIT_MAX_LENGTH` | `src/lib/brokers.ts` | — |
+| `PERMIT_PROVIDERS` | `src/lib/permits.ts` | — |
+| `PERMIT_PROVIDER_LABELS` | `src/lib/permits.ts` | Подписи для сотрудников (карточка, события, письма). |
+| `PERMIT_STAFF_NOTE_MAX` | `src/lib/permits.ts` | — |
+| `PERMIT_STATUSES` | `src/lib/permits.ts` | — |
+| `PERMIT_STATUS_LABELS` | `src/lib/permits.ts` | — |
+| `PERMIT_TITLE_MAX` | `src/lib/permits.ts` | — |
+| `PERMIT_WAIVED_REASON_MAX` | `src/lib/permits.ts` | — |
 | `PLACE_KIND_LABELS` | `src/lib/ref.ts` | — |
 | `PULSE_CARGO_LIMIT` | `src/lib/pulse.ts` | ─── Объёмы выдачи (срезы лимитом, счётчики — полные, как в Ж5) ────── |
 | `PULSE_EVENTS_LIMIT` | `src/lib/pulse.ts` | — |
@@ -232,6 +246,14 @@
 | `PatchEmployeeSchema` | `src/lib/employees.ts` | ─── PATCH сотрудника: /api/admin/employees/[id] (Ж6в) ──────────── |
 | `PatchLeadInput` | `src/lib/leads.ts` | — |
 | `PatchLeadSchema` | `src/lib/leads.ts` | PATCH лида — смена статуса (+ причина при отказе), ответственного |
+| `PatchPermitInput` | `src/lib/permits.ts` | — |
+| `PatchPermitSchema` | `src/lib/permits.ts` | PATCH /api/admin/permits/[id] — правит ТОЛЬКО сотрудник: поля строки |
+| `PermitProvider` | `src/lib/permits.ts` | — |
+| `PermitRow` | `src/lib/permits-db.ts` | — |
+| `PermitScanRun` | `src/lib/notifications/permits-scan.ts` | — |
+| `PermitSnapshotRow` | `src/lib/waiting.ts` | — |
+| `PermitStatus` | `src/lib/permits.ts` | — |
+| `PermitUrgencyRow` | `src/lib/permits.ts` | Строка в порядке срочности для правила «у кого мяч» (DF-05): первой |
 | `PortalRequireResult` | `src/lib/portal-auth.ts` | — |
 | `PulseCargoRow` | `src/lib/pulse.ts` | — |
 | `PulseCore` | `src/lib/pulse-db.ts` | ─── DF-07/DF-08: серверная сборка блоков 1–3 «Пульса» ─────────────── |
@@ -349,6 +371,8 @@
 | `authenticateBrokerLogin` | `src/lib/company-users.ts` | — |
 | `authenticateCustomerLogin` | `src/lib/company-users.ts` | — |
 | `brokerActor` | `src/lib/activity.ts` | Брокер портала (Д). DF-02A (Блок 4): актор — ЧЕЛОВЕК (userId), |
+| `brokerConnectedToLead` | `src/lib/permits-access.ts` | Брокер подключён к сделке (любая из двух связей — LeadBroker до |
+| `brokerConnectedToOrder` | `src/lib/permits-access.ts` | — |
 | `brokerSessionCookieOptions` | `src/lib/broker-auth.ts` | — |
 | `buildCargoRow` | `src/lib/pulse.ts` | Строка «Где груз» из заявки с этапами: ближайший этап, исполнитель, |
 | `buildFxSnapshot` | `src/lib/customs-server.ts` | ─── Снимок курсов: за ОДНУ единицу, источник cbr | manual ─────────── |
@@ -365,6 +389,7 @@
 | `canSeeDocument` | `src/lib/audience.ts` | Видимость ДОКУМЕНТА аудитории (не сделки!): внутренний документ — |
 | `cargoFormFromData` | `src/lib/leads.ts` | Обратный разбор в состояние формы (Ж1: правка груза ЗАЯВКИ, правка |
 | `carryDocumentsToOrder` | `src/lib/documents.ts` | ── Перенос при конвертации (В4): лид → заявка ────────────────────── |
+| `carryPermitsToOrder` | `src/lib/permits-db.ts` | ─── Перенос при конвертации В4 (лид → заявка) ─────────────────────── |
 | `cbrImportEnabled` | `src/lib/cbr.ts` | Выключатель для CI/e2e (без внешней сети): CBR_IMPORT=off. |
 | `centsOf` | `src/lib/customs.ts` | Строка с двумя знаками (наши же centsToStr) → копейки |
 | `centsToStr` | `src/lib/customs.ts` | Копейки → строка с двумя знаками (формат Decimal для БД и UI) |
@@ -375,6 +400,7 @@
 | `clearSettingsCache` | `src/lib/settings.ts` | Сброс кэша: тесты и административные операции (после массовых правок). |
 | `clientActor` | `src/lib/activity.ts` | Клиент кабинета (И1). DF-02A (Блок 4): актор — ЧЕЛОВЕК (userId), |
 | `clientSessionCookieOptions` | `src/lib/client-auth.ts` | — |
+| `closePermitWithDocument` | `src/lib/permits-db.ts` | ─── Закрытие строки загрузкой документа (клиент/брокер/сотрудник) ─── |
 | `cn` | `src/lib/utils.ts` | — |
 | `computeCustomsCalculation` | `src/lib/customs.ts` | — |
 | `computeWaitingLead` | `src/lib/waiting.ts` | — |
@@ -394,6 +420,7 @@
 | `createEmployeeSession` | `src/lib/auth.ts` | — |
 | `createFakeTransport` | `src/lib/notifications/transports/fake.ts` | ─── DF-03: фиктивный транспорт (e2e/CI/стенд) ──────────────────────── |
 | `createOrderWithStages` | `src/lib/orders.ts` | — |
+| `createPermit` | `src/lib/permits-db.ts` | ─── Добавление строки (брокер или сотрудник) ──────────────────────── |
 | `createTelegramTransport` | `src/lib/notifications/transports/telegram.ts` | ─── DF-03: заглушка Telegram-транспорта ───────────────────────────── |
 | `createWhatsappTransport` | `src/lib/notifications/transports/whatsapp.ts` | ─── DF-03: заглушка WhatsApp-транспорта ───────────────────────────── |
 | `currencyCodeSchema` | `src/lib/ref.ts` | — |
@@ -432,11 +459,13 @@
 | `fmtDiffNum` | `src/lib/lead-edit.ts` | ── Форматирование значений для diff ──────────────────────────────── |
 | `fmtDuty` | `src/lib/brokers.ts` | Строка «₽ / не указана» для UI обеих сторон (админка и портал). |
 | `fmtPercent` | `src/lib/brokers.ts` | Проценты в человекочитаемый вид для diff и карточек: Decimal из API |
+| `fmtPermitDate` | `src/lib/permits.ts` | Дата для плашек/писем: дд.мм.гггг по UTC (та же семантика, что |
 | `fmtRuDate` | `src/lib/activity.ts` | Дата для описаний событий: дд.мм.гггг по UTC. Плановые даты этапов |
 | `formBool` | `src/lib/documents.ts` | Чекбокс из FormData: значения — строки 'true'/'on' либо отсутствие. |
 | `formatDocSize` | `src/lib/document-constants.ts` | Человекочитаемый размер для списков (общий для трёх кабинетов). |
 | `formatMoney` | `src/lib/money.ts` | «1 450 ₽» | «1 450,50 $» — детерминированный вывод для UI, ленты и |
 | `formatMoneyWithVat` | `src/lib/money.ts` | Строка «1 450 ₽ · без НДС» — цена варианта/снимка с режимом НДС. |
+| `formatOwnerPermitLines` | `src/lib/notifications/owner-digest.ts` | Чистый форматировщик (unit-тесты): «• заявка №17-1 — «Сертификат…» — |
 | `formatPhoneInput` | `src/lib/phone.ts` | Маска телефона при вводе — форматирует по мере печатания |
 | `formatWaitingHours` | `src/lib/waiting.ts` | Возраст мяча одним значением: «N ч» до суток, далее «N дн.» — общий |
 | `getActiveCurrencyOptions` | `src/lib/ref-db.ts` | Активные валюты для форм (Combobox): из справочника; пустая таблица — |
@@ -472,6 +501,8 @@
 | `isHsValidOn` | `src/lib/hs.ts` | «Код действовал на дату»: validFrom <= date < validTo (или бессрочно). |
 | `isLeadAnketaEditable` | `src/lib/lead-edit.ts` | Окно правки анкеты (P1-02): new/calculated. won — история (правится |
 | `isManualRate` | `src/lib/brokers.ts` | Строка с нестандартной ставкой (rateNote заполнен) считается брокером |
+| `isPermitOverdue` | `src/lib/permits.ts` | Просрочка: срок прошёл (независимо от isBlocking — для плашки/письма). |
+| `isPermitRed` | `src/lib/permits.ts` | «Красный» срок (D35): до neededBy осталось меньше permits.red_days_before |
 | `isPhoneNormalized` | `src/lib/phone.ts` | Проверка: это нормализованный телефон? (+7XXXXXXXXXX) |
 | `isRefDir` | `src/lib/ref.ts` | — |
 | `isSqliteDatabase` | `src/lib/list-query.ts` | — |
@@ -518,9 +549,16 @@
 | `participantsOf` | `src/lib/participants.ts` | Единая точка входа: ref.orderId либо ref.leadId (ровно один). |
 | `participantsOfLead` | `src/lib/participants.ts` | Участники запроса (Lead): до конвертации клиент может отсутствовать |
 | `participantsOfOrder` | `src/lib/participants.ts` | Участники заявки (Order): ответственный, клиент, брокеры, подрядчики |
+| `patchPermit` | `src/lib/permits-db.ts` | ─── Правка строки (только сотрудник) ──────────────────────────────── |
 | `percentValue` | `src/lib/brokers.ts` | Проценты — Decimal (RULES 2.15), «разумные границы» карточки: 0..100, |
+| `permitForBroker` | `src/lib/permits-access.ts` | — |
+| `permitForClient` | `src/lib/permits-access.ts` | — |
+| `permitForStaff` | `src/lib/permits-access.ts` | — |
+| `permitHolderKind` | `src/lib/permits.ts` | Держатель мяча по providedBy: клиент/брокер ждём с них, сотрудник — |
+| `permitTargetOf` | `src/lib/permits-db.ts` | Сделка строки: permit → цель-сделка (ровно одна). |
 | `phoneVariants` | `src/lib/phone.ts` | Телефонные варианты поискового запроса (Ж7, переиспользован Ж6а). |
 | `pickFeeRub` | `src/lib/customs.ts` | — |
+| `pickMostUrgentPermit` | `src/lib/permits.ts` | — |
 | `planHsImport` | `src/lib/hs.ts` | Решение импорта по версиям (карточка: «импорт повторно не дублирует», |
 | `processOwnerDigest` | `src/lib/notifications/owner-digest.ts` | — |
 | `processRegularDigests` | `src/lib/notifications/digest.ts` | — |
@@ -528,6 +566,7 @@
 | `projectActors` | `src/lib/actor-name.ts` | Лента событий (Activity): actorName → проекция. |
 | `projectAuthors` | `src/lib/actor-name.ts` | Плоские строки версий (DocumentVersion): authorName → проекция. |
 | `projectDocumentAuthors` | `src/lib/actor-name.ts` | Список документов: authorName во ВСЕХ версиях каждого документа, |
+| `providerLabelFor` | `src/lib/permits.ts` | С точки зрения читателя: свои обязательства — «вы», чужие — по имени |
 | `readApiResponse` | `src/lib/api-client.ts` | — |
 | `readAppBaseUrl` | `src/lib/notifications/templates.ts` | — |
 | `readCalcInput` | `src/lib/customs-api.ts` | — |
@@ -545,6 +584,7 @@
 | `recomputeWaitingOrder` | `src/lib/waiting-db.ts` | — |
 | `recordLoginAttempt` | `src/lib/login-guard.ts` | — |
 | `refCodeField` | `src/lib/ref.ts` | — |
+| `remapPermitItemIds` | `src/lib/permits-db.ts` | ─── Remap привязок itemId после замены строк оценки ───────────────── |
 | `renderFooter` | `src/lib/notifications/templates.ts` | Подвал: название и подпись — настройки; отключение — ответ на письмо |
 | `renderSingleLetter` | `src/lib/notifications/templates.ts` | Одиночное письмо по событию. Нейтральный вариант (аудит №16) не |
 | `requireBroker` | `src/lib/broker-auth.ts` | Единственный способ проверить брокера в роутах кабинета; опций нет — |
@@ -558,12 +598,15 @@
 | `resolveActiveRefs` | `src/lib/ref-db.ts` | — |
 | `resolveDealCodes` | `src/lib/ref-db.ts` | — |
 | `resolveFileMime` | `src/lib/file-signature.ts` | — |
+| `resolveLeadDealTarget` | `src/lib/permits-access.ts` | Цель сделки, на которую брокер добавляет строки: для лида с заявкой — |
 | `resolveRecipients` | `src/lib/notifications/rules.ts` | — |
 | `resolveRouteColumns` | `src/lib/ref-db.ts` | ─── Маршрут + справочник: колонки для prisma одним вызовом ───────── |
 | `resolveUserNames` | `src/lib/actor-name.ts` | ── Батч-резолв пользователей ─────────────────────────────────────── |
 | `retryNotification` | `src/lib/notifications/retry.ts` | — |
+| `revertPermitDocument` | `src/lib/permits-db.ts` | Удаление документа возвращает строку в ожидание (lib/documents.ts). |
 | `routeToDbColumns` | `src/lib/route-fields.ts` | RouteFieldsInput → данные для prisma create/update (readyDate — Date, |
 | `sanitizeFileName` | `src/lib/documents.ts` | Санитизация имени: без каталогов, без управляющих символов, без |
+| `scanPermitOverdue` | `src/lib/notifications/permits-scan.ts` | — |
 | `scheduleDispatch` | `src/lib/notifications/dispatch.ts` | Немедленная попытка диспетчера после коммита write-операции |
 | `searchHsCodes` | `src/lib/hs-db.ts` | Поиск: цифровой запрос — префикс кода (btree-диапазон), иначе — |
 | `sessionCookieOptions` | `src/lib/auth.ts` | — |
@@ -573,6 +616,7 @@
 | `stageVisual` | `src/lib/stage-visuals.ts` | — |
 | `suggestOrderStatus` | `src/lib/status-suggest.ts` | — |
 | `summarizeOrderStages` | `src/lib/order-summary.ts` | Этапы заявки (по sequence asc) → сводка: первый незавершённый этап |
+| `syncEstimatePermits` | `src/lib/permits-db.ts` | ─── Sync свободного списка ответа брокера (PUT estimate) ──────────── |
 | `todayUtcMidnight` | `src/lib/order-summary.ts` | Граница «сегодня» по UTC: плановые даты приходят UTC-полуночью |
 | `topSlowingRows` | `src/lib/notifications/owner-digest.ts` | Топ-5 «тормозящих» для письма: самые старые мячи по всем группам |
 | `unauthorized` | `src/lib/portal-auth.ts` | — |
@@ -723,6 +767,9 @@
 | `ComboOptionRow` | `src/components/references/ComboOptionRow.tsx` |
 | `HsCodeCombobox` | `src/components/references/HsCodeCombobox.tsx` |
 | `IncotermPicker` | `src/components/references/IncotermPicker.tsx` |
+| `PermitCreateDialog` | `src/components/permits/PermitDialogs.tsx` |
+| `PermitUploadButton` | `src/components/permits/PermitUploadButton.tsx` |
+| `PermitsSection` | `src/components/permits/PermitsSection.tsx` |
 | `ReferenceCombobox` | `src/components/references/ReferenceCombobox.tsx` |
 
 ### src/components/contractor
@@ -740,6 +787,12 @@
 | `DocumentCreateDialog` | `src/components/documents/parts/DocumentCreateDialog.tsx` |
 | `DocumentVersionDialog` | `src/components/documents/parts/DocumentVersionDialog.tsx` |
 | `DocumentsSection` | `src/components/documents/DocumentsSection.tsx` |
+
+### src/components/permits
+
+| Компонент | Файл |
+|---|---|
+| `PermitFormFields` | `src/components/permits/parts/PermitFormFields.tsx` |
 
 ### src/components/ui
 
@@ -786,6 +839,7 @@
 | GET, POST | `/api/admin/leads/{id}/documents` | admin | employee | write | нет |
 | POST | `/api/admin/leads/{id}/notes` | admin | employee | write | нет |
 | POST | `/api/admin/leads/{id}/options` | admin | employee | write | нет |
+| GET, POST | `/api/admin/leads/{id}/permits` | admin | employee | write | нет |
 | GET, POST | `/api/admin/legal-entities` | admin | employee | — | нет |
 | PATCH | `/api/admin/legal-entities/{id}` | admin | employee | — | нет |
 | GET | `/api/admin/notifications` | admin | employee | — | нет |
@@ -798,8 +852,11 @@
 | GET, POST | `/api/admin/orders/{id}/customs-calculations` | admin | employee | — | нет |
 | GET, POST | `/api/admin/orders/{id}/documents` | admin | employee | write | нет |
 | POST | `/api/admin/orders/{id}/notes` | admin | employee | write | нет |
+| GET, POST | `/api/admin/orders/{id}/permits` | admin | employee | write | нет |
 | POST | `/api/admin/orders/{id}/stages` | admin | employee | write | нет |
 | DELETE, PATCH | `/api/admin/orders/{id}/stages/{stageId}` | admin | employee | write | нет |
+| PATCH | `/api/admin/permits/{id}` | admin | employee | write | нет |
+| POST | `/api/admin/permits/{id}/document` | admin | employee | write | нет |
 | GET | `/api/admin/pulse` | admin | employee | — | нет |
 | GET, POST | `/api/admin/references` | admin | employee | write | нет |
 | PATCH | `/api/admin/references/{id}` | admin | employee | write | нет |
@@ -824,9 +881,12 @@
 | GET | `/api/broker/leads/{id}` | broker | broker | — | нет |
 | GET, POST | `/api/broker/leads/{id}/documents` | broker | broker | — | нет |
 | PUT | `/api/broker/leads/{id}/estimate` | broker | broker | — | нет |
+| GET, POST | `/api/broker/leads/{id}/permits` | broker | broker | — | нет |
 | GET | `/api/broker/orders` | broker | broker | — | нет |
 | GET | `/api/broker/orders/{id}` | broker | broker | — | нет |
 | GET, POST | `/api/broker/orders/{id}/documents` | broker | broker | — | нет |
+| GET, POST | `/api/broker/orders/{id}/permits` | broker | broker | — | нет |
+| POST | `/api/broker/permits/{id}/document` | broker | broker | — | нет |
 | POST | `/api/client/documents/{id}/versions` | client | client | — | нет |
 | GET, POST | `/api/client/leads` | client | client | — | нет |
 | GET, PATCH | `/api/client/leads/{id}` | client | client | — | нет |
@@ -834,6 +894,7 @@
 | GET | `/api/client/orders` | client | client | — | нет |
 | GET | `/api/client/orders/{id}` | client | client | — | нет |
 | GET, POST | `/api/client/orders/{id}/documents` | client | client | — | нет |
+| POST | `/api/client/permits/{id}/document` | client | client | — | нет |
 | GET | `/api/contractor/orders` | contractor | contractor | — | нет |
 | GET | `/api/contractor/orders/{id}` | contractor | contractor | — | нет |
 | PATCH | `/api/contractor/orders/{id}/stages/{stageId}` | contractor | contractor | — | нет |
@@ -870,16 +931,17 @@
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts |
 | `HsCode` | 9 | scripts/import-hs.ts, scripts/verify-hs-db.ts, scripts/verify-hs-prefix.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/lib/hs-db.ts |
 | `HsImport` | 5 | scripts/import-hs.ts, scripts/verify-hs-db.ts, src/lib/hs-db.ts |
-| `Lead` | 35 | scripts/backfill_waiting.ts, scripts/e2e_backdate_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts (+17) |
-| `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts |
+| `Lead` | 36 | scripts/backfill_waiting.ts, scripts/e2e_backdate_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts (+21) |
+| `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts (+1) |
 | `LegalEntity` | 7 | scripts/seed.ts, src/app/api/admin/leads/[id]/convert/route.ts, src/app/api/admin/legal-entities/[id]/route.ts, src/app/api/admin/legal-entities/route.ts |
 | `LoginAttempt` | 7 | src/lib/login-guard.ts |
 | `Notification` | 19 | scripts/e2e_seed_notification.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/notifications/route.ts, src/lib/notifications/digest.ts, src/lib/notifications/dispatch.ts, src/lib/notifications/owner-digest.ts (+1) |
 | `NotificationPreference` | 5 | — |
-| `Order` | 43 | scripts/backfill_waiting.ts, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/customs-calculations/route.ts, src/app/api/admin/orders/[id]/documents/route.ts (+19) |
-| `OrderBroker` | 6 | src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/lib/broker-links.ts |
+| `Order` | 44 | scripts/backfill_waiting.ts, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/customs-calculations/route.ts, src/app/api/admin/orders/[id]/documents/route.ts (+21) |
+| `OrderBroker` | 6 | src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/lib/broker-links.ts, src/lib/permits-access.ts |
 | `OrderStageCatalog` | 5 | scripts/seed.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/orders/[id]/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts (+12) |
 | `OrderStageInstance` | 11 | src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts, src/app/api/contractor/orders/[id]/stages/[stageId]/route.ts, src/lib/orders.ts |
+| `PermitRequirement` | 23 | src/app/api/admin/leads/[id]/permits/route.ts, src/app/api/admin/orders/[id]/permits/route.ts, src/app/api/broker/leads/[id]/permits/route.ts, src/app/api/broker/orders/[id]/permits/route.ts, src/lib/notifications/digest.ts, src/lib/notifications/owner-digest.ts (+3) |
 | `QuoteOption` | 14 | src/app/api/admin/leads/[id]/patch.ts, src/app/api/admin/options/[id]/route.ts |
 | `RefItem` | 10 | scripts/seed.ts, src/app/api/admin/references/[id]/route.ts, src/app/api/admin/references/route.ts, src/lib/ref-db.ts |
 | `Setting` | 4 | src/app/api/admin/settings/route.ts, src/lib/settings.ts |

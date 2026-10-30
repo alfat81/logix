@@ -5,6 +5,7 @@ import { apiErrorResponse } from '@/lib/api-errors'
 import { ACTIVITY_FEED_TAKE, ACTIVITY_PUBLIC_FIELDS } from '@/lib/activity'
 import { eventWhereFor } from '@/lib/audience'
 import { projectActors } from '@/lib/actor-name'
+import { PERMIT_EXTERNAL_FIELDS } from '@/lib/permits-db'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -55,6 +56,12 @@ export async function GET(req: NextRequest, { params }: Params) {
           orderBy: { createdAt: 'desc' },
           take: ACTIVITY_FEED_TAKE,
           select: ACTIVITY_PUBLIC_FIELDS,
+        },
+        // DF-16: разрешительные заявки — строки видит клиент (наружная
+        // проекция, staffNote не покидает сервер).
+        permitRequirements: {
+          orderBy: [{ isBlocking: 'desc' }, { createdAt: 'asc' } as const],
+          select: PERMIT_EXTERNAL_FIELDS,
         },
       },
     })

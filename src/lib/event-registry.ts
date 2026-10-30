@@ -102,6 +102,17 @@ export const EVENT_TYPES: Record<ActivityType, EventMeta> = {
   // показ клиенту — отдельное решение P2-02); писем нет — факт виден в
   // ленте, дергать ответственного на каждый пересчёт — спам (§8).
   customs_calc_saved: { label: 'Сохранён расчёт таможенных платежей', audience: ['staff'], notify: [] },
+  // DF-16: разрешительные документы (D35). Строки видят все стороны
+  // сделки; клиенту уходит письмо о добавленной строке (расчёт — сразу,
+  // §8); получив документ — ответственному; «не требуется» — без писем
+  // (факт в ленте). permit_overdue — красный по умолчанию
+  // (notifications.red_event_types), адресатов решает ДИНАМИЧЕСКОЕ
+  // правило в rules.ts по providedBy строки (кто должен предоставить) —
+  // реестр статично providedBy не знает (комментарий как у stage).
+  permit_added: { label: 'Добавлен разрешительный документ', audience: ['staff', 'client', 'broker'], notify: ['client'] },
+  permit_received: { label: 'Разрешительный документ получен', audience: ['staff', 'client', 'broker'], notify: ['responsible-if-external-actor'] },
+  permit_waived: { label: 'Разрешительный отмечен не требуемым', audience: ['staff', 'client', 'broker'], notify: [] },
+  permit_overdue: { label: 'Просрочен разрешительный документ', audience: ['staff', 'client', 'broker'], notify: [] },
   // документы (Е): аудитория по умолчанию — внешний документ; для
   // ВНУТРЕННЕГО точка вызова (documents.ts) переопределяет на
   // documentEventAudience(true) = ['staff'] — внешний кабинет не должен

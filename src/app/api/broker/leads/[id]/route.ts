@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireBroker } from '@/lib/broker-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { readPermits } from '@/lib/brokers'
+import { PERMIT_EXTERNAL_FIELDS } from '@/lib/permits-db'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -31,6 +32,12 @@ export async function GET(req: NextRequest, { params }: Params) {
             cargoInfo: true,
             customer: { select: { name: true } },
             order: { select: { id: true, number: true } },
+            // DF-16: разрешительные сделки — брокеру наружная проекция
+            // (цель — заявка после конвертации, иначе запрос).
+            permitRequirements: {
+              orderBy: [{ isBlocking: 'desc' }, { createdAt: 'asc' } as const],
+              select: PERMIT_EXTERNAL_FIELDS,
+            },
           },
         },
         estimate: { include: { items: { orderBy: { sortOrder: 'asc' } } } },
@@ -49,6 +56,9 @@ export async function GET(req: NextRequest, { params }: Params) {
         customerName: link.lead.customer?.name ?? null,
         order: link.lead.order,
         connectedAt: link.createdAt,
+        // DF-16: строки разрешительных (цель — заявка после конвертации
+        // или сам запрос), наружная проекция без staffNote.
+        permits: link.lead.permitRequirements,
         estimate: link.estimate
           ? {
               customsDutyEstimate: link.estimate.customsDutyEstimate,

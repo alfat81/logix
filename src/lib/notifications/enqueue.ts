@@ -31,7 +31,7 @@ export type QueuedEventInput = {
   target: ActivityTarget | null
   stageId: string | null
   documentId: string | null
-  notifyHint: { brokerId?: string } | null
+  notifyHint: { brokerId?: string; permitProvidedBy?: 'client' | 'broker' | 'staff' } | null
   description: string
 }
 

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { computeWaitingLead, computeWaitingOrder, type WaitingOutcome } from '@/lib/waiting'
+import type { PermitProvider } from '@/lib/permits'
 
 // ─── DF-05: пересчёт ожидания в транзакции сделки ────────────────────
 // Единственная точка ЗАПИСИ колонок waitingOn* (роуты их не трогают).
@@ -56,6 +57,12 @@ export async function recomputeWaitingOrder(
       // не из чего — брокеры без hasEstimate не приходят (правило 5
       // не применяется; решение в отчёте DF-05).
       brokers: { select: { brokerId: true } },
+      // DF-16: незакрытые разрешительные — правило 2а «у кого мяч»
+      // (поле модели — permitRequirements, алиас select недопустим).
+      permitRequirements: {
+        where: { status: 'pending' },
+        select: { providedBy: true, isBlocking: true, neededBy: true, createdAt: true },
+      },
       lead: {
         select: {
           brokers: { select: { brokerId: true, estimate: { select: { id: true } } } },
@@ -74,6 +81,10 @@ export async function recomputeWaitingOrder(
       assignedToId: order.assignedToId,
       stages: [...order.stages].sort((a, b) => a.sequence - b.sequence),
       brokers: order.brokers.map((b) => ({ brokerId: b.brokerId, hasEstimate: estimateBrokers.has(b.brokerId) })),
+      pendingPermits: order.permitRequirements.map((p) => ({
+        ...p,
+        providedBy: p.providedBy as PermitProvider,
+      })),
     },
     todayUtcStart(now)
   )
@@ -107,6 +118,11 @@ export async function recomputeWaitingLead(
       waitingReason: true,
       waitingOnId: true,
       brokers: { select: { brokerId: true, estimate: { select: { id: true } } } },
+      // DF-16: незакрытые разрешительные — правило 1а «у кого мяч».
+      permitRequirements: {
+        where: { status: 'pending' },
+        select: { providedBy: true, isBlocking: true, neededBy: true, createdAt: true },
+      },
       _count: { select: { options: true, documents: true } },
       // D45: есть ли выбранный вариант (инвариант «ровно один» держит
       // API В3; здесь достаточно факта наличия).
@@ -132,6 +148,10 @@ export async function recomputeWaitingLead(
     brokers: lead.brokers.map((b) => ({ brokerId: b.brokerId, hasEstimate: !!b.estimate })),
     optionsCount: lead._count.options,
     hasSelectedOption: lead.options.length > 0,
+    pendingPermits: lead.permitRequirements.map((p) => ({
+      ...p,
+      providedBy: p.providedBy as PermitProvider,
+    })),
   })
   if (sameOutcome(outcome, lead.waitingOnKind, lead.waitingReason)) {
     if (outcome.onId !== (lead.waitingOnId ?? null)) {

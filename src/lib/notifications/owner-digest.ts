@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { getBrand } from '@/lib/brand'
 import { getSetting, getSettingDef } from '@/lib/settings'
 import { formatWaitingHours } from '@/lib/waiting'
+import { fmtPermitDate, PERMIT_PROVIDER_LABELS, type PermitProvider } from '@/lib/permits'
 import { PULSE_KIND_TITLES, type PulseStats, type SlowingGroup } from '@/lib/pulse'
 import { loadPulseCore } from '@/lib/pulse-db'
 import { nowInZone, parseTimeToMinutes } from './windows'
@@ -88,6 +89,25 @@ export type TopSlowingRow = {
   sinceMs: number
 }
 
+// DF-16: строка «ждём от вас» в сводке — незакрытые разрешительные
+// (блокирующие первыми, затем ближайший срок; потолок 5 — письмо краткое).
+export type OwnerPermitRow = {
+  dealLabel: string // «заявка №17-1» / «запрос — ООО …» / «запрос»
+  title: string
+  providerLabel: string
+  dueLabel: string | null
+}
+
+// Чистый форматировщик (unit-тесты): «• заявка №17-1 — «Сертификат…» —
+// предоставить: клиент, срок 05.11.2026».
+export function formatOwnerPermitLines(rows: OwnerPermitRow[]): string[] {
+  return rows.map(
+    (r) =>
+      `• ${r.dealLabel} — «${r.title}» — предоставить: ${r.providerLabel}` +
+      (r.dueLabel ? `, срок ${r.dueLabel}` : '')
+  )
+}
+
 // Топ-5 «тормозящих» для письма: самые старые мячи по всем группам
 // (slowing уже отсортирован по возрасту внутри групп; между группами
 // берём глобальный порядок по waitingSince). nowMs — точка отсчёта
@@ -119,6 +139,9 @@ export type OwnerDigestLetterInput = {
   // Неотправленные письма: очередь (pending) + неудачные (failed).
   unsentLetters: number
   slowing: TopSlowingRow[]
+  // DF-16: ожидаемые разрешительные (топ-5) + общее число ждущих.
+  permits: OwnerPermitRow[]
+  permitsTotal: number
   pulseUrl: string | null
 }
 
@@ -135,7 +158,8 @@ export function buildOwnerDigestLetter(input: OwnerDigestLetterInput): { subject
     s.activeOrders === 0 &&
     s.waitingOverThreshold === 0 &&
     s.problemStages === 0 &&
-    input.slowing.length === 0
+    input.slowing.length === 0 &&
+    input.permits.length === 0
 
   const lines: string[] = [`${input.brandName} — сводка за ${input.dateLabel}`, '']
   if (empty) {
@@ -154,6 +178,13 @@ export function buildOwnerDigestLetter(input: OwnerDigestLetterInput): { subject
     for (const r of input.slowing) {
       lines.push(`• заявка №${r.number} — ${r.customerName} — ${r.kindTitle.toLowerCase()} · ${r.ageLabel}`)
     }
+    lines.push('')
+  }
+  // DF-16: разрешительные документы — обязательства, по которым сделка
+  // стоит (карточка DF-16, п. (в): блок «ждём от вас» в сводке).
+  if (input.permits.length > 0) {
+    lines.push(`Разрешительные документы (ожидаются: ${input.permitsTotal}):`)
+    lines.push(...formatOwnerPermitLines(input.permits))
     lines.push('')
   }
   lines.push(`Неотправленных писем: ${input.unsentLetters}`)
@@ -184,6 +215,55 @@ export type OwnerDigestRun = {
 // исчерпаны): одно число по карточке; детально — журнал отправок DF-04.
 async function countUnsentLetters(): Promise<number> {
   return db.notification.count({ where: { status: { in: ['pending', 'failed'] } } })
+}
+
+// DF-16: незакрытые разрешительные для сводки (топ-5: блокирующие,
+// затем ближайший срок) + общее число; подпись сделки — номер заявки
+// или имя клиента запроса.
+async function loadOwnerPermitRows(): Promise<{ rows: OwnerPermitRow[]; total: number }> {
+  const total = await db.permitRequirement.count({ where: { status: 'pending' } })
+  if (total === 0) return { rows: [], total: 0 }
+  const rows = await db.permitRequirement.findMany({
+    where: { status: 'pending' },
+    select: {
+      title: true,
+      providedBy: true,
+      neededBy: true,
+      orderId: true,
+      leadId: true,
+    },
+    orderBy: [{ isBlocking: 'desc' }, { neededBy: 'asc' }, { createdAt: 'asc' }],
+    take: 5,
+  })
+  const orderIds = [...new Set(rows.map((r) => r.orderId).filter((v): v is string => Boolean(v)))]
+  const leadIds = [...new Set(rows.map((r) => r.leadId).filter((v): v is string => Boolean(v)))]
+  const [orders, leads] = await Promise.all([
+    orderIds.length
+      ? db.order.findMany({ where: { id: { in: orderIds } }, select: { id: true, number: true } })
+      : Promise.resolve([]),
+    leadIds.length
+      ? db.lead.findMany({
+          where: { id: { in: leadIds } },
+          select: { id: true, customer: { select: { name: true } } },
+        })
+      : Promise.resolve([]),
+  ])
+  const orderLabels = new Map(orders.map((o) => [o.id, `заявка №${o.number}`]))
+  const leadLabels = new Map(
+    leads.map((l) => [l.id, l.customer?.name ? `запрос — ${l.customer.name}` : 'запрос'])
+  )
+  return {
+    total,
+    rows: rows.map((r) => ({
+      dealLabel:
+        (r.orderId ? orderLabels.get(r.orderId) : undefined) ??
+        (r.leadId ? leadLabels.get(r.leadId) : undefined) ??
+        'сделка',
+      title: r.title,
+      providerLabel: PERMIT_PROVIDER_LABELS[r.providedBy as PermitProvider] ?? r.providedBy,
+      dueLabel: r.neededBy ? fmtPermitDate(r.neededBy) : null,
+    })),
+  }
 }
 
 export async function processOwnerDigest(at: Date = new Date()): Promise<OwnerDigestRun> {
@@ -221,11 +301,12 @@ export async function processOwnerDigest(at: Date = new Date()): Promise<OwnerDi
   if (pending.length === 0) return run
 
   // Содержимое — одно на проход: цифры Пульса общие для всех мастеров.
-  const [brand, core, unsent, footer] = await Promise.all([
+  const [brand, core, unsent, footer, permits] = await Promise.all([
     getBrand(),
     loadPulseCore(at),
     countUnsentLetters(),
     renderFooter(),
+    loadOwnerPermitRows(),
   ])
   const pulseBase = readAppBaseUrl()
   const letter = buildOwnerDigestLetter({
@@ -234,6 +315,8 @@ export async function processOwnerDigest(at: Date = new Date()): Promise<OwnerDi
     stats: core.stats,
     unsentLetters: unsent,
     slowing: topSlowingRows(core.slowing, 5, at.getTime()),
+    permits: permits.rows,
+    permitsTotal: permits.total,
     pulseUrl: pulseBase ? `${pulseBase}/admin/pulse` : null,
   })
 

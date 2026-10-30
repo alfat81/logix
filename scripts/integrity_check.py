@@ -20,14 +20,18 @@ VIOL: list[tuple[str, str, str]] = []  # (IC, key, detail)
 
 
 def db_url_from_env_file() -> str:
-    """DATABASE_URL: .env приоритетен (в песочнице шелл-переменная перекрыта),
-    иначе — переменная окружения (CI-раннер: .env нет, берётся из job env)."""
+    """DATABASE_URL: осмысленный шелл-URL приоритетен (pg_with-обёртка
+    песочницы экспортирует postgres-URL поверх file:-заглушки .env),
+    иначе — .env, иначе — переменная окружения (CI: .env нет — job env)."""
+    shell = os.environ.get("DATABASE_URL", "")
+    if shell.startswith("postgresql://") or shell.startswith("postgres://"):
+        return shell
     env_file = ROOT / ".env"
     if env_file.exists():
         m = re.search(r'^DATABASE_URL="?([^"\n]+)', env_file.read_text(encoding="utf-8"), re.M)
         if m:
             return m.group(1).strip()
-    return os.environ.get("DATABASE_URL", "")
+    return shell
 
 
 def sub_env() -> dict:

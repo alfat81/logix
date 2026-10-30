@@ -389,7 +389,16 @@ chk('P1-04: Decimal оценки в ответе',str((d.get('estimate') or {}).
 # DF-05: оценка получена — правило 5 отпускает, мяч переходит к ближайшему этапу
 # (этап 2 с исполнителем и планом в будущем — назначены выше по скрипту)
 s,d=a.r('GET',f'/api/admin/orders/{oid}'); O5c=d.get('order',d)
-chk('DF-05: после оценки брокера мяч у перевозчика ближайшего этапа',(O5c.get('waitingOnKind'),O5c.get('waitingReason'))==('contractor','stage_not_started'),(O5c.get('waitingOnKind'),O5c.get('waitingReason')))
+# DF-16: свободный список requiredPermits из оценки синхронизируется в
+# строки PermitRequirement — незакрытая строка от клиента держит мяч
+# (правило 2а), пока строку не закрыли/waive.
+chk('DF-16: легаси-оценка с requiredPermits создала pending-строку',len([x for x in (O5c.get('permitRequirements') or []) if x['status']=='pending' and x.get('source')=='estimate'])==1,[x.get('title') for x in (O5c.get('permitRequirements') or [])])
+chk('DF-16: мяч у клиента по разрешительному (правило 2а)',(O5c.get('waitingOnKind'),O5c.get('waitingReason'))==('client','awaiting_permit'),(O5c.get('waitingOnKind'),O5c.get('waitingReason')))
+# Цель строки — ЗАЯВКА (лид уже конвертирован: sync создаёт на цели)
+_pmL=[x for x in (O5c.get('permitRequirements') or []) if x['status']=='pending' and x.get('source')=='estimate']
+s,d=a.r('PATCH',f"/api/admin/permits/{_pmL[0]['id']}",{'status':'waived','waivedReason':'регресс DF-05: перечень закрыт для проверки правила 7'})
+s,d=a.r('GET',f'/api/admin/orders/{oid}'); O5c=d.get('order',d)
+chk('DF-05: после waiver строки мяч вернулся перевозчику (правило 7)',(O5c.get('waitingOnKind'),O5c.get('waitingReason'))==('contractor','stage_not_started'),(O5c.get('waitingOnKind'),O5c.get('waitingReason')))
 s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'customsDutyEstimate':1.234}); chk('P1-04: 3 знака в оценке → 400',s==400,s)
 # --- DF-01/G3: отключение брокера — общий хвост lib/broker-links.ts ---
 s,d=a.r('POST','/api/admin/brokers',{'companyName':'Брокер-2 '+u,'phone':ph(base+6),'password':'broker-pass-2'}); chk('DF-01: брокер-2 создан',s in(200,201),(s,d)); bid2=(d.get('broker') or d)['id']
@@ -622,10 +631,14 @@ chk('DF-03: подключение брокера — письмо ИМЕННО 
 # красное: этап в problem → немедленно, нейтрально клиенту
 s,d=a.r('GET',f'/api/admin/orders/{oid3}'); st3=(d.get('order') or d).get('stages',[])
 s,d=a.r('PATCH',f'/api/admin/orders/{oid3}/stages/{st3[0]["id"]}',{'status':'problem'}); chk('DF-03: этап в problem',s==200,(s,d))
-s,d=disp()
-s,d=a.r('GET','/api/admin/notifications?status=sent&take=200'); sent=d.get('notifications',[])
-redc=[x for x in sent if x.get('toAddress')=='df03-client-'+u+'@test.example' and x.get('mode')=='red']
-chk('DF-03: problem — клиенту красное письмо немедленно',len(redc)>=1,(len(redc),s))
+import time as _tp
+redc=[]
+for _ in range(6):  # поллинг: after()-диспетчер PATCH может опередить disp()
+    s,d=disp()
+    s,d=a.r('GET','/api/admin/notifications?status=sent&take=200'); sent=d.get('notifications',[])
+    redc=[x for x in sent if x.get('toAddress')=='df03-client-'+u+'@test.example' and x.get('mode')=='red']
+    if redc: break
+    _tp.sleep(0.5)
 chk('DF-03: красное письмо — префикс темы из настройки, нейтральный текст',bool(redc) and redc[0].get('subject','').startswith('Срочно:') and 'задержка' in redc[0].get('body','') and 'проблем' not in redc[0].get('body','').lower(),redc[0].get('subject') if redc else None)
 reds=[x for x in sent if x.get('toAddress')=='df03-staff-'+u+'@test.example' and x.get('mode')=='red']
 chk('DF-03: problem — ответственному красное письмо',len(reds)>=1,(len(reds),s))
@@ -867,6 +880,95 @@ s,_=b.r('GET',f'/api/admin/orders/{oid3}/customs-calculations'); chk('DF-19: б�
 s,d=a.r('GET',f'/api/admin/orders/{oid3}'); chk('DF-19: incotermPlace заявки открывается (PATCH-поле)',s==200,(s,d))
 s,d=a.r('PATCH',f'/api/admin/orders/{oid3}',{'incotermPlace':'Ningbo, CN'}); chk('DF-19: PATCH incotermPlace заявки → 200',s==200,(s,d))
 s,d=a.r('PATCH',f'/api/admin/leads/{lid4}',{'incotermPlace':'Ningbo, CN'}); chk('DF-19: PATCH incotermPlace запроса → 200',s==200,(s,d))
+
+# --- DF-16: разрешительные документы: обязательства и напоминания ---
+# Карточка: строки PermitRequirement на запросе/заявке; добавляют брокер
+# и сотрудники; закрывают клиент/брокер/сотрудник загрузкой файла прямо
+# в строке; плашка «Ожидается…» видна всем сторонам; блокирующая с
+# близким/прошедшим сроком даёт красное permit_overdue (скан диспетчера,
+# идемпотентно по lastRemindedAt); конвертация переносит строки.
+CL16EM='df03-client-'+u+'@test.example'  # человек клиента c3 (email от DF-03)
+s,d=c3.r('POST','/api/client/leads',{'route':{'originCountryCode':'CN','destinationCountryCode':'RU','weightKg':120}}); chk('DF-16: запрос создан клиентом',s in(200,201),(s,d)); lid16=(d.get('lead') or d)['id']
+s,d=a.r('POST',f'/api/admin/leads/{lid16}/brokers',{'brokerId':brk3}); chk('DF-16: брокер подключён к запросу',s in(200,201),(s,d))
+s,d=b17.r('PUT',f'/api/broker/leads/{lid16}/estimate',{'items':[{'hsCode':'0101210000','dutyPercent':5,'vatPercent':22}],'requiredPermits':['Фитосанитарный сертификат DF16','Разрешение СИТЕС DF16'],'send':True}); chk('DF-16: оценка брокера с перечнем разрешительных отправлена',s in(200,201),(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid16}'); L16=d.get('lead',d); pm16=L16.get('permitRequirements',[])
+chk('DF-16: sync requiredPermits → 2 строки pending (source=estimate)',len([x for x in pm16 if x['status']=='pending' and x.get('source')=='estimate'])==2,[(x.get('title'),x.get('status'),x.get('source')) for x in pm16])
+chk('DF-16: строки оценки — providedBy=client, без срока и без блокировки',all(x['providedBy']=='client' and x['neededBy'] is None and x['isBlocking'] is False for x in pm16),pm16[:2])
+s,d=disp()
+s,d=a.r('GET','/api/admin/notifications?status=sent&take=200'); sent=d.get('notifications',[])
+pa=[x for x in sent if x.get('toAddress')==CL16EM and x.get('type')=='permit_added']
+chk('DF-16: клиенту письмо о разрешительных (расчёт — сразу)',len(pa)>=1 and pa[0].get('mode')=='immediate',[(x.get('toAddress'),x.get('mode')) for x in pa[:2]])
+s,d=b17.r('GET',f'/api/broker/leads/{lid16}'); bp=(d.get('lead') or d).get('permits',[])
+chk('DF-16: брокер видит строки наружной проекцией (без staffNote/source/lastRemindedAt)',len(bp)==2 and all(('staffNote' not in x and 'source' not in x and 'lastRemindedAt' not in x) for x in bp),[(k) for x in bp for k in x.keys()][:12])
+s,d=c3.r('GET',f'/api/client/leads/{lid16}'); cp=(d.get('lead') or d).get('permitRequirements',[])
+chk('DF-16: клиент видит строки без внутренней заметки',len(cp)==2 and all('staffNote' not in x for x in cp),len(cp))
+s,d=a.r('POST',f'/api/admin/leads/{lid16}/permits',{'title':'Сертификат соответствия DF16','providedBy':'client','isBlocking':True,'neededBy':'2027-01-15','staffNote':'внутренняя заметка строки'}); chk('DF-16: сотрудник добавил блокирующую строку со сроком',s in(200,201),(s,d)); pid16=(d.get('permit') or d)['id']
+s,d=a.r('PATCH',f'/api/admin/permits/{pid16}',{'status':'received'}); chk('DF-16: PATCH received запрещён (только загрузкой документа)',s==400,(s,d))
+s,d=a.r('PATCH',f'/api/admin/permits/{pid16}',{'status':'waived'}); chk('DF-16: waived без причины → 400',s==400,(s,d))
+s,d=b17.r('POST',f'/api/broker/leads/{lid16}/permits',{'title':'Экспортная декларация DF16','providedBy':'broker'}); chk('DF-16: брокер добавил свою строку',s in(200,201),(s,d)); pid16b=(d.get('permit') or d)['id']
+# чужие: клиент c и свежий чужой брокер не связаны с lid16 → 404
+target16=[x for x in pm16 if 'Фитосанитарный' in x['title']][0]
+body,ct=multipart({'type':'permit','title':'Чужой документ'},'x.pdf',b'%PDF-1.4 x','application/pdf')
+s,d=c.r('POST',f'/api/client/permits/{target16["id"]}/document',raw=body,ct=ct); chk('DF-16: чужой клиент закрывает строку → 404',s==404,s)
+# свежая сессия чужого брокера: сессии прежних брокеров погашены
+# тестами деактивации (DF-02A/DF-03) — 401 не годится для проверки 404
+s,d=a.r('POST','/api/admin/brokers',{'companyName':'DF16 чужой брокер '+u,'phone':ph(base+62),'password':'df16-pass-9'}); chk('DF-16: чужой брокер создан',s in(200,201),(s,d)); bid16=(d.get('broker') or d)['id']
+bx16=C(); s,d=bx16.r('POST','/api/auth/broker/login',{'phone':ph(base+62),'password':'df16-pass-9'}); chk('DF-16: чужой брокер вошёл',s==200,(s,d))
+s,d=bx16.r('POST',f'/api/broker/permits/{target16["id"]}/document',raw=body,ct=ct); chk('DF-16: чужой брокер закрывает строку → 404',s==404,s)
+s,_=bx16.r('GET',f'/api/broker/leads/{lid16}'); chk('DF-16: чужой брокер не читает строки запроса',s in(403,404),s)
+# конвертация: строки переносятся в заявку; ответственный с email
+s,d=a.r('POST',f'/api/admin/leads/{lid16}/options',{'description':'Море DF16','price':300000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':35,'priorityFit':'cost','isSelected':True}); chk('DF-16: вариант расчёта создан',s in(200,201),(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{lid16}/convert',{'legalEntityId':leid}); chk('DF-16: запрос конвертирован в заявку',s in(200,201),(s,d)); oid16=(d.get('order') or d)['id']
+s,d=a.r('PATCH',f'/api/admin/orders/{oid16}',{'assignedToId':staff3}); chk('DF-16: назначен ответственный с email',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid16}'); OM16=(d.get('order') or d).get('permitRequirements',[])
+chk('DF-16: строки перенесены в заявку (4: 2 оценки + админ + брокер)',len([x for x in OM16 if x['id']==target16['id']])==1 and len(OM16)==4 and sum(1 for x in OM16 if x['status']=='received')==0 and sum(1 for x in OM16 if x['status']=='waived')==0,[x.get('status') for x in OM16])
+# клиент закрывает строку оценки документом прямо в строке
+body,ct=multipart({'type':'permit','title':'Фитосанитарный сертификат DF16 (скан)','comment':'оригинал отгрузили'},'permit16.pdf',b'%PDF-1.4 df16','application/pdf')
+s,d=c3.r('POST',f'/api/client/permits/{target16["id"]}/document',raw=body,ct=ct); chk('DF-16: клиент загрузил документ в строку',s in(200,201),(s,d))
+s,d=c3.r('GET',f'/api/client/orders/{oid16}'); cp2=(d.get('order') or d).get('permitRequirements',[])
+rec=[x for x in cp2 if x['id']==target16['id']]
+chk('DF-16: строка стала received с именем загрузившего',len(rec)==1 and rec[0]['status']=='received' and bool(rec[0].get('documentId')) and bool(rec[0].get('receivedAt')),rec[:1])
+body,ct=multipart({'type':'permit','title':'ещё один'},'y.pdf',b'%PDF-1.4 y','application/pdf')
+s,d=c3.r('POST',f'/api/client/permits/{target16["id"]}/document',raw=body,ct=ct)
+chk('DF-16: повторная загрузка в закрытую строку → 409',s==409,(s,d))
+import time as _tp
+pr=[]
+for _ in range(6):  # поллинг: after()-диспетчер PATCH может опередить disp()
+    s,d=disp()
+    s,d=a.r('GET','/api/admin/notifications?status=sent&take=200'); sent=d.get('notifications',[])
+    pr=[x for x in sent if x.get('toAddress')=='df03-staff-'+u+'@test.example' and x.get('type')=='permit_received']
+    if pr: break
+    _tp.sleep(0.5)
+chk('DF-16: ответственному письмо о полученном разрешительном',len(pr)>=1,len(pr))
+# «не требуется» с причиной
+s,d=a.r('PATCH',f'/api/admin/permits/{pid16b}',{'status':'waived','waivedReason':'товар не подлежит сертификации DF16'}); chk('DF-16: сотрудник отметил «не требуется» с причиной',s==200,(s,d))
+# красный скан: блокирующая с прошедшим сроком → permit_overdue клиенту и ответственному
+y16=(datetime.now(ZoneInfo('Europe/Moscow'))-timedelta(days=1)).strftime('%Y-%m-%d')
+s,d=a.r('POST',f'/api/admin/orders/{oid16}/permits',{'title':'Просроченный DF16','providedBy':'client','isBlocking':True,'neededBy':y16}); chk('DF-16: блокирующая строка с прошедшим сроком добавлена',s in(200,201),(s,d)); pid16r=(d.get('permit') or d)['id']
+s,d=disp(); chk('DF-16: скан диспетчера выпустил красное (permitOverdue=1)',s==200 and d.get('permitOverdue')==1,(s,d))
+s,d=a.r('GET','/api/admin/notifications?mode=red&status=sent&take=300'); sent=d.get('notifications',[])
+ro=[x for x in sent if x.get('type')=='permit_overdue' and x.get('mode')=='red']
+chk('DF-16: красное письмо тому, кто должен предоставить (клиенту)',len([x for x in ro if x.get('toAddress')==CL16EM])>=1,[(x.get('toAddress'),x.get('type')) for x in ro])
+chk('DF-16: красное письмо ответственному',len([x for x in ro if x.get('toAddress')=='df03-staff-'+u+'@test.example'])>=1,len(ro))
+chk('DF-16: красное с префиксом темы «Срочно:»',bool(ro) and all(x.get('subject','').startswith('Срочно:') for x in ro),ro[0].get('subject') if ro else None)
+s,d=disp(); chk('DF-16: повторный проход скана — без дубликатов (lastRemindedAt)',s==200 and d.get('permitOverdue')==0,(s,d))
+s,d=a.r('GET','/api/admin/notifications?mode=red&take=300'); ro2=[x for x in d.get('notifications',[]) if x.get('type')=='permit_overdue' and x.get('mode')=='red']
+chk('DF-16: красных писем по-прежнему по одному на адресата',len([x for x in ro2 if x.get('toAddress')==CL16EM])==1 and len([x for x in ro2 if x.get('toAddress')=='df03-staff-'+u+'@test.example'])==1,len(ro2))
+# блок «Ждём от вас» в дайджесте клиента (DF-03): regular-событие в окне
+cur16=datetime.now(ZoneInfo('Europe/Moscow')).strftime('%H:%M')
+s,d=a.r('PATCH','/api/admin/settings',{'key':'notifications.client_digest_times','value':[cur16]}); chk('DF-16: окно дайджеста = сейчас',s==200,(s,d))
+s,d=c3.r('GET',f'/api/client/orders/{oid16}'); chk('DF-16: клиент видит строки pending в карточке заявки (наружу)',s==200 and any(x['status']=='pending' for x in ((d.get('order') or d).get('permitRequirements') or [])),(s,))
+# regular-событие заявки16 в окне — иначе сделка без событий в дайджест
+# не попадает и «Ждём от вас» не с чем привязать
+s,d=a.r('PATCH',f'/api/admin/orders/{oid16}',{'status':'in_progress'}); chk('DF-16: заявка16 в работе (перевозка — обычный режим)',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid16}'); st16=(d.get('order') or d).get('stages',[])
+s,d=a.r('PATCH',f'/api/admin/orders/{oid16}/stages/{st16[0]["id"]}',{'status':'done'}); chk('DF-16: этап16 завершён (регулярное событие клиенту)',s==200,(s,d))
+s,d=disp()
+s,d=a.r('GET','/api/admin/notifications?type=digest&take=200'); dg16=[x for x in d.get('notifications',[]) if x.get('toAddress')==CL16EM and x.get('windowKey') and not (x.get('windowKey') or '').startswith('owner:') and not (x.get('windowKey') or '').startswith('wait:')]
+chk('DF-16: дайджест клиенту собрался',len(dg16)>=1,len(dg16))
+b16=dg16[0].get('body','') if dg16 else ''
+chk('DF-16: в дайджесте блок «Ждём от вас» с названием строки','Ждём от вас' in b16 and 'Просроченный DF16' in b16,b16[:400])
+s,d=a.r('DELETE','/api/admin/settings',{'key':'notifications.client_digest_times'}); chk('DF-16: окна дайджеста сброшены',s==200,(s,d))
 
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)

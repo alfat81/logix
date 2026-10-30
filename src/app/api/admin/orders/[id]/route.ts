@@ -9,6 +9,7 @@ import {
 } from '@/lib/activity'
 import { eventWhereFor } from '@/lib/audience'
 import { projectActors, STAFF_READER } from '@/lib/actor-name'
+import { PERMIT_FIELDS } from '@/lib/permits-db'
 import { patchOrder } from './patch'
 
 type Params = { params: Promise<{ id: string }> }
@@ -77,6 +78,11 @@ export async function GET(req: NextRequest, { params }: Params) {
         include: {
           contractor: { select: { id: true, companyName: true, phone: true, isActive: true } },
         },
+      },
+      // DF-16: разрешительные заявки (полная проекция — сотруднику).
+      permitRequirements: {
+        orderBy: [{ isBlocking: 'desc' }, { createdAt: 'asc' } as const],
+        select: PERMIT_FIELDS,
       },
     },
   })

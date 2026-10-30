@@ -29,6 +29,16 @@ export function apiErrorResponse(
     console.error(`[${context}] схема БД отстала от кода (${e.code}):`, e.message)
     return NextResponse.json({ error: DB_OUT_OF_SYNC_HINT }, { status: 500 })
   }
+  // Бизнес-ошибки домена (D35): модули ядра бросают Error с statusCode
+  // 4xx (permits-db.ts: PATCH received без файла, waived без причины) —
+  // честный код вместо 500 (IC: контракт ошибки = код смыслового слоя).
+  const statusCode = (e as { statusCode?: unknown }).statusCode
+  if (typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : fallbackMessage },
+      { status: statusCode }
+    )
+  }
   console.error(`[${context}] error:`, e)
   return NextResponse.json({ error: fallbackMessage }, { status: 500 })
 }

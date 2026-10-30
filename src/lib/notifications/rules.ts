@@ -48,7 +48,7 @@ export type ResolvedDealEvent = {
   target: ActivityTarget | null
   stageId: string | null
   documentId: string | null
-  notifyHint: { brokerId?: string } | null
+  notifyHint: { brokerId?: string; permitProvidedBy?: 'client' | 'broker' | 'staff' } | null
 }
 
 // Фаза сделки → имя из настройки notifications.immediate_phases
@@ -93,7 +93,11 @@ export async function resolveRecipients(
   const target = event.target
   if (!target || (!('orderId' in target) && !('leadId' in target))) return []
   const isStageEvent = event.type === 'stage_status_changed'
-  if (meta.notify.length === 0 && !isStageEvent) return []
+  // DF-16: правило permit_overdue тоже ДИНАМИЧЕСКОЕ — адресатов решает
+  // providedBy строки (кто должен предоставить, notifyHint от скана
+  // диспетчера); в реестре notify=[] — silent-полный guard не касается.
+  const isPermitOverdue = event.type === 'permit_overdue'
+  if (meta.notify.length === 0 && !isStageEvent && !isPermitOverdue) return []
 
   const ref: { orderId?: string; leadId?: string } =
     'orderId' in target ? { orderId: target.orderId } : { leadId: target.leadId }
@@ -163,6 +167,20 @@ export async function resolveRecipients(
       return out
     }
     return [] // not_started/in_progress — §8 писем не предусматривает
+  }
+
+  // ── DF-16: красная просрочка разрешительного (скан диспетчера) ──
+  // Карточка: «красное письмо тому, кто должен предоставить, и
+  // ответственному». providedBy приходит в notifyHint (строка читается
+  // сканом ДО события — после записиActivity уже не найти без колонки).
+  if (isPermitOverdue) {
+    const providedBy = event.notifyHint?.permitProvidedBy ?? 'staff'
+    if (providedBy === 'client') await pushClient('red', false)
+    else if (providedBy === 'broker') await pushBrokers(null, 'red')
+    // providedBy='staff' — обязательство внутреннее: письмо только
+    // ответственному (строка ниже). Красный режим — у всех адресатов.
+    pushStaff(parts.staff, 'red')
+    return out
   }
 
   for (const rule of meta.notify) {

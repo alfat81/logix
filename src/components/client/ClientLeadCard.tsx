@@ -18,6 +18,8 @@ import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { CargoFormFields, CargoGroups } from '@/components/admin/CargoGroups'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
+import { PermitsSection } from '@/components/permits/PermitsSection'
+import type { PermitRowUi } from '@/components/permits/types'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
 import { ClientLeadStatusBadge } from '@/components/client/ClientBadges'
 import {
@@ -55,6 +57,9 @@ type ClientLeadDetail = {
   canEdit?: boolean
   // DF-21: журнал запроса — события с аудиторией 'client', без меток
   activities?: ClientActivityRow[]
+  // DF-16: разрешительные запроса (наружная проекция); после
+  // конвертации строки живут заявкой — при lead.order секция пуста
+  permitRequirements?: PermitRowUi[]
 }
 
 // DF-21: строка журнала клиентского кабинета — проекция ActivityFeed
@@ -246,6 +251,19 @@ export function ClientLeadCard() {
         activities={lead.activities ?? []}
         emptyText="Событий пока нет — здесь появятся новости по вашему запросу"
       />
+
+      {/* DF-16: разрешительные документы по запросу — что ждём от вас;
+          закрывается загрузкой файла прямо в строке. После конвертации
+          строки переносятся в заявку (В4) — здесь секцию прячем */}
+      {!lead.order && (
+        <PermitsSection
+          viewer="client"
+          initialPermits={lead.permitRequirements ?? []}
+          documentUrlFor={(permitId) => `/api/client/permits/${permitId}/document`}
+          onChanged={load}
+          emptyText="Разрешительных документов по запросу нет"
+        />
+      )}
 
       {!lead.order && (
         <DocumentsSection

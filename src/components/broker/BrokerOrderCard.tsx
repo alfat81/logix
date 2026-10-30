@@ -14,6 +14,7 @@ import {
 } from '@/components/broker/BrokerBadges'
 import { BrokerEstimateForm, type BrokerEstimate } from '@/components/broker/BrokerEstimateForm'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
+import { PermitsSection } from '@/components/permits/PermitsSection'
 import { CARGO_PROFILE_LABELS, type CargoProfile, type OrderStatus, type StageStatus } from '@/lib/order-constants'
 
 // ─── Карточка заявки для брокера (Д, роадмап 5а) ───────────────────
@@ -182,6 +183,17 @@ export function BrokerOrderCard() {
           </div>
         </Card>
       )}
+
+      {/* ── DF-16: разрешительные документы заявки — перечень из оценки
+          и добавленные брокером строки; закрытие загрузкой файла в
+          строке ──────────────────────────────────────────────────── */}
+      <PermitsSection
+        viewer="broker"
+        permitsUrl={`/api/broker/orders/${order.id}/permits`}
+        createUrl={`/api/broker/orders/${order.id}/permits`}
+        documentUrlFor={(permitId) => `/api/broker/permits/${permitId}/document`}
+        onChanged={load}
+      />
 
       {/* ── Е: документы сделки (роадмап 5) — видимость заявки
           целиком (5а): товаросопроводительные, разрешительные,

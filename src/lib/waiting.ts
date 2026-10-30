@@ -17,6 +17,7 @@
 // Глоссарий RULES 2.6: Contractor в UI — «перевозчик», не «подрядчик».
 
 import { businessDaysElapsed } from '@/lib/business-days'
+import { pickMostUrgentPermit, permitHolderKind, type PermitUrgencyRow, type PermitProvider } from '@/lib/permits'
 
 // ─── Кто держит мяч ───────────────────────────────────────────────────
 
@@ -39,8 +40,8 @@ export const WAITING_KIND_LABELS: Record<WaitingKind, string> = {
 }
 
 // ─── Причины (коды — в БД, подписи — в UI сотрудника) ────────────────
-// Коды awaiting_permit (DF-16) и awaiting_document (DF-14) появятся
-// вместе со своими карточками — мёртвых кодов заранее не заводим (G4).
+// awaiting_permit добавлен DF-16; awaiting_document (DF-14) появится
+// со своей карточкой — мёртвых кодов заранее не заводим (G4).
 
 export const WAITING_REASONS = [
   'stage_problem',
@@ -54,6 +55,10 @@ export const WAITING_REASONS = [
   'awaiting_proforma',
   'no_quote',
   'awaiting_client_choice',
+  // DF-16: есть незакрытая строка разрешительного документа (pending) —
+  // мяч у того, кто должен предоставить (providedBy: client|broker →
+  // клиент/брокер, staff → менеджер).
+  'awaiting_permit',
 ] as const
 export type WaitingReason = (typeof WAITING_REASONS)[number]
 
@@ -69,6 +74,7 @@ export const WAITING_REASON_LABELS: Record<WaitingReason, string> = {
   awaiting_proforma: 'Ждём проформу/описание товара',
   no_quote: 'Вариант расчёта не готов',
   awaiting_client_choice: 'Ждём выбор варианта расчёта',
+  awaiting_permit: 'Ждём разрешительный документ',
 }
 
 // Нейтральные формулировки для клиента (кабинет клиента показывает
@@ -79,6 +85,7 @@ export const WAITING_REASON_LABELS: Record<WaitingReason, string> = {
 export const WAITING_CLIENT_LABELS: Partial<Record<WaitingReason, string>> = {
   awaiting_client_approval: 'Ожидает вашего подтверждения',
   awaiting_proforma: 'Ожидаем проформу-инвойс или описание товара',
+  awaiting_permit: 'Ожидаем разрешительный документ — загрузите его в заявке',
 }
 
 // ─── D45: эскалация «клиент не выбрал расчёт» ────────────────────────
@@ -141,6 +148,8 @@ export type WaitingOrderSnapshot = {
   assignedToId: string | null
   stages: WaitingStageSnapshot[]
   brokers: WaitingBrokerSnapshot[]
+  // DF-16: незакрытые обязательства по разрешительным (status='pending').
+  pendingPermits: PermitUrgencyRow[]
 }
 
 export type WaitingLeadSnapshot = {
@@ -155,6 +164,8 @@ export type WaitingLeadSnapshot = {
   // Выбранный вариант есть (QuoteOption.isSelected, инвариант «ровно
   // один» на уровне API В3) — D45: правило 4 смотрит на «выбранного нет».
   hasSelectedOption: boolean
+  // DF-16: незакрытые обязательства по разрешительным (status='pending').
+  pendingPermits: PermitUrgencyRow[]
 }
 
 // «Просрочка» плана этапа — ТА ЖЕ семантика, что на «Требует внимания»
@@ -178,6 +189,24 @@ export function nearestUnfinishedStage(
   return unfinished.reduce((a, b) => (a.sequence <= b.sequence ? a : b))
 }
 
+export type PermitSnapshotRow = PermitUrgencyRow & { providedBy: PermitProvider }
+
+// DF-16: мяч по незакрытому разрешительному (правило 2 у заявки, 2 у
+// запроса — сразу после «проблемы этапа»/«proforma»): держатель — по
+// providedBy строки (client → клиент, broker → подключённый брокер,
+// staff → менеджер). onId — конкретный человек/брокер для Пульса.
+function permitOutcome(
+  permits: PermitSnapshotRow[],
+  ids: { customerId: string | null; brokerId: string | null; assigneeId: string | null }
+): WaitingOutcome | null {
+  const permit = pickMostUrgentPermit(permits)
+  if (!permit) return null
+  const kind = permitHolderKind(permit.providedBy)
+  const onId =
+    kind === 'client' ? ids.customerId : kind === 'broker' ? ids.brokerId : ids.assigneeId
+  return { kind, reason: 'awaiting_permit', onId: onId ?? null }
+}
+
 // ─── Правила заявки (приоритет сверху вниз, первое сработавшее) ──────
 
 export function computeWaitingOrder(
@@ -190,6 +219,14 @@ export function computeWaitingOrder(
   if (snap.stages.some((s) => s.status === 'problem')) {
     return { kind: 'manager', reason: 'stage_problem', onId: snap.assignedToId }
   }
+  // 2а. DF-16: незакрытый разрешительный — мяч у того, кто должен
+  //     предоставить (планка «Ожидается: …» видна всем сторонам).
+  const permitHold = permitOutcome(snap.pendingPermits, {
+    customerId: snap.customerId,
+    brokerId: snap.brokers[0]?.brokerId ?? null,
+    assigneeId: snap.assignedToId,
+  })
+  if (permitHold) return permitHold
   // 3. Расчёт — готовит менеджер.
   if (snap.status === 'calculating') {
     return { kind: 'manager', reason: 'calculating', onId: snap.assignedToId }
@@ -245,6 +282,15 @@ export function computeWaitingLead(snap: WaitingLeadSnapshot): WaitingOutcome {
   if (!snap.cargoName && !snap.hasInvoiceDoc) {
     return { kind: 'client', reason: 'awaiting_proforma', onId: snap.customerId }
   }
+  // 1а. DF-16: незакрытый разрешительный — мяч у того, кто должен
+  //     предоставить (после «proforma»: без описания груза сделка ещё
+  //     не стартовала — исходное правило важнее).
+  const permitHold = permitOutcome(snap.pendingPermits, {
+    customerId: snap.customerId,
+    brokerId: snap.brokers[0]?.brokerId ?? null,
+    assigneeId: null,
+  })
+  if (permitHold) return permitHold
   // 2. Подключённый брокер без оценки — ждём брокера.
   const brokerWithoutEstimate = snap.brokers.find((b) => !b.hasEstimate)
   if (brokerWithoutEstimate) {

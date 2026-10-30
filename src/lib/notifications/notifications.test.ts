@@ -545,3 +545,95 @@ describe('DF-03 дайджест', () => {
     }
   })
 })
+
+// ─── DF-16: красное permit_overdue — адресатов решает providedBy ──────
+// Отдельный describe В КОНЦЕ файла: красные письма съедают лимит
+// антишторма (red_max_per_hour на получателя), кейс «сверх
+// red_max_per_hour» оставляет лимит 1 — здесь поднимаем порог и
+// восстанавливаем его после. Утверждения скоупятся своим eventId
+// (урок 0.7.7: глобальные счётчики общей БД — гонки параллельных
+// файлов).
+describe('DF-16 permit_overdue (красная просрочка разрешительных)', () => {
+  let savedRedMax: Awaited<ReturnType<typeof getSetting>>
+
+  beforeAll(async () => {
+    savedRedMax = await getSetting('notifications.red_max_per_hour')
+    // Антишторм-кейс выше оставил лимит 1 — красные письма DF-16
+    // должны уходить СРАЗУ (mode='red'), лимит не мешает
+    await setSetting('notifications.red_max_per_hour', 10, { type: 'system' })
+    clearSettingsCache()
+  })
+
+  afterAll(async () => {
+    await setSetting('notifications.red_max_per_hour', savedRedMax, { type: 'system' })
+    clearSettingsCache()
+  })
+
+  // Дедуп одиночных писем: ключ содержит бакет floor(now/10мин) —
+  // три события подряд в одном бакете дали бы одно письмо ответственному.
+  // Сдвигаем dedupKey писем прогона (параллельные файлы permit_overdue
+  // не пишут — скоп по типу+маркер-адресу безопасен).
+  async function shiftDedup() {
+    const prior = await db.notification.findMany({
+      where: { type: 'permit_overdue', toAddress: { contains: '@test.example' } },
+      select: { id: true, dedupKey: true },
+    })
+    for (const row of prior) {
+      await db.notification.update({ where: { id: row.id }, data: { dedupKey: `${row.dedupKey}:s` } })
+    }
+  }
+
+  // Карточка: «красное письмо тому, кто должен предоставить, и
+  // ответственному». notifyHint.permitProvidedBy приходит от скана
+  // диспетчера (permits-scan.ts); адресатов решает динамическое
+  // правило rules.ts по providedBy строки.
+  it('providedBy=client → красное клиенту и ответственному, брокеру нет', async () => {
+    const evId = await emitEvent(db, {
+      target: { orderId: orderRun },
+      actor: { type: 'system' },
+      type: 'permit_overdue',
+      description: MARK + ' просрочен разрешительный (клиент)',
+      notify: { permitProvidedBy: 'client' },
+    })
+    const rows = await db.notification.findMany({
+      where: { eventId: evId },
+      select: { mode: true, toAddress: true },
+    })
+    expect(rows.map((r) => r.mode).every((m) => m === 'red')).toBe(true)
+    expect(rows.map((r) => r.toAddress).sort()).toEqual([clientEmail, client2Email, staffEmail].sort())
+  })
+
+  it('providedBy=broker → красное брокеру и ответственному, клиенту нет', async () => {
+    await shiftDedup()
+    const evId = await emitEvent(db, {
+      target: { orderId: orderRun },
+      actor: { type: 'system' },
+      type: 'permit_overdue',
+      description: MARK + ' просрочен разрешительный (брокер)',
+      notify: { permitProvidedBy: 'broker' },
+    })
+    const rows = await db.notification.findMany({
+      where: { eventId: evId },
+      select: { mode: true, toAddress: true },
+    })
+    expect(rows.map((r) => r.toAddress).sort()).toEqual([brokerEmail, staffEmail].sort())
+    expect(rows.map((r) => r.mode).every((m) => m === 'red')).toBe(true)
+  })
+
+  it('providedBy=staff → красное только ответственному', async () => {
+    await shiftDedup()
+    const evId = await emitEvent(db, {
+      target: { orderId: orderRun },
+      actor: { type: 'system' },
+      type: 'permit_overdue',
+      description: MARK + ' просрочен разрешительный (сотрудник)',
+      notify: { permitProvidedBy: 'staff' },
+    })
+    const rows = await db.notification.findMany({
+      where: { eventId: evId },
+      select: { mode: true, toAddress: true },
+    })
+    expect(rows.map((r) => r.toAddress)).toEqual([staffEmail])
+    expect(rows.map((r) => r.mode).every((m) => m === 'red')).toBe(true)
+  })
+})

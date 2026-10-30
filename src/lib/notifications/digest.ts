@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { EVENT_TYPES } from '@/lib/event-registry'
 import { getBrand } from '@/lib/brand'
 import { getSetting } from '@/lib/settings'
+import { fmtPermitDate } from '@/lib/permits'
 import { dueWindow, windowKeyOf } from './windows'
 import { dealLink, renderFooter, type DealRef } from './templates'
 import type { RecipientKind } from './rules'
@@ -147,6 +148,33 @@ export async function processRegularDigests(at: Date = new Date()): Promise<Dige
       return null
     }
 
+    // ── DF-16: блок «Ждём от вас» (карточка DF-16, п. (в)) ──────────
+    // Незакрытые разрешительные, которые должен предоставить САМ
+    // получатель (client→client, broker→broker, сотрудник→staff), —
+    // под своим блоком сделки, как продолжение её событий.
+    const waitProvider = kind === 'client' ? 'client' : kind === 'broker' ? 'broker' : 'staff'
+    const waitPermits = await db.permitRequirement.findMany({
+      where: {
+        status: 'pending',
+        providedBy: waitProvider,
+        OR: [
+          { orderId: { in: dealIds.orders } },
+          { leadId: { in: dealIds.leads } },
+        ],
+      },
+      select: { title: true, neededBy: true, orderId: true, leadId: true },
+      orderBy: [{ isBlocking: 'desc' }, { neededBy: 'asc' }],
+      take: 50,
+    })
+    const waitsByDeal = new Map<string, { title: string; neededBy: Date | null }[]>()
+    for (const p of waitPermits) {
+      const key = p.orderId ? `order:${p.orderId}` : p.leadId ? `lead:${p.leadId}` : ''
+      if (!key) continue
+      const list = waitsByDeal.get(key)
+      if (list) list.push({ title: p.title, neededBy: p.neededBy })
+      else waitsByDeal.set(key, [{ title: p.title, neededBy: p.neededBy }])
+    }
+
     // Порядок сделок — по первому событию; строки внутри — хронологически
     // (pending отсортирован по createdAt, acts — поMap; восстанавливаем
     // порядок по строкам).
@@ -178,6 +206,10 @@ export async function processRegularDigests(at: Date = new Date()): Promise<Dige
           const link = dealLink(kind, deal)
           if (link) block.push(`  Открыть: ${link}`)
         }
+      }
+      // DF-16: «Ждём от вас» — в конце блока своей сделки.
+      for (const w of waitsByDeal.get(dKey) ?? []) {
+        block.push(`  Ждём от вас: ${w.title}${w.neededBy ? ` — срок ${fmtPermitDate(w.neededBy)}` : ''}`)
       }
       lines.push(...block, '')
     }

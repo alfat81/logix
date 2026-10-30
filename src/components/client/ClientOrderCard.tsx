@@ -11,6 +11,8 @@ import { readApiResponse } from '@/lib/api-client'
 // ClientHome): показывает собственную анкету клиента по заявке.
 import { CargoGroups } from '@/components/admin/CargoGroups'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
+import { PermitsSection } from '@/components/permits/PermitsSection'
+import type { PermitRowUi } from '@/components/permits/types'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
 import {
   ClientOrderStatusBadge,
@@ -48,6 +50,9 @@ type ClientOrder = {
   // DF-21: журнал сделки — события с аудиторией 'client' (заметки
   // «видна клиенту», статусы, документы); без служебных меток
   activities?: ClientActivityRow[]
+  // DF-16: разрешительные заявки (наружная проекция — staffNote не
+  // покидает сервер; загрузкой файла в строке клиент её закрывает)
+  permitRequirements?: PermitRowUi[]
 }
 
 const fmtDate = (iso: string | null): string =>
@@ -165,6 +170,17 @@ export function ClientOrderCard() {
           />
         </CardContent>
       </Card>
+
+      {/* DF-16: разрешительные документы вашей заявки — что ждём от вас,
+          закрывается загрузкой файла прямо в строке; до загрузки видно
+          напоминание наверху секции */}
+      <PermitsSection
+        viewer="client"
+        initialPermits={order.permitRequirements ?? []}
+        documentUrlFor={(permitId) => `/api/client/permits/${permitId}/document`}
+        onChanged={load}
+        emptyText="Разрешительных документов по заявке нет"
+      />
 
       {/* DF-21: журнал сделки — заметки менеджера «видна клиенту» и
           события статусов; без служебных меток и внутренних событий */}

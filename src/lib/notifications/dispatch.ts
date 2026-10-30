@@ -4,6 +4,7 @@ import { getTransport } from './channel'
 import { NOT_CONFIGURED } from './transport'
 import { processRegularDigests } from './digest'
 import { processOwnerDigest } from './owner-digest'
+import { scanPermitOverdue } from './permits-scan'
 import { importCbrRates } from '@/lib/cbr'
 
 // ─── DF-03: диспетчер очереди уведомлений ────────────────────────────
@@ -166,11 +167,20 @@ export async function dispatchPendingBatch(): Promise<DispatchRun> {
 // (lib/cbr.ts гасит ошибку сам — расчёты берут последний курс); сбой
 // сводки тоже не должен: обычные письма важнее (cron повторит через 5 мин).
 export async function dispatchNow(): Promise<
-  DispatchRun & { window: string | null; digests: number; ownerDigests: number; ratesImported: number; ratesDate: string | null; ratesSkipped: boolean }
+  DispatchRun & { window: string | null; digests: number; ownerDigests: number; ratesImported: number; ratesDate: string | null; ratesSkipped: boolean; permitOverdue: number }
 > {
   // DF-17: курсы ЦБ РФ — проходом диспетчера (карточка): короткое
   // замыкание, если курс за сегодня уже импортирован.
   const rates = await importCbrRates()
+  // DF-16: скан просрочки разрешительных — до дайджестов, чтобы красные
+  // письма ушли этой же пачкой, а «Ждём от вас» дайджестов видело
+  // актуальные строки (событие идемпотентно по lastRemindedAt).
+  let permitOverdue = 0
+  try {
+    permitOverdue = (await scanPermitOverdue()).emitted
+  } catch (e) {
+    console.error('[dispatch] скан разрешительных не удался (cron повторит):', e)
+  }
   const digest = await processRegularDigests()
   let ownerDigests = 0
   try {
@@ -194,6 +204,7 @@ export async function dispatchNow(): Promise<
     ratesImported: rates.imported,
     ratesDate: rates.date,
     ratesSkipped: rates.skipped,
+    permitOverdue,
   }
 }
 

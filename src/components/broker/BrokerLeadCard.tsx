@@ -12,6 +12,7 @@ import { CargoGroups } from '@/components/admin/CargoGroups'
 import { BrokerLeadStatusBadge } from '@/components/broker/BrokerBadges'
 import { BrokerEstimateForm, type BrokerEstimate } from '@/components/broker/BrokerEstimateForm'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
+import { PermitsSection } from '@/components/permits/PermitsSection'
 import type { LeadStatus } from '@/lib/leads'
 
 // ─── Карточка расчёта для брокера (Д) ──────────────────────────────
@@ -123,6 +124,17 @@ export function BrokerLeadCard() {
       </Card>
 
       <BrokerEstimateForm leadId={lead.id} estimate={lead.estimate} onSaved={load} />
+
+      {/* ── DF-16: разрешительные документы — перечень из оценки и
+          добавленные брокером строки; закрываются загрузкой файла в
+          строке. Цель — заявка после конвертации, иначе запрос ── */}
+      <PermitsSection
+        viewer="broker"
+        permitsUrl={`/api/broker/leads/${lead.id}/permits`}
+        createUrl={`/api/broker/leads/${lead.id}/permits`}
+        documentUrlFor={(permitId) => `/api/broker/permits/${permitId}/document`}
+        onChanged={load}
+      />
 
       {/* ── Е: документы расчёта (роадмап 5) — инвойс клиента для
           расчёта пошлины, правки с комментариями. Видимость — по

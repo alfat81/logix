@@ -8,6 +8,7 @@
 import type { LeadStatus } from '@/lib/leads'
 import type { OrderStatus, StageStatus } from '@/lib/order-constants'
 import type { ContractorLeadStatus } from '@/lib/contractors'
+import type { PermitStatus } from '@/lib/permits'
 
 export type StatusBadgeVariant =
   | 'transit' // В ПУТИ/В РАБОТЕ/НА ПРОВЕРКЕ — движение (точка Action-icon §3.2)
@@ -59,4 +60,15 @@ export const CONTRACTOR_LEAD_BADGE_VARIANTS: Record<
   qualifying: 'transit',
   contracted: 'delivered',
   rejected: 'version',
+}
+
+// Разрешительный (DF-16): ожидается — ждёт действия (пара движения,
+// как DF-05), получен — успех, не требуется — нейтрально. Красный
+// critical строке красит ПОТРЕБИТЕЛЬ: блокирующая и просроченная
+// (§3.3 — красный только срочное; окно «за N дней» — скан писем,
+// интерфейс красит по факту просрочки).
+export const PERMIT_BADGE_VARIANTS: Record<PermitStatus, StatusBadgeVariant> = {
+  pending: 'pending',
+  received: 'delivered',
+  waived: 'version',
 }

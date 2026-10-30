@@ -218,6 +218,8 @@ model Order {
   // Е (роадмап 5): документы заявки — обмен клиент/брокер/менеджер
   // внутри сервиса. Внутренние (isInternal) наружу не отдаются.
   documents   Document[]
+  // DF-16: обязательства предоставить разрешительные документы.
+  permitRequirements PermitRequirement[]
   // DF-19: расчёты таможенных платежей (история версий)
   customsCalculations CustomsCalculation[]
 
@@ -403,6 +405,9 @@ model Lead {
   // предварительный инвойс для расчёта пошлины брокером; при
   // конвертации В4 переносятся на заявку (leadId → orderId).
   documents  Document[]
+  // DF-16: обязательства предоставить разрешительные документы
+  // (при конвертации В4 переносятся на заявку, как документы).
+  permitRequirements PermitRequirement[]
   // DF-19: расчёты таможенных платежей (история версий; при
   // конвертации НЕ переносятся — лид остаётся источником истории,
   // заявка считает свои расчёты с фрахтом от выбранного варианта)
@@ -888,6 +893,75 @@ model DocumentVersion {
   // роут повторяет с новым номером (паттерн retry Б4).
   @@unique([documentId, version])
   @@index([documentId])
+}
+
+// DF-16: обязательство предоставить разрешительный документ (D35).
+// Рождается из ответа брокера (free-список requiredPermits превращается
+// в строки — sync при PUT оценки и разовая миграция данных) или
+// добавляется вручную брокером/сотрудником через /permits. Закрывается
+// загрузкой документа прямо в строке (Document.type='permit', reюз
+// контура Е) либо «не требуется» с причиной (только сотрудник).
+//
+// Цель — ровно одна: лид ИЛИ заявка (инвариант как у Document/Activity;
+// при конвертации В4 строки переносятся carryPermitsToOrder — лид →
+// заявка, связь со сделкой не рвётся). documentId — БЕЗ FK (паттерн
+// stageId/documentId у Activity: ссылка живёт дольше цели); удаление
+// документа (только сотрудник) возвращает строку в pending (lib/documents.ts).
+//
+// providedBy — КТО должен предоставить: client | broker | staff. От него
+// зависит адресат напоминаний (правило permit_overdue) и держатель мяча
+// awaiting_permit (DF-05). staffNote — внутренняя заметка строки, наружу
+// не отдаётся (проекция PERMIT_EXTERNAL_FIELDS). source='estimate' —
+// строка ведётся свободным списком ответа брокера (sync разрешает
+// удалять её при исчезновении из списка); source='manual' — создана
+// через /permits и автоматически не удаляется. lastRemindedAt — отметка
+// скана просрочки (диспетчер): красное событие не чаще раза в
+// permits.remind_every_days суток на строку (идемпотентность повтора).
+model PermitRequirement {
+  id         String    @id @default(cuid())
+  orderId    String?
+  leadId     String?
+  title      String
+  providedBy String // client | broker | staff
+  // Блокирует отправку/этап — красный сигнал и скан просрочки только
+  // для блокирующих строк (красный — только срочное, §3.3 брендбука).
+  isBlocking Boolean   @default(false)
+  // Срок предоставления (дата, необязательно) — из него считаются
+  // «красное окно» permits.red_days_before и просрочка.
+  neededBy   DateTime?
+  status     String    @default("pending") // pending | received | waived
+  // Загруженный документ (Document.type='permit') без FK; receivedAt/
+  // receivedByName — снимок факта и того, кто загрузил.
+  documentId     String?
+  receivedAt     DateTime?
+  receivedByName String?
+  // «Не требуется» — только сотрудник, с причиной (строка остаётся в
+  // истории, плашка исчезает у всех сторон).
+  waivedReason String?
+  // Внутренняя заметка строки — только сотрудникам (наружу не отдаётся).
+  staffNote String?
+  // Привязка к строке ответа брокера (BrokerEstimateItem.id, БЕЗ FK —
+  // строки оценки пересоздаются каждым PUT; remap в роуте оценки
+  // восстанавливает связь по коду ТН ВЭД). Null = ко всему запросу.
+  itemId String?
+  // Происхождение строки: estimate (sync ответа брокера) | manual (/permits).
+  source String @default("manual")
+  // Кто добавил — снимок (паттерн actorName): сотрудник | клиент |
+  // брокер | система (миграция данных).
+  createdByType   String
+  createdById     String?
+  createdByName   String
+  lastRemindedAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  // Cascade — как у Document: сделка без заявки удаляется мастером,
+  // её обязательства бессмысленны без сделки (лента уходит каскадом тоже).
+  order Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  lead  Lead?  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, status])
+  @@index([leadId, status])
 }
 
 // ─── Журнал событий (Дорожка Ж, Ж2) ────────────────────────────────

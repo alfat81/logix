@@ -34,8 +34,10 @@ export const SYSTEM_ACTOR_NAME = 'Система'
 
 // Подсказка правилам уведомлений для событий, где из самой записи
 // получателя не вывести: подключение брокера — письмо идёт ИМЕННО
-// подключаемому брокеру, а не всем уже подключённым (§8).
-export type NotifyHint = { brokerId?: string }
+// подключаемому брокеру, а не всем уже подключённым (§8); красное
+// permit_overdue — тому, КТО ДОЛЖЕН предоставить строку (providedBy,
+// DF-16 — скан диспетчера передаёт её с собой).
+export type NotifyHint = { brokerId?: string; permitProvidedBy?: 'client' | 'broker' | 'staff' }
 
 export type EmitEventInput = {
   // Цель-сделка: ровно одна из трёх (см. ActivityTarget). НЕ задана —

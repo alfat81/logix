@@ -14,6 +14,7 @@ import { emitEvent } from '@/lib/events'
 import { ACTIVITY_FEED_TAKE, ACTIVITY_PUBLIC_FIELDS } from '@/lib/activity'
 import { eventWhereFor } from '@/lib/audience'
 import { projectActors } from '@/lib/actor-name'
+import { PERMIT_EXTERNAL_FIELDS } from '@/lib/permits-db'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -52,6 +53,12 @@ const CLIENT_LEAD_DETAIL_SELECT = {
     orderBy: { createdAt: 'desc' },
     take: ACTIVITY_FEED_TAKE,
     select: ACTIVITY_PUBLIC_FIELDS,
+  },
+  // DF-16: разрешительные запроса — строки видит клиент (наружная
+  // проекция, staffNote не покидает сервер; сортировку делает UI —
+  // константа with as const, mutable orderBy туда не вставить).
+  permitRequirements: {
+    select: PERMIT_EXTERNAL_FIELDS,
   },
 } as const
 

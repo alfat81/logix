@@ -45,6 +45,8 @@ function orderSnap(over: Partial<WaitingOrderSnapshot>): WaitingOrderSnapshot {
     assignedToId: 'm1',
     stages: [],
     brokers: [],
+    // DF-16: незакрытых разрешительных по умолчанию нет
+    pendingPermits: [],
     ...over,
   }
 }
@@ -200,6 +202,8 @@ describe('computeWaitingLead (DF-05, запрос)', () => {
       brokers: [],
       optionsCount: 0,
       hasSelectedOption: false,
+      // DF-16: незакрытых разрешительных по умолчанию нет
+      pendingPermits: [],
       ...over,
     }
   }
@@ -313,5 +317,119 @@ describe('computeWaitingLead (DF-05, запрос)', () => {
     const fri = new Date(Date.UTC(2026, 9, 30, 9, 0, 0)) // пт 12:00 МСК — 2 р.д.
     expect(isChoiceFollowupDue(wed, thu)).toBe(false)
     expect(isChoiceFollowupDue(wed, fri)).toBe(true)
+  })
+})
+
+// ─── DF-16: разрешительные документы — причина awaiting_permit ───────
+// Правило 2а (заявка, после «проблемы этапа») и 1а (запрос, после
+// «proforma»): мяч у того, кто должен предоставить строку (providedBy:
+// client → клиент, broker → подключённый брокер, staff → менеджер).
+describe('computeWaiting* (DF-16, awaiting_permit)', () => {
+  function permitRow(o: {
+    providedBy?: 'client' | 'broker' | 'staff'
+    isBlocking?: boolean
+    neededBy?: Date | null
+    createdAt?: Date
+  }) {
+    return {
+      providedBy: o.providedBy ?? 'client',
+      isBlocking: o.isBlocking ?? false,
+      neededBy: o.neededBy === undefined ? TOMORROW : o.neededBy,
+      createdAt: o.createdAt ?? YESTERDAY,
+    }
+  }
+  const permit = (over: Partial<Parameters<typeof permitRow>[0]> = {}) => permitRow(over)
+  // Локальная копия leadSnap (у DF-05 она своя — describe-скоуп)
+  function leadSnap(over: Partial<WaitingLeadSnapshot>): WaitingLeadSnapshot {
+    return {
+      status: 'new',
+      customerId: 'c1',
+      cargoName: null,
+      hasInvoiceDoc: false,
+      brokers: [],
+      optionsCount: 0,
+      hasSelectedOption: false,
+      pendingPermits: [],
+      ...over,
+    }
+  }
+
+  it('2а (заявка): pending permit от клиента → мяч у клиента, awaiting_permit', () => {
+    expect(
+      computeWaitingOrder(orderSnap({ pendingPermits: [permit()] }), TODAY)
+    ).toEqual({ kind: 'client', reason: 'awaiting_permit', onId: 'c1' })
+  })
+
+  it('2а (заявка): pending permit от брокера → мяч у подключённого брокера', () => {
+    expect(
+      computeWaitingOrder(
+        orderSnap({ pendingPermits: [permit({ providedBy: 'broker' })], brokers: brokers('b7', true) }),
+        TODAY
+      )
+    ).toEqual({ kind: 'broker', reason: 'awaiting_permit', onId: 'b7' })
+  })
+
+  it('2а (заявка): pending permit от сотрудника → мяч у менеджера', () => {
+    expect(
+      computeWaitingOrder(orderSnap({ pendingPermits: [permit({ providedBy: 'staff' })] }), TODAY)
+    ).toEqual({ kind: 'manager', reason: 'awaiting_permit', onId: 'm1' })
+  })
+
+  it('2 сильнее 2а: проблема этапа выносит мяч у разрешительного', () => {
+    expect(
+      computeWaitingOrder(
+        orderSnap({ pendingPermits: [permit()], stages: [stage(1, 'problem')] }),
+        TODAY
+      )
+    ).toEqual({ kind: 'manager', reason: 'stage_problem', onId: 'm1' })
+  })
+
+  it('1 сильнее 2а: completed — мяча нет даже с незакрытым разрешительным', () => {
+    expect(
+      computeWaitingOrder(orderSnap({ status: 'completed', pendingPermits: [permit()] }), TODAY)
+    ).toEqual({ kind: 'none', reason: null, onId: null })
+  })
+
+  it('2а: выбор срочной строки — блокирующая от staff (manager) vs обычная от client', () => {
+    // pickMostUrgentPermit: blocking → manager, обычная → client
+    expect(
+      computeWaitingOrder(
+        orderSnap({
+          pendingPermits: [
+            permit({ providedBy: 'client' }),
+            permit({ providedBy: 'staff', isBlocking: true }),
+          ],
+        }),
+        TODAY
+      )
+    ).toEqual({ kind: 'manager', reason: 'awaiting_permit', onId: 'm1' })
+  })
+
+  it('1а (запрос): без описания груза — awaiting_proforma сильнее разрешительного', () => {
+    expect(
+      computeWaitingLead(leadSnap({ pendingPermits: [permit()] }))
+    ).toEqual({ kind: 'client', reason: 'awaiting_proforma', onId: 'c1' })
+  })
+
+  it('1а (запрос): описание есть, pending permit от клиента → awaiting_permit', () => {
+    expect(
+      computeWaitingLead(leadSnap({ cargoName: 'Запчасти', pendingPermits: [permit()] }))
+    ).toEqual({ kind: 'client', reason: 'awaiting_permit', onId: 'c1' })
+  })
+
+  it('1а (запрос): описание есть, permit от брокера → мяч у брокера', () => {
+    expect(
+      computeWaitingLead(
+        leadSnap({ cargoName: 'Запчасти', brokers: brokers('b7', true), pendingPermits: [permit({ providedBy: 'broker' })] })
+      )
+    ).toEqual({ kind: 'broker', reason: 'awaiting_permit', onId: 'b7' })
+  })
+
+  it('received/waived строки в снапшот не попадают (select статуса в waiting-db)', () => {
+    // Прямого рантайм-правила нет — снапшот собирает ТОЛЬКО pending;
+    // регресс пустого снапшота: мяч не появляется
+    expect(
+      computeWaitingOrder(orderSnap({ pendingPermits: [] }), TODAY).reason
+    ).not.toBe('awaiting_permit')
   })
 })

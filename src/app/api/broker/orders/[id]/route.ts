@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireBroker } from '@/lib/broker-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { readPermits } from '@/lib/brokers'
+import { PERMIT_EXTERNAL_FIELDS } from '@/lib/permits-db'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -30,6 +31,12 @@ export async function GET(req: NextRequest, { params }: Params) {
         hsCode: true,
         cargoProfile: true,
         customer: { select: { name: true } },
+        // DF-16: разрешительные заявки — брокеру наружная проекция
+        // (staffNote не покидает сервер).
+        permitRequirements: {
+          orderBy: [{ isBlocking: 'desc' }, { createdAt: 'asc' } as const],
+          select: PERMIT_EXTERNAL_FIELDS,
+        },
         lead: {
           select: {
             id: true,
@@ -74,6 +81,8 @@ export async function GET(req: NextRequest, { params }: Params) {
         hsCode: order.hsCode,
         cargoProfile: order.cargoProfile,
         customerName: order.customer?.name ?? null,
+        // DF-16: строки разрешительных заявки.
+        permits: order.permitRequirements,
         // leadId — только вместе с моей связью лида: у прямой связи
         // оценки не бывает (роадмап 5а — она живёт на LeadBroker),
         // отдача «чужого» leadId предлагала бы брокеру форму, чей PUT

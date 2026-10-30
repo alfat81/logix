@@ -61,6 +61,9 @@ function letterInput(over: Partial<OwnerDigestLetterInput> = {}): OwnerDigestLet
     },
     unsentLetters: 0,
     slowing: [],
+    // DF-16: разрешительные в сводке (пусто — секции нет)
+    permits: [],
+    permitsTotal: 0,
     pulseUrl: 'https://app.example.ru/admin/pulse',
     ...over,
   }

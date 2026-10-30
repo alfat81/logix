@@ -102,8 +102,8 @@ export const SETTINGS = [
   defineSetting({
     key: 'notifications.red_event_types', group: 'notifications', uiType: 'string_list',
     label: '«Красные» события',
-    hint: 'Коды из реестра событий: письма по ним уходят сразу и вне лимитов. Пополнят DF-05/DF-16.',
-    defaultValue: [], validate: (v) => asEventCodeList(v),
+    hint: 'Коды из реестра событий: письма по ним уходят сразу и вне лимитов. DF-16 добавил permit_overdue по умолчанию.',
+    defaultValue: ['permit_overdue'], validate: (v) => asEventCodeList(v),
   }),
   defineSetting({
     key: 'notifications.red_max_per_hour', group: 'notifications', uiType: 'number',

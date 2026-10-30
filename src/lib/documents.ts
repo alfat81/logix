@@ -434,6 +434,11 @@ export async function deleteDocument(
 
   await db.document.delete({ where: { id: documentId } })
 
+  // DF-16: разрешительный, закрытый этим документом, возвращается в
+  // ожидание (плашка и «у кого мяч» восстанавливаются, пересчёт внутри).
+  const { revertPermitDocument } = await import('@/lib/permits-db')
+  await revertPermitDocument(documentId)
+
   const deal: DocumentDealTarget = doc.orderId
     ? { orderId: doc.orderId }
     : { leadId: doc.leadId! }

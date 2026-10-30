@@ -19,6 +19,7 @@ import { Breadcrumbs } from '@/components/admin/Breadcrumbs'
 import { AssigneeField } from '@/components/admin/AssigneeField'
 import { LeadEditDialog } from '@/components/admin/LeadEditDialog'
 import { QuoteOptionsSection } from '@/components/admin/QuoteOptionsSection'
+import { PermitsSection } from '@/components/permits/PermitsSection'
 import { ActivityFeed } from '@/components/admin/ActivityFeed'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
 import { NoteForm } from '@/components/admin/NoteForm'
@@ -189,6 +190,20 @@ export function LeadCard() {
             initialIncoterm={lead.incotermCode}
             initialPlace={lead.incotermPlace}
             freightSuggest={freightSuggest}
+            onChanged={load}
+          />
+        )}
+
+        {/* ── DF-16: разрешительные документы — обязательства из расчёта
+            брокера и добавленные вручную; закрываются загрузкой файла
+            прямо в строке. won — без секции: сделка уехала в заявку ── */}
+        {!isWon && (
+          <PermitsSection
+            viewer="staff"
+            permitsUrl={`/api/admin/leads/${id}/permits`}
+            createUrl={`/api/admin/leads/${id}/permits`}
+            patchUrlFor={(permitId) => `/api/admin/permits/${permitId}`}
+            documentUrlFor={(permitId) => `/api/admin/permits/${permitId}/document`}
             onChanged={load}
           />
         )}

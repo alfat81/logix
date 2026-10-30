@@ -6,6 +6,7 @@ import { apiErrorResponse } from '@/lib/api-errors'
 import { brokerActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
 import { BrokerEstimateFullSchema, diffEstimateItems, readPermits } from '@/lib/brokers'
+import { remapPermitItemIds, syncEstimatePermits } from '@/lib/permits-db'
 import { getSetting } from '@/lib/settings'
 import { formatMoney } from '@/lib/money'
 
@@ -126,6 +127,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       // Полная замена строк: deleteMany + createMany в одной транзакции
       // (инвариант 2). История — только в событии estimate_updated:
       // строки не «удалённые», а заменённые целиком (снимок ответа).
+      const oldItems = (link.estimate?.items ?? []).map((i) => ({ id: i.id, hsCode: i.hsCode }))
       await tx.brokerEstimateItem.deleteMany({ where: { estimateId: estimate.id } })
       if (items.length > 0) {
         await tx.brokerEstimateItem.createMany({
@@ -142,6 +144,26 @@ export async function PUT(req: NextRequest, { params }: Params) {
           })),
         })
       }
+      // DF-16: привязки разрешительных к строкам оценки восстанавливаются
+      // по коду ТН ВЭД (id строк пересозданы).
+      if (oldItems.length > 0) {
+        const newItems = await tx.brokerEstimateItem.findMany({
+          where: { estimateId: estimate.id },
+          select: { id: true, hsCode: true },
+        })
+        await remapPermitItemIds(tx, oldItems, newItems)
+      }
+      // DF-16: свободный список requiredPermits превращается в строки
+      // PermitRequirement (полная замена — семантика PUT; строки,
+      // полученные/снятые вручную и созданные через /permits, не трогаются).
+      // Событие permit_added внутри — клиент получает письмо (расчёт —
+      // сразу), мяч пересчитывается в той же транзакции.
+      await syncEstimatePermits(
+        tx,
+        id,
+        data.requiredPermits ?? [],
+        brokerActor(auth.broker)
+      )
 
       // Ж2: событие лида с актёром-брокером — менеджер видит в ленте.
       // Лента лида не видна брокеру — isInternal тут не нужен: событие
