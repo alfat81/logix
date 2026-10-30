@@ -1,0 +1,16 @@
+{
+  "task": "0.7.7 — фикс «красного» CI: первый прогон в GitHub Actions поймал гонку в интеграционном тесте DF-08. vitest гоняет 26 файлов параллельно по одной БД, а processOwnerDigest сканирует глобально всех активных мастеров с email (корректное продовое поведение диспетчера): в проход попадала чужая фикстура параллельного participants.test.ts (активный мастер с email) — глобальный счётчик sent был 2 вместо 1. Фикс по конвенции репо (утверждения скоупятся своими получателями, прецеденты notifications.test.ts:384/:498): sent → toBeGreaterThan(0), состав письма — по своему ключу ownerdigest:{ownerId}:, дедуп доказывается тем же id письма после повторного прохода. Прод не задет: правка только owner-digest.test.ts; без миграций, env, зависимостей; заморозка D31 не затронута.",
+  "areas": [
+    "тест: src/lib/notifications/owner-digest.test.ts (интеграционный кейс «письмо создаётся один раз за сутки» — скоуп утверждений своим ключом дедупа, комментарий с уроком)",
+    "документы: CHANGELOG.md, docs/ROADMAP.md (статус-блок IC-07), docs/releases/RELEASE-NOTES-v0.7.7.md, docs/releases/RELEASE-INSTRUCTIONS-v0.7.7.md, docs/releases/SCOPE-v0.7.7.json, package.json (версия 0.7.7)"
+  ],
+  "globs": [
+    "CHANGELOG.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.7.7.md",
+    "docs/releases/RELEASE-NOTES-v0.7.7.md",
+    "docs/ROADMAP.md",
+    "docs/releases/SCOPE-v0.7.7.json",
+    "package.json",
+    "src/lib/notifications/owner-digest.test.ts"
+  ]
+}

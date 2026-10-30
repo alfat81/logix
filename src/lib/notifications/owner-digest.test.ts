@@ -207,8 +207,16 @@ describe('processOwnerDigest (интеграция: окно, дедуп, адр
   })
 
   it('письмо создаётся один раз за сутки: повторный вызов — дедуп', async () => {
+    // Урок v0.7.7 (красный CI): файлы vitest гоняются ПАРАЛЛЕЛЬНО по одной
+    // БД, а скан адресатов в processOwnerDigest — глобальный (все активные
+    // мастера с email): в один проход попадают чужие фикстуры других файлов
+    // (participants.test.ts держит активного мастера с email), и глобальный
+    // счётчик sent скачет. Утверждаем не счётчик, а СВОЙ ключ дедупа —
+    // паттерн notifications.test.ts (утверждения скоупятся своими
+    // получателями): наш мастер получил письмо, повторный вызов не создаёт
+    // второго письма нашему мастеру.
     const first = await processOwnerDigest()
-    expect(first.sent).toBe(1)
+    expect(first.sent).toBeGreaterThan(0)
 
     const rows = await db.notification.findMany({
       where: { dedupKey: { startsWith: `ownerdigest:${ownerId}:` } },
@@ -225,12 +233,15 @@ describe('processOwnerDigest (интеграция: окно, дедуп, адр
     // APP_BASE_URL в тестовом окружении не задан — ссылки нет, письмо валидно.
     expect(letter.body).not.toContain('Открыть Пульс')
 
-    const second = await processOwnerDigest()
-    expect(second.sent).toBe(0)
+    // Повторный вызов: счётчик sent не утверждаем (чужие мастера других
+    // файлов могли появиться между проходами) — дедуп нашего мастера
+    // доказывает строка ниже: письмо ровно одно, и это то же самое письмо.
+    await processOwnerDigest()
     const after = await db.notification.findMany({
       where: { dedupKey: { startsWith: `ownerdigest:${ownerId}:` } },
     })
     expect(after).toHaveLength(1)
+    expect(after[0].id).toBe(rows[0].id)
   })
 
   it('менеджеру сводка не уходит, мастеру без email — тоже', async () => {
