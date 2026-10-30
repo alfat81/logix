@@ -1,6 +1,5 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
   AlertTriangle,
@@ -12,8 +11,7 @@ import {
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { useToast } from '@/hooks/use-toast'
-import { readApiResponse } from '@/lib/api-client'
+import { useApiData } from '@/hooks/use-api-data'
 import {
   StageSection,
   StaleLeadsSection,
@@ -30,30 +28,12 @@ import type { AttentionData } from './attention/types'
 // v0.5.0 (P1-22): секции и типы — выезд в attention/ (резка под лимит
 // 300, RULES 2.14).
 export function AttentionScreen() {
-  const { toast } = useToast()
-  const [data, setData] = useState<AttentionData | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/admin/attention')
-      const body = await readApiResponse<AttentionData & { error?: string }>(res)
-      if (!res.ok) throw new Error(body.error || 'Ошибка загрузки')
-      setData(body)
-    } catch (e) {
-      toast({
-        title: 'Не удалось загрузить сводку',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }, [toast])
-
-  useEffect(() => {
-    load()
-  }, [load])
+  // DF-07: транспорт данных — общий хук useApiData (его же использует
+  // Пульс; IC-14: копия fetch-блока выедена в хук).
+  const { data, loading, reload } = useApiData<AttentionData>(
+    '/api/admin/attention',
+    'Не удалось загрузить сводку'
+  )
 
   if (loading) {
     return (
@@ -89,7 +69,7 @@ export function AttentionScreen() {
           <Badge className="bg-success text-success-foreground border-transparent">чисто</Badge>
         )}
         <div className="ml-auto flex gap-2">
-          <Button size="sm" variant="outline" onClick={load}>
+          <Button size="sm" variant="outline" onClick={reload}>
             Обновить
           </Button>
         </div>

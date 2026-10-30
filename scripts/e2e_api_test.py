@@ -336,6 +336,20 @@ s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5=d.get('order',d)
 chk('DF-05: терминальный статус — мяча нет, since обнулён',(O5.get('waitingOnKind'),O5.get('waitingReason'),O5.get('waitingSince'))==('none',None,None),(O5.get('waitingOnKind'),O5.get('waitingSince')))
 s,d=a.r('GET','/api/admin/attention'); ATT=d
 chk('DF-05: секция «Ждут дольше N часов» — список, счётчик, порог из настроек',isinstance(ATT.get('waitingLong'),list) and (ATT.get('counts') or {}).get('waitingLong')==0 and ATT.get('attentionHours')==24,((ATT.get('counts') or {}).get('waitingLong'),ATT.get('attentionHours')))
+# --- DF-07: «Пульс» владельца (мастер-only, агрегаты по существующим таблицам)
+s,d=bb.r('GET','/api/admin/pulse'); chk('DF-07: менеджер → 403 (Пульс только мастеру)',s==403,(s,str(d)[:100]))
+s,d=a.r('GET','/api/admin/pulse'); PL=d
+chk('DF-07: мастер → 200, блоки на месте',s==200 and isinstance(PL,dict) and all(k in PL for k in ('stats','cargo','cargoTotal','slowing','events')),(s,list(PL.keys()) if isinstance(PL,dict) else PL))
+ST7=PL.get('stats') or {}
+chk('DF-07: цифры — 5 метрик и порог в ответе',all(k in ST7 for k in ('newLeads24h','activeOrders','inProgress','waitingOverThreshold','problemStages','attentionHours')),ST7)
+chk('DF-07: в пути ≤ активных, порог > 0',ST7.get('inProgress',0)<=ST7.get('activeOrders',0) and (ST7.get('attentionHours') or 0)>0,ST7)
+chk('DF-07: cargoTotal = активным заявкам',PL.get('cargoTotal')==ST7.get('activeOrders'),(PL.get('cargoTotal'),ST7.get('activeOrders')))
+chk('DF-07: срез «Где груз» лимитом 50, счётчик полный',len(PL.get('cargo') or [])<=50 and len(PL.get('cargo') or [])<=PL.get('cargoTotal',0),(len(PL.get('cargo') or []),PL.get('cargoTotal')))
+chk('DF-07: строки «Где груз» — этап/ETA/статус валидны',all('number' in r and 'orderId' in r for r in (PL.get('cargo') or [])) ,(PL.get('cargo') or [{}])[:1])
+chk('DF-07: сумма групп «Кто тормозит» ≤ активных',sum((g.get('count') or 0) for g in (PL.get('slowing') or []))<=ST7.get('activeOrders',0),(sum((g.get('count') or 0) for g in (PL.get('slowing') or [])),ST7.get('activeOrders')))
+chk('DF-07: группы — известные kind, внутри orderId/number',all(g.get('kind') in ('manager','client','broker','contractor') and all(('orderId' in o and 'number' in o) for o in g.get('orders',[])) for g in (PL.get('slowing') or [])),[(g.get('kind'),g.get('count')) for g in (PL.get('slowing') or [])])
+chk('DF-07: события — не больше 20',len(PL.get('events') or [])<=20,len(PL.get('events') or []))
+chk('DF-07: строки событий структурно полные (id/type/описание/момент)',all(all(k in e for k in ('id','type','description','createdAt')) and isinstance(e.get('isInternal'),bool) for e in (PL.get('events') or [])),(PL.get('events') or [{}])[:1])
 for i in range(11):
     s,d=c.r('POST','/api/client/leads',{'cargoInfo':{'origin':'Стамбул','note':str(i)}})
 chk('дневной лимит запросов клиента срабатывает',s==429 or s==409 or s==400,(s,d))

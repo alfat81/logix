@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Hourglass, MailX, PauseCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { HiddenMore } from '../HiddenMore'
 import { LEAD_STATUS_LABELS } from '@/lib/leads'
 import { ORDER_STATUS_LABELS } from '@/lib/order-constants'
 import { WAITING_CHOICE_FOLLOWUP_ACTION, WAITING_KIND_LABELS } from '@/lib/waiting'
@@ -88,14 +89,7 @@ export function StageSection({
             </Badge>
           </Link>
         ))}
-        {hidden > 0 && (
-          <div className="text-xs text-muted-foreground text-center pt-1">
-            И ещё {hidden} —{' '}
-            <Link href="/admin/orders" className="underline underline-offset-2">
-              открыть список заявок
-            </Link>
-          </div>
-        )}
+        {hidden > 0 && <HiddenMore hidden={hidden} />}
       </CardContent>
     </Card>
   )
@@ -195,14 +189,7 @@ export function WaitingLongSection({
             )}
           </Link>
         ))}
-        {hidden > 0 && (
-          <div className="text-xs text-muted-foreground text-center pt-1">
-            И ещё {hidden} —{' '}
-            <Link href="/admin/orders" className="underline underline-offset-2">
-              открыть список заявок
-            </Link>
-          </div>
-        )}
+        {hidden > 0 && <HiddenMore hidden={hidden} />}
       </CardContent>
     </Card>
   )
@@ -246,14 +233,7 @@ export function StaleLeadsSection({ count, rows }: { count: number; rows: LeadAt
             </span>
           </Link>
         ))}
-        {hidden > 0 && (
-          <div className="text-xs text-muted-foreground text-center pt-1">
-            И ещё {hidden} —{' '}
-            <Link href="/admin/leads" className="underline underline-offset-2">
-              открыть список запросов
-            </Link>
-          </div>
-        )}
+        {hidden > 0 && <HiddenMore hidden={hidden} href="/admin/leads" label="открыть список запросов" />}
       </CardContent>
     </Card>
   )

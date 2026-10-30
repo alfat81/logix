@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
+  Activity,
   BookOpen,
   Building2,
   ClipboardList,
@@ -55,7 +56,13 @@ export type NavCounts = Partial<Record<'/admin/orders' | '/admin/leads', number>
 const NAV_SECTIONS: NavSection[] = [
   {
     title: null,
-    items: [{ href: '/admin', label: 'Главная', icon: Home }],
+    items: [
+      // DF-07: «Пульс» — первый пункт МАСТЕРА (вход мастера открывает
+      // его же — редирект после логина); менеджеру сводка всего дела
+      // не показана (API отдаёт 403, страница ведёт на главную).
+      { href: '/admin/pulse', label: 'Пульс', icon: Activity, masterOnly: true },
+      { href: '/admin', label: 'Главная', icon: Home },
+    ],
   },
   {
     title: 'Сделки',

@@ -62,6 +62,7 @@
 | `CalcBodyResult` | `src/lib/customs-api.ts` | — |
 | `CalcWriteCtx` | `src/lib/customs-api.ts` | — |
 | `CargoInfoSchema` | `src/lib/leads.ts` | Свободная анкета груза на этапе запроса (груз/вес/объём/откуда-куда). |
+| `CargoOrderInput` | `src/lib/pulse.ts` | ─── «Где груз» (блок 2) ───────────────────────────────────────────── |
 | `CargoProfile` | `src/lib/order-constants.ts` | — |
 | `CbrRate` | `src/lib/cbr.ts` | — |
 | `ClientActor` | `src/lib/activity.ts` | — |
@@ -204,6 +205,11 @@
 | `PERMIT_MAX_COUNT` | `src/lib/brokers.ts` | ─── Оценка таможенных платежей (BrokerEstimate, роадмап 5а) ────── |
 | `PERMIT_MAX_LENGTH` | `src/lib/brokers.ts` | — |
 | `PLACE_KIND_LABELS` | `src/lib/ref.ts` | — |
+| `PULSE_CARGO_LIMIT` | `src/lib/pulse.ts` | ─── Объёмы выдачи (срезы лимитом, счётчики — полные, как в Ж5) ────── |
+| `PULSE_EVENTS_LIMIT` | `src/lib/pulse.ts` | — |
+| `PULSE_EVENT_WINDOW_HOURS` | `src/lib/pulse.ts` | — |
+| `PULSE_KIND_TITLES` | `src/lib/pulse.ts` | Заголовки групп: дательный падеж «Мяч у …». WAITING_KIND_LABELS — |
+| `PULSE_SLOWING_GROUP_LIMIT` | `src/lib/pulse.ts` | — |
 | `ParsedDocumentForm` | `src/lib/documents.ts` | — |
 | `ParsedListQuery` | `src/lib/list-query.ts` | — |
 | `ParsedVersionForm` | `src/lib/documents.ts` | — |
@@ -223,6 +229,10 @@
 | `PatchLeadInput` | `src/lib/leads.ts` | — |
 | `PatchLeadSchema` | `src/lib/leads.ts` | PATCH лида — смена статуса (+ причина при отказе), ответственного |
 | `PortalRequireResult` | `src/lib/portal-auth.ts` | — |
+| `PulseCargoRow` | `src/lib/pulse.ts` | — |
+| `PulseData` | `src/lib/pulse.ts` | ─── Ответ API целиком (клиентские типы Пульса реэкспортируют отсюда) ─ |
+| `PulseEvent` | `src/lib/pulse.ts` | — |
+| `PulseStats` | `src/lib/pulse.ts` | ─── Цифры (блок 1) ────────────────────────────────────────────────── |
 | `QUOTE_PRIORITY_FITS` | `src/lib/leads.ts` | Ориентир варианта: под какой приоритет клиента этот вариант заточен |
 | `QUOTE_PRIORITY_FIT_LABELS` | `src/lib/leads.ts` | — |
 | `QueuedEventInput` | `src/lib/notifications/enqueue.ts` | — |
@@ -266,6 +276,9 @@
 | `SettingValidationError` | `src/lib/settings-validators.ts` | Ошибка валидации/неизвестного ключа: API /api/admin/settings |
 | `SettingValue` | `src/lib/settings.ts` | value — Json: форма зависит от типа; структуру знает реестр, БД не |
 | `SettingsValues` | `src/lib/settings.ts` | Ключ → тип значения: getSetting/setSetting типизированы по реестру, |
+| `SlowingGroup` | `src/lib/pulse.ts` | — |
+| `SlowingOrder` | `src/lib/pulse.ts` | — |
+| `SlowingOrderInput` | `src/lib/pulse.ts` | ─── «Кто тормозит» (блок 3) ───────────────────────────────────────── |
 | `StageStatus` | `src/lib/order-constants.ts` | — |
 | `StageView` | `src/lib/order-summary.ts` | — |
 | `StageViewRow` | `src/lib/order-summary.ts` | — |
@@ -330,6 +343,7 @@
 | `authenticateCustomerLogin` | `src/lib/company-users.ts` | — |
 | `brokerActor` | `src/lib/activity.ts` | Брокер портала (Д). DF-02A (Блок 4): актор — ЧЕЛОВЕК (userId), |
 | `brokerSessionCookieOptions` | `src/lib/broker-auth.ts` | — |
+| `buildCargoRow` | `src/lib/pulse.ts` | Строка «Где груз» из заявки с этапами: ближайший этап, исполнитель, |
 | `buildFxSnapshot` | `src/lib/customs-server.ts` | ─── Снимок курсов: за ОДНУ единицу, источник cbr | manual ─────────── |
 | `buildLeadEditDiff` | `src/lib/lead-edit.ts` | Diff анкеты: список строк «Подпись: старое → новое» (только реально |
 | `buildLeadPayload` | `src/lib/leads.ts` | — |
@@ -430,12 +444,14 @@
 | `getSetting` | `src/lib/settings.ts` | Пустая таблица легитимна: откат на значение по умолчанию — система |
 | `getSettingDef` | `src/lib/settings.ts` | Свободные ключи не допускаются: пишем только то, что знает экран |
 | `getTransport` | `src/lib/notifications/channel.ts` | ─── DF-03: выбор транспорта по каналу письма ──────────────────────── |
+| `groupSlowingOrders` | `src/lib/pulse.ts` | Группировка активных заявок по waitingOnKind (DF-05). NULL waitingSince |
 | `halfUpDiv` | `src/lib/customs.ts` | half-up деление BigInt (делимое любого знака) |
 | `hashPassword` | `src/lib/password.ts` | — |
 | `hashSessionToken` | `src/lib/portal-auth.ts` | — |
 | `hsPrefixRange` | `src/lib/hs.ts` | Границы префиксного поиска по индексу (btree): code >= gte AND |
 | `importCbrRates` | `src/lib/cbr.ts` | Импорт курсов за последний доступный день. Возвращается число |
 | `incotermMetaOf` | `src/lib/ref.ts` | — |
+| `isActiveOrderStatus` | `src/lib/pulse.ts` | — |
 | `isChoiceFollowupDue` | `src/lib/waiting.ts` | — |
 | `isCurrencyCode` | `src/lib/money.ts` | — |
 | `isEmail` | `src/lib/phone.ts` | Проверка: это email? |
@@ -458,6 +474,7 @@
 | `logDocumentVersionAdded` | `src/lib/documents.ts` | Событие о новой версии — отдельно от транзакции (лента — наблюдение, |
 | `logInternalNote` | `src/lib/activity.ts` | — |
 | `maskPII` | `src/lib/notifications/mask.ts` | — |
+| `masterLandingPath` | `src/lib/pulse.ts` | ─── Вход мастера открывает Пульс (карточка: «вход мастера открывает |
 | `matchHsName` | `src/lib/hs.ts` | Фильтр по названию (регистр не важен). В БД то же самое делает |
 | `matchRefOptions` | `src/lib/ref.ts` | Регистронезависимо: «кит» находит Китай; «CN»/«cn» — по коду; |
 | `mergeLeadCargo` | `src/lib/lead-edit.ts` | Полная замена известных полей анкеты груза с сохранением неизвестных |
@@ -593,6 +610,7 @@
 | `EmployeesList` | `src/components/admin/EmployeesList.tsx` |
 | `EstimateView` | `src/components/admin/estimate/EstimateView.tsx` |
 | `GlobalSearch` | `src/components/admin/GlobalSearch.tsx` |
+| `HiddenMore` | `src/components/admin/HiddenMore.tsx` |
 | `InfoField` | `src/components/admin/InfoField.tsx` |
 | `LeadAnketaCard` | `src/components/admin/lead/LeadAnketaCard.tsx` |
 | `LeadCard` | `src/components/admin/LeadCard.tsx` |
@@ -624,6 +642,10 @@
 | `OrderStepper` | `src/components/admin/OrderStepper.tsx` |
 | `OrdersList` | `src/components/admin/OrdersList.tsx` |
 | `OrdersToolbar` | `src/components/admin/OrdersToolbar.tsx` |
+| `PulseCargoBlock` | `src/components/admin/pulse/PulseCargoBlock.tsx` |
+| `PulseEventsBlock` | `src/components/admin/pulse/PulseEventsBlock.tsx` |
+| `PulseScreen` | `src/components/admin/pulse/PulseScreen.tsx` |
+| `PulseSlowingBlock` | `src/components/admin/pulse/PulseSlowingBlock.tsx` |
 | `QuoteOptionDialog` | `src/components/admin/QuoteOptionDialog.tsx` |
 | `QuoteOptionsSection` | `src/components/admin/QuoteOptionsSection.tsx` |
 | `RawInfoView` | `src/components/admin/contractorlead/RawInfoView.tsx` |
@@ -639,6 +661,7 @@
 | `StageEditDialog` | `src/components/admin/stagecatalog/StageEditDialog.tsx` |
 | `StageSection` | `src/components/admin/attention/AttentionSections.tsx` |
 | `StatusSuggestion` | `src/components/admin/order/StatusSuggestion.tsx` |
+| `TYPE_LABEL` | `src/components/admin/ActivityEventList.tsx` |
 | `TransportChips` | `src/components/admin/contractorlead/TransportChips.tsx` |
 | `WaitingBadge` | `src/components/admin/WaitingBadge.tsx` |
 
@@ -755,6 +778,7 @@
 | POST | `/api/admin/orders/{id}/notes` | admin | employee | write | нет |
 | POST | `/api/admin/orders/{id}/stages` | admin | employee | write | нет |
 | DELETE, PATCH | `/api/admin/orders/{id}/stages/{stageId}` | admin | employee | write | нет |
+| GET | `/api/admin/pulse` | admin | employee | — | нет |
 | GET, POST | `/api/admin/references` | admin | employee | write | нет |
 | PATCH | `/api/admin/references/{id}` | admin | employee | write | нет |
 | GET | `/api/admin/search` | admin | employee | — | нет |
@@ -801,7 +825,7 @@
 
 | Модель | Полей | Где используется |
 |---|---|---|
-| `Activity` | 16 | src/app/admin/(dashboard)/page.tsx, src/lib/activity.ts, src/lib/notifications/digest.ts |
+| `Activity` | 16 | src/app/admin/(dashboard)/page.tsx, src/app/api/admin/pulse/route.ts, src/lib/activity.ts, src/lib/notifications/digest.ts |
 | `Broker` | 13 | src/app/api/admin/brokers/[id]/route.ts, src/app/api/admin/brokers/[id]/users/route.ts, src/app/api/admin/brokers/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts |
 | `BrokerEstimate` | 11 | src/app/api/broker/leads/[id]/estimate/route.ts |
 | `BrokerEstimateItem` | 12 | — |
@@ -824,15 +848,15 @@
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts |
 | `HsCode` | 9 | scripts/import-hs.ts, scripts/verify-hs-db.ts, scripts/verify-hs-prefix.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/lib/hs-db.ts |
 | `HsImport` | 5 | scripts/import-hs.ts, scripts/verify-hs-db.ts, src/lib/hs-db.ts |
-| `Lead` | 35 | scripts/backfill_waiting.ts, scripts/e2e_backdate_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts (+16) |
+| `Lead` | 35 | scripts/backfill_waiting.ts, scripts/e2e_backdate_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts (+17) |
 | `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts |
 | `LegalEntity` | 7 | scripts/seed.ts, src/app/api/admin/leads/[id]/convert/route.ts, src/app/api/admin/legal-entities/[id]/route.ts, src/app/api/admin/legal-entities/route.ts |
 | `LoginAttempt` | 7 | src/lib/login-guard.ts |
 | `Notification` | 19 | scripts/e2e_seed_notification.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/notifications/route.ts, src/lib/notifications/digest.ts, src/lib/notifications/dispatch.ts, src/lib/notifications/retry.ts |
 | `NotificationPreference` | 5 | — |
-| `Order` | 43 | scripts/backfill_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/customs-calculations/route.ts (+18) |
+| `Order` | 43 | scripts/backfill_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/customs-calculations/route.ts (+19) |
 | `OrderBroker` | 6 | src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/lib/broker-links.ts |
-| `OrderStageCatalog` | 5 | scripts/seed.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/orders/[id]/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts (+11) |
+| `OrderStageCatalog` | 5 | scripts/seed.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/orders/[id]/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts (+12) |
 | `OrderStageInstance` | 11 | src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts, src/app/api/contractor/orders/[id]/stages/[stageId]/route.ts, src/lib/orders.ts |
 | `QuoteOption` | 14 | src/app/api/admin/leads/[id]/patch.ts, src/app/api/admin/options/[id]/route.ts |
 | `RefItem` | 10 | scripts/seed.ts, src/app/api/admin/references/[id]/route.ts, src/app/api/admin/references/route.ts, src/lib/ref-db.ts |
@@ -842,15 +866,15 @@
 
 | Переменная | Файлов с использованием | .env.example | DEPLOY.md |
 |---|---|---|---|
-| `ADMIN_PASSWORD` | 2 | да | да |
-| `ADMIN_PHONE` | 2 | да | да |
+| `ADMIN_PASSWORD` | 3 | да | да |
+| `ADMIN_PHONE` | 3 | да | да |
 | `APP_BASE_URL` | 1 | да | да |
-| `BASE_URL` | 2 | да | да |
+| `BASE_URL` | 3 | да | да |
 | `CBR_IMPORT` | 2 | да | да |
 | `CBR_RATE_URL` | 1 | да | да |
 | `CONTRACTOR_PORTAL_ENABLED` | 1 | да | да |
 | `CRON_SECRET` | 2 | да | да |
-| `DATABASE_URL` | 5 | да | да |
+| `DATABASE_URL` | 6 | да | да |
 | `DISABLE_RATE_LIMIT` | 2 | да | да |
 | `EMAIL_ALLOWLIST` | 2 | да | да |
 | `EMAIL_FROM` | 1 | да | да |

@@ -9,11 +9,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, Lock, Phone } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { formatPhoneInput, normalizePhone } from '@/lib/phone'
+import { masterLandingPath } from '@/lib/pulse'
 
 // Страница входа для сотрудников (менеджеры/мастер). Порталы клиента,
 // подрядчика и брокера появятся позже (раздел 1 LOGISTICS-ROADMAP.md)
 // и получат свои отдельные страницы входа — это не одна роль в одном
 // кабинете, а разные кабинеты.
+//
+// DF-07: вход МАСТЕРА открывает Пульс (первый пункт его меню);
+// менеджер — как было, на главную «Требует внимания».
 export default function AdminLoginPage() {
   const router = useRouter()
   const { toast } = useToast()
@@ -21,12 +25,13 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  // Уже авторизован — сразу в кабинет
+  // Уже авторизован — сразу в кабинет (мастер — в Пульс, DF-07)
   useEffect(() => {
     fetch('/api/auth/employee/me')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data?.authenticated) router.replace('/admin')
+        if (data?.authenticated)
+          router.replace(masterLandingPath(data.employee?.roles ?? []))
       })
       .catch(() => {})
   }, [router])
@@ -49,7 +54,7 @@ export default function AdminLoginPage() {
       if (!res.ok) throw new Error(data.error || 'Ошибка входа')
 
       toast({ title: `Добро пожаловать, ${data.employee.name}` })
-      router.replace('/admin')
+      router.replace(masterLandingPath(data.employee?.roles ?? []))
     } catch (err) {
       toast({
         title: 'Ошибка входа',

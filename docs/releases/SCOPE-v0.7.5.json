@@ -1,0 +1,36 @@
+{
+  "task": "DF-07 «Пульс» владельца 0.7.5 — экран /admin/pulse мастера с телефона (Г1 ≤ 10 с): блок 1 цифры (новые запросы 24 ч, активные заявки ORDER_ACTIVE_STATUSES — одно определение с Ж5/§4.1, в пути, ждут дольше порога waiting.attention_hours, этапы с проблемой), блок 2 «Где груз» (ближайший этап/перевозчик/ETA по summarizeOrderStages+calcOrderEta, срез 50 + полный счётчик), блок 3 «Кто тормозит» (группировка waitingOnKind DF-05 по возрасту мяча, раскрытие <details>, счётчики полные), блок 4 «Последние события» (≤20 за сутки, аудитория staff DF-01). API GET /api/admin/pulse — мастер-only (менеджер 403, страница — серверный редирект), один round-trip на блок. «Пульс» — первый пункт меню мастера (masterOnly), вход мастера открывает Пульс (masterLandingPath в логине). Reuse-first (IC-14): общие части с Ж5 вынесены — хук useApiData, список ActivityEventList (один словарь подписей лент), хвост HiddenMore; тексты/локаторы Ж5 не менялись. Сверка scripts/pulse_check.py (API против прямого SQL, psycopg2; 20 мс на +200 заявок). Заморозка D31 не затронута. Без миграций, env, зависимостей.",
+  "areas": [
+    "агрегаты: src/lib/pulse.ts (чистая: masterLandingPath, isActiveOrderStatus, buildCargoRow, groupSlowingOrders, PULSE_KIND_TITLES, типы), src/lib/pulse.test.ts (17 кейсов)",
+    "API: src/app/api/admin/pulse/route.ts (master-only, выборки блоков, projectActors для событий)",
+    "экран: src/app/admin/(dashboard)/pulse/page.tsx (гард роли), src/components/admin/pulse/PulseScreen.tsx, PulseCargoBlock.tsx, PulseSlowingBlock.tsx, PulseEventsBlock.tsx, types.ts (реэкспорт lib)",
+    "реюз-выносы (IC-14): src/hooks/use-api-data.ts (AttentionScreen + PulseScreen), src/components/admin/ActivityEventList.tsx (SideActivityFeed + PulseEventsBlock), src/components/admin/HiddenMore.tsx (AttentionSections + pulse-блоки); рефакторинг AttentionScreen.tsx, SideActivityFeed.tsx, attention/AttentionSections.tsx на общие части без смены текстов/локаторов",
+    "навигация и вход: src/components/admin/AdminNav.tsx (пункт «Пульс» masterOnly первым), src/app/admin/login/page.tsx (masterLandingPath в двух редиректах)",
+    "конвейер: scripts/pulse_check.py (сверка API против прямого SQL + замер --seed N; песочница/локально), scripts/e2e_api_test.py (+12 проверок DF-07, итого 403)",
+    "документы: CHANGELOG.md, docs/ROADMAP.md (статус-блок), docs/ROADMAP-DEALFLOW.md (карточка DF-07 [x] факт 0.7.5, очередь), docs/INVENTORY.md (перегенерирован, 552/82/36/23), docs/releases/RELEASE-NOTES-v0.7.5.md, docs/releases/RELEASE-INSTRUCTIONS-v0.7.5.md, docs/releases/SCOPE-v0.7.5.json"
+  ],
+  "globs": [
+    "CHANGELOG.md",
+    "docs/ROADMAP.md",
+    "docs/ROADMAP-DEALFLOW.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.7.5.md",
+    "docs/releases/RELEASE-NOTES-v0.7.5.md",
+    "docs/releases/SCOPE-v0.7.5.json",
+    "package.json",
+    "scripts/e2e_api_test.py",
+    "scripts/pulse_check.py",
+    "src/app/admin/(dashboard)/pulse/page.tsx",
+    "src/app/admin/login/page.tsx",
+    "src/app/api/admin/pulse/route.ts",
+    "src/components/admin/ActivityEventList.tsx",
+    "src/components/admin/AdminNav.tsx",
+    "src/components/admin/AttentionScreen.tsx",
+    "src/components/admin/HiddenMore.tsx",
+    "src/components/admin/SideActivityFeed.tsx",
+    "src/components/admin/attention/AttentionSections.tsx",
+    "src/components/admin/pulse/**",
+    "src/hooks/use-api-data.ts",
+    "src/lib/pulse.test.ts",
+    "src/lib/pulse.ts"
+  ]
+}
