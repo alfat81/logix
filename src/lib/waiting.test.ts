@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
+  CHOICE_FOLLOWUP_BUSINESS_DAYS,
   computeWaitingLead,
   computeWaitingOrder,
+  isChoiceFollowupDue,
   isStageOverdue,
   nearestUnfinishedStage,
+  WAITING_REASON_LABELS,
   type WaitingBrokerSnapshot,
   type WaitingLeadSnapshot,
   type WaitingOrderSnapshot,
@@ -196,6 +199,7 @@ describe('computeWaitingLead (DF-05, запрос)', () => {
       hasInvoiceDoc: false,
       brokers: [],
       optionsCount: 0,
+      hasSelectedOption: false,
       ...over,
     }
   }
@@ -233,7 +237,7 @@ describe('computeWaitingLead (DF-05, запрос)', () => {
     ).toEqual({ kind: 'broker', reason: 'awaiting_broker_estimate', onId: 'b1' })
   })
 
-  it('брокеры ответили, вариантов нет → менеджер, no_quote', () => {
+  it('брокеры ответили, вариантов нет → менеджер, no_quote (сильнее правила 4)', () => {
     expect(
       computeWaitingLead(
         leadSnap({ cargoName: 'Станок', brokers: brokers('b1', true), optionsCount: 0 })
@@ -241,11 +245,73 @@ describe('computeWaitingLead (DF-05, запрос)', () => {
     ).toBe('no_quote')
   })
 
-  it('варианты есть, ни один не выбран → «мяча нет» (правило awaiting_client_choice НЕ добавлено: выбор фиксирует менеджер, открытый вопрос карточки)', () => {
+  it("4 (D45). несколько вариантов (2) и выбранного нет → клиент, awaiting_client_choice (закрыт открытый вопрос карточки 0.7.2)", () => {
     expect(
       computeWaitingLead(
         leadSnap({ cargoName: 'Станок', brokers: brokers('b1', true), optionsCount: 2 })
       )
+    ).toEqual({ kind: 'client', reason: 'awaiting_client_choice', onId: 'c1' })
+  })
+
+  it("4 (D45). выбранного нет, вариантов 3 — то же (id = customerId)", () => {
+    const out = computeWaitingLead(
+      leadSnap({ cargoName: 'Станок', optionsCount: 3, brokers: brokers('b1', true) })
+    )
+    expect(out.reason).toBe('awaiting_client_choice')
+    expect(out.onId).toBe('c1')
+  })
+
+  it("4 (D45). вариант выбран → правило не срабатывает (мяча нет, обычная цепочка)", () => {
+    expect(
+      computeWaitingLead(
+        leadSnap({
+          cargoName: 'Станок',
+          brokers: brokers('b1', true),
+          optionsCount: 2,
+          hasSelectedOption: true,
+        })
+      )
     ).toEqual({ kind: 'none', reason: null, onId: null })
+  })
+
+  it("4 (D45). ОДИН вариант без выбора — правило не срабатывает (буква D45: «несколько» = ≥2; осознанная неполнота)", () => {
+    expect(
+      computeWaitingLead(
+        leadSnap({ cargoName: 'Станок', brokers: brokers('b1', true), optionsCount: 1 })
+      )
+    ).toEqual({ kind: 'none', reason: null, onId: null })
+  })
+
+  it("4 (D45). выбор снимает ожидание: 2 варианта, selected=true → none (пересчёт на PATCH isSelected)", () => {
+    const before = computeWaitingLead(
+      leadSnap({ cargoName: 'Станок', optionsCount: 2 })
+    )
+    const after = computeWaitingLead(
+      leadSnap({ cargoName: 'Станок', optionsCount: 2, hasSelectedOption: true })
+    )
+    expect(before.kind).toBe('client')
+    expect(after.kind).toBe('none')
+  })
+
+  it("приоритет: awaiting_proforma сильнее правила 4 (без описания — ждём материалы)", () => {
+    expect(
+      computeWaitingLead(
+        leadSnap({ optionsCount: 2, brokers: brokers('b1', true) })
+      ).reason
+    ).toBe('awaiting_proforma')
+  })
+
+  it("подписи причин: awaiting_client_choice есть в WAITING_REASON_LABELS (компилятор + smoke)", () => {
+    expect(WAITING_REASON_LABELS.awaiting_client_choice).toBe('Ждём выбор варианта расчёта')
+  })
+
+  it("D45: эскалация — порог 2 рабочих дня (константа и граничные значения)", () => {
+    expect(CHOICE_FOLLOWUP_BUSINESS_DAYS).toBe(2)
+    // Якорь — среда 12:00 UTC (15:00 МСК): чт — 1-й рабочий день, пт 00:00 МСК — второй.
+    const wed = new Date(Date.UTC(2026, 9, 28, 12, 0, 0)) // ср
+    const thu = new Date(Date.UTC(2026, 9, 29, 12, 0, 0)) // чт — сутки спустя, 1 р.д.
+    const fri = new Date(Date.UTC(2026, 9, 30, 9, 0, 0)) // пт 12:00 МСК — 2 р.д.
+    expect(isChoiceFollowupDue(wed, thu)).toBe(false)
+    expect(isChoiceFollowupDue(wed, fri)).toBe(true)
   })
 })

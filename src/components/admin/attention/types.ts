@@ -1,5 +1,6 @@
 import { LEAD_STATUS_LABELS, type LeadStatus } from '@/lib/leads'
 import { ORDER_STATUS_LABELS, type OrderStatus } from '@/lib/order-constants'
+import type { WaitingLongAttention } from '@/lib/attention-waiting'
 
 // v0.5.0 (P1-22): типы экрана «Требует внимания» (Ж5) и общие
 // хелперы — выезд из AttentionScreen.tsx (резка под лимит 300,
@@ -49,15 +50,11 @@ export type AttentionData = {
 }
 
 // DF-05: сделка, чей «мяч» висит дольше порога — заявки и запросы
-// одним списком, ссылки разводятся по dealKind.
-export type WaitingLongAttention = {
-  dealId: string
-  dealKind: 'order' | 'lead'
-  label: string
-  status: string
-  waitingOnKind: string
-  hoursWaiting: number
-}
+// одним списком, ссылки разводятся по dealKind. D45: followup=true —
+// запрос ждёт выбора варианта расчёта ≥2 рабочих дней (пн–пт, МСК):
+// строка показывается с текстом-действием. Тип живёт в
+// lib/attention-waiting.ts (источник сборки секции), здесь реэкспорт.
+export type { WaitingLongAttention } from '@/lib/attention-waiting'
 
 export const fmtDate = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString('ru-RU') : '—'

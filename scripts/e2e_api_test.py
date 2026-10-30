@@ -281,9 +281,28 @@ b5=C(); s,d=b5.r('POST','/api/auth/broker/login',{'phone':ph(base+14),'password'
 s,d=b5.r('PUT',f'/api/broker/leads/{lid5}/estimate',{'items':[{'hsCode':'0101210000','dutyPercent':5,'vatPercent':22}]}); chk('DF-05: черновик оценки сохранён',s in(200,201),(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid5}'); L5=d.get('lead',d)
 chk('DF-05: черновик оценки считается ответом — мяч вернулся менеджеру',(L5.get('waitingOnKind'),L5.get('waitingReason'))==('manager','no_quote'),(L5.get('waitingOnKind'),L5.get('waitingReason')))
-s,d=a.r('POST',f'/api/admin/leads/{lid5}/options',{'description':'Авиа DF-05','price':900000,'currency':'RUB','vatMode':'WITH_VAT','etaDays':10,'priorityFit':'speed','isSelected':True}); chk('DF-05: вариант создан',s in(200,201),(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{lid5}/options',{'description':'Авиа DF-05','price':900000,'currency':'RUB','vatMode':'WITH_VAT','etaDays':10,'priorityFit':'speed'}); chk('DF-05: вариант создан',s in(200,201),(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid5}'); L5=d.get('lead',d)
-chk('DF-05: варианты есть, действия выбора клиента в системе нет — мяча нет (открытый вопрос карточки)',L5.get('waitingOnKind')=='none',(L5.get('waitingOnKind'),L5.get('waitingReason')))
+chk('D45: ОДИН вариант без выбора — правило не срабатывает (буква решения: «несколько» = ≥2)',L5.get('waitingOnKind')=='none',(L5.get('waitingOnKind'),L5.get('waitingReason')))
+opt45=[o for o in L5.get('options',[])][0]['id']
+# --- D45 (v0.7.3): несколько расчётов, ни один не выбран → мяч у клиента; через 2 р.д. — плашка менеджеру ---
+s,d=a.r('POST',f'/api/admin/leads/{lid5}/options',{'description':'Море DF-05','price':700000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':40,'priorityFit':'cost'}); chk('D45: второй вариант создан (выбранного нет)',s in(200,201),(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid5}'); L5=d.get('lead',d)
+chk('D45: несколько вариантов (2), выбранного нет — мяч у клиента (awaiting_client_choice)',(L5.get('waitingOnKind'),L5.get('waitingReason'))==('client','awaiting_client_choice'),(L5.get('waitingOnKind'),L5.get('waitingReason')))
+chk('D45: waitingOnId = id клиента',L5.get('waitingOnId')==cust,L5.get('waitingOnId'))
+import subprocess
+_bw=os.path.join(os.path.dirname(os.path.abspath(__file__)),'e2e_backdate_waiting.ts')
+bw=subprocess.run(['bun',_bw,lid5,'4'],capture_output=True,text=True,env={**os.environ})
+chk('D45: фикстура сдвига waitingSince (4 дня назад) отработала',bw.returncode==0,(bw.stdout[-120:],bw.stderr[-160:]))
+s,d=a.r('GET','/api/admin/attention'); AT45=d
+row45=[r for r in AT45.get('waitingLong',[]) if r.get('dealId')==lid5]
+chk('D45: невыбранный расчёт ≥2 р.д. — запрос в секции «Ждут дольше N часов»',len(row45)==1,[(r.get('dealId'),r.get('followup')) for r in AT45.get('waitingLong',[])])
+chk('D45: строка followup=true, причина awaiting_client_choice',bool(row45) and row45[0].get('followup') is True and row45[0].get('waitingReason')=='awaiting_client_choice',row45)
+s,d=a.r('PATCH',f'/api/admin/options/{opt45}',{'isSelected':True}); chk('D45: менеджер фиксирует выбор варианта',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid5}'); L5=d.get('lead',d)
+chk('D45: выбор варианта снимает ожидание — мяча нет',L5.get('waitingOnKind')=='none',(L5.get('waitingOnKind'),L5.get('waitingReason')))
+s,d=a.r('GET','/api/admin/attention'); AT45b=d
+chk('D45: после выбора строка ушла из «Ждут дольше N часов»',all(r.get('dealId')!=lid5 for r in AT45b.get('waitingLong',[])),[r.get('dealId') for r in AT45b.get('waitingLong',[])])
 s,d=a.r('POST',f'/api/admin/leads/{lid5}/convert',{'legalEntityId':leid}); chk('DF-05: конвертация → заявка',s in(200,201),(s,d)); oid5=(d.get('order') or d)['id']
 s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5=d.get('order',d)
 chk('DF-05: заявка в расчёте — мяч у менеджера',(O5.get('waitingOnKind'),O5.get('waitingReason'))==('manager','calculating'),(O5.get('waitingOnKind'),O5.get('waitingReason')))

@@ -2,6 +2,9 @@
 
 import { Clock } from 'lucide-react'
 import {
+  isChoiceFollowupDue,
+  WAITING_CHOICE_FOLLOWUP_ACTION,
+  WAITING_CHOICE_FOLLOWUP_SHORT,
   WAITING_KIND_LABELS,
   WAITING_REASON_LABELS,
   type WaitingKind,
@@ -32,17 +35,24 @@ export function WaitingBadge({
   if (!kind || kind === 'none' || !since) return null
   // new Date().getTime() вместо Date.now(): правило чистоты рендера
   // (тот же приём, что в EtaBlock карточки заявки).
-  const hours = Math.max(0, Math.floor((new Date().getTime() - new Date(since).getTime()) / 3_600_000))
+  const nowDate = new Date()
+  const sinceDate = new Date(since)
+  const hours = Math.max(0, Math.floor((nowDate.getTime() - sinceDate.getTime()) / 3_600_000))
   const duration = hours < 24 ? `${hours} ч` : `${Math.floor(hours / 24)} дн.`
   const who = WAITING_KIND_LABELS[kind as WaitingKind] ?? kind
   const why = reason ? (WAITING_REASON_LABELS[reason as WaitingReason] ?? null) : null
+  // D45: «несколько вариантов расчёта, выбранного нет» — через 2
+  // рабочих дня (пн–пт, МСК) плашка становится действием менеджеру
+  // «уточнить расчёт» (до пороги — обычное «Ждёт: клиента»).
+  const choiceDue = reason === 'awaiting_client_choice' && isChoiceFollowupDue(sinceDate, nowDate)
   return (
     <span
       className="inline-flex items-center gap-1 rounded-md border bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
-      title={why ?? undefined}
+      title={choiceDue ? WAITING_CHOICE_FOLLOWUP_ACTION : (why ?? undefined)}
     >
       <Clock className="size-3 shrink-0" aria-hidden />
       Ждёт: {who} · {duration}
+      {choiceDue ? ` — ${WAITING_CHOICE_FOLLOWUP_SHORT}` : ''}
     </span>
   )
 }

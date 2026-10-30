@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LEAD_STATUS_LABELS } from '@/lib/leads'
 import { ORDER_STATUS_LABELS } from '@/lib/order-constants'
-import { WAITING_KIND_LABELS } from '@/lib/waiting'
+import { WAITING_CHOICE_FOLLOWUP_ACTION, WAITING_KIND_LABELS } from '@/lib/waiting'
 import {
   daysWord,
   fmtDate,
@@ -185,6 +185,14 @@ export function WaitingLongSection({
               {' · '}
               {r.hoursWaiting} {hoursWord(r.hoursWaiting)}
             </span>
+            {/* D45: «не выбран расчёт 2 рабочих дня» — текст-действие
+                менеджеру (без красного: красный сигнал — только у
+                просрочки/проблемы, §3.3 брендбука v1.3). */}
+            {r.followup && (
+              <span className="w-full text-xs text-muted-foreground">
+                {WAITING_CHOICE_FOLLOWUP_ACTION}
+              </span>
+            )}
           </Link>
         ))}
         {hidden > 0 && (

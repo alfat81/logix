@@ -16,6 +16,8 @@
 //
 // Глоссарий RULES 2.6: Contractor в UI — «перевозчик», не «подрядчик».
 
+import { businessDaysElapsed } from '@/lib/business-days'
+
 // ─── Кто держит мяч ───────────────────────────────────────────────────
 
 export const WAITING_KINDS = [
@@ -51,6 +53,7 @@ export const WAITING_REASONS = [
   'stage_not_started',
   'awaiting_proforma',
   'no_quote',
+  'awaiting_client_choice',
 ] as const
 export type WaitingReason = (typeof WAITING_REASONS)[number]
 
@@ -65,14 +68,37 @@ export const WAITING_REASON_LABELS: Record<WaitingReason, string> = {
   stage_not_started: 'Этап ещё не начат',
   awaiting_proforma: 'Ждём проформу/описание товара',
   no_quote: 'Вариант расчёта не готов',
+  awaiting_client_choice: 'Ждём выбор варианта расчёта',
 }
 
 // Нейтральные формулировки для клиента (кабинет клиента показывает
 // плашку ТОЛЬКО когда мяч у клиента; никаких «менеджер/брокер/этап»).
+// awaiting_client_choice здесь НЕТ: варианты живут на запросе, а
+// waiting запроса наружу не отдаётся (клиент выбирает вне системы,
+// D45) — код нужен только сотрудникам.
 export const WAITING_CLIENT_LABELS: Partial<Record<WaitingReason, string>> = {
   awaiting_client_approval: 'Ожидает вашего подтверждения',
   awaiting_proforma: 'Ожидаем проформу-инвойс или описание товара',
 }
+
+// ─── D45: эскалация «клиент не выбрал расчёт» ────────────────────────
+// Решение владельца (D45, вариант (б) из отчёта 0.7.2): если на запросе
+// НЕСКОЛЬКО вариантов расчёта (≥2) и выбранного нет — мяч у клиента;
+// если выбор не сделан 2 РАБОЧИХ ДНЯ (пн–пт, МСК) — менеджеру плашка
+// «уточнить, видел ли клиент расчёт». До пороги — обычная плашка
+// «Ждёт: клиента»; после — текст-действие (бейдж и секция внимания).
+export const CHOICE_FOLLOWUP_BUSINESS_DAYS = 2
+
+export function isChoiceFollowupDue(sinceUtc: Date, nowUtc: Date): boolean {
+  return businessDaysElapsed(sinceUtc, nowUtc) >= CHOICE_FOLLOWUP_BUSINESS_DAYS
+}
+
+// Короткий хвост плашки на карточке: «Ждёт: клиента · 3 дн. — уточнить расчёт».
+export const WAITING_CHOICE_FOLLOWUP_SHORT = 'уточнить расчёт'
+
+// Полный текст-действие (секция «Ждут дольше N часов», tooltip бейджа).
+export const WAITING_CHOICE_FOLLOWUP_ACTION =
+  'Уточнить, видел ли клиент расчёт, и согласовать дальнейшие действия'
 
 // Результат правила: kind 'none' — мяча нет (id/reason пустые).
 export type WaitingOutcome = {
@@ -119,6 +145,9 @@ export type WaitingLeadSnapshot = {
   hasInvoiceDoc: boolean
   brokers: WaitingBrokerSnapshot[]
   optionsCount: number
+  // Выбранный вариант есть (QuoteOption.isSelected, инвариант «ровно
+  // один» на уровне API В3) — D45: правило 4 смотрит на «выбранного нет».
+  hasSelectedOption: boolean
 }
 
 // «Просрочка» плана этапа — ТА ЖЕ семантика, что на «Требует внимания»
@@ -222,10 +251,16 @@ export function computeWaitingLead(snap: WaitingLeadSnapshot): WaitingOutcome {
   if (snap.optionsCount === 0) {
     return { kind: 'manager', reason: 'no_quote', onId: null }
   }
-  // 4. «Варианты есть, ни один не выбран → client (awaiting_client_choice)»
-  //    НЕ реализовано: выбор варианта фиксирует МЕНЕДЖЕР
-  //    (PATCH /api/admin/options/[id], isSelected — requireEmployee),
-  //    действия клиента в системе нет — карточка прямо велит правило
-  //    в этом случае не добавлять. Открытый вопрос — в отчёте DF-05.
+  // 4. Вариантов НЕСКОЛЬКО (≥2) и выбранного нет → мяч у КЛИЕНТА
+  //    (D45 — открытый вопрос карточки закрыт вариантом (б) из отчёта
+  //    0.7.2: выбор клиент сообщает менеджеру вне системы; фиксирует
+  //    менеджер PATCH /api/admin/options/[id]). Один вариант не покрыт
+  //    осознанно — по букве D45 («несколько расчётов»). Эскалация
+  //    менеджеру через 2 рабочих дня — isChoiceFollowupDue (UI-слой:
+  //    WaitingBadge и секция внимания), состояние здесь от времени
+  //    НЕ зависит (см. waiting-db.ts).
+  if (snap.optionsCount >= 2 && !snap.hasSelectedOption) {
+    return { kind: 'client', reason: 'awaiting_client_choice', onId: snap.customerId }
+  }
   return WAITING_NONE
 }

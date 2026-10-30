@@ -94,8 +94,9 @@ export async function recomputeWaitingLead(
   tx: Prisma.TransactionClient,
   leadId: string
 ): Promise<void> {
-  // Правила запроса не зависят от «сегодня» (нет плановых дат) —
-  // параметр now не нужен, в отличие от recomputeWaitingOrder.
+  // Правила запроса (кроме D45-эскалации, она живёт в UI-слое) не
+  // зависят от «сегодня» (нет плановых дат) — параметр now не нужен,
+  // в отличие от recomputeWaitingOrder.
   const lead = await tx.lead.findUnique({
     where: { id: leadId },
     select: {
@@ -107,6 +108,9 @@ export async function recomputeWaitingLead(
       waitingOnId: true,
       brokers: { select: { brokerId: true, estimate: { select: { id: true } } } },
       _count: { select: { options: true, documents: true } },
+      // D45: есть ли выбранный вариант (инвариант «ровно один» держит
+      // API В3; здесь достаточно факта наличия).
+      options: { where: { isSelected: true }, select: { id: true }, take: 1 },
       documents: {
         where: { type: 'invoice' },
         select: { id: true },
@@ -127,6 +131,7 @@ export async function recomputeWaitingLead(
     hasInvoiceDoc: lead.documents.length > 0,
     brokers: lead.brokers.map((b) => ({ brokerId: b.brokerId, hasEstimate: !!b.estimate })),
     optionsCount: lead._count.options,
+    hasSelectedOption: lead.options.length > 0,
   })
   if (sameOutcome(outcome, lead.waitingOnKind, lead.waitingReason)) {
     if (outcome.onId !== (lead.waitingOnId ?? null)) {

@@ -1,0 +1,37 @@
+{
+  "task": "DF-05 дополнение 0.7.3 (D45) — «несколько расчётов, ни один не выбран»: закрытие открытого вопроса карточки DF-05 (вариант (б) отчёта 0.7.2 + эскалация владельца). Правило 4 запроса: ≥2 вариантов без выбранного → client/awaiting_client_choice (выбор клиент сообщает менеджеру вне системы); выбор не сделан 2 рабочих дня (пн–пт МСК, праздники не учитываются — допущение D45) → плашка-действие менеджеру: хвост бейджа «— уточнить расчёт» и строка секции «Ждут дольше N часов» с followup и полным текстом-действием. Якорь — waitingSince состояния. Один вариант не покрыт (по букве D45). Сборка секции внимания вынесена в чистый lib/attention-waiting.ts (IC-09, лимит 300). Без миграций, без новых env, без новых зависимостей; кабинет подрядчика и уведомления не затронуты (D31).",
+  "areas": [
+    "правило и подписи: src/lib/waiting.ts (+awaiting_client_choice в WAITING_REASONS/LABELS, CHOICE_FOLLOWUP_BUSINESS_DAYS, isChoiceFollowupDue, WAITING_CHOICE_FOLLOWUP_SHORT/ACTION, WaitingLeadSnapshot.hasSelectedOption, правило 4 computeWaitingLead)",
+    "рабочие дни: src/lib/business-days.ts (новый чистый модуль, businessDaysElapsed пн–пт МСК) + src/lib/business-days.test.ts (13 кейсов)",
+    "пересчёт: src/lib/waiting-db.ts (select выбранного варианта → hasSelectedOption)",
+    "секция внимания: src/app/api/admin/attention/route.ts (OR-условие D45 в SQL, вызов buildWaitingLong), src/lib/attention-waiting.ts (новый: тип WaitingLongAttention + buildWaitingLong с фильтром по рабочим дням и флагом followup), src/components/admin/attention/types.ts (реэкспорт типа из lib)",
+    "плашка: src/components/admin/WaitingBadge.tsx (хвост «— уточнить расчёт» после 2 рабочих дней, tooltip — полный текст-действие), src/components/admin/attention/AttentionSections.tsx (текст-действие в строке followup)",
+    "тесты: src/lib/waiting.test.ts (+9 кейсов D45, билдер hasSelectedOption), scripts/e2e_api_test.py (+8 проверок D45), scripts/e2e_backdate_waiting.ts (новая фикстура сдвига waitingSince)",
+    "конвейер: knip.json (+entry фикстуры), docs/INVENTORY.md (перегенерирован)",
+    "документы: CHANGELOG.md, docs/DECISIONS.md (D45), docs/ROADMAP.md (статус-блок), docs/ROADMAP-DEALFLOW.md (карточка DF-05, блок «Дополнено 0.7.3»), docs/releases/RELEASE-NOTES-v0.7.3.md, docs/releases/RELEASE-INSTRUCTIONS-v0.7.3.md, docs/releases/SCOPE-v0.7.3.json, package.json (версия 0.7.3)"
+  ],
+  "globs": [
+    "CHANGELOG.md",
+    "docs/DECISIONS.md",
+    "docs/INVENTORY.md",
+    "docs/ROADMAP-DEALFLOW.md",
+    "docs/ROADMAP.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.7.3.md",
+    "docs/releases/RELEASE-NOTES-v0.7.3.md",
+    "docs/releases/SCOPE-v0.7.3.json",
+    "knip.json",
+    "package.json",
+    "scripts/e2e_api_test.py",
+    "scripts/e2e_backdate_waiting.ts",
+    "src/app/api/admin/attention/route.ts",
+    "src/components/admin/WaitingBadge.tsx",
+    "src/components/admin/attention/AttentionSections.tsx",
+    "src/components/admin/attention/types.ts",
+    "src/lib/attention-waiting.ts",
+    "src/lib/business-days.test.ts",
+    "src/lib/business-days.ts",
+    "src/lib/waiting-db.ts",
+    "src/lib/waiting.test.ts",
+    "src/lib/waiting.ts"
+  ]
+}

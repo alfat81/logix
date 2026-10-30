@@ -40,6 +40,7 @@
 | `BrokerLoginUser` | `src/lib/company-users.ts` | — |
 | `CARGO_PROFILES` | `src/lib/order-constants.ts` | Профиль груза (роадмап, раздел 6: негабарит/опасные — глубже в Phase 2). |
 | `CARGO_PROFILE_LABELS` | `src/lib/order-constants.ts` | — |
+| `CHOICE_FOLLOWUP_BUSINESS_DAYS` | `src/lib/waiting.ts` | ─── D45: эскалация «клиент не выбрал расчёт» ──────────────────────── |
 | `CLIENT_LEAD_DAILY_LIMIT` | `src/lib/client-constants.ts` | Дневной потолок запросов из кабинета на клиента (анти-спам внешнего |
 | `CLIENT_PASSWORD_MAX` | `src/lib/client-constants.ts` | — |
 | `CLIENT_PASSWORD_MIN` | `src/lib/client-constants.ts` | Пароль доступа в кабинет — те же рамки, что у сотрудников (Ж6в) и |
@@ -182,6 +183,7 @@
 | `MAX_LIST_TAKE` | `src/lib/list-query.ts` | — |
 | `MAX_QUERY_LENGTH` | `src/lib/list-query.ts` | — |
 | `MIN_QUERY_LENGTH` | `src/lib/search-constants.ts` | Меньше 2 символов роут не ищет (200 с пустыми секциями): одиночная |
+| `MSK_OFFSET_MS` | `src/lib/business-days.ts` | Сдвиг МСК от UTC: якорь ожидания хранится в UTC, а «рабочий день» |
 | `NOTE_MAX_LENGTH` | `src/lib/note-constants.ts` | Потолок текста заметки: лента остаётся читаемой, textarea UI |
 | `NOT_CONFIGURED` | `src/lib/notifications/transport.ts` | Канал не настроен — терминальный статус skipped (не ошибка доставки: |
 | `NoteRow` | `src/lib/activity.ts` | Запись заметки. В отличие от logActivity (наблюдение над действием — |
@@ -286,6 +288,8 @@
 | `VAT_MODE_LABELS` | `src/lib/money.ts` | — |
 | `VatModeCode` | `src/lib/money.ts` | — |
 | `VisibleDocument` | `src/lib/documents.ts` | — |
+| `WAITING_CHOICE_FOLLOWUP_ACTION` | `src/lib/waiting.ts` | Полный текст-действие (секция «Ждут дольше N часов», tooltip бейджа). |
+| `WAITING_CHOICE_FOLLOWUP_SHORT` | `src/lib/waiting.ts` | Короткий хвост плашки на карточке: «Ждёт: клиента · 3 дн. — уточнить расчёт». |
 | `WAITING_CLIENT_LABELS` | `src/lib/waiting.ts` | Нейтральные формулировки для клиента (кабинет клиента показывает |
 | `WAITING_KINDS` | `src/lib/waiting.ts` | — |
 | `WAITING_KIND_LABELS` | `src/lib/waiting.ts` | Подписи для плашки «Ждёт: …» (родительный падеж). В UI сотрудника. |
@@ -296,6 +300,9 @@
 | `WaitingBrokerSnapshot` | `src/lib/waiting.ts` | — |
 | `WaitingKind` | `src/lib/waiting.ts` | — |
 | `WaitingLeadSnapshot` | `src/lib/waiting.ts` | — |
+| `WaitingLongAttention` | `src/lib/attention-waiting.ts` | — |
+| `WaitingLongLeadRow` | `src/lib/attention-waiting.ts` | — |
+| `WaitingLongOrderRow` | `src/lib/attention-waiting.ts` | — |
 | `WaitingOrderSnapshot` | `src/lib/waiting.ts` | — |
 | `WaitingOutcome` | `src/lib/waiting.ts` | Результат правила: kind 'none' — мяча нет (id/reason пустые). |
 | `WaitingReason` | `src/lib/waiting.ts` | — |
@@ -327,6 +334,8 @@
 | `buildLeadPayload` | `src/lib/leads.ts` | — |
 | `buildOrderListWhere` | `src/lib/orders.ts` | where списка: статус ИЛИ группа «active» (BRANDBOOK §4.2), фильтр |
 | `buildOrderSearch` | `src/lib/orders.ts` | Поиск — только по заявке и её клиенту: номер, ТН ВЭД, имя, телефон. |
+| `buildWaitingLong` | `src/lib/attention-waiting.ts` | — |
+| `businessDaysElapsed` | `src/lib/business-days.ts` | Сколько рабочих дней (пн–пт, МСК) прошло ПОСЛЕ MSK-дня якоря, |
 | `calcErrorResponse` | `src/lib/customs-api.ts` | Маппинг доменных ошибок DF-19: черновые правила — 409 (состояние |
 | `calcOrderEta` | `src/lib/order-summary.ts` | v0.3.1 (BRANDBOOK §4.3): ETA заявки — обещанная дата завершения. |
 | `calculationsListResponse` | `src/lib/customs-api.ts` | — |
@@ -426,6 +435,7 @@
 | `hsPrefixRange` | `src/lib/hs.ts` | Границы префиксного поиска по индексу (btree): code >= gte AND |
 | `importCbrRates` | `src/lib/cbr.ts` | Импорт курсов за последний доступный день. Возвращается число |
 | `incotermMetaOf` | `src/lib/ref.ts` | — |
+| `isChoiceFollowupDue` | `src/lib/waiting.ts` | — |
 | `isCurrencyCode` | `src/lib/money.ts` | — |
 | `isEmail` | `src/lib/phone.ts` | Проверка: это email? |
 | `isHsCodeQuery` | `src/lib/hs.ts` | Цифровой запрос → поиск по префиксу кода; есть буквы → по названию. |
@@ -811,7 +821,7 @@
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts |
 | `HsCode` | 9 | scripts/import-hs.ts, scripts/verify-hs-db.ts, scripts/verify-hs-prefix.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/lib/hs-db.ts |
 | `HsImport` | 5 | scripts/import-hs.ts, scripts/verify-hs-db.ts, src/lib/hs-db.ts |
-| `Lead` | 35 | scripts/backfill_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/admin/leads/[id]/convert/helpers.ts (+15) |
+| `Lead` | 35 | scripts/backfill_waiting.ts, scripts/e2e_backdate_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts (+16) |
 | `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts |
 | `LegalEntity` | 7 | scripts/seed.ts, src/app/api/admin/leads/[id]/convert/route.ts, src/app/api/admin/legal-entities/[id]/route.ts, src/app/api/admin/legal-entities/route.ts |
 | `LoginAttempt` | 7 | src/lib/login-guard.ts |

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { getSetting } from '@/lib/settings'
+import { buildWaitingLong } from '@/lib/attention-waiting'
 
 // ─── GET /api/admin/attention — экран «Требует внимания» (Ж5) ────
 // Главная страница кабинета вместо дубля списка заявок. Правила
@@ -60,16 +61,9 @@ type LeadAttention = {
 }
 
 // DF-05: сделка, чей «мяч» висит дольше порога (настройка
-// waiting.attention_hours). dealKind разводит ссылки: заявка →
-// /admin/orders, запрос → /admin/leads.
-type WaitingLongAttention = {
-  dealId: string
-  dealKind: 'order' | 'lead'
-  label: string
-  status: string
-  waitingOnKind: string
-  hoursWaiting: number
-}
+// waiting.attention_hours) — сборка списка (тип WaitingLongAttention
+// и правила попадания, включая D45-эскалацию по рабочим дням) — в
+// lib/attention-waiting.ts (вынесено ради лимита 300 строк, RULES 2.14).
 
 function daysBetween(from: number, to: number): number {
   return Math.floor((to - from) / DAY_MS)
@@ -87,6 +81,11 @@ export async function GET(req: NextRequest) {
     // (DF-00D, ключ waiting.attention_hours — предзарегистрирован там).
     const attentionHours = await getSetting('waiting.attention_hours')
     const waitingCutoff = new Date(now.getTime() - attentionHours * 60 * 60 * 1000)
+    // D45: SQL-предфильтр для «не выбран расчёт 2 рабочих дня».
+    // Минимальный реальный интервал до эскалации — 24 ч 1 мин
+    // (якорь в 23:59 МСК среды → порога в 00:00 МСК пятницы),
+    // поэтому срез 24 ч заведомо шире точного JS-фильтра ниже.
+    const choiceCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
     const [activeOrders, staleLeadRows, catalog, longOrders, longLeads] = await Promise.all([
       // Этапы в заявке — единицы, отдельные aggregate-запросы на каждую
@@ -148,8 +147,15 @@ export async function GET(req: NextRequest) {
       db.lead.findMany({
         where: {
           status: { in: [...ACTIVE_LEAD_STATUSES] },
-          waitingOnKind: { notIn: ['none'] },
-          waitingSince: { lt: waitingCutoff },
+          OR: [
+            { waitingOnKind: { notIn: ['none'] }, waitingSince: { lt: waitingCutoff } },
+            // D45: «не выбран расчёт» попадает в внимание по РАБОЧИМ
+            // дням, не по общему порогу часов — точный фильтр в JS.
+            {
+              waitingReason: 'awaiting_client_choice',
+              waitingSince: { lt: choiceCutoff },
+            },
+          ],
         },
         orderBy: { waitingSince: 'asc' },
         select: {
@@ -158,6 +164,7 @@ export async function GET(req: NextRequest) {
           customer: { select: { name: true } },
           rawContact: true,
           waitingOnKind: true,
+          waitingReason: true,
           waitingSince: true,
         },
       }),
@@ -227,35 +234,9 @@ export async function GET(req: NextRequest) {
     }))
 
     // DF-05: единый список «Ждут дольше N часов» — заявки и запросы
-    // вместе, самые давние сверху.
-    const waitingLong: WaitingLongAttention[] = [
-      ...longOrders.map((o) => ({
-        dealId: o.id,
-        dealKind: 'order' as const,
-        label: `${o.number} · ${o.customer.name}`,
-        status: o.status,
-        waitingOnKind: o.waitingOnKind ?? 'none',
-        hoursWaiting: Math.max(
-          0,
-          Math.floor((now.getTime() - (o.waitingSince?.getTime() ?? now.getTime())) / (60 * 60 * 1000))
-        ),
-      })),
-      ...longLeads.map((l) => ({
-        dealId: l.id,
-        dealKind: 'lead' as const,
-        label:
-          l.customer?.name ??
-          (l.rawContact && typeof l.rawContact === 'object' && !Array.isArray(l.rawContact)
-            ? String((l.rawContact as { name?: unknown }).name ?? '—')
-            : '—'),
-        status: l.status,
-        waitingOnKind: l.waitingOnKind ?? 'none',
-        hoursWaiting: Math.max(
-          0,
-          Math.floor((now.getTime() - (l.waitingSince?.getTime() ?? now.getTime())) / (60 * 60 * 1000))
-        ),
-      })),
-    ].sort((a, b) => b.hoursWaiting - a.hoursWaiting)
+    // вместе, самые давние сверху; фильтр D45 (≥2 рабочих дня) и
+    // флаг followup — внутри buildWaitingLong.
+    const waitingLong = buildWaitingLong(longOrders, longLeads, waitingCutoff, now)
 
     // DF-04: failed-письма в внимании — только мастеру (журнал
     // master-only; не-мастеру null — поле отсутствует по смыслу прав).
