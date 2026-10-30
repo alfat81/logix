@@ -9,7 +9,7 @@ import { fmtRu, fmtRuDateTime, type CustomsCalcRow } from './types'
 // Деньги — только formatMoney (IC-09); подпись «Оценка…» обязательна
 // рядом с любыми цифрами расчёта (D41).
 
-export function CustomsCalcResult({ calc }: { calc: CustomsCalcRow }) {
+export function CustomsCalcResult({ calc, compact }: { calc: CustomsCalcRow; compact?: boolean }) {
   const t = calc.totals
   const fx = calc.fxRates ?? {}
   const fxList = Object.entries(fx).filter(([code]) => code !== 'RUB')
@@ -27,32 +27,58 @@ export function CustomsCalcResult({ calc }: { calc: CustomsCalcRow }) {
         </span>
       </div>
 
-      <div className="rounded-md border grid">
-        <div className="grid grid-cols-[7rem_1fr_1fr_1fr_1fr] gap-2 px-2 py-1 text-xs text-muted-foreground border-b bg-muted/40">
-          <span>Код ТН ВЭД</span>
-          <span className="text-right">ТС, ₽</span>
-          <span className="text-right">Пошлина</span>
-          <span className="text-right">НДС</span>
-          <span className="text-right">Начислено</span>
+      {compact ? (
+        // DF-21: панель 320px — пятиколоночная сетка не помещается:
+        // каждая строка — блок «код» + пары «поле: значение».
+        <div className="rounded-md border grid">
+          {calc.items.map((it) => (
+            <div key={it.id} className="grid gap-1 px-2 py-1.5 text-xs border-b last:border-b-0">
+              <span className="font-mono font-medium" title={it.hsCode}>
+                {it.hsCode}
+              </span>
+              <div className="grid gap-0.5">
+                <Pair label="ТС" value={formatMoney(it.customsValue)} />
+                <Pair
+                  label="Пошлина"
+                  value={
+                    formatMoney(it.duty) +
+                    (it.addDuty && Number(it.addDuty) !== 0 ? ` + доп. ${formatMoney(it.addDuty)}` : '')
+                  }
+                />
+                <Pair label="НДС" value={formatMoney(it.vat)} />
+                <Pair label="Начислено" value={formatMoney(it.allocatedCosts)} muted />
+              </div>
+            </div>
+          ))}
         </div>
-        {calc.items.map((it) => (
-          <div
-            key={it.id}
-            className="grid grid-cols-[7rem_1fr_1fr_1fr_1fr] gap-2 px-2 py-1 text-xs border-b last:border-b-0 items-baseline"
-          >
-            <span className="font-mono truncate" title={it.hsCode}>
-              {it.hsCode}
-            </span>
-            <span className="tabular-nums text-right">{formatMoney(it.customsValue)}</span>
-            <span className="tabular-nums text-right">
-              {formatMoney(it.duty)}
-              {it.addDuty && Number(it.addDuty) !== 0 ? ` + доп. ${formatMoney(it.addDuty)}` : ''}
-            </span>
-            <span className="tabular-nums text-right">{formatMoney(it.vat)}</span>
-            <span className="tabular-nums text-right text-muted-foreground">{formatMoney(it.allocatedCosts)}</span>
+      ) : (
+        <div className="rounded-md border grid">
+          <div className="grid grid-cols-[7rem_1fr_1fr_1fr_1fr] gap-2 px-2 py-1 text-xs text-muted-foreground border-b bg-muted/40">
+            <span>Код ТН ВЭД</span>
+            <span className="text-right">ТС, ₽</span>
+            <span className="text-right">Пошлина</span>
+            <span className="text-right">НДС</span>
+            <span className="text-right">Начислено</span>
           </div>
-        ))}
-      </div>
+          {calc.items.map((it) => (
+            <div
+              key={it.id}
+              className="grid grid-cols-[7rem_1fr_1fr_1fr_1fr] gap-2 px-2 py-1 text-xs border-b last:border-b-0 items-baseline"
+            >
+              <span className="font-mono truncate" title={it.hsCode}>
+                {it.hsCode}
+              </span>
+              <span className="tabular-nums text-right">{formatMoney(it.customsValue)}</span>
+              <span className="tabular-nums text-right">
+                {formatMoney(it.duty)}
+                {it.addDuty && Number(it.addDuty) !== 0 ? ` + доп. ${formatMoney(it.addDuty)}` : ''}
+              </span>
+              <span className="tabular-nums text-right">{formatMoney(it.vat)}</span>
+              <span className="tabular-nums text-right text-muted-foreground">{formatMoney(it.allocatedCosts)}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="rounded-md border bg-muted/30 p-3 grid gap-1 text-sm">
         <Row label="Пошлина" value={t.dutyTotal} />
@@ -90,6 +116,16 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
       <span className={strong ? 'font-medium' : 'text-muted-foreground'}>{label}</span>
       <span className={strong ? 'font-semibold tabular-nums' : 'tabular-nums'}>{formatMoney(value)}</span>
     </div>
+  )
+}
+
+// DF-21 (compact): пара «поле: значение» в стопке строк расчёта.
+function Pair({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <span className="flex items-baseline justify-between gap-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={muted ? 'tabular-nums text-muted-foreground' : 'tabular-nums'}>{value}</span>
+    </span>
   )
 }
 

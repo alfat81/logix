@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireClient } from '@/lib/client-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
+import { ACTIVITY_FEED_TAKE, ACTIVITY_PUBLIC_FIELDS } from '@/lib/activity'
+import { eventWhereFor } from '@/lib/audience'
+import { projectActors } from '@/lib/actor-name'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -42,6 +45,17 @@ export async function GET(req: NextRequest, { params }: Params) {
             actualDate: true,
           },
         },
+        // DF-21: журнал сделки в кабинете клиента — ТОЛЬКО события с
+        // аудиторией 'client' (eventWhereFor; внутренние заметки и
+        // служебные события сюда не попадают по построению, в т.ч.
+        // заметка «видна клиенту» из админки). Проекция имён —
+        // ридер клиента (коллеги — имена, чужие — компания, DF-02A).
+        activities: {
+          where: eventWhereFor('client'),
+          orderBy: { createdAt: 'desc' },
+          take: ACTIVITY_FEED_TAKE,
+          select: ACTIVITY_PUBLIC_FIELDS,
+        },
       },
     })
     if (!order) {
@@ -55,6 +69,13 @@ export async function GET(req: NextRequest, { params }: Params) {
     // waitingOnKind может лежать 'contractor'/'manager' — наружу это
     // нельзя); из них собирается нейтральный waiting-объект ниже.
     const { waitingOnKind, waitingReason, waitingSince, ...orderSafe } = order
+
+    // DF-21: имена актёров — по правилам ридера клиента («Анна,
+    // Logix» / коллеги по имени); сама лента уже скоупена аудиторией.
+    const activities = await projectActors(order.activities, {
+      kind: 'client',
+      customerId: auth.client.id,
+    })
 
     return NextResponse.json({
       order: {
@@ -78,6 +99,9 @@ export async function GET(req: NextRequest, { params }: Params) {
           plannedDate: s.plannedDate,
           actualDate: s.actualDate,
         })),
+        // DF-21: журнал — без служебных меток видимости (клиент видит
+        // только свои события — помечать их ему незачем)
+        activities,
       },
     })
   } catch (e) {

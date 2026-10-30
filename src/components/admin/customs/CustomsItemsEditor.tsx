@@ -20,12 +20,15 @@ export function CustomsItemsEditor({
   currencyOptions,
   estimates,
   disabled,
+  compact,
 }: {
   rows: FormItem[]
   onChange: (rows: FormItem[]) => void
   currencyOptions: { code: string; name: string }[]
   estimates: EstimatePrefill[]
   disabled?: boolean
+  // DF-21: режим панели 320px — поля строки в одну колонку
+  compact?: boolean
 }) {
   const patch = (i: number, p: Partial<FormItem>): void =>
     onChange(rows.map((r, idx) => (idx === i ? { ...r, ...p } : r)))
@@ -152,7 +155,7 @@ export function CustomsItemsEditor({
               {row.hsCode} · {row.hsName}
             </div>
           )}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          <div className={compact ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2'}>
             <label className="grid gap-1 text-xs">
               <span className="text-muted-foreground">Стоимость товара</span>
               <div className="flex gap-1">

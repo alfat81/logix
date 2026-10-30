@@ -11,6 +11,9 @@ import {
 import { resolveRouteColumns } from '@/lib/ref-db'
 import { clientActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
+import { ACTIVITY_FEED_TAKE, ACTIVITY_PUBLIC_FIELDS } from '@/lib/activity'
+import { eventWhereFor } from '@/lib/audience'
+import { projectActors } from '@/lib/actor-name'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -42,6 +45,14 @@ const CLIENT_LEAD_DETAIL_SELECT = {
   placesCount: true,
   order: { select: { id: true, number: true } },
   _count: { select: { options: true } },
+  // DF-21: журнал запроса — только события с аудиторией 'client'
+  // (eventWhereFor); имена актёров — ридер клиента (DF-02A)
+  activities: {
+    where: eventWhereFor('client'),
+    orderBy: { createdAt: 'desc' },
+    take: ACTIVITY_FEED_TAKE,
+    select: ACTIVITY_PUBLIC_FIELDS,
+  },
 } as const
 
 export async function GET(req: NextRequest, { params }: Params) {
@@ -58,9 +69,15 @@ export async function GET(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
     const { _count, ...rest } = lead
+    // DF-21: проекция имён актёров журнала под ридера клиента
+    const activities = await projectActors(lead.activities, {
+      kind: 'client',
+      customerId: auth.client.id,
+    })
     return NextResponse.json({
       lead: {
         ...rest,
+        activities,
         // P1-02: правка открыта до первого варианта расчёта
         canEdit: rest.status === 'new' && !rest.order && _count.options === 0,
       },

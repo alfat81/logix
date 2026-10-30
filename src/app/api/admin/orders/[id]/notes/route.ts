@@ -17,6 +17,9 @@ type Params = { params: Promise<{ id: string }> }
 // а не на обновления заявки) — touch, в отличие от лида, не нужен.
 const NoteSchema = z.object({
   text: z.string().trim().min(1).max(NOTE_MAX_LENGTH),
+  // DF-21: переключатель «внутренняя / видна клиенту» — дефолт прежний
+  // (внутренняя): контракт старых клиентов формы не ломается.
+  visibleToClient: z.boolean().optional(),
 })
 
 export async function POST(req: NextRequest, { params }: Params) {
@@ -45,6 +48,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       { orderId: id },
       employeeActor(auth.employee),
       parsed.data.text,
+      { visibleToClient: parsed.data.visibleToClient ?? false },
     )
 
     return NextResponse.json({ note, message: 'Заметка добавлена' })

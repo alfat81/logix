@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Loader2, X } from 'lucide-react'
+import { Loader2, SlidersHorizontal, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -76,6 +76,9 @@ export function OrdersList() {
   // Счётчик версий: сброс списка после создания заявки без копирования
   // load-логики в обработчик.
   const [version, setVersion] = useState(0)
+  // DF-21: на ширинах < xl фильтры направления/типа свёрнуты под кнопку
+  // «Фильтры» (подписи не обрезаются), на xl+ видны сразу.
+  const [filtersOpen, setFiltersOpen] = useState(false)
   // Страж гонок: печатание/смена фильтров порождает запросы быстрее,
   // чем приходят ответы — применяем только последний.
   const reqId = useRef(0)
@@ -191,34 +194,20 @@ export function OrdersList() {
         </Button>
       </div>
 
-      {/* P1-03: фильтры направления и типа перевозки */}
+      {/* P1-03: фильтры направления и типа перевозки — DF-21: на < xl
+          свёрнуты под кнопку «Фильтры» (плейсхолдеры не обрезаются:
+          в панели поля на всю ширину), на xl+ видны сразу. */}
       <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="w-44"
-          placeholder="Откуда (страна/город)"
-          value={originFilter}
-          onChange={(e) => setOriginFilter(e.target.value)}
-        />
-        <span className="text-muted-foreground text-sm">→</span>
-        <Input
-          className="w-44"
-          placeholder="Куда (страна/город)"
-          value={destinationFilter}
-          onChange={(e) => setDestinationFilter(e.target.value)}
-        />
-        <Select value={transportFilter} onValueChange={setTransportFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Тип: любой</SelectItem>
-            {TRANSPORT_TYPE_CODES.map((t) => (
-              <SelectItem key={t} value={t}>
-                {TRANSPORT_TYPE_LABELS[t]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Button
+          size="sm"
+          variant={filtersOpen ? 'default' : 'outline'}
+          className="xl:hidden"
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+        >
+          <SlidersHorizontal className="size-4" />
+          Фильтры
+        </Button>
         {(originFilter || destinationFilter || transportFilter !== 'all') && (
           <Button
             size="sm"
@@ -233,6 +222,40 @@ export function OrdersList() {
             Сбросить
           </Button>
         )}
+      </div>
+      <div
+        className={
+          filtersOpen
+            ? 'flex flex-wrap items-center gap-2'
+            : 'hidden xl:flex xl:flex-wrap xl:items-center xl:gap-2'
+        }
+      >
+        <Input
+          className="w-full sm:w-44"
+          placeholder="Откуда (страна/город)"
+          value={originFilter}
+          onChange={(e) => setOriginFilter(e.target.value)}
+        />
+        <span className="text-muted-foreground text-sm">→</span>
+        <Input
+          className="w-full sm:w-44"
+          placeholder="Куда (страна/город)"
+          value={destinationFilter}
+          onChange={(e) => setDestinationFilter(e.target.value)}
+        />
+        <Select value={transportFilter} onValueChange={setTransportFilter}>
+          <SelectTrigger className="w-full sm:w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Тип: любой</SelectItem>
+            {TRANSPORT_TYPE_CODES.map((t) => (
+              <SelectItem key={t} value={t}>
+                {TRANSPORT_TYPE_LABELS[t]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {loading ? (

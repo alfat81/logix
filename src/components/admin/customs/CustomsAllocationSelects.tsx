@@ -13,14 +13,17 @@ export function CustomsAllocationSelects({
   other,
   onFreight,
   onOther,
+  compact,
 }: {
   freight: 'weight' | 'value'
   other: 'weight' | 'value'
   onFreight: (m: 'weight' | 'value') => void
   onOther: (m: 'weight' | 'value') => void
+  // DF-21: режим панели 320px — в одну колонку
+  compact?: boolean
 }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className={compact ? 'grid gap-2' : 'grid gap-2 sm:grid-cols-2'}>
       <Label className="grid gap-1.5">
         <span className="text-sm">Распределение перевозки</span>
         <select

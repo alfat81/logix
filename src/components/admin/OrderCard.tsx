@@ -154,7 +154,8 @@ export function OrderCard({ order }: { order: OrderRow }) {
 
         <OrderStepper stages={order.stages} orderStatus={order.status} className="mt-3" />
 
-        {/* Сохранённые колонки Ж4: ближайший этап + исполнитель + план;
+        {/* Сохранённые колонки Ж4: ближайший этап + исполнитель + план
+            (DF-21: подпись строки — «Ближайший этап: …», по карточке;
             задержка §4.3 — Brick с круглой иконкой «!». Строки — блоками
             (не flex-wrap): truncate-строка в flex-wrap раздувает
             min-content карточки и выдавала горизонтальный скролл на 375. */}
@@ -162,7 +163,7 @@ export function OrderCard({ order }: { order: OrderRow }) {
           <span className="truncate text-xs text-muted-foreground">
             {order.nearestStage ? (
               <>
-                Сейчас: {order.nearestStage.name}
+                Ближайший этап: {order.nearestStage.name}
                 {' · '}
                 {order.nearestStage.contractorName ?? 'исполнитель не назначен'}
                 {order.nearestStage.plannedDate

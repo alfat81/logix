@@ -201,6 +201,7 @@
 | `ORDER_TRANSITIONS` | `src/lib/status-machine.ts` | ─── Заявка: Расчёт → Согласование → В работе → Завершена ───── |
 | `OrderStagesSummary` | `src/lib/order-summary.ts` | — |
 | `OrderStatus` | `src/lib/order-constants.ts` | — |
+| `OrderStatusCounts` | `src/lib/order-counts.ts` | — |
 | `OrderStatusSuggestion` | `src/lib/status-suggest.ts` | — |
 | `OwnerDigestDecision` | `src/lib/notifications/owner-digest.ts` | — |
 | `OwnerDigestLetterInput` | `src/lib/notifications/owner-digest.ts` | — |
@@ -327,6 +328,7 @@
 | `WaitingReason` | `src/lib/waiting.ts` | — |
 | `WaitingStageSnapshot` | `src/lib/waiting.ts` | — |
 | `ZonedNow` | `src/lib/notifications/windows.ts` | — |
+| `activeOrdersTotal` | `src/lib/order-counts.ts` | Сумма активных статусов (calculating+confirmed+in_progress) — число |
 | `addDocumentVersion` | `src/lib/documents.ts` | — |
 | `allocateComponent` | `src/lib/customs.ts` | Доли компонента baseCents по весам (одинаковый масштаб, BigInt): |
 | `allocationMethods` | `src/lib/customs.ts` | Метод компонента: переопределение менеджера > правило ДТС-1 |
@@ -420,9 +422,11 @@
 | `emitEvent` | `src/lib/events.ts` | Запись события сделки + постановка уведомлений в очередь. |
 | `emitOrderEvents` | `src/lib/orders.ts` | — |
 | `employeeActor` | `src/lib/activity.ts` | — |
+| `emptyOrderStatusCounts` | `src/lib/order-counts.ts` | Каркас счётчиков: нули по всем статусам (порядок ключей — порядок |
 | `enqueueNotifications` | `src/lib/notifications/enqueue.ts` | — |
 | `escapeHsLike` | `src/lib/hs.ts` | Экранирование %/_/\ в строке для Prisma contains (LIKE): без этого |
 | `eventWhereFor` | `src/lib/audience.ts` | Where-фрагмент для чтения ленты данным кабинетом. |
+| `fillOrderStatusCounts` | `src/lib/order-counts.ts` | Наполнение каркаса из результата groupBy by:['status']. |
 | `findOrCreateContract` | `src/lib/orders.ts` | Для новой пары рамочный договор создаётся прозрачно в момент первой |
 | `findOrCreateCustomer` | `src/lib/orders.ts` | Если передан customerId — берём его. Иначе: по телефону (если указан) |
 | `fmtDiffNum` | `src/lib/lead-edit.ts` | ── Форматирование значений для diff ──────────────────────────────── |
@@ -498,6 +502,7 @@
 | `normalizeRefCode` | `src/lib/ref.ts` | Нормализация кода при записи/поиске: страны и валюты — ISO верхний |
 | `nowInZone` | `src/lib/notifications/windows.ts` | Текущее «настенное» время в поясе IANA. |
 | `orderOrderBy` | `src/lib/orders.ts` | — |
+| `orderStatusCounts` | `src/lib/order-counts.ts` | Счётчики по статусам (where — например, поиск списка без фильтра |
 | `ownerDedupKey` | `src/lib/notifications/owner-digest.ts` | — |
 | `ownerDigestDecision` | `src/lib/notifications/owner-digest.ts` | Решение прохода для одного мастера: 'window' — пора (внутри окна), |
 | `parseCbrNumber` | `src/lib/cbr.ts` | Строгое число из формата ЦБ: «79,7653» / «1 234,56» → number; мусор → null. |
@@ -587,6 +592,7 @@
 | Компонент | Файл |
 |---|---|
 | `ActivityFeed` | `src/components/admin/ActivityFeed.tsx` |
+| `AdminBottomNav` | `src/components/admin/AdminBottomNav.tsx` |
 | `AdminNav` | `src/components/admin/AdminNav.tsx` |
 | `AssigneeField` | `src/components/admin/AssigneeField.tsx` |
 | `AttentionScreen` | `src/components/admin/AttentionScreen.tsx` |
@@ -652,6 +658,7 @@
 | `OrderPrintToolbar` | `src/components/admin/OrderPrintToolbar.tsx` |
 | `OrderQuoteCard` | `src/components/admin/order/OrderQuoteCard.tsx` |
 | `OrderQuoteDialog` | `src/components/admin/order/OrderQuoteDialog.tsx` |
+| `OrderSidePanel` | `src/components/admin/order/OrderSidePanel.tsx` |
 | `OrderStages` | `src/components/admin/order/OrderStages.tsx` |
 | `OrderStatusBadge` | `src/components/admin/OrderStatusBadge.tsx` |
 | `OrderStepper` | `src/components/admin/OrderStepper.tsx` |
@@ -869,7 +876,7 @@
 | `LoginAttempt` | 7 | src/lib/login-guard.ts |
 | `Notification` | 19 | scripts/e2e_seed_notification.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/notifications/route.ts, src/lib/notifications/digest.ts, src/lib/notifications/dispatch.ts, src/lib/notifications/owner-digest.ts (+1) |
 | `NotificationPreference` | 5 | — |
-| `Order` | 43 | scripts/backfill_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/customs-calculations/route.ts (+19) |
+| `Order` | 43 | scripts/backfill_waiting.ts, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/customs-calculations/route.ts, src/app/api/admin/orders/[id]/documents/route.ts (+19) |
 | `OrderBroker` | 6 | src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/lib/broker-links.ts |
 | `OrderStageCatalog` | 5 | scripts/seed.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/orders/[id]/route.ts, src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts (+12) |
 | `OrderStageInstance` | 11 | src/app/api/admin/orders/[id]/stages/[stageId]/route.ts, src/app/api/admin/orders/[id]/stages/route.ts, src/app/api/contractor/orders/[id]/stages/[stageId]/route.ts, src/lib/orders.ts |

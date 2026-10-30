@@ -248,6 +248,7 @@ export function LeadCard() {
         <NoteForm targetType="lead" targetId={String(id)} onAdded={load} />
         <ActivityFeed
           activities={lead.activities}
+          showVisibility
           emptyText="Событий пока нет — журнал начнётся с первого действия"
         />
       </aside>

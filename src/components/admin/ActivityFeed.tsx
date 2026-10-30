@@ -2,14 +2,22 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Bot, History, Landmark, StickyNote, Truck, User, Users } from 'lucide-react'
+import { Bot, Eye, History, Landmark, Lock, StickyNote, Truck, User, Users } from 'lucide-react'
 
 // ─── Лента событий (Ж2) ────────────────────────────────────────────
-// Одна и та же лента на карточках заявки и лида: «кто что сделал и
+// Одна и та же лента на карточках заявки и лида (и в кабинете клиента
+// без служебных пометок — showVisibility=false): «кто что сделал и
 // когда». Данные приходят внутри GET карточки (order.activities /
 // lead.activities, свежие сверху) — отдельного запроса ленте не нужно,
 // она движется вместе с карточкой и после действий (PATCH-ответы
 // обновляют состояние целиком).
+//
+// DF-21: метка видимости у каждой записи — «видно клиенту» или
+// «внутреннее» (макет экрана «Заявки»). Носитель — audience события
+// (lib/audience.ts): в списке 'client' → «видно клиенту», иначе
+// «внутреннее». Метка — только сотрудникам: клиентскую ленту она не
+// интересует (клиент и так видит только свои события), помечать её
+// там — шум.
 
 export type ActivityRow = {
   id: string
@@ -17,6 +25,8 @@ export type ActivityRow = {
   actorName: string
   type: string
   description: string
+  // DF-01: аудитория события — носитель видимости (eventWhereFor)
+  audience?: string[]
   // Ж3: заметки рисуются иначе (бейдж «Заметка», акцентная линия)
   isInternal?: boolean
   createdAt: string
@@ -48,9 +58,12 @@ const ACTOR_META: Record<
 export function ActivityFeed({
   activities,
   emptyText = 'Событий пока нет',
+  // DF-21: метки «видно клиенту / внутреннее» — только сотрудникам.
+  showVisibility = false,
 }: {
   activities: ActivityRow[]
   emptyText?: string
+  showVisibility?: boolean
 }) {
   return (
     <Card>
@@ -72,6 +85,7 @@ export function ActivityFeed({
               // текст для своих: акцентная линия + бейдж, чтобы в ленте
               // отличалась от системных событий с одного взгляда.
               const isNote = a.type === 'note_added'
+              const clientVisible = (a.audience ?? []).includes('client')
               return (
                 <li
                   key={a.id}
@@ -97,6 +111,26 @@ export function ActivityFeed({
                         Заметка
                       </Badge>
                     )}
+                    {showVisibility &&
+                      (clientVisible ? (
+                        // «видно клиенту» — нейтральная пара с иконкой глаза
+                        <Badge
+                          variant="outline"
+                          className="gap-1 text-xs border-transparent bg-accent/50 text-foreground"
+                        >
+                          <Eye className="size-3" />
+                          видно клиенту
+                        </Badge>
+                      ) : (
+                        // «внутреннее» — muted с замком (§3.3: без красного)
+                        <Badge
+                          variant="outline"
+                          className="gap-1 text-xs border-transparent bg-muted text-muted-foreground"
+                        >
+                          <Lock className="size-3" />
+                          внутреннее
+                        </Badge>
+                      ))}
                     <span>{a.actorName}</span>
                   </span>
                   <span className="break-words">{a.description}</span>

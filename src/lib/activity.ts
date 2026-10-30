@@ -171,10 +171,11 @@ export type NoteRow = {
   actorName: string
   type: string
   description: string
-  // Форма ответа UI; заметка всегда staff-only — флаг константный
-  // (колонка Activity.isInternal удалена contract-миграцией df_03_contract,
-  // единственная точка видимости — audience, lib/audience.ts).
-  isInternal: true
+  // Форма ответа UI; заметка без переключателя — staff-only (внутренняя);
+  // DF-21: «видна клиенту» — аудитория ['staff','client'], isInternal=false.
+  // Носитель видимости — audience (колонка Activity.isInternal удалена
+  // contract-миграцией df_03_contract, единственная точка — lib/audience.ts).
+  isInternal: boolean
   createdAt: Date
 }
 
@@ -182,9 +183,12 @@ export async function logInternalNote(
   target: ActivityTarget,
   actor: ActivityActor,
   text: string,
-  tx?: Prisma.TransactionClient,
+  // DF-21: переключатель «внутренняя / видна клиенту» — дефолт прежний
+  // (внутренняя, staff-only); tx — транзакция (роут лида пишет touch там же).
+  opts?: { visibleToClient?: boolean; tx?: Prisma.TransactionClient },
 ): Promise<NoteRow> {
-  const client = tx ?? db
+  const client = opts?.tx ?? db
+  const visibleToClient = opts?.visibleToClient ?? false
   const created = await client.activity.create({
     data: {
       ...target,
@@ -193,15 +197,16 @@ export async function logInternalNote(
       actorName: actor.type === 'system' ? SYSTEM_ACTOR_NAME : actor.name,
       type: 'note_added',
       description: text,
-      // DF-01: заметка — staff-only (CHECK activity_audience_nonempty
-      // требует непустую audience; note_added в реестре — ['staff']).
-      audience: ['staff'],
+      // DF-01: непустая audience (CHECK activity_audience_nonempty);
+      // заметка «видна клиенту» адресована ['staff','client'] — брокер
+      // её не видит (его аудитория 'broker' в списке нет), кабинет
+      // подрядчика заморожен (D31) и событий не читает вовсе.
+      audience: visibleToClient ? ['staff', 'client'] : ['staff'],
     },
     select: ACTIVITY_PUBLIC_FIELDS,
   })
-  // isInternal — константная форма ответа (заметка всегда staff-only),
-  // остальное — прямая проекция созданной строки.
-  return { ...created, isInternal: true } as NoteRow
+  // isInternal — производная аудитории (форма ответа UI осталась прежней).
+  return { ...created, isInternal: !visibleToClient } as NoteRow
 }
 
 // ── Чтение ленты (GET карточек) ─────────────────────────────────────

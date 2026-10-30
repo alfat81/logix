@@ -17,6 +17,9 @@ type Params = { params: Promise<{ id: string }> }
 // или заметка без «движения» не рождаются.
 const NoteSchema = z.object({
   text: z.string().trim().min(1).max(NOTE_MAX_LENGTH),
+  // DF-21: переключатель «внутренняя / видна клиенту» — дефолт прежний
+  // (внутренняя): контракт старых клиентов формы не ломается.
+  visibleToClient: z.boolean().optional(),
 })
 
 export async function POST(req: NextRequest, { params }: Params) {
@@ -44,7 +47,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         { leadId: id },
         employeeActor(auth.employee),
         parsed.data.text,
-        tx,
+        { visibleToClient: parsed.data.visibleToClient ?? false, tx },
       )
       // Touch по образцу В3: @updatedAt тронулся бы и от неявного
       // обновления, но явная запись читается яснее намерения.

@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { CargoFormFields, CargoGroups } from '@/components/admin/CargoGroups'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
+import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
 import { ClientLeadStatusBadge } from '@/components/client/ClientBadges'
 import {
   EMPTY_LEAD_CARGO_FORM,
@@ -52,7 +53,13 @@ type ClientLeadDetail = {
   order: { id: string; number: string } | null
   // P1-02: правка открыта до первого варианта расчёта
   canEdit?: boolean
+  // DF-21: журнал запроса — события с аудиторией 'client', без меток
+  activities?: ClientActivityRow[]
 }
+
+// DF-21: строка журнала клиентского кабинета — проекция ActivityFeed
+type ClientActivityRow = ActivityRow
+
 
 const fmtDate = (iso: string): string => new Date(iso).toLocaleDateString('ru-RU')
 
@@ -233,6 +240,13 @@ export function ClientLeadCard() {
           сервиса (Е). После конвертации — пусто и читать нечего:
           файлы переехали в заявку (В4), раздел остаётся для истории
           до перехода. */}
+      {/* DF-21: журнал запроса — заметки менеджера «видна клиенту» и
+          события статусов; без служебных меток и внутренних событий */}
+      <ActivityFeed
+        activities={lead.activities ?? []}
+        emptyText="Событий пока нет — здесь появятся новости по вашему запросу"
+      />
+
       {!lead.order && (
         <DocumentsSection
           documentsUrl={`/api/client/leads/${lead.id}/documents`}

@@ -132,15 +132,7 @@
       "reason": "первичный baseline DF-00B"
     },
     {
-      "key": "block:src/app/api/broker/orders/[id]/route.ts~src/app/api/client/orders/[id]/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
       "key": "block:src/app/api/broker/orders/[id]/route.ts~src/app/api/client/orders/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/broker/orders/route.ts~src/app/api/client/orders/[id]/route.ts",
       "reason": "первичный baseline DF-00B"
     },
     {
@@ -149,10 +141,6 @@
     },
     {
       "key": "block:src/app/api/client/leads/[id]/documents/route.ts~src/app/api/client/orders/[id]/documents/route.ts",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/app/api/client/orders/[id]/route.ts~src/app/api/client/orders/route.ts",
       "reason": "первичный baseline DF-00B"
     },
     {

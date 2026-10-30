@@ -39,6 +39,7 @@ export function CustomsCalcForm({
   estimates,
   onDone,
   onCancel,
+  compact,
 }: {
   targetType: 'lead' | 'order'
   targetId: string
@@ -49,6 +50,8 @@ export function CustomsCalcForm({
   estimates: EstimatePrefill[]
   onDone: () => void
   onCancel: () => void
+  // DF-21: режим панели 320px — все сетки в одну колонку
+  compact?: boolean
 }) {
   const { toast } = useToast()
   const [busy, setBusy] = useState(false)
@@ -172,9 +175,14 @@ export function CustomsCalcForm({
   const freightLabel =
     flags.deductPostArrival && !flags.addFreightToArrival ? 'Фрахт в цене товара (для вычета заполните часть до прибытия)' : 'Фрахт по счёту'
 
+  // DF-21 (compact): вьюпортные сетки в узкой панели ломаются —
+  // в одну колонку; на широкой форме поведение прежнее.
+  const cols2 = compact ? 'grid gap-3' : 'grid gap-3 sm:grid-cols-2'
+  const cols4 = compact ? 'grid gap-3' : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-4'
+
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={cols2}>
         <IncotermPicker value={incoterm} onPick={(p) => setIncoterm(p?.code ?? '')} label="Условия поставки" />
         <Label className="grid gap-1.5">
           <span className="text-sm">Место условия поставки</span>
@@ -182,7 +190,7 @@ export function CustomsCalcForm({
         </Label>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={cols4}>
         {(flags.addFreightToArrival || flags.deductPostArrival) && (
           <>
             <Label className="grid gap-1.5">
@@ -228,7 +236,7 @@ export function CustomsCalcForm({
         </Label>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={cols4}>
         <Label className="grid gap-1.5">
           <span className="text-sm">Дата регистрации ДТ</span>
           <Input type="date" value={calcDate} onChange={(e) => setCalcDate(e.target.value)} />
@@ -248,9 +256,10 @@ export function CustomsCalcForm({
         values={fxManual}
         onChange={(code, value) => setFxManual((prev) => ({ ...prev, [code]: value }))}
         disabled={busy}
+        compact={compact}
       />
 
-      <CustomsItemsEditor rows={rows} onChange={setRows} currencyOptions={currencyOptions} estimates={estimates} disabled={busy} />
+      <CustomsItemsEditor rows={rows} onChange={setRows} currencyOptions={currencyOptions} estimates={estimates} disabled={busy} compact={compact} />
 
       {rows.length > 1 && (
         <CustomsAllocationSelects
@@ -258,6 +267,7 @@ export function CustomsCalcForm({
           other={overrideOther}
           onFreight={setOverrideFreight}
           onOther={setOverrideOther}
+          compact={compact}
         />
       )}
 

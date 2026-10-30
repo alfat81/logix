@@ -4,11 +4,12 @@ import Link from 'next/link'
 import { Container } from 'lucide-react'
 import { getEmployeeByToken, SESSION_COOKIE } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { ORDER_ACTIVE_STATUSES } from '@/lib/order-constants'
 import { LEAD_ACTIVE_STATUSES } from '@/lib/leads'
 import { LogoutButton } from '@/components/admin/LogoutButton'
 import { AdminNav } from '@/components/admin/AdminNav'
+import { AdminBottomNav } from '@/components/admin/AdminBottomNav'
 import { GlobalSearch } from '@/components/admin/GlobalSearch'
+import { activeOrdersTotal, orderStatusCounts } from '@/lib/order-counts'
 
 // Защищённая зона кабинета (route group «(dashboard)» не влияет на URL):
 // всё под /admin, кроме /admin/login, требует живую сессию сотрудника.
@@ -42,10 +43,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const isMaster = employee.roles.includes('master')
 
   // §4.1: счётчики активных объектов у сделочных пунктов меню.
-  const [activeOrders, activeLeads] = await Promise.all([
-    db.order.count({ where: { status: { in: [...ORDER_ACTIVE_STATUSES] } } }),
+  // DF-21: бейдж «Заявки» считается из ЕДИНОГО источника с табами
+  // списка (orderStatusCounts + activeOrdersTotal, lib/order-counts.ts) —
+  // e2e сверяет число бейджа с суммой активных табов API.
+  const [orderCounts, activeLeads] = await Promise.all([
+    orderStatusCounts(),
     db.lead.count({ where: { status: { in: [...LEAD_ACTIVE_STATUSES] } } }),
   ])
+  const activeOrders = activeOrdersTotal(orderCounts)
 
   return (
     <div className="min-h-screen">
@@ -63,7 +68,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </Link>
           </div>
           <nav className="flex-1 overflow-y-auto py-4 px-3">
-            <AdminNav variant="sidebar" isMaster={isMaster} counts={{ '/admin/orders': activeOrders, '/admin/leads': activeLeads }} />
+            <AdminNav isMaster={isMaster} counts={{ '/admin/orders': activeOrders, '/admin/leads': activeLeads }} />
           </nav>
           <div className="border-t border-sidebar-border px-4 py-3 flex items-center gap-3 shrink-0">
             <span className="text-sm text-muted-foreground truncate">{employee.name}</span>
@@ -94,23 +99,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </div>
           </header>
 
-          {/* Мобильная навигация: горизонтальная полоса прокрутки
-              (заголовки секций опущены — на узком экране место дороже). */}
-          <div className="md:hidden border-b bg-card overflow-x-auto">
-            <div className="px-2 py-1">
-              <AdminNav variant="strip" isMaster={isMaster} />
-            </div>
-          </div>
+          {/* Нижняя панель навигации телефона — в конце layout (fixed),
+              контенту ниже задан отступ pb-20; DF-21 */}
+          <main className="px-4 md:px-6 py-6 pb-20 md:pb-6">{children}</main>
 
-          <main className="px-4 md:px-6 py-6">{children}</main>
-
-          <footer className="border-t">
+          <footer className="border-t hidden md:block">
             <div className="px-4 md:px-6 h-12 flex items-center text-sm text-muted-foreground">
               Logix MVP · рабочее место менеджера: заявки · запросы · подрядчики
             </div>
           </footer>
         </div>
       </div>
+
+      {/* DF-21: нижняя панель навигации телефона (≤768px) */}
+      <AdminBottomNav isMaster={isMaster} />
     </div>
   )
 }

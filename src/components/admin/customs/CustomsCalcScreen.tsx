@@ -28,6 +28,7 @@ export function CustomsCalcScreen({
   initialPlace,
   freightSuggest,
   onChanged,
+  compact,
 }: {
   targetType: 'lead' | 'order'
   targetId: string
@@ -36,6 +37,9 @@ export function CustomsCalcScreen({
   initialPlace?: string | null
   freightSuggest?: FreightSuggest
   onChanged?: () => void
+  // DF-21: режим правой панели 320px — формы в одну колонку, строки
+  // расчёта стопкой (вьюпортные sm:/lg: сетки в узкой панели ломаются).
+  compact?: boolean
 }) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -101,10 +105,11 @@ export function CustomsCalcScreen({
             estimates={estimates}
             onDone={onDone}
             onCancel={() => setFormMode(null)}
+            compact={compact}
           />
         ) : current ? (
           <div className="grid gap-3">
-            <CustomsCalcResult calc={current} />
+            <CustomsCalcResult calc={current} compact={compact} />
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" variant="outline" onClick={() => setFormMode('edit')}>
                 <Pencil className="size-3.5" />

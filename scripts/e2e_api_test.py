@@ -246,6 +246,26 @@ s,d=a.r('POST',f'/api/admin/orders/{oid}/notes',{'text':note}); chk('DF-01: вн
 s,d=a.r('GET',f'/api/admin/orders/{oid}'); Oa=d.get('order',d); oacts=Oa.get('activities',[])
 chk('DF-01: заметка в ленте сотрудника (staff видит всё; df_03_contract: приватность = audience)',any(x['type']=='note_added' and x.get('audience')==['staff'] and x['description']==note for x in oacts),[x['type'] for x in oacts[:6]])
 chk('DF-01: статус-событие заявки адресовано клиенту',any(x['type']=='order_status_changed' and 'client' in (x.get('audience') or []) for x in oacts),[x['type'] for x in oacts[:6]])
+# --- DF-21: заметка «видна клиенту» — аудитория staff+client; SSR админки: меню, бейдж ---
+cnote='Комментарий для клиента DF-21 '+u
+s,d=a.r('POST',f'/api/admin/orders/{oid}/notes',{'text':cnote,'visibleToClient':True}); chk('DF-21: заметка «видна клиенту» создана',s in(200,201),(s,d))
+chk('DF-21: аудитория заметки — staff+client, isInternal=false',(d.get('note') or {}).get('audience')==['staff','client'] and (d.get('note') or {}).get('isInternal') is False,(d.get('note') or {}))
+s,d=a.r('GET',f'/api/admin/orders/{oid}'); oacts21=(d.get('order',d)).get('activities',[])
+chk('DF-21: сотрудник видит обе заметки — аудитории разные',any(x['type']=='note_added' and x.get('audience')==['staff'] and x['description']==note for x in oacts21) and any(x['type']=='note_added' and x.get('audience')==['staff','client'] and x['description']==cnote for x in oacts21),[(x.get('type'),x.get('audience')) for x in oacts21[:8]])
+# SSR /admin/orders: состав меню (без несуществующих разделов) и бейдж из одного источника с табами
+import re
+s,h=a.r('GET','/admin/orders'); page=h.decode('utf-8','ignore') if isinstance(h,(bytes,bytearray)) else str(h)
+navm=re.search(r'<aside[ >].*?</aside>',page,re.S); nav=navm.group(0) if navm else ''
+chk('DF-21: SSR админки содержит сайдбар',bool(nav),(s,len(page)))
+for lb in ('Пульс','Заявки','Запросы','Клиенты','Брокеры','Подрядчики','Справочники','Настройки'):
+    chk(f'DF-21: пункт меню «{lb}» присутствует',(lb in nav),nav[:120])
+for bad in ('Котировки','Мониторинг','Перевозчики'):
+    chk(f'DF-21: несуществующий раздел «{bad}» в меню отсутствует',(bad not in nav),bad)
+s,d=a.r('GET','/api/admin/orders'); cnts=(d.get('counts') or {})
+badge_m=re.search(r'data-nav-badge="/admin/orders"[^>]*>\s*(\d+)\s*<',page)
+chk('DF-21: бейдж «Заявки» отрисован в SSR',bool(badge_m),page[-400:] if not badge_m else '')
+active_sum=sum(cnts.get(k,0) for k in ('calculating','confirmed','in_progress'))
+chk('DF-21: бейдж «Заявки» == сумма активных табов API (один источник)',bool(badge_m) and int(badge_m.group(1))==active_sum,(badge_m.group(1) if badge_m else None,active_sum,cnts))
 # client access — DF-02A: выдача доступа создаёт ОСНОВНОГО пользователя
 # компании (имя человека задаёт менеджер); логин прежний — телефон
 # компании + пароль (критерий приёмки: вход без смены пароля)
@@ -260,7 +280,8 @@ txt=json.dumps(d,ensure_ascii=False)
 chk('клиент НЕ видит цену/снимок',('1200000' not in txt),'price leaked')
 chk('P1-04: клиент НЕ видит себестоимость',('costEstimate' not in txt and '999999.99' not in txt),'cost leaked to client')
 chk('клиент НЕ видит подрядчика',('Перевозчик '+u) not in txt,'contractor name leaked')
-chk('DF-01: клиент НЕ видит ленту событий (activities)',('activities' not in txt),'activities leaked to client')
+chk('DF-21: журнал сделки теперь в кабинете клиента (события с аудиторией client)',isinstance((d.get('order') or {}).get('activities'),list) and all('client' in (x.get('audience') or []) for x in (d.get('order') or {}).get('activities') or []),[(x.get('type'),x.get('audience')) for x in ((d.get('order') or {}).get('activities') or [])[:6]])
+chk('DF-21: клиент видит заметку «видна клиенту»',(cnote in txt),'client-visible note missing')
 chk('DF-01: клиент НЕ видит внутреннюю заметку',(note not in txt),'note leaked to client')
 chk('DF-05: мяч не у клиента — waiting наружу не идёт',(d.get('order') or {}).get('waiting') is None,d.get('order',{}).get('waiting'))
 chk('DF-05: служебные waiting-колонки не утекают клиенту',('waitingOnKind' not in txt and 'waitingReason' not in txt and 'waitingSince' not in txt),'waiting leak')

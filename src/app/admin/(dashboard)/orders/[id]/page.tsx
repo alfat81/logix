@@ -3,13 +3,20 @@
 // Карточка заявки (Ж1). P1-19: монолит 1169 строк разрезан на
 // order/OrderCargoCard, order/OrderQuoteCard, order/OrderStages и
 // order/types.ts (RULES 2.14, файлы ≤ 300). Layout — BRANDBOOK §4:
-// рабочая область 1fr + правая панель «Детали/Журнал» 320px (заметка
-// Ж3 + лента Ж2, sticky; < xl панель складывается вниз, DOM-порядок
-// сохранён) — симметрично карточке лида (этап B, P1-18).
+// рабочая область 1fr + правая панель 320px.
+//
+// DF-21: правая панель — вкладки «События | Документы | Расчёт»
+// (order/OrderSidePanel.tsx) с номером заявки, совпадающим с шапкой
+// страницы (один GET — один order.number); заметка и лента переехали
+// во вкладку «События», документы — в «Документы», расчёт таможенных
+// платежей — в «Расчёт» (DF-19 закрыт; чата и «AI Assistant» нет).
+// На телефоне (≤768px, §4.5) страница — полноэкранный «лист деталей»
+// с кнопкой «Назад»; основная колонка складывается под панелью без
+// изменения DOM-порядка.
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowRight, Loader2, Printer } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -23,15 +30,12 @@ import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { OrderStatusBadge } from '@/components/admin/OrdersList'
 import { WaitingBadge } from '@/components/admin/WaitingBadge'
-import { ActivityFeed } from '@/components/admin/ActivityFeed'
 import { Breadcrumbs } from '@/components/admin/Breadcrumbs'
 import { AssigneeField } from '@/components/admin/AssigneeField'
-import { NoteForm } from '@/components/admin/NoteForm'
-import { DocumentsSection } from '@/components/documents/DocumentsSection'
 import { InfoField } from '@/components/admin/InfoField'
 import { BrokerLinksSection, type BrokerEstimateRow } from '@/components/admin/BrokerLinksSection'
-import { CustomsCalcScreen } from '@/components/admin/customs/CustomsCalcScreen'
 import { toEstimatePrefill } from '@/components/admin/customs/prefill'
+import { OrderSidePanel } from '@/components/admin/order/OrderSidePanel'
 import { CARGO_PROFILE_LABELS } from '@/lib/order-constants'
 import {
   ORDER_STATUSES,
@@ -117,9 +121,19 @@ export default function OrderPage() {
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-6">
-      {/* BRANDBOOK §4: рабочая область 1fr + правая панель 320px
-          (P1-19 — панель теперь и у заявки; < xl складывается вниз) */}
+      {/* BRANDBOOK §4: рабочая область 1fr + правая панель 320px (DF-21 —
+          панель с вкладками «События | Документы | Расчёт»); < xl панель
+          складывается вниз после основной колонки, DOM-порядок сохранён */}
       <div className="space-y-4 min-w-0">
+        {/* §4.5 (DF-21): на телефоне лист деталей начинается кнопкой
+            «Назад» (md:hidden); на md+ путь показывает Ж7-крошки */}
+        <Link
+          href="/admin/orders"
+          className="md:hidden inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" aria-hidden />
+          Назад
+        </Link>
         {/* Ж7: крошки вместо кнопки «назад» — путь виден целиком
             (Главная / Заявки / текущая заявка). */}
         <Breadcrumbs
@@ -254,45 +268,22 @@ export default function OrderPage() {
           emptyText="Брокеры не подключены — сделка видна только менеджеру и подключённым подрядчикам своих этапов"
         />
 
-        {/* ── DF-19: расчёт таможенных платежей заявки (оценка в рублях;
-            проценты брокера — с лида-источника, отменённая — без секции) */}
-        {order.status !== 'cancelled' && (
-          <CustomsCalcScreen
-            targetType="order"
-            targetId={String(id)}
-            estimates={toEstimatePrefill(order.lead?.brokers ?? [])}
-            initialIncoterm={order.incotermCode}
-            initialPlace={order.incotermPlace}
-            onChanged={load}
-          />
-        )}
-
-        {/* ── Е: документы сделки (роадмап 5) — обмен клиент/брокер/
-            менеджер внутри сервиса, версионность; менеджер видит всё,
-            включая внутренние. */}
-        <DocumentsSection
-          documentsUrl={`/api/admin/orders/${id}/documents`}
-          versionsUrlFor={(docId) => `/api/admin/documents/${docId}/versions`}
-          deleteUrlFor={(docId) => `/api/admin/documents/${docId}`}
-          canMarkInternal
-          emptyText="Документов нет — товаросопроводительные и таможенные бумаги живут здесь, без почты"
-        />
-
         <OrderStages orderId={String(id)} stages={order.stages} onChanged={load} />
       </div>
 
-      {/* Правая панель «Детали/Журнал» (BRANDBOOK §4, 320px, P1-19):
-          заметка (Ж3) + лента (Ж2). Sticky на xl; на < xl — блок внизу. */}
-      <aside className="space-y-4 min-w-0 xl:sticky xl:top-14">
-        {/* Ж3: внутренняя заметка — пишется в ленту, видна только
-            сотрудникам (подрядчику/клиенту isInternal не отдаётся) */}
-        <NoteForm targetType="order" targetId={String(id)} onAdded={load} />
-
-        {/* Ж2: лента событий — хроника заявки (статусы, суть,
-            этапы, исполнители) от сотрудников и подрядчиков */}
-        <ActivityFeed
+      {/* Правая панель (BRANDBOOK §4, 320px) — DF-21: вкладки
+          «События | Документы | Расчёт»; номер в панели = номер шапки
+          (один order.number). Sticky на xl; на < xl — блок внизу. */}
+      <aside className="min-w-0 xl:sticky xl:top-14">
+        <OrderSidePanel
+          orderNumber={order.number}
+          orderId={String(id)}
+          status={order.status}
           activities={order.activities}
-          emptyText="Событий пока нет — журнал начнётся с первого действия"
+          estimates={toEstimatePrefill(order.lead?.brokers ?? [])}
+          initialIncoterm={order.incotermCode}
+          initialPlace={order.incotermPlace}
+          onChanged={load}
         />
       </aside>
     </div>

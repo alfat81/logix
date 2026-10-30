@@ -11,6 +11,7 @@ import { readApiResponse } from '@/lib/api-client'
 // ClientHome): показывает собственную анкету клиента по заявке.
 import { CargoGroups } from '@/components/admin/CargoGroups'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
+import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
 import {
   ClientOrderStatusBadge,
   ClientStageStatusBadge,
@@ -44,10 +45,16 @@ type ClientOrder = {
   // (роут client/orders/[id] отдаёт служебные kind наружу нельзя);
   // текст — WAITING_CLIENT_LABELS, никаких «менеджер/брокер/этап».
   waiting: { reason: string | null; since: string } | null
+  // DF-21: журнал сделки — события с аудиторией 'client' (заметки
+  // «видна клиенту», статусы, документы); без служебных меток
+  activities?: ClientActivityRow[]
 }
 
 const fmtDate = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString('ru-RU') : '—'
+
+// DF-21: строка журнала клиентского кабинета — проекция ActivityFeed
+type ClientActivityRow = ActivityRow
 
 export function ClientOrderCard() {
   const { id } = useParams<{ id: string }>()
@@ -158,6 +165,13 @@ export function ClientOrderCard() {
           />
         </CardContent>
       </Card>
+
+      {/* DF-21: журнал сделки — заметки менеджера «видна клиенту» и
+          события статусов; без служебных меток и внутренних событий */}
+      <ActivityFeed
+        activities={order.activities ?? []}
+        emptyText="Событий пока нет — здесь появятся новости по вашей заявке"
+      />
 
       {/* ── Е: документы сделки (роадмап 5) — клиент загружает проекты
           и видит правки брокера/менеджера в истории версий; обмен

@@ -14,11 +14,14 @@ export function CustomsFxInputs({
   values,
   onChange,
   disabled,
+  compact,
 }: {
   usedCurrencies: string[]
   values: Record<string, string>
   onChange: (code: string, value: string) => void
   disabled?: boolean
+  // DF-21: режим панели 320px — в одну колонку
+  compact?: boolean
 }) {
   if (usedCurrencies.length === 0) return null
   return (
@@ -26,7 +29,7 @@ export function CustomsFxInputs({
       <span className="text-sm font-medium">
         Курсы вручную за единицу (пусто — курс ЦБ из справочника)
       </span>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className={compact ? 'grid gap-2' : 'grid gap-2 sm:grid-cols-3'}>
         {usedCurrencies.map((code) => (
           <label key={code} className="grid gap-1.5">
             <span className="text-sm">{code}</span>

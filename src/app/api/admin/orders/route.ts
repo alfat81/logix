@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
-import { ORDER_STATUSES, CARGO_PROFILES, type OrderStatus } from '@/lib/order-constants'
+import { ORDER_STATUSES, CARGO_PROFILES } from '@/lib/order-constants'
 import { createOrderWithStages, findOrCreateCustomer, summarizeOrderStages, calcOrderEta, todayUtcMidnight, buildOrderSearch, buildOrderListWhere } from '@/lib/orders'
 import { normalizePhone } from '@/lib/phone'
 import { employeeActor } from '@/lib/activity'
@@ -12,6 +12,7 @@ import { ORDER_SORTS, orderOrderBy } from '@/lib/orders'
 import { TRANSPORT_TYPE_CODES } from '@/lib/route-fields'
 import { resolveDealCodes } from '@/lib/ref-db'
 import { apiErrorResponse } from '@/lib/api-errors'
+import { emptyOrderStatusCounts, fillOrderStatusCounts } from '@/lib/order-counts'
 
 // ─── GET /api/admin/orders — список заявок (Ж4: рабочий инструмент) ───
 // Эталонный паттерн списка (принцип 2 очереди) — его копируют Ж5/Ж6:
@@ -107,7 +108,8 @@ export async function GET(req: NextRequest) {
           },
         },
       }),
-      // Счётчики без фильтра таба (см. комментарий роута).
+      // Счётчики без фильтра таба (см. комментарий роута); сборка —
+      // единый источник с бейджем меню (lib/order-counts.ts, DF-21).
       db.order.groupBy({
         by: ['status'],
         where: search,
@@ -122,19 +124,9 @@ export async function GET(req: NextRequest) {
     const stageNames = new Map(catalog.map((c) => [c.code, c.name]))
     const todayUtc = todayUtcMidnight()
 
-    const counts: Record<'all' | OrderStatus, number> = {
-      all: 0,
-      calculating: 0,
-      confirmed: 0,
-      in_progress: 0,
-      completed: 0,
-      cancelled: 0,
-    }
-    for (const g of grouped) {
-      const n = g._count._all
-      counts[g.status as OrderStatus] = n
-      counts.all += n
-    }
+    // DF-21: каркас+наполнение — из lib/order-counts.ts (единый источник
+    // с бейджем «Заявки» в меню; состав статусов — ORDER_STATUSES).
+    const counts = fillOrderStatusCounts(emptyOrderStatusCounts(), grouped)
 
     return NextResponse.json({
       orders: page.map((o) => ({
