@@ -104,7 +104,7 @@ export function ContractorOrdersList() {
                 <div className="flex flex-wrap items-center gap-1.5 ml-2">
                   {o.stages.map((s) => (
                     <span key={s.id} className="flex items-center gap-1.5">
-                      <Badge variant="outline" className="text-xxs font-normal">
+                      <Badge variant="outline" className="text-xs font-normal">
                         {s.name}
                       </Badge>
                       <StageStatusBadge status={s.status} />

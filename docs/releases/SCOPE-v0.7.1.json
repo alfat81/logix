@@ -1,0 +1,38 @@
+{
+  "task": "DF-20 «Визуальные правила: контраст, красный сигнал, мобильные правила» 0.7.1 — факт. Токены Brick-strong/Success-strong/Action-icon + primary-foreground→Ink/destructive→Brick-strong/ring→Action-icon; теги по правилу точки (badge.tsx, status-badges.ts, варианты critical/draft/checking/final); красный убран из логотипа/меню/счётчика/степпера/табов/цен (Ink/Action-icon); text-xxs→text-xs (13 компонентов); брендбук v1.3 (§3.3, §4.5, §8.6); IC-17 (contrast_check.py + contrast-pairs.json) в integrity;ROADMAP/CHANGELOG/INVENTORY. Без миграций, без новых env, без изменений API — поведение не менялось.",
+  "areas": [
+    "ИСКЛЮЧЕНИЕ unfreeze (D31): src/components/contractor/ContractorOrdersList.tsx — только text-xxs→text-xs (10→12px, механика минимума 12px IC-17); кабинет подрядчика не развивается, контент не менялся",
+    "токены: src/app/globals.css — --brick-strong/--success-strong/--action-icon, primary-foreground→Ink, destructive→Brick-strong, ring→Action-icon, accent/warning-foreground→Ink, статус-пары + --status-*-dot, удалён --text-xxs",
+    "бейджи: src/components/ui/badge.tsx — точки before: 8px, варианты +review/critical/draft/checking/final; src/lib/status-badges.ts — ремап new/calculated→review, тип +review/critical",
+    "навигация/лого: src/app/admin/(dashboard)/layout.tsx, src/app/client/(portal)/layout.tsx, src/app/contractor/(portal)/layout.tsx (знак Ink), src/components/admin/AdminNav.tsx (активный Ink + полоска 3px Action-icon, иконка Action-icon)",
+    "акценты: OrderStepper (текущий этап/филл Action-icon), ListTabs, QuoteOptionsSection, ComboOptionRow (Action-icon), OrderCard/LeadListCard (цена/ETA Ink), ActivityFeed (чипы актёров контрастные, Заметка, border-action-icon)",
+    "размер текста: text-xxs→text-xs в 13 компонентах (ActivityFeed, CustomsCalcResult, CustomsItemsEditor, BrokerUsersDialog, QuoteOptionsSection, BrokerCard, CustomerCabinetAccess, EstimateView, ContractorPoolSection, OrderQuoteCard, StageCard, BrokerLinksSection, AttentionSections, RawInfoView, ContractorOrderCard, ContractorOrdersList, ItemsEditor)"
+  ],
+  "unfreeze": true,
+  "globs": [
+    "CHANGELOG.md",
+    "docs/BRANDBOOK.md",
+    "docs/INVENTORY.md",
+    "docs/ROADMAP-DEALFLOW.md",
+    "docs/ROADMAP.md",
+    "docs/design/contrast-pairs.json",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.7.1.md",
+    "docs/releases/RELEASE-NOTES-v0.7.1.md",
+    "docs/releases/SCOPE-v0.7.1.json",
+    "package.json",
+    "scripts/contrast_check.py",
+    "scripts/integrity-baseline.json",
+    "scripts/integrity_check.py",
+    "src/app/admin/(dashboard)/layout.tsx",
+    "src/app/client/(portal)/layout.tsx",
+    "src/app/contractor/(portal)/layout.tsx",
+    "src/app/globals.css",
+    "src/components/admin/**",
+    "src/components/broker/**",
+    "src/components/contractor/**",
+    "src/components/references/ComboOptionRow.tsx",
+    "src/components/ui/badge.tsx",
+    "src/components/ui/button.tsx",
+    "src/lib/status-badges.ts"
+  ]
+}

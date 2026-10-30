@@ -34,13 +34,13 @@ export function BrokerCard({
             <span className="text-muted-foreground tabular-nums">
               с {fmtBrokerDate(broker.createdAt)}
             </span>
-            <Badge variant="outline" className="text-xxs text-muted-foreground">
+            <Badge variant="outline" className="text-xs text-muted-foreground">
               {broker.isInHouse ? BROKER_KIND_TEXT.in_house : BROKER_KIND_TEXT.external}
             </Badge>
             {!broker.isActive && (
               <Badge
                 variant="outline"
-                className="text-xxs bg-destructive/10 text-destructive border-transparent"
+                className="text-xs bg-destructive/10 text-destructive border-transparent"
               >
                 деактивирован
               </Badge>

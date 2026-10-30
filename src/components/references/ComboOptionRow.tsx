@@ -49,7 +49,7 @@ export function ComboOptionRow({
       <span className="truncate">{name}</span>
       {trailing}
       {selected && (
-        <Check className={`${trailing ? 'ml-1' : 'ml-auto'} size-4 shrink-0 text-primary`} />
+        <Check className={`${trailing ? 'ml-1' : 'ml-auto'} size-4 shrink-0 text-action-icon`} />
       )}
     </button>
   )

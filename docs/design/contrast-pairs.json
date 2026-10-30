@@ -1,0 +1,20 @@
+{
+  "_comment": "DF-20 (D40): обязательные пары контраста IC-17 (BRANDBOOK v1.3). fg/bg — hex ИЛИ имя токена из :root globals.css (например --brick-strong). kind: text — минимум 4.5 (WCAG AA для обычного текста), ui — минимум 3.0 (крупный текст и элементы интерфейса). Расширять можно, сокращать нельзя: это обязательный минимум карточки DF-20.",
+  "min_text": 4.5,
+  "min_ui": 3.0,
+  "pairs": [
+    { "fg": "#2B2A26", "bg": "#FDFBF7", "kind": "text", "why": "Ink на Ivory — основной текст" },
+    { "fg": "#2B2A26", "bg": "#FAF3E0", "kind": "text", "why": "Ink на Sand — текст сайдбара" },
+    { "fg": "#2B2A26", "bg": "#FFFFFF", "kind": "text", "why": "Ink на White — текст форм" },
+    { "fg": "#6B6455", "bg": "#FDFBF7", "kind": "text", "why": "Muted на Ivory — вторичные подписи" },
+    { "fg": "#6B6455", "bg": "#FAF3E0", "kind": "text", "why": "Muted на Sand — подписи сайдбара (5,3)" },
+    { "fg": "#6B6455", "bg": "#FFFFFF", "kind": "text", "why": "Muted на White — подписи форм" },
+    { "fg": "#6B6455", "bg": "#F1EAD9", "kind": "text", "why": "Muted на muted — пара V-бейджа/ЧЕРНОВИК" },
+    { "fg": "#2B2A26", "bg": "#F28C8C", "kind": "text", "why": "Ink на Coral — текст основных кнопок и счётчиков (6,09)" },
+    { "fg": "#FFFFFF", "bg": "--brick-strong", "kind": "text", "why": "белый на Brick-strong — критичная кнопка, ТРЕБУЕТ РЕШЕНИЯ (4,97)" },
+    { "fg": "--brick-strong", "bg": "#FDFBF7", "kind": "text", "why": "Brick-strong на Ivory — красный текст сигнала" },
+    { "fg": "#2B2A26", "bg": "#FCEBEA", "kind": "text", "why": "Ink на accent-тинте — В ПУТИ/В РАБОТЕ/ОЖИДАНИЕ/НА ПРОВЕРКЕ" },
+    { "fg": "--success-strong", "bg": "#E6F1E4", "kind": "text", "why": "Success-strong на success-тинте — ДОСТАВЛЕНО/ФИНАЛЬНЫЙ (5,55)" },
+    { "fg": "--action-icon", "bg": "#FDFBF7", "kind": "ui", "why": "Action-icon на Ivory — иконки/рамки/фокус (4,28)" }
+  ]
+}

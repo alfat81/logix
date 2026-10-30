@@ -46,7 +46,7 @@
 | `CLIENT_SESSION_COOKIE` | `src/lib/client-auth.ts` | Кабинет клиента (И1). Механизм сессий — lib/portal-auth.ts. |
 | `COMPETENCIES_DIRECTIONS_KEY` | `src/lib/contractors.ts` | — |
 | `COMPETENCIES_TRANSPORT_KEY` | `src/lib/contractors.ts` | — |
-| `CONTRACTOR_LEAD_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Кандидат в подрядчики (Г1): новый — ожидание, на проверке — движение, |
+| `CONTRACTOR_LEAD_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Кандидат в подрядчики (Г1): новый — ожидание расчёта (review), |
 | `CONTRACTOR_LEAD_STATUSES` | `src/lib/contractors.ts` | ─── Статусы кандидата (ContractorLead, Г1/Г2) ────────────────────── |
 | `CONTRACTOR_LEAD_STATUS_LABELS` | `src/lib/contractors.ts` | — |
 | `CONTRACTOR_PUBLIC_FIELDS` | `src/lib/contractors.ts` | ─── Публичная проекция подрядчика (Г3) ───────────────────────── |
@@ -163,7 +163,7 @@
 | `INCOTERM_TRANSPORT_LABELS` | `src/lib/ref.ts` | — |
 | `IncotermMeta` | `src/lib/ref.ts` | ─── Инкотермс: meta-флаги (данные, не логика — DF-19 считает) ────── |
 | `LEAD_ACTIVE_STATUSES` | `src/lib/leads.ts` | v0.3.1 (BRANDBOOK §4.1): счётчик навигации у «Лидов» — активные, |
-| `LEAD_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Лид: new/calculated — ждём (расчёт, выбор клиента), won — сделка |
+| `LEAD_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Лид: new/calculated — ждём расчёта/выбора (нейтральная пара review, |
 | `LEAD_CARGO_LABELS` | `src/lib/leads.ts` | Подписи полей анкеты — общие для диалога создания и карточки лида |
 | `LEAD_SOURCES` | `src/lib/leads.ts` | Источник лида (И1): 'manual' — создан менеджером (В2, дефолт схемы), |
 | `LEAD_SOURCE_LABELS` | `src/lib/leads.ts` | — |
@@ -191,7 +191,7 @@
 | `NotifyMode` | `src/lib/notifications/rules.ts` | — |
 | `NotifyRule` | `src/lib/event-registry.ts` | Кто получит уведомление (DF-03, матрица §8 ROADMAP-DEALFLOW; точные |
 | `ORDER_ACTIVE_STATUSES` | `src/lib/order-constants.ts` | v0.3.1 (BRANDBOOK §4.2): табы-группы списка заявок. «Активные» — |
-| `ORDER_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Заявка: расчёт и согласование — ожидание, в работе — движение, |
+| `ORDER_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Заявка: расчёт и согласование — нейтральная пара review (v1.3 §3.2), |
 | `ORDER_SORTS` | `src/lib/orders.ts` | ─── Сортировки списка заявок (Ж4; v0.3.1 — переезд из роута, ────── |
 | `ORDER_STATUSES` | `src/lib/order-constants.ts` | Верхнеуровневый статус заявки — ручной, менеджер переводит осознанно |
 | `ORDER_STATUS_LABELS` | `src/lib/order-constants.ts` | — |

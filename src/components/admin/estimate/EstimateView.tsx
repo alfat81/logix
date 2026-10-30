@@ -59,12 +59,12 @@ export function EstimateView({ estimate }: { estimate: BrokerEstimateRow }) {
         </span>
         {/* DF-18: статус ответа — черновик или отправлен */}
         {estimate.status === 'sent' ? (
-          <Badge variant="outline" className="text-xxs">
+          <Badge variant="outline" className="text-xs">
             отправлен
             {estimate.sentAt ? ` ${new Date(estimate.sentAt).toLocaleDateString('ru-RU')}` : ''}
           </Badge>
         ) : estimate.status === 'draft' ? (
-          <Badge variant="outline" className="text-xxs text-muted-foreground">
+          <Badge variant="outline" className="text-xs text-muted-foreground">
             черновик
           </Badge>
         ) : null}
@@ -77,7 +77,7 @@ export function EstimateView({ estimate }: { estimate: BrokerEstimateRow }) {
           и расчёты в рублях придут с DF-19; здесь — то, что внёс брокер */}
       {items.length > 0 && (
         <div className="rounded-md border grid">
-          <div className="grid grid-cols-[7rem_1fr_1fr_1fr] gap-2 px-2 py-1 text-xxs text-muted-foreground border-b bg-muted/40">
+          <div className="grid grid-cols-[7rem_1fr_1fr_1fr] gap-2 px-2 py-1 text-xs text-muted-foreground border-b bg-muted/40">
             <span>Код ТН ВЭД</span>
             <span>Пошлина</span>
             <span>Доп. пошлина</span>
@@ -109,7 +109,7 @@ export function EstimateView({ estimate }: { estimate: BrokerEstimateRow }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted-foreground">Разрешительные:</span>
           {permits.map((p) => (
-            <Badge key={p} variant="outline" className="text-xxs">
+            <Badge key={p} variant="outline" className="text-xs">
               {p}
             </Badge>
           ))}

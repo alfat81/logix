@@ -28,7 +28,7 @@ export function CustomsCalcResult({ calc }: { calc: CustomsCalcRow }) {
       </div>
 
       <div className="rounded-md border grid">
-        <div className="grid grid-cols-[7rem_1fr_1fr_1fr_1fr] gap-2 px-2 py-1 text-xxs text-muted-foreground border-b bg-muted/40">
+        <div className="grid grid-cols-[7rem_1fr_1fr_1fr_1fr] gap-2 px-2 py-1 text-xs text-muted-foreground border-b bg-muted/40">
           <span>Код ТН ВЭД</span>
           <span className="text-right">ТС, ₽</span>
           <span className="text-right">Пошлина</span>
@@ -104,7 +104,7 @@ export function HistoryRow({ calc }: { calc: CustomsCalcRow }) {
       </span>
       <span className="tabular-nums">{formatMoney(calc.totals.paymentsTotal)}</span>
       {!calc.isCurrent && (
-        <Badge variant="outline" className="text-xxs text-muted-foreground">
+        <Badge variant="outline" className="text-xs text-muted-foreground">
           архив
         </Badge>
       )}

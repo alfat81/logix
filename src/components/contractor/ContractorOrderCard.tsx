@@ -152,7 +152,7 @@ export function ContractorOrderCard() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium">{s.name}</span>
                     {s.isMine ? (
-                      <Badge variant="outline" className="gap-1 text-xxs">
+                      <Badge variant="outline" className="gap-1 text-xs">
                         <CircleDashed className="size-3" />
                         ваш этап
                       </Badge>

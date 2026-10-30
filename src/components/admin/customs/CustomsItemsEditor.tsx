@@ -213,7 +213,7 @@ export function CustomsItemsEditor({
             </label>
             <div className="flex items-end">
               {row.brokerItemId && (
-                <Badge variant="outline" className="text-xxs">
+                <Badge variant="outline" className="text-xs">
                   из ответа брокера
                 </Badge>
               )}

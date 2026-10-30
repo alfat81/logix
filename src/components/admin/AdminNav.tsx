@@ -99,11 +99,13 @@ function isActive(pathname: string, href: string): boolean {
 
 function itemClasses(active: boolean): string {
   const base =
-    'flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors whitespace-nowrap'
-  // §4.1: активный — плашка White (bg-card на Sand-панели, radius-sm),
-  // иконка и текст Coral (primary), шрифт Medium.
+    'relative flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors whitespace-nowrap'
+  // §4.1 (v1.3, DF-20): активный — плашка White (bg-card на Sand-панели,
+  // radius-sm), текст Ink, слева полоска 3px Action-icon; иконка —
+  // Action-icon (красится на элементе иконки в render). Coral-текст
+  // пункта меню запрещён (красный сигнал — только срочное).
   return active
-    ? `${base} bg-card text-primary font-medium`
+    ? `${base} bg-card text-foreground font-medium before:content-[''] before:absolute before:left-0 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-action-icon`
     : `${base} text-muted-foreground hover:text-foreground hover:bg-accent/50`
 }
 
@@ -136,12 +138,15 @@ export function AdminNav({
   if (variant === 'strip') {
     return (
       <nav aria-label="Разделы" className="flex items-center gap-1">
-        {visibleSections.flatMap((s) => s.items).map((item) => (
-          <Link key={item.href} href={item.href} className={itemClasses(isActive(pathname, item.href))}>
-            <item.icon className="size-4 shrink-0" />
-            {item.label}
-          </Link>
-        ))}
+        {visibleSections.flatMap((s) => s.items).map((item) => {
+          const active = isActive(pathname, item.href)
+          return (
+            <Link key={item.href} href={item.href} className={itemClasses(active)}>
+              <item.icon className={active ? 'size-4 shrink-0 text-action-icon' : 'size-4 shrink-0'} />
+              {item.label}
+            </Link>
+          )
+        })}
       </nav>
     )
   }
@@ -155,23 +160,26 @@ export function AdminNav({
               {section.title}
             </div>
           )}
-          {section.items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={itemClasses(isActive(pathname, item.href))}
-              aria-current={isActive(pathname, item.href) ? 'page' : undefined}
-            >
-              <item.icon className="size-4 shrink-0" />
-              {item.label}
-              {item.count !== undefined && (
-                // §4.1: таблетка Coral с белым числом, tabular-nums.
-                <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium tabular-nums text-primary-foreground">
-                  {item.count}
-                </span>
-              )}
-            </Link>
-          ))}
+          {section.items.map((item) => {
+            const active = isActive(pathname, item.href)
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={itemClasses(active)}
+                aria-current={active ? 'page' : undefined}
+              >
+                <item.icon className={active ? 'size-4 shrink-0 text-action-icon' : 'size-4 shrink-0'} />
+                {item.label}
+                {item.count !== undefined && (
+                  // §4.1: таблетка Coral с числом Ink (v1.3 — 6,09), tabular-nums.
+                  <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium tabular-nums text-primary-foreground">
+                    {item.count}
+                  </span>
+                )}
+              </Link>
+            )
+          })}
         </div>
       ))}
     </nav>

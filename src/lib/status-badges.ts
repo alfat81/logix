@@ -1,41 +1,47 @@
 // Маппинг статусов домена на варианты бейджей BRANDBOOK §3.2
-// (P1-19, этап C; D24 — ЗАВЕРШЕНО/ОЖИДАНИЕ из брендбука v1.2).
+// (v1.3, DF-20: цвет несёт точка 8px, текст тёмный; РАСЧЁТ/
+// СОГЛАСОВАНИЕ — нейтральная пара review; сплошной красный critical —
+// только ТРЕБУЕТ РЕШЕНИЯ/ПРОСРОЧЕНО — придёт с DF-05/DF-16).
 // Файл БЕЗ серверных зависимостей — как status-machine.ts: типы
 // статусов импортируются из констант-модулей, тексты берут те же
-// *_STATUS_LABELS, меняется только визуальная пара (фон/текст).
+// *_STATUS_LABELS, меняется только визуальный вариант.
 import type { LeadStatus } from '@/lib/leads'
 import type { OrderStatus, StageStatus } from '@/lib/order-constants'
 import type { ContractorLeadStatus } from '@/lib/contractors'
 
 export type StatusBadgeVariant =
-  | 'transit' // В ПУТИ — движение (тёплая пара «В ПУТИ» §3.2)
-  | 'delay' // ЗАДЕРЖКА — проблема/просрочка (сплошной Coral §3.2)
-  | 'delivered' // ДОСТАВЛЕНО/ЗАВЕРШЕНО — успех (Success-пара §3.2)
-  | 'pending' // ОЖИДАНИЕ — ждёт действия (v1.2, D24; см. §8.6)
+  | 'transit' // В ПУТИ/В РАБОТЕ/НА ПРОВЕРКЕ — движение (точка Action-icon §3.2)
+  | 'delay' // ЗАДЕРЖКА — сплошной Coral, текст Ink (v1.3: 6,09 вместо 2,36)
+  | 'delivered' // ДОСТАВЛЕНО/ЗАВЕРШЕНО/ФИНАЛЬНЫЙ — успех (Success-strong §3.2)
+  | 'pending' // ОЖИДАНИЕ — ждёт действия (пара движения с точкой Action-icon; потребители — DF-05)
+  | 'review' // РАСЧЁТ/СОГЛАСОВАНИЕ — нейтральная пара с точкой Muted (v1.3, DF-20)
+  | 'critical' // ТРЕБУЕТ РЕШЕНИЯ/ПРОСРОЧЕНО — единственный сплошной красный (v1.3; DF-05/DF-16)
   | 'version' // V x.y — нейтральное состояние (пара V-бейджа §3.2)
 
-// Лид: new/calculated — ждём (расчёт, выбор клиента), won — сделка
-// состоялась, lost — не состоялась (отказ — норма воронки, нейтрально;
-// Brick-«ошибку» в визе не рисуем — это не сбой).
+// Лид: new/calculated — ждём расчёта/выбора (нейтральная пара review,
+// v1.3), won — сделка состоялась, lost — не состоялась (отказ — норма
+// воронки, нейтрально; Brick-«ошибку» в визе не рисуем — это не сбой).
 export const LEAD_BADGE_VARIANTS: Record<LeadStatus, StatusBadgeVariant> = {
-  new: 'pending',
-  calculated: 'pending',
+  new: 'review',
+  calculated: 'review',
   won: 'delivered',
   lost: 'version',
 }
 
-// Заявка: расчёт и согласование — ожидание, в работе — движение,
-// завершена — успех, отменена — нейтрально (терминальный «не состоялся»).
+// Заявка: расчёт и согласование — нейтральная пара review (v1.3 §3.2),
+// в работе — движение, завершена — успех, отменена — нейтрально
+// (терминальный «не состоялся»).
 export const ORDER_BADGE_VARIANTS: Record<OrderStatus, StatusBadgeVariant> = {
-  calculating: 'pending',
-  confirmed: 'pending',
+  calculating: 'review',
+  confirmed: 'review',
   in_progress: 'transit',
   completed: 'delivered',
   cancelled: 'version',
 }
 
 // Этап: не начат — нейтрально, в работе — движение, готов — успех,
-// проблема — задержка (Brick/Coral-семейство §5.3: критичные задержки).
+// проблема — задержка (Coral-заливка с текстом Ink v1.3; критичное
+// семейство §5.3).
 export const STAGE_BADGE_VARIANTS: Record<StageStatus, StatusBadgeVariant> = {
   not_started: 'version',
   in_progress: 'transit',
@@ -43,13 +49,13 @@ export const STAGE_BADGE_VARIANTS: Record<StageStatus, StatusBadgeVariant> = {
   problem: 'delay',
 }
 
-// Кандидат в подрядчики (Г1): новый — ожидание, на проверке — движение,
-// договор — успех, отказ — нейтрально.
+// Кандидат в подрядчики (Г1): новый — ожидание расчёта (review),
+// на проверке — движение, договор — успех, отказ — нейтрально.
 export const CONTRACTOR_LEAD_BADGE_VARIANTS: Record<
   ContractorLeadStatus,
   StatusBadgeVariant
 > = {
-  new: 'pending',
+  new: 'review',
   qualifying: 'transit',
   contracted: 'delivered',
   rejected: 'version',

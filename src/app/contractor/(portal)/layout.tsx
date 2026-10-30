@@ -26,7 +26,7 @@ export default async function ContractorPortalLayout({
       <header className="border-b bg-card">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 font-semibold">
-            <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <span className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
               <Truck className="size-4" />
             </span>
             <Link href="/contractor" className="hover:opacity-80">

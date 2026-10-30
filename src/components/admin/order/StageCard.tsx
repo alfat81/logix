@@ -83,12 +83,12 @@ export function StageCard({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium">{s.name}</span>
             {s.isMandatory ? (
-              <Badge variant="outline" className="gap-1 text-xxs">
+              <Badge variant="outline" className="gap-1 text-xs">
                 <Lock className="size-3" />
                 обязательный
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-xxs text-muted-foreground">
+              <Badge variant="outline" className="text-xs text-muted-foreground">
                 дополнительный
               </Badge>
             )}

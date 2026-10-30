@@ -24,7 +24,7 @@ export function RawInfoView({ rawInfo }: { rawInfo: Record<string, unknown> | nu
               {chips.length ? (
                 <div className="flex flex-wrap gap-1">
                   {chips.map((t) => (
-                    <Badge key={t} variant="outline" className="text-xxs">
+                    <Badge key={t} variant="outline" className="text-xs">
                       {t}
                     </Badge>
                   ))}

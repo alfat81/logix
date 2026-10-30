@@ -512,14 +512,5 @@
    "reason": "DF-19: роуты лида и заявки зеркальны по типу цели — тот же класс, что brokers/users~customers/access; разбор/ошибки уже вынесены в lib/customs-api.ts, остальной бойлерплейт — импорты и пролог GET (RULES 2.5)"
   }
  ],
- "IC-08": [
-  {
-   "key": "docs/ROADMAP-DEALFLOW.md->docs/design/contrast-pairs.json",
-   "reason": "роадмап v1.5 (DF-20/DF-21, очередь §6) опережает код: артефакты DF-20 (contrast-pairs.json, contrast_check.py) появятся при закрытии DF-20 (D40); записи снимаются при его закрытии"
-  },
-  {
-   "key": "docs/ROADMAP-DEALFLOW.md->scripts/contrast_check.py",
-   "reason": "роадмап v1.5 (DF-20/DF-21, очередь §6) опережает код: артефакты DF-20 (contrast-pairs.json, contrast_check.py) появятся при закрытии DF-20 (D40); записи снимаются при его закрытии"
-  }
- ]
+ "IC-08": []
 }

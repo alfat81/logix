@@ -122,7 +122,7 @@ export function BrokerUsersDialog({
                     {!u.isActive && (
                       <Badge
                         variant="outline"
-                        className="text-xxs bg-destructive/10 text-destructive border-transparent"
+                        className="text-xs bg-destructive/10 text-destructive border-transparent"
                       >
                         Доступ закрыт
                       </Badge>

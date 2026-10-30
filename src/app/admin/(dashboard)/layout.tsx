@@ -55,7 +55,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             сама, пользовательский блок прижат к низу панели. */}
         <aside className="hidden md:flex md:fixed md:inset-y-0 md:left-0 md:z-30 md:w-[280px] md:flex-col bg-sidebar border-r border-sidebar-border">
           <div className="h-14 flex items-center gap-2 px-4 border-b border-sidebar-border shrink-0">
-            <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <span className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
               <Container className="size-4" />
             </span>
             <Link href="/admin" className="font-semibold hover:opacity-80">
@@ -80,7 +80,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <header className="sticky top-0 z-40 border-b bg-card">
             <div className="px-4 h-14 flex items-center gap-3">
               <div className="md:hidden flex items-center gap-2 font-semibold shrink-0">
-                <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                <span className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
                   <Container className="size-4" />
                 </span>
                 <Link href="/admin" className="hover:opacity-80">

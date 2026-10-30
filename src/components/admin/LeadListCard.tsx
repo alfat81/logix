@@ -119,7 +119,7 @@ function OptionsBlock({ lead }: { lead: LeadRow }) {
   if (selected) {
     return (
       <div className="text-right">
-        <div className="text-sm font-semibold text-primary tabular-nums">
+        <div className="text-sm font-semibold text-foreground tabular-nums">
           {formatMoney(selected.price, isCurrencyCode(selected.currency) ? selected.currency : 'RUB')}
         </div>
         <div className="text-xs text-muted-foreground">

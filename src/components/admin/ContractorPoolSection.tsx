@@ -144,7 +144,7 @@ export function ContractorPoolSection({
                   <div className="flex flex-wrap gap-1">
                     {chips.length ? (
                       chips.map((t) => (
-                        <Badge key={t} variant="outline" className="text-xxs">
+                        <Badge key={t} variant="outline" className="text-xs">
                           {t}
                         </Badge>
                       ))

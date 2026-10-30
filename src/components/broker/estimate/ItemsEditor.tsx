@@ -92,7 +92,7 @@ export function EstimateItemsEditor({
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">Строка {idx + 1}</span>
             {isManualRate(it) && (
-              <Badge variant="outline" className="text-xxs">
+              <Badge variant="outline" className="text-xs">
                 ручной расчёт
               </Badge>
             )}

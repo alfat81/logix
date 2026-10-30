@@ -62,7 +62,7 @@ export function OrderQuoteCard({
                     snapshot.transportModes.length > 0 && (
                       <span className="flex gap-1">
                         {snapshot.transportModes.map((m) => (
-                          <Badge key={m} variant="outline" className="text-xxs">
+                          <Badge key={m} variant="outline" className="text-xs">
                             {m}
                           </Badge>
                         ))}

@@ -17,18 +17,32 @@ const badgeVariants = cva(
           "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
           "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        /* Статусные варианты BRANDBOOK §3.2: полное скругление
-           («таблетка»), текст ЗАГЛАВНЫМИ, размер xs (базовый), без
-           иконок. Цвета — токены --status-* в globals.css; маппинг
-           статусов домена — lib/status-badges.ts (этап C, P1-19). */
+        /* Статусные варианты BRANDBOOK §3.2 (v1.3, DF-20): полное
+           скругление («таблетка»), текст ЗАГЛАВНЫМИ, размер xs (12px),
+           цвет несёт точка 8px слева (before:), текст тёмный. Исключения
+           без точки: delay/critical — сплошная заливка; version/draft —
+           нейтральная пара V-бейджа; final — иконка замка вместо точки
+           (иконку передаёт потребитель, [&>svg] в базе). Цвета — токены
+           --status-* в globals.css; маппинг статусов домена —
+           lib/status-badges.ts. */
         transit:
-          "border-transparent rounded-full uppercase bg-status-transit-bg text-status-transit-fg [a&]:hover:bg-status-transit-bg",
+          "border-transparent rounded-full uppercase bg-status-transit-bg text-status-transit-fg before:content-[''] before:size-2 before:rounded-full before:bg-status-transit-dot [a&]:hover:bg-status-transit-bg",
         delay:
           "border-transparent rounded-full uppercase bg-status-delay-bg text-status-delay-fg [a&]:hover:bg-status-delay-bg",
         delivered:
-          "border-transparent rounded-full uppercase bg-status-delivered-bg text-status-delivered-fg [a&]:hover:bg-status-delivered-bg",
+          "border-transparent rounded-full uppercase bg-status-delivered-bg text-status-delivered-fg before:content-[''] before:size-2 before:rounded-full before:bg-status-delivered-dot [a&]:hover:bg-status-delivered-bg",
         pending:
-          "border-transparent rounded-full uppercase bg-status-pending-bg text-status-pending-fg [a&]:hover:bg-status-pending-bg",
+          "border-transparent rounded-full uppercase bg-status-pending-bg text-status-pending-fg before:content-[''] before:size-2 before:rounded-full before:bg-status-pending-dot [a&]:hover:bg-status-pending-bg",
+        review:
+          "border-transparent rounded-full uppercase bg-status-review-bg text-status-review-fg before:content-[''] before:size-2 before:rounded-full before:bg-status-review-dot [a&]:hover:bg-status-review-bg",
+        critical:
+          "border-transparent rounded-full uppercase bg-status-critical-bg text-status-critical-fg [a&]:hover:bg-status-critical-bg",
+        draft:
+          "border-transparent rounded-full uppercase bg-status-version-bg text-status-version-fg [a&]:hover:bg-status-version-bg",
+        checking:
+          "border-transparent rounded-full uppercase bg-status-transit-bg text-status-transit-fg [a&]:hover:bg-status-transit-bg",
+        final:
+          "border-transparent rounded-full uppercase bg-status-delivered-bg text-status-delivered-fg [a&]:hover:bg-status-delivered-bg",
         version:
           "border-transparent rounded-full uppercase bg-status-version-bg text-status-version-fg [a&]:hover:bg-status-version-bg",
       },

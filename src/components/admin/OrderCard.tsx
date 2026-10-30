@@ -93,7 +93,7 @@ function EtaBlock({ order }: { order: OrderRow }) {
   const dayWord = plural(Math.abs(days), 'день', 'дня', 'дней')
   return (
     <div className="text-right">
-      <div className="text-sm font-semibold text-primary tabular-nums">
+      <div className="text-sm font-semibold text-foreground tabular-nums">
         ETA: {new Date(order.etaDate).toLocaleDateString('ru-RU')}
       </div>
       <div className={cn('text-xs', days < 0 ? 'text-destructive' : 'text-muted-foreground')}>

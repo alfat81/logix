@@ -128,7 +128,7 @@ export function QuoteOptionsSection({
               <Card
                 key={o.id}
                 className={
-                  o.isSelected ? 'p-4 border-primary border-2' : 'p-4 border-l-4 border-l-transparent'
+                  o.isSelected ? 'p-4 border-action-icon border-2' : 'p-4 border-l-4 border-l-transparent'
                 }
               >
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -145,7 +145,7 @@ export function QuoteOptionsSection({
                       {modes.length > 0 && (
                         <span className="flex gap-1">
                           {modes.map((m) => (
-                            <Badge key={m} variant="outline" className="text-xxs">
+                            <Badge key={m} variant="outline" className="text-xs">
                               {m}
                             </Badge>
                           ))}

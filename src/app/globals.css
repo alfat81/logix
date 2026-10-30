@@ -1,12 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Дизайн-токены Logix — BRANDBOOK.md v1.2 (D22/D24, RULES 2.14).
+/* Дизайн-токены Logix — BRANDBOOK.md v1.3 (DF-20/D40, RULES 2.14).
    Структура — стандартный набор shadcn/ui (перенесена с платформы
    осознанно: подход, не цвета). Палитра — брендбук §1.1:
    Ivory (фон приложения), Sand (сайдбар, вторичные заливки),
-   Coral (основные действия), Brick (ошибки/критичное), Ink (текст),
-   Border-Sand (рамки вторичных действий); статусные пары — §3.2.
+   Coral (основные действия), Brick (крупные заливки/иконки),
+   Brick-strong (красный сигнал: текст и кнопки), Ink (текст),
+   Border-Sand (рамки вторичных действий); статусные пары — §3.2
+   (цвет несёт точка 8px, текст тёмный).
    Новые hex — ТОЛЬКО в этом файле (RULES 2.14). */
 @custom-variant dark (&:is(.dark *));
 
@@ -42,6 +44,13 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  /* DF-20 (v1.3): усиленные пары красного сигнала и акцентов —
+     Brick-strong (текст/кнопки критичного, белый на нём 4,97),
+     Success-strong (текст/точка успех-тегов, 5,55 на #E6F1E4),
+     Action-icon (иконки/рамки/фокус, 4,28 на White ≥ 3). */
+  --color-brick-strong: var(--brick-strong);
+  --color-success-strong: var(--success-strong);
+  --color-action-icon: var(--action-icon);
   /* Сайдбар — Sand (BRANDBOOK §4); потребляется этапом B (P1-18). */
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -51,23 +60,31 @@
      lib/status-badges.ts. */
   --color-status-transit-bg: var(--status-transit-bg);
   --color-status-transit-fg: var(--status-transit-fg);
+  --color-status-transit-dot: var(--status-transit-dot);
   --color-status-delay-bg: var(--status-delay-bg);
   --color-status-delay-fg: var(--status-delay-fg);
   --color-status-delivered-bg: var(--status-delivered-bg);
   --color-status-delivered-fg: var(--status-delivered-fg);
+  --color-status-delivered-dot: var(--status-delivered-dot);
   --color-status-version-bg: var(--status-version-bg);
   --color-status-version-fg: var(--status-version-fg);
   --color-status-pending-bg: var(--status-pending-bg);
   --color-status-pending-fg: var(--status-pending-fg);
+  --color-status-pending-dot: var(--status-pending-dot);
+  /* DF-20 (v1.3): РАСЧЁТ/СОГЛАСОВАНИЕ — нейтральная пара с точкой
+     #6B6455; ТРЕБУЕТ РЕШЕНИЯ/ПРОСРОЧЕНО — единственный сплошной
+     красный (Brick-strong, белый текст 4,97). */
+  --color-status-review-bg: var(--status-review-bg);
+  --color-status-review-fg: var(--status-review-fg);
+  --color-status-review-dot: var(--status-review-dot);
+  --color-status-critical-bg: var(--status-critical-bg);
+  --color-status-critical-fg: var(--status-critical-fg);
   /* Брендбук §5.1/§6: карточки 12px (--radius-lg), кнопки 8px
      (--radius-sm); поля ввода — 10px (--radius-md). */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  /* Микро-бейджи (10px) — нет в стандартной шкале Tailwind. */
-  --text-xxs: 0.625rem;
-  --text-xxs--line-height: 1rem;
 }
 
 /* ─── Светлая тема — BRANDBOOK §1.1 ───────────────────────── */
@@ -76,7 +93,10 @@
   --ivory: #FDFBF7;
   --sand: #FAF3E0;
   --coral: #F28C8C;
-  --brick: #D95D39;
+  --brick: #D95D39; /* крупные заливки и иконки (белый на нём 3,77 ≥ 3) */
+  --brick-strong: #BF4A27; /* DF-20: красный сигнал — текст/кнопки (белый 4,97) */
+  --success-strong: #2F6A3F; /* DF-20: текст/точка успех-тегов (5,55 на #E6F1E4) */
+  --action-icon: #C9504F; /* DF-20: иконки/рамки/фокус (4,28 на White ≥ 3) */
   --ink: #2B2A26;
   --border-sand: #E5DCC5;
 
@@ -90,26 +110,26 @@
   --popover: #FFFFFF;
   --popover-foreground: var(--ink);
   --primary: var(--coral); /* основное действие — Coral (§3.1, §5.4) */
-  --primary-foreground: #FFFFFF;
+  --primary-foreground: var(--ink); /* DF-20 (v1.3): Ink на Coral — 6,09 (было white 2,36) */
   --secondary: var(--sand); /* вторичные заливки — Sand */
   --secondary-foreground: var(--ink);
   --muted: #F1EAD9; /* мягкая тёплая заливка (§3.2, фон V-бейджа) */
   --muted-foreground: #6B6455; /* вторичный текст (§3.2, текст V-бейджа) */
   --accent: #FCEBEA; /* мягкий коралловый тинт (§3.2, фон «В ПУТИ») */
-  --accent-foreground: var(--brick);
-  --destructive: var(--brick); /* ошибки/критичные задержки (§5.3) */
+  --accent-foreground: var(--ink); /* DF-20: тёмный текст на тинтах (Coral 2,04 запрещён) */
+  --destructive: var(--brick-strong); /* DF-20: кнопки/ошибки — Brick-strong (v1.3 §3.1) */
   --destructive-foreground: #FFFFFF;
   --border: var(--border-sand); /* рамки вторичных действий (§5.5) */
   --input: var(--border-sand);
-  --ring: var(--coral);
+  --ring: var(--action-icon); /* DF-20: фокус — Action-icon (4,28 ≥ 3) */
 
-  /* Семантика статусов — значения из брендбука: success = Success §1.1,
-     warning = Coral («ЗАДЕРЖКА» §3.2), info = нейтральный тёплый серый
-     (§3.2, текст V-бейджа). Точная раскладка бейджей — этап C. */
+  /* Семантика статусов: success = Success §1.1 (заливки/иконки),
+     warning = Coral («ЗАДЕРЖКА» §3.2 — текст Ink по v1.3),
+     info = нейтральный тёплый серый (§3.2, текст V-бейджа). */
   --success: #3F7A4C;
   --success-foreground: #FFFFFF;
   --warning: var(--coral);
-  --warning-foreground: #FFFFFF;
+  --warning-foreground: var(--ink);
   --info: #6B6455;
   --info-foreground: #FFFFFF;
 
@@ -118,19 +138,27 @@
   --sidebar-foreground: var(--ink);
   --sidebar-border: var(--border-sand);
 
-  /* Статусные бейджи §3.2 (варианты badge.tsx; применяются этапом C,
-     маппинг домена — lib/status-badges.ts). ОЖИДАНИЕ — v1.2 (D24,
-     §8.6: контраст Coral на #FCEBEA — вопрос открыт, значение с макета). */
+  /* Статусные бейджи §3.2 (v1.3, DF-20): цвет несёт точка 8px слева,
+     текст ВСЕГДА тёмный; сплошной красный — только ТРЕБУЕТ РЕШЕНИЯ /
+     ПРОСРОЧЕНО (critical). Маппинг домена — lib/status-badges.ts. */
   --status-transit-bg: #FCEBEA;
-  --status-transit-fg: var(--brick);
+  --status-transit-fg: var(--ink);
+  --status-transit-dot: var(--action-icon);
   --status-delay-bg: var(--coral);
-  --status-delay-fg: #FFFFFF;
+  --status-delay-fg: var(--ink); /* DF-20: Ink на Coral — 6,09 (было white 2,36) */
   --status-delivered-bg: #E6F1E4;
-  --status-delivered-fg: #3F7A4C;
+  --status-delivered-fg: var(--success-strong);
+  --status-delivered-dot: var(--success-strong);
   --status-version-bg: #F1EAD9;
   --status-version-fg: #6B6455;
   --status-pending-bg: #FCEBEA;
-  --status-pending-fg: var(--coral);
+  --status-pending-fg: var(--ink);
+  --status-pending-dot: var(--action-icon);
+  --status-review-bg: #F1EAD9;
+  --status-review-fg: var(--ink);
+  --status-review-dot: #6B6455;
+  --status-critical-bg: var(--brick-strong);
+  --status-critical-fg: #FFFFFF;
 }
 
 /* ─── Тёмная тема (токены готовы, переключатель — позже; вне скоупа

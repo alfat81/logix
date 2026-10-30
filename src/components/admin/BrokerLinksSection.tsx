@@ -170,13 +170,13 @@ export function BrokerLinksSection({
                 >
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="font-medium">{l.broker.companyName}</span>
-                    <Badge variant="outline" className="text-xxs text-muted-foreground">
+                    <Badge variant="outline" className="text-xs text-muted-foreground">
                       {l.broker.isInHouse ? BROKER_KIND_LABELS.in_house : BROKER_KIND_LABELS.external}
                     </Badge>
                     {!l.broker.isActive && (
                       <Badge
                         variant="outline"
-                        className="text-xxs bg-destructive/10 text-destructive border-transparent"
+                        className="text-xs bg-destructive/10 text-destructive border-transparent"
                       >
                         деактивирован
                       </Badge>

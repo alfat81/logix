@@ -2,7 +2,8 @@ import { cn } from '@/lib/utils'
 
 // v0.4.0 (BRANDBOOK §4.2, D25): общий компонент табов-фильтров шапки
 // списка — единый вид для заявок и лидов (эталон паттерна списка Ж4).
-// Активный таб — Ink, Medium, с подчёркиванием Coral (border-primary);
+// Активный таб — Ink, Medium, с подчёркиванием Action-icon (border-action-icon;
+// DF-20: Coral-подчёркивание 2,28 < 3 — рамки/фокус только Action-icon);
 // неактивные — приглушённые. Число — распределение найденного по тому
 // же поиску (API counts), tabular-nums. Состав табов задаёт
 // информационная архитектура раздела (§8.8): у заявок и лидов —
@@ -35,7 +36,7 @@ export function ListTabs({
             className={cn(
               '-mb-1 border-b-2 pb-1.5 text-sm transition-colors',
               isActive
-                ? 'border-primary font-medium text-foreground'
+                ? 'border-action-icon font-medium text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >

@@ -75,7 +75,7 @@ export function StageSection({
                 план: {fmtDate(r.plannedDate)}
               </span>
             )}
-            <Badge variant="outline" className="text-xxs text-muted-foreground">
+            <Badge variant="outline" className="text-xs text-muted-foreground">
               {ORDER_STATUS_LABELS[r.orderStatus] ?? r.orderStatus}
             </Badge>
           </Link>
@@ -156,7 +156,7 @@ export function StaleLeadsSection({ count, rows }: { count: number; rows: LeadAt
             className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border p-3 transition-colors hover:border-ring"
           >
             <span className="min-w-40 flex-1 font-medium">{l.contactName}</span>
-            <Badge variant="outline" className="text-xxs text-muted-foreground">
+            <Badge variant="outline" className="text-xs text-muted-foreground">
               {LEAD_STATUS_LABELS[l.status] ?? l.status}
             </Badge>
             <span className="text-sm text-muted-foreground tabular-nums">

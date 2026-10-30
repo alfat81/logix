@@ -688,12 +688,30 @@ def ic16() -> None:
             add("IC-16", f"country:{rel(f)}", "перечень стран (формат сида) в коде: данные — scripts/ref-data/countries.ts + сид")
 
 
+# ── IC-17: контраст и красный сигнал (DF-20, BRANDBOOK v1.3) ─────────────
+# Пары WCAG AA из docs/design/contrast-pairs.json, текст ≥ 12 px,
+# логотип/навигация без красного сигнала. Формулы чекера самопроверяются
+# на эталонах 2,36 / 6,09 / 4,97 (расхождение — находка selftest).
+def ic17() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import contrast_check as cc
+
+    for key, detail in cc.self_test():
+        add("IC-17", f"selftest:{key}", detail)
+    for key, detail in cc.check_pairs():
+        add("IC-17", key, detail)
+    for key, detail in cc.check_smalltext():
+        add("IC-17", key, detail)
+    for key, detail in cc.check_red_signal():
+        add("IC-17", key, detail)
+
+
 CHECKS = [
     ("IC-01", lambda: ic01()),
     ("IC-02", ic02), ("IC-03", ic03), ("IC-04", ic04), ("IC-05", ic05),
     ("IC-06", ic06), ("IC-07", ic07), ("IC-08", ic08), ("IC-09", ic09),
     ("IC-10", ic10), ("IC-11", ic11), ("IC-12", ic12), ("IC-13", ic13),
-    ("IC-14", ic14), ("IC-15", ic15), ("IC-16", ic16),
+    ("IC-14", ic14), ("IC-15", ic15), ("IC-16", ic16), ("IC-17", ic17),
 ]
 
 

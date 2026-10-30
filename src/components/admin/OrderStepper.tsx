@@ -4,14 +4,16 @@ import { stageVisual } from '@/lib/stage-visuals'
 import type { OrderStatus } from '@/lib/order-constants'
 
 // v0.3.1 (BRANDBOOK §4.3): степпер этапов на карточке заявки в списке.
-// Круги с иконками + caps-подписи; состояния круга — по §4.3:
+// Круги с иконками + caps-подписи; состояния круга — по §4.3 (v1.3, DF-20):
 //   завершённый  — Success-заливка с белой галочкой;
-//   текущий      — White с рамкой Coral и Coral-иконкой;
-//   «проблема»   — рамка Brick (§5.3: ошибки и критичные задержки —
-//                  Brick; дополнение агента, макет знает только три
+//   текущий      — White с рамкой Action-icon и иконкой Action-icon
+//                  (акцент действия; Coral-рамка запрещена — красный
+//                  сигнал только для срочного);
+//   «проблема»   — рамка Brick-strong (§5.3: ошибки и критичные задержки;
+//                  дополнение агента, макет знает только три
 //                  состояния — зафиксировано в отчёте v0.3.1);
 //   будущий      — приглушённый серо-тёплый.
-// Под степпером — тонкий прогресс-бар: трек Border-Sand, филл Coral;
+// Под степпером — тонкий прогресс-бар: трек Border-Sand, филл Action-icon;
 // завершённая заявка — филл Success; расчётная — короткий нейтральный.
 // Адаптив: при узком контейнере ряд прокручивается горизонтально
 // (375px — ничего не выходит за экран, RULES 2.14).
@@ -25,7 +27,7 @@ function circleClasses(status: string, current: boolean): string {
   if (status === 'done') return cn(STAGE_CIRCLE_BASE, 'bg-success text-success-foreground')
   if (status === 'problem')
     return cn(STAGE_CIRCLE_BASE, 'border-2 border-destructive bg-card text-destructive')
-  if (current) return cn(STAGE_CIRCLE_BASE, 'border-2 border-primary bg-card text-primary')
+  if (current) return cn(STAGE_CIRCLE_BASE, 'border-2 border-action-icon bg-card text-action-icon')
   return cn(STAGE_CIRCLE_BASE, 'border border-border bg-muted text-muted-foreground')
 }
 
@@ -53,9 +55,10 @@ export function OrderStepper({
   const pct = Math.round((done / stages.length) * 100)
 
   // Филл прогресс-бара: завершённая — Success; расчётная — короткий
-  // нейтральный (макет §4.3); остальным — Coral по прогрессу.
+  // нейтральный (макет §4.3); остальным — Action-icon по прогрессу
+  // (DF-20: Coral-филл на треке Border-Sand давал 2,6 < 3).
   const fillClass =
-    orderStatus === 'completed' ? 'bg-success' : orderStatus === 'calculating' ? 'bg-muted-foreground/40' : 'bg-primary'
+    orderStatus === 'completed' ? 'bg-success' : orderStatus === 'calculating' ? 'bg-muted-foreground/40' : 'bg-action-icon'
   const barWidth = orderStatus === 'calculating' ? 8 : pct
 
   return (

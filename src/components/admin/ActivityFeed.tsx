@@ -36,11 +36,13 @@ const ACTOR_META: Record<
   ActivityRow['actorType'],
   { label: string; icon: typeof User; badgeCls: string }
 > = {
-  employee: { label: 'Сотрудник', icon: User, badgeCls: 'bg-primary/10 text-primary' },
-  contractor: { label: 'Подрядчик', icon: Truck, badgeCls: 'bg-warning/15 text-warning-foreground' },
-  client: { label: 'Клиент', icon: Users, badgeCls: 'bg-info/15 text-info-foreground' },
-  broker: { label: 'Брокер', icon: Landmark, badgeCls: 'bg-accent text-accent-foreground' },
-  system: { label: 'Система', icon: Bot, badgeCls: 'bg-muted text-muted-foreground' },
+  // DF-20 (v1.3 §3.2): текст бейджей всегда тёмный — Coral-текст и белый
+  // на светлых тинтах запрещены (2,0–2,4 к 1); пары — из брендбук-токенов.
+  employee: { label: 'Сотрудник', icon: User, badgeCls: 'bg-secondary text-secondary-foreground' },
+  contractor: { label: 'Подрядчик', icon: Truck, badgeCls: 'bg-muted text-muted-foreground' },
+  client: { label: 'Клиент', icon: Users, badgeCls: 'bg-accent text-accent-foreground' },
+  broker: { label: 'Брокер', icon: Landmark, badgeCls: 'bg-info/15 text-foreground' },
+  system: { label: 'Система', icon: Bot, badgeCls: 'bg-border/40 text-muted-foreground' },
 }
 
 export function ActivityFeed({
@@ -74,14 +76,14 @@ export function ActivityFeed({
                 <li
                   key={a.id}
                   className={`grid gap-0.5 text-sm border-l-2 pl-3 -ml-1 ${
-                    isNote ? 'border-warning/60' : 'border-muted'
+                    isNote ? 'border-action-icon/60' : 'border-muted'
                   }`}
                 >
                   <span className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
                     {fmtDateTime(a.createdAt)}
                     <Badge
                       variant="outline"
-                      className={`gap-1 text-xxs border-transparent ${meta.badgeCls}`}
+                      className={`gap-1 text-xs border-transparent ${meta.badgeCls}`}
                     >
                       <ActorIcon className="size-3" />
                       {meta.label}
@@ -89,7 +91,7 @@ export function ActivityFeed({
                     {isNote && (
                       <Badge
                         variant="outline"
-                        className="gap-1 text-xxs border-transparent bg-warning/15 text-warning-foreground"
+                        className="gap-1 text-xs border-transparent bg-warning/15 text-foreground"
                       >
                         <StickyNote className="size-3" />
                         Заметка
