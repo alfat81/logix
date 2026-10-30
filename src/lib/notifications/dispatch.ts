@@ -3,6 +3,7 @@ import { getEmailSender } from '@/lib/brand'
 import { getTransport } from './channel'
 import { NOT_CONFIGURED } from './transport'
 import { processRegularDigests } from './digest'
+import { processOwnerDigest } from './owner-digest'
 import { importCbrRates } from '@/lib/cbr'
 
 // ─── DF-03: диспетчер очереди уведомлений ────────────────────────────
@@ -159,15 +160,24 @@ export async function dispatchPendingBatch(): Promise<DispatchRun> {
 }
 
 // Полный проход: импорт курсов ЦБ (раз в сутки, идемпотентен) + окна
-// дайджестов + пачки до исчерпания (с потолком). Сбой курсов НЕ валит
-// проход (lib/cbr.ts гасит ошибку сам — расчёты берут последний курс).
+// дайджестов + сводка владельцу (DF-08: свои окна/дедуп, письмо создаётся
+// здесь и уходит этой же пачкой — type='digest' забирается claimBatch)
+// + пачки до исчерпания (с потолком). Сбой курсов НЕ валит проход
+// (lib/cbr.ts гасит ошибку сам — расчёты берут последний курс); сбой
+// сводки тоже не должен: обычные письма важнее (cron повторит через 5 мин).
 export async function dispatchNow(): Promise<
-  DispatchRun & { window: string | null; digests: number; ratesImported: number; ratesDate: string | null; ratesSkipped: boolean }
+  DispatchRun & { window: string | null; digests: number; ownerDigests: number; ratesImported: number; ratesDate: string | null; ratesSkipped: boolean }
 > {
   // DF-17: курсы ЦБ РФ — проходом диспетчера (карточка): короткое
   // замыкание, если курс за сегодня уже импортирован.
   const rates = await importCbrRates()
   const digest = await processRegularDigests()
+  let ownerDigests = 0
+  try {
+    ownerDigests = (await processOwnerDigest()).sent
+  } catch (e) {
+    console.error('[dispatch] сводка владельцу не удалась (cron повторит):', e)
+  }
   const totals: DispatchRun = { sent: 0, failed: 0, skipped: 0 }
   for (let i = 0; i < MAX_BATCHES; i += 1) {
     const batch = await dispatchPendingBatch()
@@ -180,6 +190,7 @@ export async function dispatchNow(): Promise<
     ...totals,
     window: digest.window,
     digests: digest.digests,
+    ownerDigests,
     ratesImported: rates.imported,
     ratesDate: rates.date,
     ratesSkipped: rates.skipped,

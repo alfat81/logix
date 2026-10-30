@@ -100,6 +100,13 @@ export const WAITING_CHOICE_FOLLOWUP_SHORT = 'уточнить расчёт'
 export const WAITING_CHOICE_FOLLOWUP_ACTION =
   'Уточнить, видел ли клиент расчёт, и согласовать дальнейшие действия'
 
+// Возраст мяча одним значением: «N ч» до суток, далее «N дн.» — общий
+// формат плашки «Ждёт: …» (WaitingBadge) и сводки владельцу (DF-08),
+// чтобы возраст в письме и на карточке не расходился.
+export function formatWaitingHours(hours: number): string {
+  return hours < 24 ? `${hours} ч` : `${Math.floor(hours / 24)} дн.`
+}
+
 // Результат правила: kind 'none' — мяча нет (id/reason пустые).
 export type WaitingOutcome = {
   kind: WaitingKind

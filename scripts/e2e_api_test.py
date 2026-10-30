@@ -629,6 +629,33 @@ body=dg[0].get('body','') if dg else ''
 chk('DF-03: дайджест сгруппирован по заявке, события внутри',body.count('•')>=3 and '— заявка №' in body,(body.count('•'),body[:200]))
 chk('DF-03: дайджест доставлен fake-транспортом',bool(dg) and (dg[0].get('providerId') or '').startswith('fake:'),dg[0].get('providerId') if dg else None)
 s,d=a.r('DELETE','/api/admin/settings',{'key':'notifications.client_digest_times'}); chk('DF-03: окна сброшены к дефолту (09:00/16:00)',s==200,(s,d))
+# --- DF-08: ежедневная сводка владельцу (письмо type=digest мастеру) ---
+# Окно owner_digest.window_start/end — ДИАПАЗОН, диспетчер решает сам;
+# идемпотентность — dedupKey ownerdigest:{мастер}:{дата} (второй вызов
+# в тот же день письма не создаёт); менеджеру сводка не уходит.
+s,d=a.r('PATCH',f'/api/admin/employees/{aid}',{'email':'df08-owner-'+u+'@test.example'}); chk('DF-08: мастеру выдан email для сводки',s==200 and (d.get('employee') or {}).get('email')=='df08-owner-'+u+'@test.example',(s,d))
+_cur=datetime.now(ZoneInfo('Europe/Moscow')); _cm=_cur.hour*60+_cur.minute
+_wstart=max(0,_cm-30); _wend=min(1439,_cm+5)
+if _wend<=_wstart: _wend=1439
+_fmt=lambda m:'%02d:%02d'%(m//60,m%60)
+s,d=a.r('PATCH','/api/admin/settings',{'key':'owner_digest.window_start','value':_fmt(_wstart)}); chk('DF-08: начало окна сводки установлено',s==200,(s,d))
+s,d=a.r('PATCH','/api/admin/settings',{'key':'owner_digest.window_end','value':_fmt(_wend)}); chk('DF-08: конец окна сводки установлен',s==200,(s,d))
+s,d=disp(); chk('DF-08: диспетчер создал сводку (ownerDigests=1)',s==200 and d.get('ownerDigests')==1,(s,d))
+def _owndg():
+    s,d=a.r('GET','/api/admin/notifications?type=digest&take=200')
+    return [x for x in d.get('notifications',[]) if x.get('toAddress')=='df08-owner-'+u+'@test.example' and (x.get('windowKey') or '').startswith('owner:')]
+dg8=_owndg(); chk('DF-08: сводка мастеру — ровно одна за сутки',len(dg8)==1,(len(dg8),s))
+if dg8:
+    b8=dg8[0].get('body','')
+    chk('DF-08: в письме цифры блока 1 Пульса и неотправленные',('Показатели:' in b8) and ('Неотправленных писем:' in b8) and ('Активных заявок' in b8),b8[:300])
+    chk('DF-08: в письме ссылка на Пульс','/admin/pulse' in b8,b8[-200:])
+    chk('DF-08: тема — «сводка за <дата>»','сводка за ' in dg8[0].get('subject',''),dg8[0].get('subject'))
+s,d=disp(); chk('DF-08: повторный диспетчер в тот же день — без второй сводки',s==200 and d.get('ownerDigests')==0,(s,d))
+chk('DF-08: после повтора сводка по-прежнему одна',len(_owndg())==1,len(dg8))
+s,d=a.r('GET','/api/admin/notifications?type=digest&take=200'); _mg=[x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-staff-'+u+'@test.example' and (x.get('windowKey') or '').startswith('owner:')]
+chk('DF-08: менеджеру сводка не уходит',len(_mg)==0,len(_mg))
+s,d=a.r('DELETE','/api/admin/settings',{'key':'owner_digest.window_start'}); chk('DF-08: окно сводки сброшено к дефолту (start)',s==200,(s,d))
+s,d=a.r('DELETE','/api/admin/settings',{'key':'owner_digest.window_end'}); chk('DF-08: окно сводки сброшено к дефолту (end)',s==200,(s,d))
 # документы: загрузка клиентом → ответственному; версия → клиенту+брокеру;
 # деактивированный человек брокера писем не получает
 import time as _t

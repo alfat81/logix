@@ -9,8 +9,10 @@ import path from 'node:path'
 // в пятнадцати. Тест текстовый (как permissions-guard): падает при
 // появлении прямого db.activity.create вне легитимных точек и при
 // возврате удалённой обёртки logActivity. Очередь уведомлений DF-03
-// пишется ТОЛЬКО в lib/notifications/enqueue.ts (createMany) и
-// lib/notifications/digest.ts (единственный create дайджеста).
+// пишется ТОЛЬКО в lib/notifications/enqueue.ts (createMany),
+// lib/notifications/digest.ts (дайджест окон) и
+// lib/notifications/owner-digest.ts (сводка владельцу DF-08 —
+// единственный create письма сводки).
 // Дополнение (шаг 6 карточки DF-01): любой читатель ленты обязан
 // фильтровать через eventWhereFor() — копировать where-фрагменты
 // вручную запрещено.
@@ -57,13 +59,15 @@ describe('Events Guard (DF-01)', () => {
     ).toEqual([])
   })
 
-  it('db.notification.create — только в lib/notifications (enqueue: createMany, digest: дайджест)', () => {
+  it('db.notification.create — только в lib/notifications (enqueue, digest, owner-digest)', () => {
     // DF-03: очередь пишется исключительно через notifications/enqueue.ts
-    // и notifications/digest.ts (единственная точка создания дайджеста) —
-    // рассыпание по роутам запрещено.
+    // (createMany строк по событиям) и notifications/digest.ts (дайджест
+    // окон); DF-08 добавил notifications/owner-digest.ts (сводка
+    // владельцу, свой дедуп по дате) — рассыпание по роутам запрещено.
     const allowed = new Set([
       'src/lib/notifications/enqueue.ts',
       'src/lib/notifications/digest.ts',
+      'src/lib/notifications/owner-digest.ts',
     ])
     const offenders = files.filter(
       (f) => /notification\.create(Many)?\(/.test(fs.readFileSync(f, 'utf-8')) && !allowed.has(rel(f))

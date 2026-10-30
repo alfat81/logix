@@ -1,10 +1,12 @@
 #!/bin/bash
-# Полный прогон e2e (343 проверки) по протоколу ci.yml на чистой БД.
+# Полный прогон e2e по протоколу ci.yml на чистой БД.
 # Один вызов: песочница прибивает посторонние порты между вызовами.
+# DATABASE_URL можно переопределить снаружи (песочница держит Postgres
+# на нестандартном порту — .env песочницы); дефолт — сервис CI.
 set -e
 cd /home/z/my-project
 
-export DATABASE_URL="postgresql://logix@127.0.0.1:5432/logix?schema=public"
+export DATABASE_URL="${E2E_DATABASE_URL:-postgresql://logix@127.0.0.1:5432/logix?schema=public}"
 export MASTER_PHONE="+79000000000"
 export MASTER_PASSWORD="ci-e2e-master-password"
 export ADMIN_PHONE="+79000000000"

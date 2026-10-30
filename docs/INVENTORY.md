@@ -202,6 +202,9 @@
 | `OrderStagesSummary` | `src/lib/order-summary.ts` | — |
 | `OrderStatus` | `src/lib/order-constants.ts` | — |
 | `OrderStatusSuggestion` | `src/lib/status-suggest.ts` | — |
+| `OwnerDigestDecision` | `src/lib/notifications/owner-digest.ts` | — |
+| `OwnerDigestLetterInput` | `src/lib/notifications/owner-digest.ts` | — |
+| `OwnerDigestRun` | `src/lib/notifications/owner-digest.ts` | — |
 | `PERMIT_MAX_COUNT` | `src/lib/brokers.ts` | ─── Оценка таможенных платежей (BrokerEstimate, роадмап 5а) ────── |
 | `PERMIT_MAX_LENGTH` | `src/lib/brokers.ts` | — |
 | `PLACE_KIND_LABELS` | `src/lib/ref.ts` | — |
@@ -230,6 +233,7 @@
 | `PatchLeadSchema` | `src/lib/leads.ts` | PATCH лида — смена статуса (+ причина при отказе), ответственного |
 | `PortalRequireResult` | `src/lib/portal-auth.ts` | — |
 | `PulseCargoRow` | `src/lib/pulse.ts` | — |
+| `PulseCore` | `src/lib/pulse-db.ts` | ─── DF-07/DF-08: серверная сборка блоков 1–3 «Пульса» ─────────────── |
 | `PulseData` | `src/lib/pulse.ts` | ─── Ответ API целиком (клиентские типы Пульса реэкспортируют отсюда) ─ |
 | `PulseEvent` | `src/lib/pulse.ts` | — |
 | `PulseStats` | `src/lib/pulse.ts` | ─── Цифры (блок 1) ────────────────────────────────────────────────── |
@@ -288,6 +292,7 @@
 | `TRANSPORT_TYPES` | `src/lib/leads.ts` | Тип перевозки (бланк, п.3). Значения — русские строки: Json груза |
 | `TRANSPORT_TYPE_CODES` | `src/lib/route-fields.ts` | Стабильные коды колонок (Prisma enum TransportType). Русские подписи |
 | `TRANSPORT_TYPE_LABELS` | `src/lib/route-fields.ts` | — |
+| `TopSlowingRow` | `src/lib/notifications/owner-digest.ts` | — |
 | `TransitionOption` | `src/lib/status-machine.ts` | ─── Проекции для UI (P1-05: показываем только допустимое) ──── |
 | `TransitionResult` | `src/lib/status-machine.ts` | — |
 | `TransportMessage` | `src/lib/notifications/transport.ts` | — |
@@ -349,6 +354,7 @@
 | `buildLeadPayload` | `src/lib/leads.ts` | — |
 | `buildOrderListWhere` | `src/lib/orders.ts` | where списка: статус ИЛИ группа «active» (BRANDBOOK §4.2), фильтр |
 | `buildOrderSearch` | `src/lib/orders.ts` | Поиск — только по заявке и её клиенту: номер, ТН ВЭД, имя, телефон. |
+| `buildOwnerDigestLetter` | `src/lib/notifications/owner-digest.ts` | — |
 | `buildWaitingLong` | `src/lib/attention-waiting.ts` | — |
 | `businessDaysElapsed` | `src/lib/business-days.ts` | Сколько рабочих дней (пн–пт, МСК) прошло ПОСЛЕ MSK-дня якоря, |
 | `calcErrorResponse` | `src/lib/customs-api.ts` | Маппинг доменных ошибок DF-19: черновые правила — 409 (состояние |
@@ -390,8 +396,10 @@
 | `createWhatsappTransport` | `src/lib/notifications/transports/whatsapp.ts` | ─── DF-03: заглушка WhatsApp-транспорта ───────────────────────────── |
 | `currencyCodeSchema` | `src/lib/ref.ts` | — |
 | `currencySign` | `src/lib/money.ts` | Знак для любого кода из справочника: известный символ либо сам код |
+| `dateLabelFromKey` | `src/lib/notifications/owner-digest.ts` | «30.10.2026» из ключа суток '2026-10-30' (пояс рассылок — windows.ts). |
 | `db` | `src/lib/db.ts` | — |
 | `dealLink` | `src/lib/notifications/templates.ts` | Ссылка на сделку в кабинете получателя (§8: клиент видит свою |
+| `defaultOwnerWindow` | `src/lib/notifications/owner-digest.ts` | Дефолты окна — из реестра настроек (не литералы: владелец меняет |
 | `definePortal` | `src/lib/portal-auth.ts` | — |
 | `deleteDocument` | `src/lib/documents.ts` | ── Удаление документа (только менеджер) ──────────────────────────── |
 | `destroyBrokerSession` | `src/lib/broker-auth.ts` | — |
@@ -426,6 +434,7 @@
 | `formatMoney` | `src/lib/money.ts` | «1 450 ₽» | «1 450,50 $» — детерминированный вывод для UI, ленты и |
 | `formatMoneyWithVat` | `src/lib/money.ts` | Строка «1 450 ₽ · без НДС» — цена варианта/снимка с режимом НДС. |
 | `formatPhoneInput` | `src/lib/phone.ts` | Маска телефона при вводе — форматирует по мере печатания |
+| `formatWaitingHours` | `src/lib/waiting.ts` | Возраст мяча одним значением: «N ч» до суток, далее «N дн.» — общий |
 | `getActiveCurrencyOptions` | `src/lib/ref-db.ts` | Активные валюты для форм (Combobox): из справочника; пустая таблица — |
 | `getBrand` | `src/lib/brand.ts` | — |
 | `getBrokerByToken` | `src/lib/broker-auth.ts` | — |
@@ -471,6 +480,7 @@
 | `listCalculations` | `src/lib/customs-server.ts` | ─── Чтение: история расчётов сделки (новые сверху) ────────────────── |
 | `listRefItems` | `src/lib/ref-db.ts` | — |
 | `loadFeeRows` | `src/lib/customs-server.ts` | ─── Действующая редакция шкалы сборов (validFrom ≤ даты расчёта) ──── |
+| `loadPulseCore` | `src/lib/pulse-db.ts` | — |
 | `logDocumentVersionAdded` | `src/lib/documents.ts` | Событие о новой версии — отдельно от транзакции (лента — наблюдение, |
 | `logInternalNote` | `src/lib/activity.ts` | — |
 | `maskPII` | `src/lib/notifications/mask.ts` | — |
@@ -488,6 +498,8 @@
 | `normalizeRefCode` | `src/lib/ref.ts` | Нормализация кода при записи/поиске: страны и валюты — ISO верхний |
 | `nowInZone` | `src/lib/notifications/windows.ts` | Текущее «настенное» время в поясе IANA. |
 | `orderOrderBy` | `src/lib/orders.ts` | — |
+| `ownerDedupKey` | `src/lib/notifications/owner-digest.ts` | — |
+| `ownerDigestDecision` | `src/lib/notifications/owner-digest.ts` | Решение прохода для одного мастера: 'window' — пора (внутри окна), |
 | `parseCbrNumber` | `src/lib/cbr.ts` | Строгое число из формата ЦБ: «79,7653» / «1 234,56» → number; мусор → null. |
 | `parseCbrXml` | `src/lib/cbr.ts` | Разбор XML без зависимостей (нулевая поверхность атаки вместо парсера): |
 | `parseDocumentCreateForm` | `src/lib/documents.ts` | — |
@@ -495,6 +507,7 @@
 | `parseEmployeeRoles` | `src/lib/employees.ts` | Безопасный разбор Employee.roles: битый JSON не должен ронять роуты |
 | `parseListQuery` | `src/lib/list-query.ts` | Парсинг параметров списка. Возвращает ошибку (строкой — роут отдаст |
 | `parseMoneyInput` | `src/lib/money.ts` | Разбор ввода менеджера: «1 450,50» / «1450.5» / «1 450» → число; |
+| `parseOwnerWindow` | `src/lib/notifications/owner-digest.ts` | Окно валидно, если обе границы распознаны и end позже start (подсказка |
 | `parseRouteText` | `src/lib/route-fields.ts` | ── Разбор свободного «Страна, город» ─────────────────────────────── |
 | `parseTimeToMinutes` | `src/lib/notifications/windows.ts` | — |
 | `participantsOf` | `src/lib/participants.ts` | Единая точка входа: ref.orderId либо ref.leadId (ровно один). |
@@ -504,6 +517,7 @@
 | `phoneVariants` | `src/lib/phone.ts` | Телефонные варианты поискового запроса (Ж7, переиспользован Ж6а). |
 | `pickFeeRub` | `src/lib/customs.ts` | — |
 | `planHsImport` | `src/lib/hs.ts` | Решение импорта по версиям (карточка: «импорт повторно не дублирует», |
+| `processOwnerDigest` | `src/lib/notifications/owner-digest.ts` | — |
 | `processRegularDigests` | `src/lib/notifications/digest.ts` | — |
 | `projectActorName` | `src/lib/actor-name.ts` | ── Правило проекции (чистая функция) ─────────────────────────────── |
 | `projectActors` | `src/lib/actor-name.ts` | Лента событий (Activity): actorName → проекция. |
@@ -555,6 +569,7 @@
 | `suggestOrderStatus` | `src/lib/status-suggest.ts` | — |
 | `summarizeOrderStages` | `src/lib/order-summary.ts` | Этапы заявки (по sequence asc) → сводка: первый незавершённый этап |
 | `todayUtcMidnight` | `src/lib/order-summary.ts` | Граница «сегодня» по UTC: плановые даты приходят UTC-полуночью |
+| `topSlowingRows` | `src/lib/notifications/owner-digest.ts` | Топ-5 «тормозящих» для письма: самые старые мячи по всем группам |
 | `unauthorized` | `src/lib/portal-auth.ts` | — |
 | `updateBrokerUser` | `src/lib/company-users.ts` | — |
 | `updateCalculation` | `src/lib/customs-server.ts` | ─── PUT: правка черновика (только актуальной версии) ──────────────── |
@@ -844,7 +859,7 @@
 | `CustomsFeeScale` | 5 | scripts/seed.ts, src/lib/customs-server.ts |
 | `Document` | 12 | src/app/api/admin/documents/[id]/versions/route.ts, src/app/api/admin/leads/[id]/documents/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/app/api/client/leads/[id]/documents/route.ts (+2) |
 | `DocumentVersion` | 13 | src/app/api/document-versions/[id]/file/route.ts |
-| `Employee` | 11 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/orders/[id]/patch.ts, src/app/api/auth/employee/login/route.ts (+1) |
+| `Employee` | 11 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/orders/[id]/patch.ts, src/app/api/auth/employee/login/route.ts (+2) |
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts |
 | `HsCode` | 9 | scripts/import-hs.ts, scripts/verify-hs-db.ts, scripts/verify-hs-prefix.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/lib/hs-db.ts |
 | `HsImport` | 5 | scripts/import-hs.ts, scripts/verify-hs-db.ts, src/lib/hs-db.ts |
@@ -852,7 +867,7 @@
 | `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts |
 | `LegalEntity` | 7 | scripts/seed.ts, src/app/api/admin/leads/[id]/convert/route.ts, src/app/api/admin/legal-entities/[id]/route.ts, src/app/api/admin/legal-entities/route.ts |
 | `LoginAttempt` | 7 | src/lib/login-guard.ts |
-| `Notification` | 19 | scripts/e2e_seed_notification.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/notifications/route.ts, src/lib/notifications/digest.ts, src/lib/notifications/dispatch.ts, src/lib/notifications/retry.ts |
+| `Notification` | 19 | scripts/e2e_seed_notification.ts, src/app/api/admin/attention/route.ts, src/app/api/admin/notifications/route.ts, src/lib/notifications/digest.ts, src/lib/notifications/dispatch.ts, src/lib/notifications/owner-digest.ts (+1) |
 | `NotificationPreference` | 5 | — |
 | `Order` | 43 | scripts/backfill_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/admin/orders/[id]/print/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/admin/orders/[id]/customs-calculations/route.ts (+19) |
 | `OrderBroker` | 6 | src/app/api/admin/orders/[id]/brokers/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/lib/broker-links.ts |

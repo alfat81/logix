@@ -2,6 +2,7 @@
 
 import { Clock } from 'lucide-react'
 import {
+  formatWaitingHours,
   isChoiceFollowupDue,
   WAITING_CHOICE_FOLLOWUP_ACTION,
   WAITING_CHOICE_FOLLOWUP_SHORT,
@@ -38,7 +39,8 @@ export function WaitingBadge({
   const nowDate = new Date()
   const sinceDate = new Date(since)
   const hours = Math.max(0, Math.floor((nowDate.getTime() - sinceDate.getTime()) / 3_600_000))
-  const duration = hours < 24 ? `${hours} ч` : `${Math.floor(hours / 24)} дн.`
+  // Формат возраста — общий с сводкой владельцу (DF-08), lib/waiting.ts.
+  const duration = formatWaitingHours(hours)
   const who = WAITING_KIND_LABELS[kind as WaitingKind] ?? kind
   const why = reason ? (WAITING_REASON_LABELS[reason as WaitingReason] ?? null) : null
   // D45: «несколько вариантов расчёта, выбранного нет» — через 2

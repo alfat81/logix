@@ -1,0 +1,33 @@
+{
+  "task": "DF-08 «Ежедневная сводка владельцу» 0.7.6 — письмо type=digest мастеру раз в сутки: цифры блока 1 Пульса, топ-5 «тормозящих» (глобальный порядок по возрасту мяча, заголовки PULSE_KIND_TITLES), число неотправленных писем (pending+failed), ссылка на Пульс, пустой день — «Существенных изменений нет». Окно — диапазон owner_digest.window_start/window_end (реестр DF-00D, дефолт 09:00–10:00) в поясе notifications.timezone (O-6); запуск — ход диспетчера DF-03 (processOwnerDigest в dispatchNow, ownerDigests в ответе, сбой не валит проход); идемпотентность dedupKey=ownerdigest:{employeeId}:{yyyy-mm-dd} (P2002 гасит гонку), windowKey=owner:{дата} — не занимает слот лимита regular-дайджестов; пропущенное окно уходит ближайшим проходом после end (одна за сутки). Reuse-first: блоки 1–3 Пульса вынесены в lib/pulse-db.ts (loadPulseCore — одна выборка с экраном, ответ роута не менялся), возраст мяча — formatWaitingHours (lib/waiting.ts, WaitingBadge на общий форматтер), подвал/ссылки — templates.ts; гард DF-01 дополнен третьей точкой записи очереди. Менеджеру сводка не уходит. Без миграций, env, зависимостей; заморозка D31 не затронута.",
+  "areas": [
+    "сводка: src/lib/notifications/owner-digest.ts (чистые ownerDigestDecision/parseOwnerWindow/ownerDedupKey/topSlowingRows/buildOwnerDigestLetter/dateLabelFromKey + processOwnerDigest), src/lib/notifications/owner-digest.test.ts (19 кейсов)",
+    "общая выборка Пульса: src/lib/pulse-db.ts (loadPulseCore — блоки 1–3 из одной выборки активных заявок), src/app/api/admin/pulse/route.ts (роут на общую выборку, ответ не менялся)",
+    "диспетчер: src/lib/notifications/dispatch.ts (вызов processOwnerDigest в dispatchNow, поле ownerDigests)",
+    "общий форматтер возраста: src/lib/waiting.ts (+formatWaitingHours), src/components/admin/WaitingBadge.tsx (на общий форматтер, тексты без изменений)",
+    "гард: src/lib/events-guard.test.ts (белый список точек записи очереди + owner-digest.ts)",
+    "конвейер: scripts/e2e_api_test.py (+13 проверок DF-08, итого 416), scripts/run-e2e-fix1.sh (переопределение DATABASE_URL для песочницы, дефолт — сервис CI), scripts/scope_rebaseline.py (восстановление baseline scope из HEAD — страховка от init после начала правок; песочница/конвейер)",
+    "документы: CHANGELOG.md, docs/ROADMAP.md (статус-блок), docs/ROADMAP-DEALFLOW.md (карточка DF-08 [x] факт 0.7.6, очередь), docs/INVENTORY.md (перегенерирован), docs/releases/RELEASE-NOTES-v0.7.6.md, docs/releases/RELEASE-INSTRUCTIONS-v0.7.6.md, docs/releases/SCOPE-v0.7.6.json"
+  ],
+  "globs": [
+    "CHANGELOG.md",
+    "docs/INVENTORY.md",
+    "docs/ROADMAP-DEALFLOW.md",
+    "docs/ROADMAP.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.7.6.md",
+    "docs/releases/RELEASE-NOTES-v0.7.6.md",
+    "docs/releases/SCOPE-v0.7.6.json",
+    "package.json",
+    "scripts/e2e_api_test.py",
+    "scripts/run-e2e-fix1.sh",
+    "scripts/scope_rebaseline.py",
+    "src/app/api/admin/pulse/route.ts",
+    "src/components/admin/WaitingBadge.tsx",
+    "src/lib/events-guard.test.ts",
+    "src/lib/notifications/dispatch.ts",
+    "src/lib/notifications/owner-digest.test.ts",
+    "src/lib/notifications/owner-digest.ts",
+    "src/lib/pulse-db.ts",
+    "src/lib/waiting.ts"
+  ]
+}
