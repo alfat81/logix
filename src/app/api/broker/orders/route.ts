@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireBroker } from '@/lib/broker-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { readPermits } from '@/lib/brokers'
+import { ROUTE_COLUMN_SELECT } from '@/lib/route-fields'
 
 // ─── GET /api/broker/orders — заявки, где я подключён (Д, роадмап 5а) ──
 // «Видит заявку целиком с момента расчёта» — связь OrderBroker (перенос
@@ -33,6 +34,9 @@ export async function GET(req: NextRequest) {
         status: true,
         createdAt: true,
         cargoInfo: true,
+        // DF-23 (б): маршрут/метрики — строка маршрута в списке из
+        // колонок (легаси-ключи from/to из cargoInfo больше не пишутся)
+        ...ROUTE_COLUMN_SELECT,
         incoterm: true,
         hsCode: true,
         customer: { select: { name: true } },
@@ -82,6 +86,16 @@ export async function GET(req: NextRequest) {
           status: o.status,
           createdAt: o.createdAt,
           cargoInfo: o.cargoInfo,
+          // DF-23 (б): маршрут/метрики — строка маршрута списка из колонок
+          originCity: o.originCity,
+          originCountry: o.originCountry,
+          destinationCity: o.destinationCity,
+          destinationCountry: o.destinationCountry,
+          transportType: o.transportType,
+          readyDate: o.readyDate,
+          weightKg: o.weightKg,
+          volumeM3: o.volumeM3,
+          placesCount: o.placesCount,
           incoterm: o.incoterm,
           hsCode: o.hsCode,
           customerName: o.customer?.name ?? null,

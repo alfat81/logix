@@ -357,3 +357,25 @@ export async function validateAssigneeChange(
   }
   return { name: target.name }
 }
+
+// ─── DF-23 (в): ТН ВЭД заявки — одна точка правки ───────────────────
+// Дубль «колонка Order.hsCode + ключ бланка cargoInfo.hsCode» расходился
+// после первой же правки бланка. Бланк — источник правды: колонка (нужна
+// фильтрам и печатным формам) следует за бланком; явный data.hsCode в
+// том же PATCH перекрывается бланком. undefined = бланк не трогали.
+// Историческое расхождение закрывает разовое выравнивание данных
+// (инструкция релиза v0.7.15). Вынесено из PATCH заявки (лимит 300).
+export function hsCodePatch(
+  cargoInfo: unknown,
+  hsCode: string | null | undefined
+): { hsCode: string | null } | undefined {
+  if (cargoInfo !== undefined) {
+    const hs =
+      cargoInfo && typeof cargoInfo === 'object' && !Array.isArray(cargoInfo)
+        ? (cargoInfo as Record<string, unknown>).hsCode
+        : undefined
+    return { hsCode: typeof hs === 'string' && hs.trim() ? hs.trim() : null }
+  }
+  if (hsCode !== undefined) return { hsCode: hsCode || null }
+  return undefined
+}

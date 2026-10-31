@@ -211,6 +211,7 @@ export default function OrderPage() {
             <InfoField label="Договор" value={`№ ${order.contract.number}`} />
             <InfoField label="Создана" value={fmtDate(order.createdAt)} />
             <InfoField label="Инкотермс" value={order.incoterm ?? '—'} />
+            <InfoField label="Место поставки" value={order.incotermPlace ?? '—'} />{/* DF-23 (г): DF-19, место — рядом с кодом */}
             <InfoField label="ТН ВЭД" value={order.hsCode ?? '—'} />
             <InfoField label="Груз" value={CARGO_PROFILE_LABELS[order.cargoProfile]} />
             <InfoField

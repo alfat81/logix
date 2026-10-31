@@ -4,6 +4,7 @@ import { requireBroker } from '@/lib/broker-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { readPermits } from '@/lib/brokers'
 import { PERMIT_EXTERNAL_FIELDS } from '@/lib/permits-db'
+import { ROUTE_COLUMN_SELECT } from '@/lib/route-fields'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -27,7 +28,11 @@ export async function GET(req: NextRequest, { params }: Params) {
         status: true,
         createdAt: true,
         cargoInfo: true,
+        // DF-23 (б): маршрут/метрики — брокеру они нужны для оценки
+        // платежей (DF-18); терялись в этой проекции
+        ...ROUTE_COLUMN_SELECT,
         incoterm: true,
+        incotermPlace: true,
         hsCode: true,
         cargoProfile: true,
         customer: { select: { name: true } },
@@ -77,7 +82,18 @@ export async function GET(req: NextRequest, { params }: Params) {
         status: order.status,
         createdAt: order.createdAt,
         cargoInfo: order.cargoInfo,
+        // DF-23 (б): маршрут/метрики — те же колонки, что в select выше
+        originCity: order.originCity,
+        originCountry: order.originCountry,
+        destinationCity: order.destinationCity,
+        destinationCountry: order.destinationCountry,
+        transportType: order.transportType,
+        readyDate: order.readyDate,
+        weightKg: order.weightKg,
+        volumeM3: order.volumeM3,
+        placesCount: order.placesCount,
         incoterm: order.incoterm,
+        incotermPlace: order.incotermPlace,
         hsCode: order.hsCode,
         cargoProfile: order.cargoProfile,
         customerName: order.customer?.name ?? null,

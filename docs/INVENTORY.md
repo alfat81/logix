@@ -270,6 +270,7 @@
 | `REF_DIRS` | `src/lib/ref.ts` | dir-ы справочника — закрытый список: каждый dir = отдельный источник |
 | `REF_DIR_LABELS` | `src/lib/ref.ts` | — |
 | `REQUISITE_FIELDS` | `src/lib/requisite-fields.ts` | — |
+| `ROUTE_COLUMN_SELECT` | `src/lib/route-fields.ts` | DF-23 (б): фрагмент Prisma-select маршрутных колонок (P1-03) — один |
 | `RatesImportResult` | `src/lib/cbr.ts` | — |
 | `RawContact` | `src/lib/leads.ts` | — |
 | `RawContactSchema` | `src/lib/leads.ts` | Черновая анкета контакта на этапе запроса (В1, rawContact Json). |
@@ -509,6 +510,7 @@
 | `hashPassword` | `src/lib/password.ts` | — |
 | `hashSessionToken` | `src/lib/portal-auth.ts` | — |
 | `hotp` | `src/lib/totp.ts` | RFC 4226 HOTP: HMAC-SHA1(key, 8-байтовый counter BE) → динамическое |
+| `hsCodePatch` | `src/lib/lead-edit.ts` | ─── DF-23 (в): ТН ВЭД заявки — одна точка правки ─────────────────── |
 | `hsPrefixRange` | `src/lib/hs.ts` | Границы префиксного поиска по индексу (btree): code >= gte AND |
 | `importCbrRates` | `src/lib/cbr.ts` | Импорт курсов за последний доступный день. Возвращается число |
 | `incotermMetaOf` | `src/lib/ref.ts` | — |
@@ -629,6 +631,7 @@
 | `retryNotification` | `src/lib/notifications/retry.ts` | — |
 | `revertPermitDocument` | `src/lib/permits-db.ts` | Удаление документа возвращает строку в ожидание (lib/documents.ts). |
 | `revokeAllSessions` | `src/lib/totp-db.ts` | «Выйти на всех устройствах»: все сессии пользователя, включая текущую. */ |
+| `routeLineOf` | `src/lib/route-fields.ts` | DF-23 (б): строка маршрута для списков кабинетов (клиент, брокер). |
 | `routeToDbColumns` | `src/lib/route-fields.ts` | RouteFieldsInput → данные для prisma create/update (readyDate — Date, |
 | `sanitizeFileName` | `src/lib/documents.ts` | Санитизация имени: без каталогов, без управляющих символов, без |
 | `scanPermitOverdue` | `src/lib/notifications/permits-scan.ts` | — |

@@ -27,6 +27,17 @@ type BrokerLead = {
   status: LeadStatus
   createdAt: string
   cargoInfo: Record<string, unknown> | null
+  // DF-23 (б): маршрут/метрики — без веса/объёма/маршрута платежи
+  // не оценить (DF-18); терялись в карточке запроса
+  originCity?: string | null
+  originCountry?: string | null
+  destinationCity?: string | null
+  destinationCountry?: string | null
+  transportType?: string | null
+  readyDate?: string | null
+  weightKg?: string | number | null
+  volumeM3?: string | number | null
+  placesCount?: number | null
   customerName: string | null
   order: { id: string; number: string } | null
   estimate: BrokerEstimate | null
@@ -117,6 +128,7 @@ export function BrokerLeadCard() {
         </CardHeader>
         <CardContent>
           <CargoGroups
+            route={lead}
             cargoInfo={lead.cargoInfo}
             emptyText="Анкета не заполнена — запросите данные у менеджера"
           />

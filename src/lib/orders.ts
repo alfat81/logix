@@ -104,6 +104,10 @@ export type CreateOrderInput = {
   // DF-17: условие поставки КОДОМ из справочника (рядом с легаси-текстом);
   // валидность кода проверяет вызывающий роут (resolveActiveRefs)
   incotermCode?: string | null
+  // DF-19: место условия поставки — свободный текст рядом с кодом.
+  // DF-23 (а): конверсия В4 переносит его с лида (пустая колонка заявки
+  // при заполненном запросе — потеря данных, найдена владельцем).
+  incotermPlace?: string | null
   hsCode?: string | null
   cargoProfile?: CargoProfile
   leadId?: string
@@ -165,6 +169,8 @@ export async function createOrderWithStages(
         incoterm: input.incoterm ?? null,
         // DF-17: условие поставки кодом из справочника
         incotermCode: input.incotermCode ?? null,
+        // DF-19/DF-23 (а): место условия поставки — переносится с лида
+        incotermPlace: input.incotermPlace ?? null,
         hsCode: input.hsCode ?? null,
         cargoProfile: input.cargoProfile ?? 'standard',
         status: 'calculating',

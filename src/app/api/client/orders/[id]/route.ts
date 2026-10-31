@@ -6,6 +6,7 @@ import { ACTIVITY_FEED_TAKE, ACTIVITY_PUBLIC_FIELDS } from '@/lib/activity'
 import { eventWhereFor } from '@/lib/audience'
 import { projectActors } from '@/lib/actor-name'
 import { PERMIT_EXTERNAL_FIELDS } from '@/lib/permits-db'
+import { ROUTE_COLUMN_SELECT } from '@/lib/route-fields'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -30,6 +31,10 @@ export async function GET(req: NextRequest, { params }: Params) {
         status: true,
         createdAt: true,
         cargoInfo: true,
+        // DF-23 (б): маршрут/метрики — те же колонки, что карточка
+        // ЗАПРОСА клиента уже показывает (переносится конверсией,
+        // терялись в этой проекции — блок «Маршрут» был пуст)
+        ...ROUTE_COLUMN_SELECT,
         // DF-05: данные ожидания — наружу уходит ТОЛЬКО нейтральная
         // плашка «мяч у клиента» (см. сборку ответа ниже).
         waitingOnKind: true,

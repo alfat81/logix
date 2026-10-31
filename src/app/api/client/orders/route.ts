@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireClient } from '@/lib/client-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
+import { ROUTE_COLUMN_SELECT } from '@/lib/route-fields'
 
 // ─── GET /api/client/orders — заявки клиента (И1, только чтение) ──
 // Все заявки клиента (customerId = я), свежие сверху. Состав — по
@@ -32,6 +33,9 @@ export async function GET(req: NextRequest) {
         status: true,
         createdAt: true,
         cargoInfo: true,
+        // DF-23 (б): маршрут/метрики — строка маршрута в списке из
+        // колонок (легаси-ключи from/to из cargoInfo больше не пишутся)
+        ...ROUTE_COLUMN_SELECT,
         stages: {
           orderBy: { sequence: 'asc' },
           select: {

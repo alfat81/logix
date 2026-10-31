@@ -4,6 +4,7 @@ import { requireBroker } from '@/lib/broker-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { readPermits } from '@/lib/brokers'
 import { PERMIT_EXTERNAL_FIELDS } from '@/lib/permits-db'
+import { ROUTE_COLUMN_SELECT } from '@/lib/route-fields'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -30,6 +31,9 @@ export async function GET(req: NextRequest, { params }: Params) {
             status: true,
             createdAt: true,
             cargoInfo: true,
+            // DF-23 (б): маршрут/метрики — без веса/объёма/маршрута
+            // брокер не оценивает платежи (DF-18); терялись в проекции
+            ...ROUTE_COLUMN_SELECT,
             customer: { select: { name: true } },
             order: { select: { id: true, number: true } },
             // DF-16: разрешительные сделки — брокеру наружная проекция
@@ -53,6 +57,16 @@ export async function GET(req: NextRequest, { params }: Params) {
         status: link.lead.status,
         createdAt: link.lead.createdAt,
         cargoInfo: link.lead.cargoInfo,
+        // DF-23 (б): маршрут/метрики — для оценки платежей (DF-18)
+        originCity: link.lead.originCity,
+        originCountry: link.lead.originCountry,
+        destinationCity: link.lead.destinationCity,
+        destinationCountry: link.lead.destinationCountry,
+        transportType: link.lead.transportType,
+        readyDate: link.lead.readyDate,
+        weightKg: link.lead.weightKg,
+        volumeM3: link.lead.volumeM3,
+        placesCount: link.lead.placesCount,
         customerName: link.lead.customer?.name ?? null,
         order: link.lead.order,
         connectedAt: link.createdAt,

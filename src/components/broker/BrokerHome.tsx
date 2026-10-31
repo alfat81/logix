@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { readLeadCargo } from '@/lib/leads'
+import { routeLineOf } from '@/lib/route-fields'
 import { fmtDuty } from '@/lib/brokers'
 import {
   BrokerLeadStatusBadge,
@@ -27,6 +28,11 @@ type BrokerOrderRow = {
   status: OrderStatus
   createdAt: string
   cargoInfo: Record<string, unknown> | null
+  // DF-23 (б): маршрут/метрики — строка маршрута списка из колонок
+  originCity?: string | null
+  originCountry?: string | null
+  destinationCity?: string | null
+  destinationCountry?: string | null
   customerName: string | null
   estimate: { customsDutyEstimate: number | null } | null
   stages: { id: string; name: string; status: StageStatus }[]
@@ -37,6 +43,10 @@ type BrokerLeadRow = {
   status: LeadStatus
   createdAt: string
   cargoInfo: Record<string, unknown> | null
+  originCity?: string | null
+  originCountry?: string | null
+  destinationCity?: string | null
+  destinationCountry?: string | null
   customerName: string | null
   estimate: { customsDutyEstimate: number | null } | null
 }
@@ -44,10 +54,18 @@ type BrokerLeadRow = {
 const fmtDate = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString('ru-RU') : '—'
 
-function routeOf(cargoInfo: Record<string, unknown> | null): { from: string; to: string; cargoName: string; hsCode: string } {
-  const c = readLeadCargo(cargoInfo)
+// Выжимка строки списка: маршрут — из колонок (DF-23 (б), легаси-
+// fallback routeLineOf — ключи from/to из cargoInfo больше не пишутся),
+// груз и ТН ВЭД — из анкеты
+function routeOf(row: BrokerOrderRow | BrokerLeadRow): {
+  from: string
+  to: string
+  cargoName: string
+  hsCode: string
+} {
+  const c = readLeadCargo(row.cargoInfo)
   const s = (v: unknown): string => (typeof v === 'string' && v ? v : '')
-  return { from: s(c.from), to: s(c.to), cargoName: s(c.cargoName), hsCode: s(c.hsCode) }
+  return { ...routeLineOf(row, row.cargoInfo), cargoName: s(c.cargoName), hsCode: s(c.hsCode) }
 }
 
 export function BrokerHome() {
@@ -118,7 +136,7 @@ export function BrokerHome() {
         ) : (
           <div className="grid gap-2">
             {orders.map((o) => {
-              const r = routeOf(o.cargoInfo)
+              const r = routeOf(o)
               const done = o.stages.filter((s) => s.status === 'done').length
               const nearest = o.stages.find((s) => s.status !== 'done') ?? null
               return (
@@ -178,7 +196,7 @@ export function BrokerHome() {
         ) : (
           <div className="grid gap-2">
             {leads.map((l) => {
-              const r = routeOf(l.cargoInfo)
+              const r = routeOf(l)
               return (
                 <Card key={l.id} className="p-0">
                   <Link href={`/broker/leads/${l.id}`}>

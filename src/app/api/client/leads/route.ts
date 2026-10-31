@@ -5,11 +5,9 @@ import { requireClient } from '@/lib/client-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { clientActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
-import {
-  ClientCreateRequestSchema,
-  CLIENT_LEAD_DAILY_LIMIT,
-} from '@/lib/client-constants'
+import { ClientCreateRequestSchema, CLIENT_LEAD_DAILY_LIMIT } from '@/lib/client-constants'
 import { resolveDealCodes } from '@/lib/ref-db'
+import { ROUTE_COLUMN_SELECT } from '@/lib/route-fields'
 
 // ─── Запросы клиента в кабинете (И1) ────────────────────────────────
 // GET  — «мои запросы»: лиды клиента (любого источника — и созданные
@@ -28,6 +26,9 @@ const CLIENT_LEAD_SELECT = {
   status: true,
   createdAt: true,
   cargoInfo: true,
+  // DF-23 (б): маршрут/метрики — строка маршрута в списке из колонок
+  // (карточка запроса их уже отдаёт; список — нет, «Маршрут не указан»)
+  ...ROUTE_COLUMN_SELECT,
   order: { select: { id: true, number: true } },
 } as const
 

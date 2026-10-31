@@ -9,6 +9,7 @@ import {
   ClientLeadEditSchema,
 } from '@/lib/lead-edit'
 import { resolveRouteColumns } from '@/lib/ref-db'
+import { ROUTE_COLUMN_SELECT } from '@/lib/route-fields'
 import { clientActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
 import { ACTIVITY_FEED_TAKE, ACTIVITY_PUBLIC_FIELDS } from '@/lib/activity'
@@ -35,15 +36,7 @@ const CLIENT_LEAD_DETAIL_SELECT = {
   createdAt: true,
   cargoInfo: true,
   // P1-03: маршрут/метрики — колонки (карточка + diff правки)
-  originCity: true,
-  originCountry: true,
-  destinationCity: true,
-  destinationCountry: true,
-  transportType: true,
-  readyDate: true,
-  weightKg: true,
-  volumeM3: true,
-  placesCount: true,
+  ...ROUTE_COLUMN_SELECT,
   order: { select: { id: true, number: true } },
   _count: { select: { options: true } },
   // DF-21: журнал запроса — только события с аудиторией 'client'

@@ -49,4 +49,79 @@ describe('Atomic Lead Conversion Transaction (DF-00 / P1-10)', () => {
       expect(carriedDocs).toBe(0)
     })
   })
+
+  // DF-23 (а): маппинг конверсии — условие поставки (код + место)
+  // доезжает до заявки. Раньше CreateOrderInput поля incotermPlace не
+  // имел: колонка заявки всегда была пустой при заполненном запросе.
+  it('carries incotermCode and incotermPlace into the order (DF-23)', async () => {
+    const customer = await db.customer.create({
+      data: { name: 'Тестовый Клиент DF-23', phone: '+79995556677' },
+    })
+    const legal = await db.legalEntity.findFirst()
+    expect(legal).toBeDefined()
+
+    const res = await db.$transaction(async (tx) =>
+      createOrderWithStages(
+        {
+          customerId: customer.id,
+          legalEntityId: legal!.id,
+          incoterm: 'CIF',
+          incotermCode: 'CIF',
+          incotermPlace: 'Истанбул, TR',
+          hsCode: '8483402309',
+          route: {
+            originCity: 'Гуанчжоу',
+            originCountry: 'Китай',
+            destinationCity: 'Москва',
+            destinationCountry: 'Россия',
+            transportType: 'sea',
+            weightKg: 2500,
+            volumeM3: 12.5,
+            placesCount: 40,
+            originCountryCode: 'CN',
+            destinationCountryCode: 'RU',
+          },
+        },
+        tx
+      )
+    )
+    expect('error' in res).toBe(false)
+
+    const order = await db.order.findUnique({
+      where: { id: (res as { id: string }).id },
+      select: {
+        incoterm: true,
+        incotermCode: true,
+        incotermPlace: true,
+        hsCode: true,
+        originCity: true,
+        originCountryCode: true,
+        destinationCity: true,
+        destinationCountryCode: true,
+        transportType: true,
+        weightKg: true,
+        volumeM3: true,
+        placesCount: true,
+      },
+    })
+    expect(order).toMatchObject({
+      incoterm: 'CIF',
+      incotermCode: 'CIF',
+      incotermPlace: 'Истанбул, TR',
+      hsCode: '8483402309',
+      originCity: 'Гуанчжоу',
+      originCountryCode: 'CN',
+      destinationCity: 'Москва',
+      destinationCountryCode: 'RU',
+      transportType: 'sea',
+      placesCount: 40,
+    })
+    expect(Number(order?.weightKg)).toBe(2500)
+    expect(Number(order?.volumeM3)).toBe(12.5)
+
+    await db.order.delete({ where: { id: (res as { id: string }).id } })
+    // Договор пары клиент+юрлицо рождается конверсией (findOrCreateContract)
+    await db.contract.deleteMany({ where: { customerId: customer.id } })
+    await db.customer.delete({ where: { id: customer.id } })
+  })
 })

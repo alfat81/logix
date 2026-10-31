@@ -68,6 +68,46 @@ export function joinRouteText(country: unknown, city: unknown): string {
   return t || c
 }
 
+// DF-23 (б): строка маршрута для списков кабинетов (клиент, брокер).
+// Источник — колонки P1-03; легаси-fallback на ключи from/to (origin/
+// destination) в cargoInfo для записей до миграции P1-03. Файл остаётся
+// без серверных зависимостей: cargoInfo читается напрямую, без readLeadCargo
+// (lib/leads.ts импортирует этот файл — цикл недопустим).
+export function routeLineOf(
+  row: {
+    originCity?: unknown
+    originCountry?: unknown
+    destinationCity?: unknown
+    destinationCountry?: unknown
+  },
+  cargoInfo: unknown
+): { from: string; to: string } {
+  const s = (v: unknown): string => (typeof v === 'string' ? v.trim() : '')
+  const c =
+    cargoInfo && typeof cargoInfo === 'object' && !Array.isArray(cargoInfo)
+      ? (cargoInfo as Record<string, unknown>)
+      : null
+  const from = joinRouteText(row.originCountry, row.originCity) || s(c?.from) || s(c?.origin)
+  const to =
+    joinRouteText(row.destinationCountry, row.destinationCity) || s(c?.to) || s(c?.destination)
+  return { from, to }
+}
+
+// DF-23 (б): фрагмент Prisma-select маршрутных колонок (P1-03) — один
+// источник для проекций карточек и списков лида/заявки (IC-14: блоки
+// ≥ 12 строк, скопированные по роутам, красят integrity-гейт).
+export const ROUTE_COLUMN_SELECT = {
+  originCity: true,
+  originCountry: true,
+  destinationCity: true,
+  destinationCountry: true,
+  transportType: true,
+  readyDate: true,
+  weightKg: true,
+  volumeM3: true,
+  placesCount: true,
+} as const
+
 // ── zod-схема route-полей (тела POST/PATCH) ─────────────────────────
 // Все поля опциональны; null = очистить поле. readyDate — строго
 // yyyy-mm-dd (дата-инпут формы). Вес/объём — положительные числа,

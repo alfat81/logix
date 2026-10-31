@@ -47,19 +47,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
     const { legalEntityId, incoterm, incotermCode, hsCode } = parsed.data
 
-    // DF-17: условие поставки — код из справочника приоритетен над легаси-
-    // текстом; код должен быть в справочнике и активен.
-    const effectiveIncotermCode = incotermCode ?? null
-    if (effectiveIncotermCode) {
-      const incotermResolved = await resolveActiveRefs('incoterm', [effectiveIncotermCode])
-      if (incotermResolved.invalid.length > 0) {
-        return NextResponse.json(
-          { error: `Условие поставки не найдено в справочнике: ${incotermResolved.invalid.join(', ')}` },
-          { status: 400 }
-        )
-      }
-    }
-
     const lead = await db.lead.findUnique({
       where: { id },
       include: {
@@ -69,6 +56,24 @@ export async function POST(req: NextRequest, { params }: Params) {
     })
     if (!lead) {
       return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
+    }
+
+    // DF-17: условие поставки — код из справочника приоритетен над
+    // легаси-текстом; код должен быть в справочнике и активен.
+    // DF-23 (а): тело приоритетно, но прямой API-вызов без кода в теле
+    // больше НЕ теряет выбор клиента из запроса молча — пусто в теле →
+    // код с лида. Явный null в теле (менеджер стёр предзаполнение
+    // диалога) остаётся осознанной очисткой.
+    const effectiveIncotermCode =
+      incotermCode !== undefined ? (incotermCode ?? null) : (lead.incotermCode ?? null)
+    if (effectiveIncotermCode) {
+      const incotermResolved = await resolveActiveRefs('incoterm', [effectiveIncotermCode])
+      if (incotermResolved.invalid.length > 0) {
+        return NextResponse.json(
+          { error: `Условие поставки не найдено в справочнике: ${incotermResolved.invalid.join(', ')}` },
+          { status: 400 }
+        )
+      }
     }
 
     // Повторная конвертация — чистый 409
@@ -167,6 +172,26 @@ export async function POST(req: NextRequest, { params }: Params) {
         }
 
         // 2. Создание заявки с этапами (внутри блокируется строка Contract)
+        // DF-23 (в): ТН ВЭД — одна точка правки: бланк анкеты (cargoInfo
+        // с заблокированной строки) — источник правды, колонка hsCode
+        // следует за ним. Код в теле (диалог, предзаполнен бланком) — это
+        // правка кода В снимке бланка заявки; пусто в теле → колонка из
+        // бланка (прямой API-вызов молча не теряет код анкеты), явный
+        // null → код снимается с бланка заявки.
+        const leadBlank = (locked.cargoInfo as Prisma.InputJsonObject | null) ?? null
+        const blankHs = (() => {
+          const v = (leadBlank as Record<string, unknown> | null)?.hsCode
+          return typeof v === 'string' && v.trim() ? v.trim() : null
+        })()
+        const effectiveHsCode = hsCode !== undefined ? (hsCode || null) : blankHs
+        const cargoSnapshot: Prisma.InputJsonObject | undefined = leadBlank
+          ? hsCode !== undefined
+            ? { ...leadBlank, hsCode: effectiveHsCode }
+            : leadBlank
+          : effectiveHsCode
+            ? { v: 1, hsCode: effectiveHsCode }
+            : undefined
+
         const orderRes = await createOrderWithStages(
           {
             customerId: customer.id,
@@ -174,10 +199,13 @@ export async function POST(req: NextRequest, { params }: Params) {
             // DF-17: код приоритетен; легаси-текст — снимок для старых отображений
             incoterm: effectiveIncotermCode ?? (incoterm || null),
             incotermCode: effectiveIncotermCode,
-            hsCode: hsCode || null,
+            // DF-19/DF-23 (а): место условия поставки — переносится с лида
+            // (было: колонка заявки всегда пустая — потеря данных)
+            incotermPlace: locked.incotermPlace,
+            hsCode: effectiveHsCode,
             leadId: locked.id,
             assignedToId: locked.assignedToId ?? auth.employee.id,
-            cargoInfo: (locked.cargoInfo as Prisma.InputJsonObject | null) ?? undefined,
+            cargoInfo: cargoSnapshot,
             route: {
               originCity: locked.originCity,
               originCountry: locked.originCountry,

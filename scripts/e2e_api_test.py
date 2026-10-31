@@ -970,6 +970,41 @@ b16=dg16[0].get('body','') if dg16 else ''
 chk('DF-16: в дайджесте блок «Ждём от вас» с названием строки','Ждём от вас' in b16 and 'Просроченный DF16' in b16,b16[:400])
 s,d=a.r('DELETE','/api/admin/settings',{'key':'notifications.client_digest_times'}); chk('DF-16: окна дайджеста сброшены',s==200,(s,d))
 
+# --- DF-23: охрана переноса полей «запрос → заявка» и видимость по ролям ---
+# Полностью заполненный запрос (кабинет клиента + PATCH админа) конвертируется
+# БЕЗ incotermCode в теле: код условия поставки и место обязаны приехать с
+# запроса (потери 1–2). Каждое поле найдено в заявке: менеджер (API), клиент
+# (карточка и список, потеря 3), брокер (запрос и заявка, потеря 4). Правка
+# бланка заявки — единственная точка правки ТН ВЭД: колонка следует за бланком
+# (дубль 1). Секции ДО DF-09: дальше guard-бакет логина.
+s,d=c3.r('POST','/api/client/leads',{'route':{'originCountryCode':'CN','destinationCountryCode':'RU','originCity':'Гуанчжоу','destinationCity':'Санкт-Петербург','transportType':'sea','readyDate':'2026-12-05','weightKg':2500,'volumeM3':12.5,'placesCount':40},'cargoInfo':{'cargoName':'Двигатели DF23','hsCode':'8483402309','packaging':'Деревянная обрешётка','cargoValue':'45000 USD','dangerous':False,'stackable':True,'tiltable':False,'specialRequirements':'Не кантовать DF23','shipperName':'Guangzhou Motors DF23','shipperInn':'CN-91440101','shipperAddress':'№5 Port Ave, Guangzhou','consigneeName':'ООО Приёмка DF23','consigneeInn':'7801234567','consigneeAddress':'СПб, склад 12'},'incotermCode':'CIF'}); chk('DF-23: полностью заполненный запрос создан клиентом',s in(200,201),(s,d)); lid23=(d.get('lead') or d)['id']
+s,d=a.r('PATCH',f'/api/admin/leads/{lid23}',{'incotermPlace':'Истанбул, TR'}); chk('DF-23: место поставки задано на запросе',s==200,(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{lid23}/brokers',{'brokerId':brk3}); chk('DF-23: брокер подключён к запросу',s in(200,201),(s,d))
+s,d=b17.r('GET',f'/api/broker/leads/{lid23}'); BL23=(d.get('lead') or d)
+chk('DF-23: брокер видит маршрут запроса (пункты/вес/объём/места)',BL23.get('originCity')=='Гуанчжоу' and float(BL23.get('weightKg'))==2500 and float(BL23.get('volumeM3'))==12.5 and BL23.get('placesCount')==40,(BL23.get('originCity'),BL23.get('weightKg'),BL23.get('volumeM3'),BL23.get('placesCount')))
+s,d=a.r('POST',f'/api/admin/leads/{lid23}/options',{'description':'Море DF23','price':900000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':40,'priorityFit':'cost','isSelected':True}); chk('DF-23: вариант расчёта создан',s in(200,201),(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{lid23}/convert',{'legalEntityId':leid}); chk('DF-23: запрос конвертирован (в теле нет incotermCode)',s in(200,201),(s,d)); oid23=(d.get('order') or d)['id']
+s,d=a.r('GET',f'/api/admin/orders/{oid23}'); O23=d.get('order',d); CI23=(O23.get('cargoInfo') or {})
+chk('DF-23: incotermCode перенесён с запроса (тело пусто)',O23.get('incotermCode')=='CIF' and O23.get('incoterm')=='CIF',(O23.get('incotermCode'),O23.get('incoterm')))
+chk('DF-23: incotermPlace перенесён с запроса',O23.get('incotermPlace')=='Истанбул, TR',O23.get('incotermPlace'))
+chk('DF-23: маршрут перенесён целиком (9 колонок)',O23.get('originCity')=='Гуанчжоу' and O23.get('originCountry')=='Китай' and O23.get('destinationCity')=='Санкт-Петербург' and O23.get('destinationCountry')=='Россия' and O23.get('transportType')=='sea' and str(O23.get('readyDate',''))[:10]=='2026-12-05' and float(O23.get('weightKg'))==2500 and float(O23.get('volumeM3'))==12.5 and O23.get('placesCount')==40,(O23.get('originCity'),O23.get('originCountry'),O23.get('destinationCity'),O23.get('destinationCountry'),O23.get('transportType'),O23.get('readyDate'),O23.get('weightKg'),O23.get('volumeM3'),O23.get('placesCount')))
+chk('DF-23: коды стран перенесены',O23.get('originCountryCode')=='CN' and O23.get('destinationCountryCode')=='RU',(O23.get('originCountryCode'),O23.get('destinationCountryCode')))
+chk('DF-23: бланк перенесён снимком (груз/упаковка/отправитель/получатель)',CI23.get('cargoName')=='Двигатели DF23' and CI23.get('hsCode')=='8483402309' and CI23.get('packaging')=='Деревянная обрешётка' and CI23.get('shipperName')=='Guangzhou Motors DF23' and CI23.get('consigneeName')=='ООО Приёмка DF23',(CI23.get('cargoName'),CI23.get('hsCode'),CI23.get('packaging')))
+chk('DF-23: колонка ТН ВЭД при конверсии = бланку',O23.get('hsCode')=='8483402309',O23.get('hsCode'))
+# потеря 3: карточка и список клиента
+s,d=c3.r('GET',f'/api/client/orders/{oid23}'); CO23=(d.get('order') or d)
+chk('DF-23: клиент видит маршрут и вес в карточке заявки',CO23.get('originCity')=='Гуанчжоу' and float(CO23.get('weightKg'))==2500 and CO23.get('placesCount')==40,(CO23.get('originCity'),CO23.get('weightKg'),CO23.get('placesCount')))
+s,d=c3.r('GET','/api/client/orders'); cli23=[x for x in (d.get('orders') or []) if x['id']==oid23]
+chk('DF-23: список заявок клиента отдаёт колонки маршрута',len(cli23)==1 and cli23[0].get('originCity')=='Гуанчжоу',(cli23[0].get('originCity') if cli23 else None))
+# потеря 4: заявка брокера
+s,d=b17.r('GET',f'/api/broker/orders/{oid23}'); BO23=(d.get('order') or d)
+chk('DF-23: брокер видит маршрут, место поставки и ТН ВЭД в заявке',BO23.get('originCity')=='Гуанчжоу' and float(BO23.get('weightKg'))==2500 and BO23.get('incotermPlace')=='Истанбул, TR' and BO23.get('hsCode')=='8483402309',(BO23.get('originCity'),BO23.get('weightKg'),BO23.get('incotermPlace'),BO23.get('hsCode')))
+# дубль 1: правка бланка — одна точка правки ТН ВЭД, колонка следует за бланком
+blank23=dict(CI23); blank23['hsCode']='8481800009'
+s,d=a.r('PATCH',f'/api/admin/orders/{oid23}',{'cargoInfo':blank23}); chk('DF-23: правка бланка заявки (ТН ВЭД изменён)',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid23}'); O23b=d.get('order',d)
+chk('DF-23: правка бланка синхронизирует колонку ТН ВЭД',O23b.get('hsCode')=='8481800009' and (O23b.get('cargoInfo') or {}).get('hsCode')=='8481800009',(O23b.get('hsCode'),(O23b.get('cargoInfo') or {}).get('hsCode')))
+
 # --- DF-09: двухфакторный вход для мастера/менеджера (TOTP, RFC 6238) ---
 # Секция в КОНЦЕ скрипта: неверные коды заполняют минутное окно guard'а
 # по общему бакету IP — после неё логинов в скрипте нет (урок 0.7.7:

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireBroker } from '@/lib/broker-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { readPermits } from '@/lib/brokers'
+import { ROUTE_COLUMN_SELECT } from '@/lib/route-fields'
 
 // ─── GET /api/broker/leads — запросы в расчёте, где я консультирую (Д) ──
 // «Видит всё с этапа расчёта» (роадмап 5а): только СВОИ лиды (по связи
@@ -32,6 +33,8 @@ export async function GET(req: NextRequest) {
             status: true,
             createdAt: true,
             cargoInfo: true,
+            // DF-23 (б): маршрут/метрики — строка маршрута списка из колонок
+            ...ROUTE_COLUMN_SELECT,
             customer: { select: { name: true } },
           },
         },
@@ -53,6 +56,16 @@ export async function GET(req: NextRequest) {
         status: l.lead.status,
         createdAt: l.lead.createdAt,
         cargoInfo: l.lead.cargoInfo,
+        // DF-23 (б): маршрут/метрики — строка маршрута списка из колонок
+        originCity: l.lead.originCity,
+        originCountry: l.lead.originCountry,
+        destinationCity: l.lead.destinationCity,
+        destinationCountry: l.lead.destinationCountry,
+        transportType: l.lead.transportType,
+        readyDate: l.lead.readyDate,
+        weightKg: l.lead.weightKg,
+        volumeM3: l.lead.volumeM3,
+        placesCount: l.lead.placesCount,
         customerName: l.lead.customer?.name ?? null,
         connectedAt: l.createdAt,
         estimate: l.estimate

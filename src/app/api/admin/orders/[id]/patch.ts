@@ -10,7 +10,7 @@ import {
 } from '@/lib/order-constants'
 import { resolveRouteColumns, resolveActiveRefs, resolveActiveCurrencies } from '@/lib/ref-db'
 import { PatchOrderSchema } from './schemas'
-import { buildLeadEditDiff } from '@/lib/lead-edit'
+import { buildLeadEditDiff, hsCodePatch } from '@/lib/lead-edit'
 import { getIncompleteMandatoryStages, emitOrderEvents } from '@/lib/orders'
 import { checkOrderTransition, TERMINAL_ORDER_STATUSES } from '@/lib/status-machine'
 import type { ActivityType } from '@/lib/activity'
@@ -172,6 +172,9 @@ export async function patchOrder(
       }
     }
 
+    // DF-23 (в): ТН ВЭД — одна точка правки (бланк cargoInfo → колонка
+    // hsCode); хелпер и обоснование — lib/lead-edit.ts. Разовое
+    // выравнивание исторического расхождения — инструкция релиза v0.7.15.
     const order = await db.order.update({
       where: { id },
       data: {
@@ -183,7 +186,7 @@ export async function patchOrder(
           ? { incotermCode: incotermCode || null, ...(incotermCode ? { incoterm: incotermCode } : {}) }
           : {}),
         ...(data.incotermPlace !== undefined ? { incotermPlace: data.incotermPlace || null } : {}), // DF-19
-        ...(data.hsCode !== undefined ? { hsCode: data.hsCode || null } : {}),
+        ...(hsCodePatch(data.cargoInfo, data.hsCode) ?? {}),
         ...(data.cargoProfile ? { cargoProfile: data.cargoProfile } : {}),
         // Ж1: zod-объекты шире Prisma.InputJsonObject — явный каст на
         // границе (приём POST лида В2). null → Prisma.DbNull: у

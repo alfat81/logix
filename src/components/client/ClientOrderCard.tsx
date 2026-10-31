@@ -42,6 +42,17 @@ type ClientOrder = {
   status: OrderStatus
   createdAt: string
   cargoInfo: Record<string, unknown> | null
+  // DF-23 (б): маршрут/метрики — блок «Маршрут» карточки заявки
+  // строится из колонок (как в карточке ЗАПРОСА клиента)
+  originCity?: string | null
+  originCountry?: string | null
+  destinationCity?: string | null
+  destinationCountry?: string | null
+  transportType?: string | null
+  readyDate?: string | null
+  weightKg?: string | number | null
+  volumeM3?: string | number | null
+  placesCount?: number | null
   stages: ClientStage[]
   // DF-05: нейтральное ожидание — приходит ТОЛЬКО когда мяч у клиента
   // (роут client/orders/[id] отдаёт служебные kind наружу нельзя);
@@ -165,6 +176,7 @@ export function ClientOrderCard() {
         <CardContent className="p-4 grid gap-3">
           <h2 className="text-base font-semibold">Груз и маршрут</h2>
           <CargoGroups
+            route={order}
             cargoInfo={order.cargoInfo}
             emptyText="Анкета груза не заполнялась — уточните детали у менеджера."
           />

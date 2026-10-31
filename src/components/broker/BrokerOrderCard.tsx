@@ -39,7 +39,19 @@ type BrokerOrder = {
   status: OrderStatus
   createdAt: string
   cargoInfo: Record<string, unknown> | null
+  // DF-23 (б): маршрут/метрики — без веса/объёма/маршрута платежи
+  // не оценить (DF-18); терялись в карточке заявки
+  originCity?: string | null
+  originCountry?: string | null
+  destinationCity?: string | null
+  destinationCountry?: string | null
+  transportType?: string | null
+  readyDate?: string | null
+  weightKg?: string | number | null
+  volumeM3?: string | number | null
+  placesCount?: number | null
   incoterm: string | null
+  incotermPlace: string | null
   hsCode: string | null
   cargoProfile: CargoProfile
   customerName: string | null
@@ -126,6 +138,8 @@ export function BrokerOrderCard() {
               именно они определяют распределение таможенных обязанностей
               и ставки пошлин — брокеру нужны в первую очередь */}
           <Info label="Инкотермс" value={order.incoterm ?? '—'} />
+          {/* DF-23 (г): место условия поставки — рядом с кодом (DF-19) */}
+          <Info label="Место поставки" value={order.incotermPlace ?? '—'} />
           <Info label="ТН ВЭД" value={order.hsCode ?? '—'} />
           <Info label="Груз" value={CARGO_PROFILE_LABELS[order.cargoProfile]} />
         </CardContent>
@@ -137,6 +151,7 @@ export function BrokerOrderCard() {
         </CardHeader>
         <CardContent>
           <CargoGroups
+            route={order}
             cargoInfo={order.cargoInfo}
             emptyText="Анкета груза не заполнена — запросите данные у менеджера"
           />

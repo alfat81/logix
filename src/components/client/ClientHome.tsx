@@ -15,6 +15,7 @@ import {
   readLeadCargo,
   type LeadStatus,
 } from '@/lib/leads'
+import { routeLineOf } from '@/lib/route-fields'
 import type { OrderStatus, StageStatus } from '@/lib/order-constants'
 
 // ─── Главная клиентского кабинета (И1) ──────────────────────────────
@@ -42,6 +43,11 @@ type ClientOrder = {
   status: OrderStatus
   createdAt: string
   cargoInfo: Record<string, unknown> | null
+  // DF-23 (б): маршрут/метрики — строка маршрута списка из колонок
+  originCity?: string | null
+  originCountry?: string | null
+  destinationCity?: string | null
+  destinationCountry?: string | null
   stages: ClientStage[]
 }
 
@@ -50,18 +56,23 @@ type ClientLead = {
   status: LeadStatus
   createdAt: string
   cargoInfo: Record<string, unknown> | null
+  originCity?: string | null
+  originCountry?: string | null
+  destinationCity?: string | null
+  destinationCountry?: string | null
   order: { id: string; number: string } | null
 }
 
 const fmtDate = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString('ru-RU') : '—'
 
-// Краткая строка маршрута/груза из анкеты (та же выжимка, что в
-// списках админки — readLeadCargo толерантен к чужой структуре)
-function routeOf(cargoInfo: Record<string, unknown> | null): { from: string; to: string; cargoName: string } {
-  const c = readLeadCargo(cargoInfo)
+// Краткая строка маршрута/груза: маршрут — из колонок (DF-23 (б),
+// легаси-fallback routeLineOf), груз — из анкеты (readLeadCargo
+// толерантен к чужой структуре)
+function routeOf(row: ClientOrder | ClientLead): { from: string; to: string; cargoName: string } {
+  const c = readLeadCargo(row.cargoInfo)
   const s = (v: unknown): string => (typeof v === 'string' && v ? v : '')
-  return { from: s(c.from), to: s(c.to), cargoName: s(c.cargoName) }
+  return { ...routeLineOf(row, row.cargoInfo), cargoName: s(c.cargoName) }
 }
 
 export function ClientHome() {
@@ -132,7 +143,7 @@ export function ClientHome() {
         ) : (
           <div className="grid gap-2">
             {orders.map((o) => {
-              const r = routeOf(o.cargoInfo)
+              const r = routeOf(o)
               const done = o.stages.filter((s) => s.status === 'done').length
               const nearest = o.stages.find((s) => s.status !== 'done') ?? null
               return (
@@ -191,7 +202,7 @@ export function ClientHome() {
         ) : (
           <div className="grid gap-2">
             {leads.map((l) => {
-              const r = routeOf(l.cargoInfo)
+              const r = routeOf(l)
               return (
                 <Card key={l.id} className="p-4 flex flex-wrap items-center gap-x-4 gap-y-2">
                   <Link
