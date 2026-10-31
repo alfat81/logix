@@ -1,0 +1,21 @@
+{
+  "task": "0.7.12 — фикс «красного» CI: второй красный прогон GitHub Actions на выпущенном 0.7.11 поймал два интеграционных теста класса урока 0.7.7 «глобальные счётчики/поиски + параллельные файлы общей БД» (29 воркеров по одной PostgreSQL). settings.test.ts «повторное сохранение — no-op»: глобальный счётчик setting_changed ловил чужие setSetting параллельных файлов (дайджесты DF-03/DF-08 и сводка двигают окна/лимиты — ~15 записей настроек за прогон) между двумя count'ами — счётчики заскоупены своим ключом (description contains 'files.max_mb', прецедент в этом же файле); «нормализация до no-op» — состояние фиксируется явно перед no-op-проверкой. notifications.test.ts антишторм «сверх red_max_per_hour»: искал «новейшую pending red по адресу» без скоупа по событию, а enqueue ставит неотложенным immediate/red nextAttemptAt = «сейчас при создании» — строгий > Date.now() падал с разницей 6 мс; строка второго события ищется по своему eventId, свои pending-красные помечаются sent и уводятся из дедупа все сразу (строки первого события могли быть поглощены дедупом problem-красного того же бакета), окно детерминированное «сейчас МСК + 2 часа», ассерт «дальше часа от сейчас». Прод не задет: правки только двух тест-файлов; без миграций, env, зависимостей; заморозка D31 не затронута. Дополнение 31.10 (тем же релизом): прод-инцидент — кабинет клиента отдавал 500 на карточке заявки (прод-база без df_16_permits); корень — инструкции v0.7.11 ошибочно обещали авто-миграцию на Vercel (vercel.json содержит только regions, миграции не применяются никогда). Правка деплой-доков: DEPLOY.md §3.1 (КТ migrate status + «миграции прода — только вручную»), поправка-примечание в RELEASE-INSTRUCTIONS-v0.7.11, в v0.7.12 — шаг миграции прод-базы (деплой релиза лечит инцидент) и возвращённый смоук. Код не менялся.",
+  "areas": [
+    "тест: src/lib/settings.test.ts (счётчики setting_changed — скоуп своим ключом; нормализация no-op — явная фиксация состояния)",
+    "тест: src/lib/notifications/notifications.test.ts (антишторм — eventId-скоуп, массовая пометка своих красных, детерминированное окно, устойчивый ассерт)",
+    "документы: CHANGELOG.md, docs/ROADMAP.md (статус-блок IC-07), docs/releases/RELEASE-NOTES-v0.7.12.md, docs/releases/RELEASE-INSTRUCTIONS-v0.7.12.md, docs/releases/SCOPE-v0.7.12.json, package.json (версия 0.7.12)",
+    "документы (деплой-доки инцидента): DEPLOY.md §3.1 (КТ migrate status, «миграции прода — только вручную»), docs/releases/RELEASE-INSTRUCTIONS-v0.7.11.md (поправка под шапкой), docs/releases/RELEASE-INSTRUCTIONS-v0.7.12.md (шаг 2 «Миграция прод-базы», смоук шаг 6)"
+  ],
+  "globs": [
+    "CHANGELOG.md",
+    "docs/ROADMAP.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.7.12.md",
+    "docs/releases/RELEASE-NOTES-v0.7.12.md",
+    "docs/releases/SCOPE-v0.7.12.json",
+    "package.json",
+    "src/lib/settings.test.ts",
+    "src/lib/notifications/notifications.test.ts",
+    "DEPLOY.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.7.11.md"
+  ]
+}

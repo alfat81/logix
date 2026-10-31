@@ -4,12 +4,17 @@ import { verifyPassword } from '@/lib/password'
 import { createEmployeeSession, sessionCookieOptions, type EmployeeRole } from '@/lib/auth'
 import { normalizePhone } from '@/lib/phone'
 import { checkLoginGuard, recordLoginAttempt } from '@/lib/login-guard'
+import { issueLoginChallenge } from '@/lib/totp-db'
+import { TotpNotConfiguredError } from '@/lib/totp-crypto'
 
 // POST /api/auth/employee/login
 // Body: { phone, password }
 // Паттерн входа сотрудника; З2 закрыла
 // отложенное в MVP-периметре: проверка перебора теперь стоит до
-// сверки пароля (lib/login-guard.ts), 2FA остаётся за рамками роадмапа.
+// сверки пароля (lib/login-guard.ts). DF-09: после верного пароля у
+// сотрудника с включённым TOTP сессия НЕ создаётся — роут отдаёт
+// { totpRequired, challenge }, код проверяет
+// POST /api/auth/employee/login/totp (лимиты guard действуют и там).
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => null)
@@ -54,6 +59,25 @@ export async function POST(req: NextRequest) {
     }
     if (roles.length === 0) {
       return NextResponse.json({ error: 'У аккаунта нет ролей. Обратитесь к мастеру.' }, { status: 403 })
+    }
+
+    // DF-09: TOTP включён — второй шаг. Пароль верен, но вход не
+    // завершён: успех в аудит и сессия — только после кода (там же
+    // провалы неверных кодов идут в лимиты guard'а).
+    if (employee.totpEnabledAt) {
+      try {
+        const challenge = await issueLoginChallenge(employee.id, employee.phone)
+        return NextResponse.json({ totpRequired: true, challenge })
+      } catch (e) {
+        if (e instanceof TotpNotConfiguredError) {
+          console.error('[employee/login] TOTP включён, но ключ не настроен')
+          return NextResponse.json(
+            { error: 'Двухфакторный вход не настроен на сервере. Обратитесь к мастеру.' },
+            { status: 503 }
+          )
+        }
+        throw e
+      }
     }
 
     // Пароль сверен — успех в аудит (в лимиты успехи не идут)

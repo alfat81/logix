@@ -33,6 +33,7 @@
     "роадмап: docs/ROADMAP-DEALFLOW.md (карточка DF-16 [x], очередь), docs/ROADMAP.md (статус-блок)",
     "деприкации: docs/DEPRECATIONS.md (BrokerEstimate.requiredPermits → PermitRequirement, удаление в contract-релизе)",
     "инвентарь: docs/INVENTORY.md (перегенерация)",
+    "скриншоты-конвейер: scripts/screenshots_v0_7_11.sh + scripts/pg_client/{shot_data.mjs,shot_field.py} — приёмка секции в четырёх кабинетах (агентский контур)",
     "скриншоты приёмки: download/screenshots-v0.7.11/",
     "src/lib/status-badges.ts — маппинг PERMIT_BADGE_VARIANTS (§3.2: pending/received/waived)",
     "src/lib/api-errors.ts — бизнес-ошибки ядра (Error.statusCode 4xx) отдаётся честным кодом вместо 500",
@@ -117,6 +118,9 @@
     ".pg/pg_with.sh",
     "src/lib/notifications/owner-digest.test.ts",
     "prisma/migrations/20261031060000_df_16_permits/migration.sql",
-    "src/lib/permits-access.ts"
+    "src/lib/permits-access.ts",
+    "scripts/screenshots_v0_7_11.sh",
+    "scripts/pg_client/shot_data.mjs",
+    "scripts/pg_client/shot_field.py"
   ]
 }

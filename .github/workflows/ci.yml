@@ -131,6 +131,10 @@ jobs:
       EMAIL_PROVIDER: fake
       # D11: base для ссылок в письмах (пернат от пустой ссылки в теле)
       APP_BASE_URL: http://localhost:3000
+      # DF-09: ключ шифрования TOTP-секретов (AES-256-GCM) и подписи
+      # challenge второго шага входа. Значение одноразовое (раннер),
+      # не прод-секрет; на проде задаётся в Vercel (см. DEPLOY.md §Переменные)
+      TOTP_ENCRYPTION_KEY: ci-e2e-totp-encryption-key
       # DF-17: в раннере без внешней сети — импорт курсов ЦБ выключен
       # (короткое замыкание в lib/cbr.ts, проход диспетчера не шумит)
       CBR_IMPORT: 'off'

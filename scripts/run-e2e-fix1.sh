@@ -17,6 +17,9 @@ export CRON_SECRET=ci-e2e-cron-secret
 export EMAIL_PROVIDER=fake
 export APP_BASE_URL=http://127.0.0.1:3200
 export CBR_IMPORT=off
+# DF-09: ключ шифрования TOTP-секретов (секция DF-09 в e2e; значение
+# одноразовое, не прод-секрет)
+export TOTP_ENCRYPTION_KEY=ci-e2e-totp-encryption-key
 
 echo "=== 1/4 reset БД ==="
 bunx prisma@6 migrate reset --force 2>&1 | tail -2

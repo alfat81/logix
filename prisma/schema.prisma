@@ -33,7 +33,19 @@ model Employee {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
+  // DF-09: TOTP-секрет в формате base32, зашифрованный AES-256-GCM
+  // ключом из env TOTP_ENCRYPTION_KEY (AAD = id сотрудника). Дамп БД
+  // без ключа секретов не раскрывает. Nullable: TOTP не включён.
+  totpSecret    String?
+  // DF-09: момент включения TOTP (null = двухфакторный вход выключен).
+  totpEnabledAt DateTime?
+  // DF-09: последний принятый шаг TOTP (counter) — повтор кода того же
+  // и более раннего шага не принимается (RFC 6238 §5.2).
+  totpLastStep  Int?
+
   sessions       EmployeeSession[]
+  // DF-09: одноразовые коды восстановления (хранятся только хешами).
+  recoveryCodes  TotpRecoveryCode[]
   // P1-01: назначение ответственным менеджером (обратные связи
   // Lead/Order). Назначение НЕ блокирует деактивацию — проверка
   // isActive живёт в API смены ответственного.
@@ -52,6 +64,21 @@ model EmployeeSession {
 
   @@index([employeeId])
   @@index([token])
+}
+
+// DF-09: одноразовый код восстановления TOTP. В БД — только sha256-хеш
+// нормализованного кода (без дефисов, верхний регистр): утечка дампа не
+// отдаёт коды. Одноразовость — атомарный updateMany по usedAt: null.
+model TotpRecoveryCode {
+  id         String    @id @default(cuid())
+  employeeId String
+  codeHash   String    @unique
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
 }
 
 // ─── Дорожка Б: ядро заявки (раздел 9 LOGISTICS-ROADMAP.md) ──

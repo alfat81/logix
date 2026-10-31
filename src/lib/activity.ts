@@ -101,6 +101,11 @@ export const ACTIVITY_TYPES = [
   // реестра не содержат их по определению — секреты живут в env).
   // Аудитория staff: значения настроек — внутренняя кухня.
   'setting_changed',
+  // безопасность входа (DF-09): включение/выключение TOTP сотрудником
+  // в своём профиле. Цель — нет (профиль не belongs сделке); актёр —
+  // сам сотрудник; аудиторию видит staff (факт аудита безопасности).
+  'totp_enabled',
+  'totp_disabled',
 ] as const
 export type ActivityType = (typeof ACTIVITY_TYPES)[number]
 

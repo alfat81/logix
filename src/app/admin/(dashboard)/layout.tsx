@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Container } from 'lucide-react'
+import { Container, UserRound } from 'lucide-react'
 import { getEmployeeByToken, SESSION_COOKIE } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { LEAD_ACTIVE_STATUSES } from '@/lib/leads'
@@ -71,7 +71,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <AdminNav isMaster={isMaster} counts={{ '/admin/orders': activeOrders, '/admin/leads': activeLeads }} />
           </nav>
           <div className="border-t border-sidebar-border px-4 py-3 flex items-center gap-3 shrink-0">
-            <span className="text-sm text-muted-foreground truncate">{employee.name}</span>
+            {/* DF-09: профиль (в т.ч. TOTP) — вне меню (гард DF-21), ссылка — здесь */}
+            <Link
+              href="/admin/profile"
+              className="text-sm text-muted-foreground truncate hover:text-foreground"
+            >
+              {employee.name}
+            </Link>
             <div className="ml-auto shrink-0">
               <LogoutButton />
             </div>
@@ -94,6 +100,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
               </div>
               <GlobalSearch />
               <div className="md:hidden flex items-center gap-3 shrink-0 ml-auto">
+                {/* DF-09: на телефоне профиль — иконка в шапке рядом с «Выйти» */}
+                <Link href="/admin/profile" aria-label="Профиль" className="flex">
+                  <UserRound className="size-4 text-muted-foreground" />
+                </Link>
                 <LogoutButton />
               </div>
             </div>

@@ -161,7 +161,10 @@ def ic03() -> None:
                   r"createDocumentOnDeal\(|addDocumentVersion\(|deleteDocument\(|"
                   r"patchLead\(|patchOrder\(|detachBrokerFromLead\(|detachBrokerFromOrder\(|"
                   r"setSetting\(|resetSetting\(|"
-                  r"createCalculation\(|updateCalculation\(")
+                  r"createCalculation\(|updateCalculation\(|"
+                  r"enableTotp\(|disableTotp\(")
+    # DF-09: включение/выключение TOTP пишут события внутри totp-db.ts
+    # (emitEvent в той же транзакции) — делегирование как setSetting (DF-00D).
     for f in rglob("src/app/api/**/route.ts"):
         t = text(f)
         url = rel(f)

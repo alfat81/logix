@@ -259,16 +259,38 @@ describe('setSetting — запись + событие setting_changed', () => {
 
   it('повторное сохранение того же значения — no-op без события', async () => {
     await setSetting('files.max_mb', 50, MASTER)
-    const eventsAfterFirst = await db.activity.count({ where: { type: 'setting_changed' } })
+    // Счётчик — по СВОЕМУ ключу (урок 0.7.7, повторился в CI 0.7.11):
+    // параллельные файлы (дайджесты DF-03/DF-08) пишут свои настройки
+    // в общую БД, глобальный счётчик ловит их события между двумя
+    // подсчётами. Чужие файлы files.max_mb не пишут — скоуп герметичен.
+    const eventsAfterFirst = await db.activity.count({
+      where: { type: 'setting_changed', description: { contains: 'files.max_mb' } },
+    })
     const again = await setSetting('files.max_mb', 50, MASTER)
     expect(again).toBe(50)
-    expect(await db.activity.count({ where: { type: 'setting_changed' } })).toBe(eventsAfterFirst)
+    expect(
+      await db.activity.count({
+        where: { type: 'setting_changed', description: { contains: 'files.max_mb' } },
+      }),
+    ).toBe(eventsAfterFirst)
   })
 
   it('нормализация до no-op: «16:00,09:00» при дефолте 09:00/16:00 — без события', async () => {
-    const eventsBefore = await db.activity.count({ where: { type: 'setting_changed' } })
+    // Сначала ЯВНО фиксируем известное состояние: параллельные файлы
+    // (окна дайджестов DF-03) двигают client_digest_times в общей БД,
+    // сравнение no-op обязано идти с дефолтом, а не с тем, что успел
+    // оставить чужой воркер (иначе наш сет — уже не no-op). Затем —
+    // тот же no-op, счётчик скоупен своим ключом (урок 0.7.7).
+    await setSetting('notifications.client_digest_times', ['09:00', '16:00'], MASTER)
+    const eventsBefore = await db.activity.count({
+      where: { type: 'setting_changed', description: { contains: 'notifications.client_digest_times' } },
+    })
     await setSetting('notifications.client_digest_times', ['16:00', '09:00'], MASTER)
-    expect(await db.activity.count({ where: { type: 'setting_changed' } })).toBe(eventsBefore)
+    expect(
+      await db.activity.count({
+        where: { type: 'setting_changed', description: { contains: 'notifications.client_digest_times' } },
+      }),
+    ).toBe(eventsBefore)
   })
 
   it('ошибка после записи откатывает и значение, и событие (DoD 4.5, инвариант 2)', async () => {

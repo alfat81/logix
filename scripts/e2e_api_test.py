@@ -970,6 +970,73 @@ b16=dg16[0].get('body','') if dg16 else ''
 chk('DF-16: в дайджесте блок «Ждём от вас» с названием строки','Ждём от вас' in b16 and 'Просроченный DF16' in b16,b16[:400])
 s,d=a.r('DELETE','/api/admin/settings',{'key':'notifications.client_digest_times'}); chk('DF-16: окна дайджеста сброшены',s==200,(s,d))
 
+# --- DF-09: двухфакторный вход для мастера/менеджера (TOTP, RFC 6238) ---
+# Секция в КОНЦЕ скрипта: неверные коды заполняют минутное окно guard'а
+# по общему бакету IP — после неё логинов в скрипте нет (урок 0.7.7:
+# секции делят одну БД и один guard-бакет). TOTP считает сам скрипт
+# (hmac/sha1 — эталонная реализация RFC 4226).
+import hmac, hashlib, struct, base64 as _b64, time as _t9
+def _totp(secret_b32, drift=0):
+    pad = '=' * ((8 - len(secret_b32) % 8) % 8)
+    key = _b64.b32decode(secret_b32 + pad)
+    counter = int(_t9.time()) // 30 + drift
+    h = hmac.new(key, struct.pack('>Q', counter), hashlib.sha1).digest()
+    o = h[19] & 0xf
+    v = ((h[o] & 0x7f) << 24) | (h[o+1] << 16) | (h[o+2] << 8) | h[o+3]
+    return '%06d' % (v % 1000000)
+
+s,d=a.r('POST','/api/admin/employees',{'name':'DF09 emp '+u,'phone':ph(base+31),'password':'df09-pass-1','roles':['manager']}); chk('DF-09: сотрудник создаётся (менеджер)',s==201,(s,d))
+e9=C()
+s,d=e9.r('POST','/api/auth/employee/login',{'phone':ph(base+31),'password':'df09-pass-1'})
+chk('DF-09: вход без TOTP — сразу сессия (одношаговый)',s==200 and d.get('authenticated') and not d.get('totpRequired'),(s,))
+s,d=e9.r('GET','/api/admin/profile/totp'); chk('DF-09: статус выключен',s==200 and d.get('enabled')==False,(s,d))
+s,d=e9.r('GET','/api/admin/profile/totp/setup')
+chk('DF-09: setup отдаёт секрет, otpauth:// и QR-SVG',s==200 and 'secret' in d and d.get('otpauthUri','').startswith('otpauth://totp/') and '<svg' in d.get('qrSvg',''),(s,list(d)[:4]))
+sec9=d.get('secret','')
+s,d=e9.r('POST','/api/admin/profile/totp',{'secret':sec9,'code':'000000'})
+chk('DF-09: неверный код включения — 400, состояние не менялось',s==400,(s,d))
+s,d=e9.r('POST','/api/admin/profile/totp',{'secret':sec9,'code':_totp(sec9)})
+chk('DF-09: TOTP включён, выдано 10 кодов восстановления',s==200 and len(d.get('recoveryCodes') or [])==10,(s,list(d)[:3]))
+rec9=(d.get('recoveryCodes') or [''])[0]
+s,d=e9.r('GET','/api/admin/profile/totp'); chk('DF-09: статус включён',s==200 and d.get('enabled')==True,(s,d))
+e9.r('POST','/api/auth/employee/logout')
+s,d=C().r('POST','/api/auth/employee/login',{'phone':ph(base+31),'password':'df09-pass-1'})
+chk('DF-09: с TOTP пароль даёт totpRequired+challenge без сессии',s==200 and d.get('totpRequired')==True and bool(d.get('challenge')) and not d.get('authenticated'),(s,))
+ch9=d.get('challenge','')
+s,d=C().r('POST','/api/auth/employee/login/totp',{'challenge':ch9,'code':'000000'})
+chk('DF-09: неверный код второго шага — 401',s==401,(s,d))
+e9b=C()
+s,d=e9b.r('POST','/api/auth/employee/login/totp',{'challenge':ch9,'code':_totp(sec9)})
+chk('DF-09: верный код второго шага — сессия',s==200 and d.get('authenticated'),(s,))
+s,d=C().r('POST','/api/auth/employee/login/totp',{'challenge':ch9[:-1]+('A' if ch9[-1]!='A' else 'B'),'code':_totp(sec9)})
+chk('DF-09: подделанный challenge — 401',s==401,(s,))
+s,d=C().r('POST','/api/auth/employee/login',{'phone':ph(base+31),'password':'df09-pass-1'})
+ch9b=d.get('challenge','')
+e9c=C()
+s,d=e9c.r('POST','/api/auth/employee/login/totp',{'challenge':ch9b,'code':rec9})
+chk('DF-09: код восстановления принимается (телефон недоступен)',s==200 and d.get('authenticated'),(s,))
+s,d=C().r('POST','/api/auth/employee/login',{'phone':ph(base+31),'password':'df09-pass-1'})
+ch9c=d.get('challenge','')
+s,d=C().r('POST','/api/auth/employee/login/totp',{'challenge':ch9c,'code':rec9})
+chk('DF-09: повтор кода восстановления — 401 (одноразовость)',s==401,(s,))
+# «выйти на всех устройствах»: две живые сессии разных клиентов (e9b, e9c)
+s,d=e9b.r('GET','/api/auth/employee/me'); chk('DF-09: первая сессия жива до «выйти везде»',s==200,(s,))
+s,d=e9b.r('DELETE','/api/admin/profile/sessions'); chk('DF-09: выйти на всех устройствах — ок',s==200,(s,d))
+s,d=e9b.r('GET','/api/auth/employee/me'); chk('DF-09: сессия-инициатор мертва',s==401,(s,))
+s,d=e9c.r('GET','/api/auth/employee/me'); chk('DF-09: второе устройство тоже мертво (все сессии)',s==401,(s,))
+# лимиты: провалы второго шага считаются как провалы логина. К этому
+# месту по паре «телефон+IP» уже 1 провал (повтор rec9) — 4 неверных кода
+# дают 5 провалов в минутном окне, верный код должен получить 429.
+s,d=C().r('POST','/api/auth/employee/login',{'phone':ph(base+31),'password':'df09-pass-1'})
+ch9d=d.get('challenge','')
+if ch9d:
+    for i in range(4):
+        s,d=C().r('POST','/api/auth/employee/login/totp',{'challenge':ch9d,'code':'00000%d'%i})
+    s,d=C().r('POST','/api/auth/employee/login/totp',{'challenge':ch9d,'code':_totp(sec9)})
+    chk('DF-09: неверные коды считаются в лимитах guard\'а (429)',s==429,(s,))
+else:
+    chk('DF-09: неверные коды считаются в лимитах guard\'а (429)',False,'challenge не выдан: '+str(d)[:150])
+
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)
 hard=[r for r in R if not r[1] and not r[0].startswith('[ЦЕЛЬ')]

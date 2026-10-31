@@ -262,6 +262,7 @@
 | `PulseStats` | `src/lib/pulse.ts` | ─── Цифры (блок 1) ────────────────────────────────────────────────── |
 | `QUOTE_PRIORITY_FITS` | `src/lib/leads.ts` | Ориентир варианта: под какой приоритет клиента этот вариант заточен |
 | `QUOTE_PRIORITY_FIT_LABELS` | `src/lib/leads.ts` | — |
+| `QrMatrix` | `src/lib/qr.ts` | — |
 | `QueuedEventInput` | `src/lib/notifications/enqueue.ts` | — |
 | `QuotePriorityFit` | `src/lib/leads.ts` | — |
 | `QuoteSnapshotInput` | `src/lib/leads.ts` | — |
@@ -311,11 +312,18 @@
 | `StageViewRow` | `src/lib/order-summary.ts` | — |
 | `StatusBadgeVariant` | `src/lib/status-badges.ts` | — |
 | `TERMINAL_ORDER_STATUSES` | `src/lib/status-machine.ts` | Терминальные статусы заявки: переход «из них» — только мастеру |
+| `TOTP_STEP_SEC` | `src/lib/totp.ts` | — |
 | `TRANSPORT_FORM_TO_CODE` | `src/lib/route-fields.ts` | Форма бланка хранит русские подписи (TRANSPORT_TYPES); на колонки |
 | `TRANSPORT_TYPES` | `src/lib/leads.ts` | Тип перевозки (бланк, п.3). Значения — русские строки: Json груза |
 | `TRANSPORT_TYPE_CODES` | `src/lib/route-fields.ts` | Стабильные коды колонок (Prisma enum TransportType). Русские подписи |
 | `TRANSPORT_TYPE_LABELS` | `src/lib/route-fields.ts` | — |
 | `TopSlowingRow` | `src/lib/notifications/owner-digest.ts` | — |
+| `TotpChallenge` | `src/lib/totp-crypto.ts` | — |
+| `TotpCodeMismatchError` | `src/lib/totp-db.ts` | — |
+| `TotpNotConfiguredError` | `src/lib/totp-crypto.ts` | — |
+| `TotpSecondStepResult` | `src/lib/totp-db.ts` | — |
+| `TotpSetup` | `src/lib/totp-db.ts` | — |
+| `TotpVerifyResult` | `src/lib/totp.ts` | — |
 | `TransitionOption` | `src/lib/status-machine.ts` | ─── Проекции для UI (P1-05: показываем только допустимое) ──── |
 | `TransitionResult` | `src/lib/status-machine.ts` | — |
 | `TransportMessage` | `src/lib/notifications/transport.ts` | — |
@@ -370,6 +378,8 @@
 | `asTimezone` | `src/lib/settings-validators.ts` | — |
 | `authenticateBrokerLogin` | `src/lib/company-users.ts` | — |
 | `authenticateCustomerLogin` | `src/lib/company-users.ts` | — |
+| `base32Decode` | `src/lib/totp.ts` | — |
+| `base32Encode` | `src/lib/totp.ts` | — |
 | `brokerActor` | `src/lib/activity.ts` | Брокер портала (Д). DF-02A (Блок 4): актор — ЧЕЛОВЕК (userId), |
 | `brokerConnectedToLead` | `src/lib/permits-access.ts` | Брокер подключён к сделке (любая из двух связей — LeadBroker до |
 | `brokerConnectedToOrder` | `src/lib/permits-access.ts` | — |
@@ -422,12 +432,14 @@
 | `createOrderWithStages` | `src/lib/orders.ts` | — |
 | `createPermit` | `src/lib/permits-db.ts` | ─── Добавление строки (брокер или сотрудник) ──────────────────────── |
 | `createTelegramTransport` | `src/lib/notifications/transports/telegram.ts` | ─── DF-03: заглушка Telegram-транспорта ───────────────────────────── |
+| `createTotpSetup` | `src/lib/totp-db.ts` | — |
 | `createWhatsappTransport` | `src/lib/notifications/transports/whatsapp.ts` | ─── DF-03: заглушка WhatsApp-транспорта ───────────────────────────── |
 | `currencyCodeSchema` | `src/lib/ref.ts` | — |
 | `currencySign` | `src/lib/money.ts` | Знак для любого кода из справочника: известный символ либо сам код |
 | `dateLabelFromKey` | `src/lib/notifications/owner-digest.ts` | «30.10.2026» из ключа суток '2026-10-30' (пояс рассылок — windows.ts). |
 | `db` | `src/lib/db.ts` | — |
 | `dealLink` | `src/lib/notifications/templates.ts` | Ссылка на сделку в кабинете получателя (§8: клиент видит свою |
+| `decryptTotpSecret` | `src/lib/totp-crypto.ts` | — |
 | `defaultOwnerWindow` | `src/lib/notifications/owner-digest.ts` | Дефолты окна — из реестра настроек (не литералы: владелец меняет |
 | `definePortal` | `src/lib/portal-auth.ts` | — |
 | `deleteDocument` | `src/lib/documents.ts` | ── Удаление документа (только менеджер) ──────────────────────────── |
@@ -439,6 +451,7 @@
 | `detachBrokerFromOrder` | `src/lib/broker-links.ts` | Снять видимость заявки у брокера и записать order_broker_detached. |
 | `detectFamily` | `src/lib/file-signature.ts` | — |
 | `diffEstimateItems` | `src/lib/brokers.ts` | — |
+| `disableTotp` | `src/lib/totp-db.ts` | Выключение TOTP: подтверждение паролем, стирание секрета и кодов. */ |
 | `dispatchNow` | `src/lib/notifications/dispatch.ts` | Полный проход: импорт курсов ЦБ (раз в сутки, идемпотентен) + окна |
 | `dispatchPendingBatch` | `src/lib/notifications/dispatch.ts` | Одна пачка: заявка → отправка вне транзакции → итог. |
 | `docFileError` | `src/lib/documents.ts` | — |
@@ -450,6 +463,9 @@
 | `emitOrderEvents` | `src/lib/orders.ts` | — |
 | `employeeActor` | `src/lib/activity.ts` | — |
 | `emptyOrderStatusCounts` | `src/lib/order-counts.ts` | Каркас счётчиков: нули по всем статусам (порядок ключей — порядок |
+| `enableTotp` | `src/lib/totp-db.ts` | — |
+| `encodeQr` | `src/lib/qr.ts` | — |
+| `encryptTotpSecret` | `src/lib/totp-crypto.ts` | Формат: v1:<iv>:<ciphertext>:<tag> — base64. Формат в колонке виден |
 | `enqueueNotifications` | `src/lib/notifications/enqueue.ts` | — |
 | `escapeHsLike` | `src/lib/hs.ts` | Экранирование %/_/\ в строке для Prisma contains (LIKE): без этого |
 | `eventWhereFor` | `src/lib/audience.ts` | Where-фрагмент для чтения ленты данным кабинетом. |
@@ -468,6 +484,8 @@
 | `formatOwnerPermitLines` | `src/lib/notifications/owner-digest.ts` | Чистый форматировщик (unit-тесты): «• заявка №17-1 — «Сертификат…» — |
 | `formatPhoneInput` | `src/lib/phone.ts` | Маска телефона при вводе — форматирует по мере печатания |
 | `formatWaitingHours` | `src/lib/waiting.ts` | Возраст мяча одним значением: «N ч» до суток, далее «N дн.» — общий |
+| `generateRecoveryCode` | `src/lib/totp.ts` | — |
+| `generateTotpSecret` | `src/lib/totp.ts` | Секрет — 20 случайных байт (160 бит, рекомендация RFC 4226 §4). |
 | `getActiveCurrencyOptions` | `src/lib/ref-db.ts` | Активные валюты для форм (Combobox): из справочника; пустая таблица — |
 | `getBrand` | `src/lib/brand.ts` | — |
 | `getBrokerByToken` | `src/lib/broker-auth.ts` | — |
@@ -490,6 +508,7 @@
 | `halfUpDiv` | `src/lib/customs.ts` | half-up деление BigInt (делимое любого знака) |
 | `hashPassword` | `src/lib/password.ts` | — |
 | `hashSessionToken` | `src/lib/portal-auth.ts` | — |
+| `hotp` | `src/lib/totp.ts` | RFC 4226 HOTP: HMAC-SHA1(key, 8-байтовый counter BE) → динамическое |
 | `hsPrefixRange` | `src/lib/hs.ts` | Границы префиксного поиска по индексу (btree): code >= gte AND |
 | `importCbrRates` | `src/lib/cbr.ts` | Импорт курсов за последний доступный день. Возвращается число |
 | `incotermMetaOf` | `src/lib/ref.ts` | — |
@@ -511,6 +530,8 @@
 | `isStageOverdue` | `src/lib/waiting.ts` | «Просрочка» плана этапа — ТА ЖЕ семантика, что на «Требует внимания» |
 | `isValidEmail` | `src/lib/phone.ts` | Проверка: это email (строгая)? |
 | `isVatMode` | `src/lib/money.ts` | — |
+| `issueLoginChallenge` | `src/lib/totp-db.ts` | Challenge второго шага после верного пароля (сессия ещё не создана). */ |
+| `issueTotpChallenge` | `src/lib/totp-crypto.ts` | Одноразовая «заявка» второго шага: подписана, живёт 5 минут. */ |
 | `joinRouteText` | `src/lib/route-fields.ts` | Обратная сборка для показа/редактирования: «Страна, город» / «Город» / |
 | `listCalculations` | `src/lib/customs-server.ts` | ─── Чтение: история расчётов сделки (новые сверху) ────────────────── |
 | `listRefItems` | `src/lib/ref-db.ts` | — |
@@ -530,10 +551,12 @@
 | `nextWindowTime` | `src/lib/notifications/windows.ts` | Ближайшее время СЛЕДУЮЩЕГО окна (для отложенных «красных» сверх |
 | `normalizeHsQuery` | `src/lib/hs.ts` | Нормализация запроса: пробелы/дефисы/точки выкидываются («0101 21» и |
 | `normalizePhone` | `src/lib/phone.ts` | Нормализация телефона в формат +7XXXXXXXXXX |
+| `normalizeRecoveryCode` | `src/lib/totp.ts` | Нормализация кода восстановления DF-09: «abcd-efgh» → «ABCDEFGH». |
 | `normalizeRefCode` | `src/lib/ref.ts` | Нормализация кода при записи/поиске: страны и валюты — ISO верхний |
 | `nowInZone` | `src/lib/notifications/windows.ts` | Текущее «настенное» время в поясе IANA. |
 | `orderOrderBy` | `src/lib/orders.ts` | — |
 | `orderStatusCounts` | `src/lib/order-counts.ts` | Счётчики по статусам (where — например, поиск списка без фильтра |
+| `otpauthUri` | `src/lib/totp.ts` | Key URI Format (github.com/google/authenticator-specs): заголовок |
 | `ownerDedupKey` | `src/lib/notifications/owner-digest.ts` | — |
 | `ownerDigestDecision` | `src/lib/notifications/owner-digest.ts` | Решение прохода для одного мастера: 'window' — пора (внутри окна), |
 | `parseCbrNumber` | `src/lib/cbr.ts` | Строгое число из формата ЦБ: «79,7653» / «1 234,56» → number; мусор → null. |
@@ -567,6 +590,7 @@
 | `projectAuthors` | `src/lib/actor-name.ts` | Плоские строки версий (DocumentVersion): authorName → проекция. |
 | `projectDocumentAuthors` | `src/lib/actor-name.ts` | Список документов: authorName во ВСЕХ версиях каждого документа, |
 | `providerLabelFor` | `src/lib/permits.ts` | С точки зрения читателя: свои обязательства — «вы», чужие — по имени |
+| `qrSvg` | `src/lib/qr.ts` | SVG с тихой зоной 4 модуля: path по горизонтальным прогонам тёмных. |
 | `readApiResponse` | `src/lib/api-client.ts` | — |
 | `readAppBaseUrl` | `src/lib/notifications/templates.ts` | — |
 | `readCalcInput` | `src/lib/customs-api.ts` | — |
@@ -604,6 +628,7 @@
 | `resolveUserNames` | `src/lib/actor-name.ts` | ── Батч-резолв пользователей ─────────────────────────────────────── |
 | `retryNotification` | `src/lib/notifications/retry.ts` | — |
 | `revertPermitDocument` | `src/lib/permits-db.ts` | Удаление документа возвращает строку в ожидание (lib/documents.ts). |
+| `revokeAllSessions` | `src/lib/totp-db.ts` | «Выйти на всех устройствах»: все сессии пользователя, включая текущую. */ |
 | `routeToDbColumns` | `src/lib/route-fields.ts` | RouteFieldsInput → данные для prisma create/update (readyDate — Date, |
 | `sanitizeFileName` | `src/lib/documents.ts` | Санитизация имени: без каталогов, без управляющих символов, без |
 | `scanPermitOverdue` | `src/lib/notifications/permits-scan.ts` | — |
@@ -619,6 +644,8 @@
 | `syncEstimatePermits` | `src/lib/permits-db.ts` | ─── Sync свободного списка ответа брокера (PUT estimate) ──────────── |
 | `todayUtcMidnight` | `src/lib/order-summary.ts` | Граница «сегодня» по UTC: плановые даты приходят UTC-полуночью |
 | `topSlowingRows` | `src/lib/notifications/owner-digest.ts` | Топ-5 «тормозящих» для письма: самые старые мячи по всем группам |
+| `totpAt` | `src/lib/totp.ts` | — |
+| `totpStepAt` | `src/lib/totp.ts` | — |
 | `unauthorized` | `src/lib/portal-auth.ts` | — |
 | `updateBrokerUser` | `src/lib/company-users.ts` | — |
 | `updateCalculation` | `src/lib/customs-server.ts` | ─── PUT: правка черновика (только актуальной версии) ──────────────── |
@@ -626,6 +653,9 @@
 | `utcDayStart` | `src/lib/order-summary.ts` | — |
 | `validateAssigneeChange` | `src/lib/lead-edit.ts` | — |
 | `verifyPassword` | `src/lib/password.ts` | — |
+| `verifyTotp` | `src/lib/totp.ts` | — |
+| `verifyTotpChallenge` | `src/lib/totp-crypto.ts` | null — подпись неверна или срок вышел; валидность учётки проверяет БД. */ |
+| `verifyTotpSecondStep` | `src/lib/totp-db.ts` | — |
 | `windowKeyOf` | `src/lib/notifications/windows.ts` | Ключ окна: «yyyy-mm-dd:HH:MM» в поясе рассылок (Notification.windowKey, |
 | `zonedWallTimeToUtc` | `src/lib/notifications/windows.ts` | Двухпроходное преобразование «настенное время в поясе» → UTC Date |
 
@@ -708,6 +738,8 @@
 | `OrderStepper` | `src/components/admin/OrderStepper.tsx` |
 | `OrdersList` | `src/components/admin/OrdersList.tsx` |
 | `OrdersToolbar` | `src/components/admin/OrdersToolbar.tsx` |
+| `ProfileSessionsSection` | `src/components/admin/profile/ProfileSessionsSection.tsx` |
+| `ProfileTotpSection` | `src/components/admin/profile/ProfileTotpSection.tsx` |
 | `PulseCargoBlock` | `src/components/admin/pulse/PulseCargoBlock.tsx` |
 | `PulseEventsBlock` | `src/components/admin/pulse/PulseEventsBlock.tsx` |
 | `PulseScreen` | `src/components/admin/pulse/PulseScreen.tsx` |
@@ -857,6 +889,9 @@
 | DELETE, PATCH | `/api/admin/orders/{id}/stages/{stageId}` | admin | employee | write | нет |
 | PATCH | `/api/admin/permits/{id}` | admin | employee | write | нет |
 | POST | `/api/admin/permits/{id}/document` | admin | employee | write | нет |
+| DELETE | `/api/admin/profile/sessions` | admin | employee | write | нет |
+| DELETE, GET, POST | `/api/admin/profile/totp` | admin | employee | write | нет |
+| GET | `/api/admin/profile/totp/setup` | admin | employee | — | нет |
 | GET | `/api/admin/pulse` | admin | employee | — | нет |
 | GET, POST | `/api/admin/references` | admin | employee | write | нет |
 | PATCH | `/api/admin/references/{id}` | admin | employee | write | нет |
@@ -874,6 +909,7 @@
 | POST | `/api/auth/contractor/logout` | auth | — | — | нет |
 | GET | `/api/auth/contractor/me` | auth | — | — | нет |
 | POST | `/api/auth/employee/login` | auth | — | — | нет |
+| POST | `/api/auth/employee/login/totp` | auth | — | — | нет |
 | POST | `/api/auth/employee/logout` | auth | — | — | нет |
 | GET | `/api/auth/employee/me` | auth | — | — | нет |
 | POST | `/api/broker/documents/{id}/versions` | broker | broker | — | нет |
@@ -927,8 +963,8 @@
 | `CustomsFeeScale` | 5 | scripts/seed.ts, src/lib/customs-server.ts |
 | `Document` | 12 | src/app/api/admin/documents/[id]/versions/route.ts, src/app/api/admin/leads/[id]/documents/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/app/api/client/leads/[id]/documents/route.ts (+2) |
 | `DocumentVersion` | 13 | src/app/api/document-versions/[id]/file/route.ts |
-| `Employee` | 11 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/orders/[id]/patch.ts, src/app/api/auth/employee/login/route.ts (+2) |
-| `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts |
+| `Employee` | 15 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/orders/[id]/patch.ts, src/app/api/admin/profile/totp/route.ts (+6) |
+| `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts, src/lib/totp-db.ts |
 | `HsCode` | 9 | scripts/import-hs.ts, scripts/verify-hs-db.ts, scripts/verify-hs-prefix.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/lib/hs-db.ts |
 | `HsImport` | 5 | scripts/import-hs.ts, scripts/verify-hs-db.ts, src/lib/hs-db.ts |
 | `Lead` | 36 | scripts/backfill_waiting.ts, scripts/e2e_backdate_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts (+21) |
@@ -945,6 +981,7 @@
 | `QuoteOption` | 14 | src/app/api/admin/leads/[id]/patch.ts, src/app/api/admin/options/[id]/route.ts |
 | `RefItem` | 10 | scripts/seed.ts, src/app/api/admin/references/[id]/route.ts, src/app/api/admin/references/route.ts, src/lib/ref-db.ts |
 | `Setting` | 4 | src/app/api/admin/settings/route.ts, src/lib/settings.ts |
+| `TotpRecoveryCode` | 6 | src/lib/totp-db.ts |
 
 ## Переменные окружения
 
@@ -968,6 +1005,7 @@
 | `NODE_ENV` | 3 | — | да |
 | `RESEND_API_KEY` | 1 | да | да |
 | `SHADOW_URL` | 1 | — | да |
+| `TOTP_ENCRYPTION_KEY` | 3 | да | да |
 | `TRUSTED_PROXY` | 1 | да | да |
 | `VERCEL` | 1 | да | да |
 | `VERCEL_ENV` | 1 | да | да |

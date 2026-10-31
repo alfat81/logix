@@ -335,41 +335,68 @@ describe('DF-03 enqueue: матрица §8 и режимы (D33)', () => {
 describe('DF-03 антишторм и диспетчер', () => {
   it('сверх red_max_per_hour красные уходят в ближайшее окно', async () => {
     await setSetting('notifications.red_max_per_hour', 1, { type: 'system' })
+    // Окно антишторма — детерминированное «сейчас + 2 часа» (приём
+    // дайджест-кейса ниже по файлу; afterAll вернёт сохранённые окна).
+    // Тогда «ближайшее окно» заведомо дальше часа от сейчас, и ассерт
+    // отрезается сразу от двух гонок: от «сейчас при создании» строки
+    // (enqueue ставит nextAttemptAt = now неотложенным immediate/red)
+    // и от границы минуты, когда окно стоит вплотную к сейчас.
+    const moscow = nowInZone('Europe/Moscow')
+    const windowMinutes = (moscow.minutes + 120) % 1440
+    await setSetting(
+      'notifications.client_digest_times',
+      [`${String(Math.floor(windowMinutes / 60)).padStart(2, '0')}:${String(windowMinutes % 60).padStart(2, '0')}`],
+      { type: 'system' },
+    )
     // Первое красное — уходит сразу (отправленных ещё нет).
-    await emitEvent(db, {
+    const firstEventId = await emitEvent(db, {
       target: { orderId: orderRun },
       actor: employeeActor({ id: assigneeId, name: 'Менеджер DF-03' }),
       type: 'stage_status_changed',
       description: MARK + ' проблема 1',
       stageId: stageRun,
     })
-    // Имитируем отправку первого красного ответственному; dedupKey
-    // уводим в прошлое окно (симуляция «прошло 10 минут») — иначе
-    // дедупликация одиночных писем (карточка DF-03) законно поглотит
-    // второе событие того же типа.
-    const first = await db.notification.findFirst({
-      where: { toAddress: staffEmail, mode: 'red', status: 'pending' },
-      orderBy: { createdAt: 'desc' },
+    expect(firstEventId).not.toBeNull()
+    // Имитируем отправку красных; dedupKey уводим в прошлое окно
+    // (симуляция «прошло 10 минут») — иначе дедупликация одиночных
+    // писем (карточка DF-03) законно поглотит второе событие того же
+    // типа. Помечаем ВСЕ свои pending-красные по трём своим адресам:
+    // строки первого события могли быть поглощены дедупом problem-
+    // красного матрицы §8 из предыдущего describe (тот же 10-минутный
+    // бакет) — тогда «sent»-строкой становится она; заодно лимит 1/ч
+    // закрывается для КАЖДОГО получателя, а ключи дедупа освобождаются.
+    const pendingReds = await db.notification.findMany({
+      where: { toAddress: { in: [staffEmail, clientEmail, client2Email] }, mode: 'red', status: 'pending' },
+      select: { id: true, dedupKey: true },
     })
-    await db.notification.update({
-      where: { id: first!.id },
-      data: { status: 'sent', sentAt: new Date(), providerId: 'fake:manual', dedupKey: first!.dedupKey + ':past' },
-    })
+    expect(pendingReds.length).toBeGreaterThan(0)
+    for (const row of pendingReds) {
+      await db.notification.update({
+        where: { id: row.id },
+        data: { status: 'sent', sentAt: new Date(), providerId: 'fake:manual', dedupKey: row.dedupKey + ':past' },
+      })
+    }
     // Второе красное в тот же час → откладывается до окна.
-    await emitEvent(db, {
+    const secondEventId = await emitEvent(db, {
       target: { orderId: orderRun },
       actor: employeeActor({ id: assigneeId, name: 'Менеджер DF-03' }),
       type: 'stage_status_changed',
       description: MARK + ' проблема 2',
       stageId: stageRun,
     })
+    expect(secondEventId).not.toBeNull()
+    // СВОЯ строка по eventId (урок 0.7.7): «новейшая red по адресу»
+    // ловила строки других событий общей БД — у них nextAttemptAt =
+    // «сейчас при создании», ассерт падал с разницей в миллисекунды.
     const deferred = await db.notification.findFirst({
-      where: { toAddress: staffEmail, mode: 'red', status: 'pending' },
-      orderBy: { createdAt: 'desc' },
+      where: { eventId: secondEventId!, toAddress: staffEmail },
     })
     expect(deferred).not.toBeNull()
+    expect(deferred!.mode).toBe('red')
     expect(deferred!.nextAttemptAt).not.toBeNull()
-    expect(deferred!.nextAttemptAt!.getTime()).toBeGreaterThan(Date.now())
+    // Отложена в ОКНО: дальше часа от сейчас (окно = +2 часа);
+    // неотложенная строка имела бы nextAttemptAt ≈ now.
+    expect(deferred!.nextAttemptAt!.getTime()).toBeGreaterThan(Date.now() + 60 * 60 * 1000)
   })
 
   it('dispatch: fake-транспорт отправляет, allowlist отсекает чужие адреса', async () => {
