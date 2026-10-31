@@ -1,13 +1,26 @@
-# Gitleaks: default rules + allowlist for research artifacts.
-# scripts/hs-source/ holds saved copies of third-party pages (tws.by,
-# ТН ВЭД / ЕТТ) captured during DF-17C recon as source evidence.
-# Those pages embed the third-party site's own public frontend config
-# (e.g. 'key':'...'), which trips the generic-api-key rule.
+# Gitleaks: default rules + allowlists.
+# 1. Research artifacts: scripts/hs-source/ holds saved copies of
+#    third-party pages (tws.by, ТН ВЭД / ЕТТ) captured during DF-17C
+#    recon as source evidence. Those pages embed the third-party site's
+#    own public frontend config (e.g. 'key':'...'), which trips the
+#    generic-api-key rule.
+# 2. DF-09 TOTP non-secrets (v0.7.14): the literals below are not
+#    secrets. 'vitest-df09-totp-encryption-key' is a one-time unit-test
+#    fallback (the prod key lives only in Vercel env, RULES 2.4 — the
+#    same class as ci-e2e-* values in ci.yml). 'logix-totp-enc-v1' and
+#    'logix-totp-challenge-v1' are static scrypt salt / domain-
+#    separation strings — KDF parameters are public by design; the key
+#    material itself comes from TOTP_ENCRYPTION_KEY env.
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Research artifacts: saved third-party pages under scripts/hs-source/"
+description = "Known non-secrets: hs-source research artifacts; DF-09 TOTP unit-test fallback key and static scrypt salt literals"
 paths = [
   "^scripts/hs-source/",
+]
+regexes = [
+  "vitest-df09-totp-encryption-key",
+  "logix-totp-enc-v1",
+  "logix-totp-challenge-v1",
 ]

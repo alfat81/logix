@@ -1,0 +1,17 @@
+{
+  "task": "0.7.14 — фикс «красного» CI: job gitleaks на выпущенном 0.7.13 (коммит 7e3a7d0) поймал два срабатывания правила generic-api-key на литералах DF-09 — ложные положительные, секретов нет. Находка 1: 'vitest-df09-totp-encryption-key' в totp-db.test.ts:23 — одноразовый fallback-ключ интеграционного unit-теста (класс одноразовых значений ci.yml; прод-ключ только в env Vercel, RULES 2.4). Находка 2: 'logix-totp-enc-v1' в totp-crypto.ts:38 — статическая соль scrypt / доменная развязка пары ключей enc/mac (KDF-параметры публичны по дизайну, ключевая последовательность выводится из TOTP_ENCRYPTION_KEY); соседняя соль 'logix-totp-challenge-v1' добавлена превентивно. Воспроизведено локально gitleaks 8.24.3 (версия CI): полный скан истории — те же 2 находки, режим CI --log-opts=-1 — тоже; после фикса 0 утечек в обоих режимах. Фикс: allowlist .gitleaks.toml дополнен тремя точными regex-литералами с обоснованием в комментариях; пути файлов сознательно НЕ алловлистятся — реальный секрет в этих файлах останется ловимым (прецедент — allowlist v0.6.8 fix1 для scripts/hs-source/). Прод не задет: Vercel-деплой 0.7.13 зелёный, код продукта не менялся; без миграций, env, зависимостей; заморозка D31 не затронута.",
+  "areas": [
+    "конфиг CI: .gitleaks.toml (allowlist + описание находок DF-09 в комментариях, три точных regex-литерала)",
+    "документы: CHANGELOG.md, docs/ROADMAP.md (статус-блок), docs/releases/RELEASE-NOTES-v0.7.14.md, docs/releases/RELEASE-INSTRUCTIONS-v0.7.14.md, docs/releases/SCOPE-v0.7.14.json",
+    "версия: package.json (0.7.13 → 0.7.14, patch — RULES 2.16)"
+  ],
+  "globs": [
+    ".gitleaks.toml",
+    "CHANGELOG.md",
+    "docs/ROADMAP.md",
+    "docs/releases/RELEASE-NOTES-v0.7.14.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.7.14.md",
+    "docs/releases/SCOPE-v0.7.14.json",
+    "package.json"
+  ]
+}
