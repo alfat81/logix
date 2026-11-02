@@ -121,6 +121,7 @@
 | `DOC_COMMENT_MAX_LENGTH` | `src/lib/document-constants.ts` | — |
 | `DOC_INLINE_MIME` | `src/lib/document-constants.ts` | MIME, которые можно отдавать inline (безопасны для рендера браузером |
 | `DOC_LIST_READY_WHERE` | `src/lib/documents.ts` | Фильтр списков документов: карточка без ни одной готовой версии |
+| `DOC_MIME_ALIASES` | `src/lib/document-constants.ts` | Псевдонимы, которыми браузеры называют те же самые форматы: Firefox |
 | `DOC_PUBLIC_FIELDS` | `src/lib/documents.ts` | — |
 | `DOC_SIGNATURE_ERROR` | `src/lib/document-upload.ts` | — |
 | `DOC_TITLE_MAX_LENGTH` | `src/lib/document-constants.ts` | Пределы текстовых полей: название документа и комментарий версии. |
@@ -571,7 +572,7 @@
 | `normalizePhone` | `src/lib/phone.ts` | Нормализация телефона в формат +7XXXXXXXXXX |
 | `normalizeRecoveryCode` | `src/lib/totp.ts` | Нормализация кода восстановления DF-09: «abcd-efgh» → «ABCDEFGH». |
 | `normalizeRefCode` | `src/lib/ref.ts` | Нормализация кода при записи/поиске: страны и валюты — ISO верхний |
-| `normalizeUploadMime` | `src/lib/document-upload.ts` | Итоговый заявленный MIME: пустой/octet-stream уточняется расширением; null — вне белого списка. */ |
+| `normalizeUploadMime` | `src/lib/document-upload.ts` | Итоговый заявленный MIME: пустой/octet-stream уточняется расширением, |
 | `nowInZone` | `src/lib/notifications/windows.ts` | Текущее «настенное» время в поясе IANA. |
 | `orderOrderBy` | `src/lib/orders.ts` | — |
 | `orderStatusCounts` | `src/lib/order-counts.ts` | Счётчики по статусам (where — например, поиск списка без фильтра |

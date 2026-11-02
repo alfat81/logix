@@ -50,6 +50,17 @@ export const DOC_ALLOWED_MIME = [
 ] as const
 export type DocAllowedMime = (typeof DOC_ALLOWED_MIME)[number]
 
+// Псевдонимы, которыми браузеры называют те же самые форматы: Firefox
+// и «Сжатая ZIP-папка» Windows отдают .zip как application/x-zip-compressed,
+// часть Android-браузеров .jpg — как image/jpg. Канонический тип уже в
+// белом списке, содержимое на confirm сверяется по сигнатуре, поэтому
+// псевдоним безопасно сводится к канону до проверки списка — в БД живут
+// только канонические MIME (их resolveFileMime на confirm и ожидает).
+export const DOC_MIME_ALIASES: ReadonlyMap<string, DocAllowedMime> = new Map([
+  ['application/x-zip-compressed', 'application/zip'],
+  ['image/jpg', 'image/jpeg'],
+])
+
 // MIME, которые можно отдавать inline (безопасны для рендера браузером
 // на своей вкладке): предпросмотр PDF и картинок в одну клику. Остальные
 // (office/zip) — только attachment: скачивание, без интерпретации.

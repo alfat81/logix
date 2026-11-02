@@ -1132,6 +1132,13 @@ s,d=up2(a,_du16,'df11-20mb.zip',b'PK\x03\x04'+b'0'*(20*1024*1024),"application/z
 _v20=(d.get('version') or {})
 chk('DF-11: загрузка 20 МБ проходит (критерий приёмки)',s==200,(s,))
 chk('DF-11: фактический размер зафиксирован confirm-ом',_v20.get('fileSize')==20*1024*1024+4,_v20.get('fileSize'))
+# 0.8.3: браузерные псевдонимы MIME — ZIP из Firefox/Windows и .jpg с Android
+s,d=up2(a,_du16,'df11-fx.zip',b'PK\x03\x04'+b'\x00'*32,'application/x-zip-compressed',extra={'type':'other','title':'DF-11 zip (Firefox)'})
+_vfx=(d.get('version') or {})
+chk('DF-11 0.8.3: ZIP с алиасом Firefox (x-zip-compressed) проходит и хранится как application/zip',s==200 and _vfx.get('status')=='ready' and _vfx.get('mimeType')=='application/zip',(s,_vfx.get('mimeType')))
+s,d=up2(a,_du16,'df11-android.jpg',b'\xff\xd8\xff'+b'\x00'*16,'image/jpg',extra={'type':'other','title':'DF-11 jpg (Android)'})
+_vjp=(d.get('version') or {})
+chk('DF-11 0.8.3: image/jpg (Android) сводится к image/jpeg',s==200 and _vjp.get('mimeType')=='image/jpeg',(s,_vjp.get('mimeType')))
 s,d=up2(c3,f'/api/client/orders/{oid16}/documents','cl11.pdf',b'%PDF-1.4 cl',"application/pdf",extra={'type':'invoice','title':'DF-11 счёт клиента'})
 chk('DF-11: клиент загрузил через свой портал',s==200,(s,d))
 s,d=up2(b17,f'/api/broker/orders/{oid16}/documents','br11.pdf',b'%PDF-1.4 br',"application/pdf",extra={'type':'other','title':'DF-11 акт брокера'})

@@ -43,6 +43,21 @@ describe('mimeForFileName / resolveFileMime (сигнатура — create и co
     expect(normalizeUploadMime('', 'файл.bin')).toBeNull()
     expect(normalizeUploadMime('application/x-msdownload', 'вирус.pdf')).toBeNull()
   })
+  it('псевдонимы браузеров сводятся к канону: x-zip-compressed (Firefox) → zip, image/jpg (Android) → jpeg', () => {
+    // Регресс 0.8.3: ZIP не проходил фильтр — браузер заявлял алиас, не
+    // входящий в белый список, и fallback по расширению не срабатывал.
+    expect(normalizeUploadMime('application/x-zip-compressed', 'документы.zip')).toBe('application/zip')
+    expect(normalizeUploadMime('image/jpg', 'скан.jpg')).toBe('image/jpeg')
+    // Алиясы форматов вне белого списка наружу не пробиваются.
+    expect(normalizeUploadMime('application/x-7z-compressed', 'архив.7z')).toBeNull()
+  })
+  it('настоящий ZIP (PK\\x03\\x04) проходит сигнатуру по каноническому типу', () => {
+    const zip = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x00])
+    expect(detectFamily(zip)).toBe('zip')
+    expect(resolveFileMime('application/zip', 'документы.zip', zip)).toBe('application/zip')
+    // DOCX-контейнер — тоже zip-семейство: pdf-тип с zip-байтами не пройдёт.
+    expect(resolveFileMime('application/pdf', 'подмена.pdf', zip)).toBeNull()
+  })
 })
 
 describe('maxUploadBytes (настройка files.max_mb, D32)', () => {

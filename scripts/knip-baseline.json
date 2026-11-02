@@ -60,9 +60,6 @@
     "key": "types:src/lib/contractors.ts|PatchContractorLeadInput"
   },
   {
-    "key": "types:src/lib/document-constants.ts|DocAllowedMime"
-  },
-  {
     "key": "types:src/lib/employees.ts|CreateEmployeeInput"
   },
   {

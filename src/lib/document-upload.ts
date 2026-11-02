@@ -8,6 +8,7 @@ import { buildDocStorageKey, getStorage, type UploadTicket } from '@/lib/storage
 import {
   DOC_ALLOWED_MIME,
   DOC_COMMENT_MAX_LENGTH,
+  DOC_MIME_ALIASES,
   DOC_TITLE_MAX_LENGTH,
   DOCUMENT_TYPES,
   formatDocSize,
@@ -118,9 +119,12 @@ export function uploadSizeError(size: number, maxBytes: number): string {
   return `Файл больше ${formatDocSize(maxBytes)} — уменьшите файл или пришлите менеджеру напрямую`
 }
 
-/** Итоговый заявленный MIME: пустой/octet-stream уточняется расширением; null — вне белого списка. */
+/** Итоговый заявленный MIME: пустой/octet-stream уточняется расширением,
+ *  браузерные псевдонимы (x-zip-compressed, image/jpg) сводятся к канону;
+ *  null — вне белого списка. */
 export function normalizeUploadMime(mimeType: string | undefined, fileName: string): string | null {
-  const resolved = !mimeType || mimeType === 'application/octet-stream' ? mimeForFileName(fileName) : mimeType
+  const canonical = (mimeType && DOC_MIME_ALIASES.get(mimeType)) || mimeType || ''
+  const resolved = !canonical || canonical === 'application/octet-stream' ? mimeForFileName(fileName) : canonical
   if (!(DOC_ALLOWED_MIME as readonly string[]).includes(resolved)) {
     return null
   }
