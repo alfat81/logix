@@ -1,14 +1,14 @@
+// no-event: события пишет ядро document-confirm (document_version_added в той же транзакции с переводом версии в ready)
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { employeeActor } from '@/lib/activity'
 import { apiErrorResponse } from '@/lib/api-errors'
 import {
-  addDocumentVersion,
-  logDocumentVersionAdded,
-  parseDocumentVersionForm,
-  type DocumentDealTarget,
-} from '@/lib/documents'
+  createPendingVersion,
+  DocumentVersionUploadSchema,
+  parseBody,
+} from '@/lib/document-upload'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -30,33 +30,16 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Документ не найден' }, { status: 404 })
     }
 
-    const parsed = await parseDocumentVersionForm(req)
+    const parsed = await parseBody(req, DocumentVersionUploadSchema)
     if (!parsed.ok) return parsed.response
-
-    const result = await addDocumentVersion(
-      id,
-      employeeActor(auth.employee),
-      parsed.file,
-      parsed.comment
-    )
+    const result = await createPendingVersion(id, employeeActor(auth.employee), parsed.data)
     if (!result) {
       return NextResponse.json({ error: 'Документ не найден' }, { status: 404 })
     }
 
-    const deal: DocumentDealTarget = doc.orderId
-      ? { orderId: doc.orderId }
-      : { leadId: doc.leadId! }
-    await logDocumentVersionAdded(
-      deal,
-      employeeActor(auth.employee),
-      doc.title,
-      result.version.version,
-      parsed.comment,
-      // DF-01: documentId связывает событие с документом (лента → файл)
-      { isInternal: doc.isInternal, documentId: id }
-    )
-
-    return NextResponse.json({ version: result.version, document: result.document }, { status: 201 })
+    // Событие document_version_added пишет confirm — в той же транзакции,
+    // что и перевод версии в ready (DoD 9).
+    return NextResponse.json({ ...result, confirmUrl: `/api/admin/document-versions/${result.version.id}/confirm` }, { status: 201 })
   } catch (e) {
     return apiErrorResponse(e, 'document versions POST', 'Не удалось загрузить версию')
   }

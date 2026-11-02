@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { emitEvent } from '@/lib/events'
-import { createDocumentOnDeal, type DocActor, type DocumentDealTarget } from '@/lib/documents'
+import type { DocActor, DocumentDealTarget } from '@/lib/documents'
 import type { ActivityActor } from '@/lib/activity'
 import {
   CreatePermitInput,
@@ -177,48 +177,58 @@ export async function patchPermit(
   return updated
 }
 
-// ─── Закрытие строки загрузкой документа (клиент/брокер/сотрудник) ───
-// Документ создаётся существующим контуром Е (createDocumentOnDeal,
-// type='permit' — reюз, IC-14), затем строка получает статус received.
-// Повторное закрытие полученной строки — 409 (правка документа — через
-// версии обычного документа).
-export async function closePermitWithDocument(
-  permitId: string,
-  actor: DocActor,
-  meta: { title: string; comment?: string },
-  file: { fileName: string; mimeType: string; fileSize: number; fileData: Uint8Array<ArrayBuffer> }
-): Promise<{ permit: PermitRow; documentId: string } | { error: string; status: number }> {
-  const permit = await db.permitRequirement.findUnique({ where: { id: permitId }, select: PERMIT_FIELDS })
-  if (!permit) return { error: 'Разрешительный документ не найден', status: 404 }
+// ─── Привязка подтверждённого документа к строке (DF-16 × DF-11) ────
+// С двухфазной загрузкой строка закрывается на шаге confirm документа:
+// тот же tx ставит статус received и пишет permit_received (событие в
+// той же транзакции, DoD 9). Повторное закрытие полученной строки —
+// 409 (правка документа — через версии обычного документа).
+export async function linkPermitRequirement(
+  tx: Prisma.TransactionClient,
+  input: { permitId: string; deal: DocumentDealTarget; actor: DocActor; documentId: string },
+): Promise<void> {
+  const permit = await tx.permitRequirement.findUnique({
+    where: { id: input.permitId },
+    select: { id: true, title: true, status: true, orderId: true, leadId: true },
+  })
+  if (!permit) throw new PermitLinkError(404, 'Разрешительный документ не найден')
+  // Строка обязана принадлежать той же сделке, что и документ: чужую
+  // строку другой сделки к своему документу привязать нельзя.
+  const sameDeal =
+    ('orderId' in input.deal && permit.orderId === input.deal.orderId) ||
+    ('leadId' in input.deal && permit.leadId === input.deal.leadId)
+  if (!sameDeal) throw new PermitLinkError(404, 'Разрешительный документ не найден')
   if (permit.status !== 'pending') {
-    return { error: 'Строка уже закрыта — документ прикладывается версиями к загруженному', status: 409 }
+    throw new PermitLinkError(409, 'Строка уже закрыта — документ прикладывается версиями к загруженному')
   }
-  const deal = permitTargetOf(permit)
-  const document = await createDocumentOnDeal(deal, actor, {
-    type: 'permit',
-    title: meta.title,
-    isInternal: false,
-    comment: meta.comment,
-  }, file)
-  const updated = await db.permitRequirement.update({
-    where: { id: permitId },
+  await tx.permitRequirement.update({
+    where: { id: permit.id },
     data: {
       status: 'received',
-      documentId: document.id,
+      documentId: input.documentId,
       receivedAt: new Date(),
-      receivedByName: actor.name,
+      receivedByName: input.actor.name,
       lastRemindedAt: null,
     },
-    select: PERMIT_FIELDS,
   })
-  await emitEvent(db, {
-    target: deal,
-    actor,
+  await emitEvent(tx, {
+    target: input.deal,
+    actor: input.actor,
     type: 'permit_received',
-    description: `Разрешительный документ «${updated.title}» получен (${actor.name})`,
-    documentId: document.id,
+    description: `Разрешительный документ «${permit.title}» получен (${input.actor.name})`,
+    documentId: input.documentId,
   })
-  return { permit: updated, documentId: document.id }
+}
+
+/** Ошибка привязки строки разрешительного — роут маппит в HTTP-ответ. */
+export class PermitLinkError extends Error {
+  readonly statusCode: number
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message)
+    this.statusCode = status
+  }
 }
 
 // ─── Перенос при конвертации В4 (лид → заявка) ───────────────────────

@@ -46,7 +46,6 @@ type PermitsSectionProps = {
   onChanged?: () => void
   emptyText?: string
 }
-
 export function PermitsSection({
   viewer,
   permitsUrl,
@@ -59,6 +58,9 @@ export function PermitsSection({
 }: PermitsSectionProps) {
   const { toast } = useToast()
   const [permits, setPermits] = useState<PermitRowUi[] | null>(initialPermits ?? null)
+  // DF-11: лимит загрузки — настройка files.max_mb (GET списка отдаёт
+  // maxMb; клиентский режим — 25 по умолчанию, сервер всё равно enforced).
+  const [maxMb, setMaxMb] = useState(25)
 
   const load = useCallback(async () => {
     if (!permitsUrl) {
@@ -69,9 +71,10 @@ export function PermitsSection({
     }
     try {
       const res = await fetch(permitsUrl)
-      const data = await readApiResponse<{ permits?: PermitRowUi[]; error?: string }>(res)
+      const data = await readApiResponse<{ permits?: PermitRowUi[]; maxMb?: number; error?: string }>(res)
       if (!res.ok) throw new Error(data.error || 'Ошибка загрузки')
       setPermits(data.permits ?? [])
+      if (typeof data.maxMb === 'number' && data.maxMb > 0) setMaxMb(data.maxMb)
     } catch (e) {
       toast({
         title: 'Не удалось загрузить разрешительные',
@@ -159,6 +162,7 @@ export function PermitsSection({
               viewer={viewer}
               patchUrlFor={patchUrlFor}
               documentUrlFor={documentUrlFor}
+              maxMb={maxMb}
               onChanged={load}
               now={now}
             />
@@ -174,6 +178,7 @@ function PermitRow({
   viewer,
   patchUrlFor,
   documentUrlFor,
+  maxMb,
   onChanged,
   now,
 }: {
@@ -181,6 +186,7 @@ function PermitRow({
   viewer: PermitViewer
   patchUrlFor?: (permitId: string) => string
   documentUrlFor: (permitId: string) => string
+  maxMb: number
   onChanged: () => Promise<void>
   now: Date
 }) {
@@ -219,7 +225,7 @@ function PermitRow({
       </div>
       {permit.status === 'pending' && (
         <div className="flex flex-wrap items-center gap-2">
-          <PermitUploadButton permit={permit} documentUrl={documentUrlFor} onUploaded={onChanged} />
+          <PermitUploadButton permit={permit} documentUrl={documentUrlFor} maxMb={maxMb} onUploaded={onChanged} />
           {patchUrlFor && <PermitEditDialog permit={permit} patchUrlFor={patchUrlFor} onSaved={onChanged} />}
         </div>
       )}

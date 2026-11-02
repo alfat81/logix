@@ -28,10 +28,10 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
 }
 
 // ── Лимиты загрузки ─────────────────────────────────────────────────
-// 4 МБ на файл: вписывается в предел тела запроса serverless-функций
-// Vercel (~4,5 МБ) — на большее нужен внешний blob-сторедж, которого
-// в MVP нет (осознанное упрощение, см. DEPLOY.md).
-export const DOC_FILE_MAX_BYTES = 4 * 1024 * 1024
+// DF-11: лимит файла — настройка files.max_mb (по умолчанию 25 МБ,
+// валидатор asInt 1..200); байты идут напрямую в хранилище (presigned
+// PUT), предел тела serverless-функции больше не ограничивает.
+// Константа 4 МБ удалена (G4: замещаемое удаляется в том же релизе).
 
 // Белый список MIME: всё, что реально ходит в логистическом контуре —
 // PDF, сканы-картинки, офисные документы, архивы с пакетами бумаг.
@@ -63,6 +63,16 @@ export const DOC_INLINE_MIME: readonly string[] = [
 // Пределы текстовых полей: название документа и комментарий версии.
 export const DOC_TITLE_MAX_LENGTH = 200
 export const DOC_COMMENT_MAX_LENGTH = 500
+
+// Санитизация имени: без каталогов, без управляющих символов, без
+// пустоты и без монструозной длины. Кириллицу сохраняем — браузеры
+// корректно отдают её в Content-Disposition.
+export function sanitizeFileName(name: string): string {
+  const base = name.split(/[/\\]/).pop() ?? ''
+  const cleaned = base.replace(/[\u0000-\u001f<>:"|?*]/g, '').trim()
+  if (!cleaned) return 'file'
+  return cleaned.length > 120 ? cleaned.slice(-120) : cleaned
+}
 
 // Человекочитаемый размер для списков (общий для трёх кабинетов).
 export function formatDocSize(bytes: number): string {

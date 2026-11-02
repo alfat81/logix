@@ -1,14 +1,14 @@
+// no-event: события пишет ядро document-confirm (document_version_added в той же транзакции с переводом версии в ready)
 import { NextRequest, NextResponse } from 'next/server'
 import { requireClient } from '@/lib/client-auth'
 import { clientActor } from '@/lib/activity'
 import { apiErrorResponse } from '@/lib/api-errors'
+import { documentVisibleToClient } from '@/lib/documents'
 import {
-  addDocumentVersion,
-  documentVisibleToClient,
-  logDocumentVersionAdded,
-  parseDocumentVersionForm,
-  type DocumentDealTarget,
-} from '@/lib/documents'
+  createPendingVersion,
+  DocumentVersionUploadSchema,
+  parseBody,
+} from '@/lib/document-upload'
 import { projectAuthors, projectDocumentAuthors } from '@/lib/actor-name'
 
 type Params = { params: Promise<{ id: string }> }
@@ -28,34 +28,16 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Документ не найден' }, { status: 404 })
     }
 
-    const parsed = await parseDocumentVersionForm(req)
+    const parsed = await parseBody(req, DocumentVersionUploadSchema)
     if (!parsed.ok) return parsed.response
-
-    const result = await addDocumentVersion(
-      id,
-      clientActor(auth.client),
-      parsed.file,
-      parsed.comment
-    )
+    const result = await createPendingVersion(id, clientActor(auth.client), parsed.data)
     if (!result) {
       return NextResponse.json({ error: 'Документ не найден' }, { status: 404 })
     }
 
-    const deal: DocumentDealTarget = doc.orderId
-      ? { orderId: doc.orderId }
-      : { leadId: doc.leadId! }
-    await logDocumentVersionAdded(
-      deal,
-      clientActor(auth.client),
-      doc.title,
-      result.version.version,
-      parsed.comment,
-      // DF-01: documentId связывает событие с документом (лента → файл)
-      { documentId: id }
-    )
-
-    // DF-02A (Блок 4): автор новой версии — этот пользователь; в ответе
-    // сразу имя человека (свой кабинет — коллега).
+    // Событие document_version_added пишет confirm — в той же транзакции,
+    // что и перевод версии в ready (DoD 9). DF-02A: автор новой версии —
+    // этот пользователь; в ответе сразу имя человека (свой кабинет — коллега).
     const [version] = await projectAuthors([result.version], {
       kind: 'client',
       customerId: auth.client.id,
@@ -64,7 +46,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       kind: 'client',
       customerId: auth.client.id,
     })
-    return NextResponse.json({ version, document }, { status: 201 })
+    return NextResponse.json({ version, document, upload: result.upload, confirmUrl: `/api/client/document-versions/${result.version.id}/confirm` }, { status: 201 })
   } catch (e) {
     return apiErrorResponse(e, 'client document versions POST', 'Не удалось загрузить версию')
   }

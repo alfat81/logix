@@ -9,10 +9,22 @@
     "scripts/shadow-db.ts",
     "scripts/backfill_waiting.ts",
     "scripts/e2e_backdate_waiting.ts",
-    "src/lib/*.test.ts"
+    "src/lib/*.test.ts",
+    "scripts/migrate-files-to-storage.ts"
   ],
-  "project": ["src/**/*.ts", "src/**/*.tsx", "scripts/*.ts", "scripts/ref-data/*.ts"],
-  "ignoreDependencies": ["@types/bun", "tailwindcss", "tw-animate-css"],
+  "project": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "scripts/*.ts",
+    "scripts/ref-data/*.ts"
+  ],
+  "ignoreDependencies": [
+    "@types/bun",
+    "tailwindcss",
+    "tw-animate-css"
+  ],
   "ignoreExportsUsedInFile": true,
-  "tags": ["-lint"]
+  "tags": [
+    "-lint"
+  ]
 }

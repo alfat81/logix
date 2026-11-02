@@ -14,28 +14,33 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
-import { readApiResponse } from '@/lib/api-client'
-import { DOC_FILE_MAX_BYTES, formatDocSize } from '@/lib/document-constants'
+import { formatDocSize } from '@/lib/document-constants'
+import { uploadTwoPhase } from '@/components/documents/upload-client'
+import { UploadProgress } from '@/components/documents/UploadProgress'
 import type { PermitRowUi } from './types'
 
-// ─── DF-16: закрытие строки разрешительного загрузкой документа ──────
-// Карточка: «кто закрывает: клиент, брокер или сотрудник — загрузкой
-// документа прямо в строке». multipart POST /permits/[id]/document —
-// тот же parseDocumentCreateForm, что у контура Е (reюз), статус строки
-// станет received. Повторная загрузка закрытой строки не предлагается —
-// документ правится версиями в секции «Документы» (409 API).
+// ─── DF-16 × DF-11: закрытие строки разрешительного загрузкой ────────
+// «Кто закрывает: клиент, брокер или сотрудник — загрузкой документа
+// прямо в строке». Двухфазная загрузка: pending-документ вида permit →
+// presigned PUT (с прогрессом) → confirm с permitRequirementId — строка
+// становится received в той же транзакции. Повторная загрузка закрытой
+// строки не предлагается — документ правится версиями в «Документах».
 export function PermitUploadButton({
   permit,
   documentUrl,
+  maxMb = 25,
   onUploaded,
 }: {
   permit: PermitRowUi
   documentUrl: (permitId: string) => string
+  maxMb?: number
   onUploaded: () => Promise<void>
 }) {
   const { toast } = useToast()
+  const maxBytes = maxMb * 1024 * 1024
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<number | null>(null)
   const [title, setTitle] = useState(permit.title)
   const [comment, setComment] = useState('')
   const [file, setFile] = useState<File | null>(null)
@@ -46,24 +51,38 @@ export function PermitUploadButton({
       setTitle(permit.title)
       setComment('')
       setFile(null)
+      setProgress(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }, [open, permit])
 
   const submit = async () => {
     if (!file) return
+    if (file.size > maxBytes) {
+      toast({
+        title: 'Документ не загружен',
+        description: `Файл больше ${formatDocSize(maxBytes)} — уменьшите файл или пришлите менеджеру напрямую`,
+        variant: 'destructive',
+      })
+      return
+    }
     setBusy(true)
+    setProgress(0)
     try {
-      const fd = new FormData()
-      // Тип документа фиксирован «Разрешительный» (document-constants),
-      // название по умолчанию — название строки обязательства
-      fd.append('type', 'permit')
-      fd.append('title', title.trim() || permit.title)
-      if (comment.trim()) fd.append('comment', comment.trim())
-      fd.append('file', file)
-      const res = await fetch(documentUrl(permit.id), { method: 'POST', body: fd })
-      const data = await readApiResponse<{ error?: string }>(res)
-      if (!res.ok) throw new Error(data.error || 'Не удалось загрузить документ')
+      await uploadTwoPhase({
+        createUrl: documentUrl(permit.id),
+        createBody: {
+          title: title.trim() || undefined, // по умолчанию — название строки
+          comment: comment.trim() || undefined,
+          fileName: file.name,
+          mimeType: file.type || '',
+          size: file.size,
+        },
+        // Строка закрывается тем же документом на шаге confirm (DF-16).
+        confirmBody: { permitRequirementId: permit.id },
+        file,
+        onProgress: setProgress,
+      })
       toast({ title: 'Документ загружен — строка закрыта', description: title.trim() })
       setOpen(false)
       await onUploaded()
@@ -75,6 +94,7 @@ export function PermitUploadButton({
       })
     } finally {
       setBusy(false)
+      setProgress(null)
     }
   }
 
@@ -84,12 +104,12 @@ export function PermitUploadButton({
         <FileUp className="size-3.5" />
         Загрузить документ
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Документ по «{permit.title}»</DialogTitle>
             <DialogDescription>
-              Файл до {formatDocSize(DOC_FILE_MAX_BYTES)}: PDF, картинка, DOC/DOCX,
+              Файл до {formatDocSize(maxBytes)}: PDF, картинка, DOC/DOCX,
               XLS/XLSX, ZIP. Строка закроется статусом «Получен».
             </DialogDescription>
           </DialogHeader>
@@ -123,6 +143,7 @@ export function PermitUploadButton({
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
             </div>
+{progress !== null && <UploadProgress progress={progress} />}
           </div>
           <DialogFooter>
             <Button onClick={() => void submit()} disabled={busy || !file}>

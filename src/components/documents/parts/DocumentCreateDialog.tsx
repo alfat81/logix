@@ -22,32 +22,35 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-import { readApiResponse } from '@/lib/api-client'
 import {
   DOC_COMMENT_MAX_LENGTH,
-  DOC_FILE_MAX_BYTES,
   DOC_TITLE_MAX_LENGTH,
   DOCUMENT_TYPES,
   DOCUMENT_TYPE_LABELS,
   formatDocSize,
   type DocumentType,
 } from '@/lib/document-constants'
+import { uploadTwoPhase } from '../upload-client'
+import { UploadProgress } from '../UploadProgress'
 import { fileLabel } from './types'
 
 // v0.5.0 (P1-22): диалог загрузки документа — выезд из
-// DocumentsSection.tsx (резка под лимит 300, RULES 2.14). Логика 1:1:
-// multipart POST (тип/название/комментарий/видимость/файл), кнопка в
-// шапке секции рендерится этим же компонентом.
+// DocumentsSection.tsx (резка под лимит 300, RULES 2.14).
+// DF-11: двухфазная загрузка с прогрессом (uploadTwoPhase), лимит —
+// настройка files.max_mb, приходит с сервера страницей (D32).
 export function DocumentCreateDialog({
   documentsUrl,
   canMarkInternal,
+  maxMb = 25,
   onCreated,
 }: {
   documentsUrl: string
   canMarkInternal: boolean
+  maxMb?: number
   onCreated: () => Promise<void>
 }) {
   const { toast } = useToast()
+  const maxBytes = maxMb * 1024 * 1024
 
   const [createOpen, setCreateOpen] = useState(false)
   const [cType, setCType] = useState<DocumentType>('accompanying')
@@ -56,6 +59,7 @@ export function DocumentCreateDialog({
   const [cInternal, setCInternal] = useState(false)
   const [cFile, setCFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<number | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -65,22 +69,37 @@ export function DocumentCreateDialog({
     setCInternal(false)
     setCFile(null)
     setCType('accompanying')
+    setProgress(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const submitCreate = async () => {
     if (!cFile || !cTitle.trim()) return
+    if (cFile.size > maxBytes) {
+      toast({
+        title: 'Документ не загружен',
+        description: `Файл больше ${formatDocSize(maxBytes)} — уменьшите файл или пришлите менеджеру напрямую`,
+        variant: 'destructive',
+      })
+      return
+    }
     setBusy(true)
+    setProgress(0)
     try {
-      const fd = new FormData()
-      fd.append('type', cType)
-      fd.append('title', cTitle.trim())
-      if (cComment.trim()) fd.append('comment', cComment.trim())
-      if (cInternal) fd.append('isInternal', 'true')
-      fd.append('file', cFile)
-      const res = await fetch(documentsUrl, { method: 'POST', body: fd })
-      const data = await readApiResponse<{ error?: string }>(res)
-      if (!res.ok) throw new Error(data.error || 'Не удалось загрузить документ')
+      await uploadTwoPhase({
+        createUrl: documentsUrl,
+        createBody: {
+          type: cType,
+          title: cTitle.trim(),
+          comment: cComment.trim() || undefined,
+          isInternal: cInternal || undefined,
+          fileName: cFile.name,
+          mimeType: cFile.type || '',
+          size: cFile.size,
+        },
+        file: cFile,
+        onProgress: setProgress,
+      })
       toast({ title: 'Документ загружен', description: cTitle.trim() })
       setCreateOpen(false)
       resetCreateForm()
@@ -93,6 +112,7 @@ export function DocumentCreateDialog({
       })
     } finally {
       setBusy(false)
+      setProgress(null)
     }
   }
 
@@ -103,12 +123,12 @@ export function DocumentCreateDialog({
         Загрузить документ
       </Button>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog open={createOpen} onOpenChange={(o) => !busy && setCreateOpen(o)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Новый документ</DialogTitle>
             <DialogDescription>
-              Файл до {formatDocSize(DOC_FILE_MAX_BYTES)}: PDF, картинка, DOC/DOCX,
+              Файл до {formatDocSize(maxBytes)}: PDF, картинка, DOC/DOCX,
               XLS/XLSX, ZIP.
             </DialogDescription>
           </DialogHeader>
@@ -180,6 +200,7 @@ export function DocumentCreateDialog({
               />
               <p className="text-xs text-muted-foreground">{fileLabel(cFile)}</p>
             </div>
+{progress !== null && <UploadProgress progress={progress} />}
           </div>
           <DialogFooter>
             <Button

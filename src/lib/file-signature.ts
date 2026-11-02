@@ -62,9 +62,19 @@ export function resolveFileMime(declared: string, fileName: string, bytes: Uint8
 
   let mime = declared
   if (!mime || mime === 'application/octet-stream') {
-    const ext = fileName.toLowerCase().split('.').pop() ?? ''
-    mime = EXT_MIME[ext] ?? ''
+    mime = mimeForFileName(fileName)
   }
   const expected = MIME_FAMILY[mime]
   return expected === family ? mime : null
+}
+
+/**
+ * MIME по расширению имени файла (DF-11, двухфазная загрузка): на шаге
+ * create байт ещё нет — заявленный браузером тип, пустой или
+ * octet-stream, уточняется расширением; дальше он валидируется по
+ * белому списку и окончательно сверяется с сигнатурой на confirm.
+ */
+export function mimeForFileName(fileName: string): string {
+  const ext = fileName.toLowerCase().split('.').pop() ?? ''
+  return EXT_MIME[ext] ?? ''
 }

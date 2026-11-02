@@ -14,30 +14,34 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
-import { readApiResponse } from '@/lib/api-client'
-import { DOC_COMMENT_MAX_LENGTH } from '@/lib/document-constants'
+import { DOC_COMMENT_MAX_LENGTH, formatDocSize } from '@/lib/document-constants'
+import { uploadTwoPhase } from '../upload-client'
+import { UploadProgress } from '../UploadProgress'
 import { fileLabel, type DocRowUi } from './types'
 
 // v0.5.0 (P1-22): диалог новой версии документа — выезд из
-// DocumentsSection.tsx (резка под лимит 300, RULES 2.14). Логика 1:1:
-// multipart POST версии (комментарий/файл), после успеха поля
-// сбрасываются, список перечитывается.
+// DocumentsSection.tsx (резка под лимит 300, RULES 2.14).
+// DF-11: двухфазная загрузка с прогрессом, лимит files.max_mb с сервера.
 export function DocumentVersionDialog({
   doc,
   versionsUrlFor,
+  maxMb = 25,
   onClose,
   onDone,
 }: {
   doc: DocRowUi | null
   versionsUrlFor: (docId: string) => string
+  maxMb?: number
   onClose: () => void
   onDone: () => Promise<void>
 }) {
   const { toast } = useToast()
+  const maxBytes = maxMb * 1024 * 1024
 
   const [vComment, setVComment] = useState('')
   const [vFile, setVFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<number | null>(null)
 
   const versionFileRef = useRef<HTMLInputElement>(null)
 
@@ -46,20 +50,35 @@ export function DocumentVersionDialog({
     if (doc) {
       setVComment('')
       setVFile(null)
+      setProgress(null)
       if (versionFileRef.current) versionFileRef.current.value = ''
     }
   }, [doc])
 
   const submitVersion = async () => {
     if (!doc || !vFile) return
+    if (vFile.size > maxBytes) {
+      toast({
+        title: 'Версия не загружена',
+        description: `Файл больше ${formatDocSize(maxBytes)} — уменьшите файл или пришлите менеджеру напрямую`,
+        variant: 'destructive',
+      })
+      return
+    }
     setBusy(true)
+    setProgress(0)
     try {
-      const fd = new FormData()
-      if (vComment.trim()) fd.append('comment', vComment.trim())
-      fd.append('file', vFile)
-      const res = await fetch(versionsUrlFor(doc.id), { method: 'POST', body: fd })
-      const data = await readApiResponse<{ error?: string }>(res)
-      if (!res.ok) throw new Error(data.error || 'Не удалось загрузить версию')
+      await uploadTwoPhase({
+        createUrl: versionsUrlFor(doc.id),
+        createBody: {
+          comment: vComment.trim() || undefined,
+          fileName: vFile.name,
+          mimeType: vFile.type || '',
+          size: vFile.size,
+        },
+        file: vFile,
+        onProgress: setProgress,
+      })
       toast({
         title: 'Версия загружена',
         description: `«${doc.title}» — версия ${doc.currentVersion + 1}`,
@@ -74,17 +93,19 @@ export function DocumentVersionDialog({
       })
     } finally {
       setBusy(false)
+      setProgress(null)
     }
   }
 
   return (
-    <Dialog open={doc !== null} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={doc !== null} onOpenChange={(o) => !o && !busy && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Новая версия документа</DialogTitle>
           <DialogDescription>
-            «{doc?.title}» — текущая версия v{doc?.currentVersion}. Правки
-            видят все участники сделки в истории версий.
+            «{doc?.title}» — текущая версия v{doc?.currentVersion}. Файл до{' '}
+            {formatDocSize(maxBytes)}. Правки видят все участники сделки в
+            истории версий.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
@@ -110,6 +131,7 @@ export function DocumentVersionDialog({
             />
             <p className="text-xs text-muted-foreground">{fileLabel(vFile)}</p>
           </div>
+{progress !== null && <UploadProgress progress={progress} />}
         </div>
         <DialogFooter>
           <Button onClick={() => void submitVersion()} disabled={busy || !vFile}>

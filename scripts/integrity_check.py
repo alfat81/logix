@@ -119,9 +119,19 @@ CABINET_GUARD = {"admin": "requireEmployee", "client": "requireClient",
                  "broker": "requireBroker", "contractor": "requireContractor"}
 
 
+# DF-11: capability-роуты — авторизация подписью (HMAC в query, срок
+# ≤10 минут), а не сессией; точный аналог presigned URL S3, которые тоже
+# приходят мимо приложения. Сессионный guard здесь не нужен сознательно;
+# подделка/просрочка подписи → 403 (e2e DF-11). Исключение узкое, не
+# ослабляет остальные роуты (§4.3: исключение — в конфиг с комментарием).
+IC02_CAPABILITY_ROUTES = ("src/app/api/storage/local/[...key]/route.ts",)
+
+
 def ic02() -> None:
     for f in rglob("src/app/api/**/route.ts"):
         r = rel(f)
+        if r in IC02_CAPABILITY_ROUTES:
+            continue
         t = text(f)
         # r = src/app/api/<кабинет>/... — сегмент 3 в ПУТИ ФАЙЛА (без ведущего слэша)
         seg = r.split("/")[3] if r.count("/") >= 3 else ""

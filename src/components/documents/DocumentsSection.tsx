@@ -55,6 +55,9 @@ export function DocumentsSection({
   const { toast } = useToast()
   const [docs, setDocs] = useState<DocRowUi[] | null>(null)
   const [loading, setLoading] = useState(true)
+  // DF-11: лимит загрузки — настройка files.max_mb; приходит в GET списка
+  // (сервер читает настройку с кэшем 60 с) — подсказка и предпроверка в UI.
+  const [maxMb, setMaxMb] = useState(25)
 
   // Диалог новой версии (форма живёт в диалоге)
   const [versionDoc, setVersionDoc] = useState<DocRowUi | null>(null)
@@ -62,9 +65,10 @@ export function DocumentsSection({
   const load = useCallback(async () => {
     try {
       const res = await fetch(documentsUrl)
-      const data = await readApiResponse<{ documents?: DocRowUi[]; error?: string }>(res)
+      const data = await readApiResponse<{ documents?: DocRowUi[]; maxMb?: number; error?: string }>(res)
       if (!res.ok) throw new Error(data.error || 'Ошибка загрузки')
       setDocs(data.documents ?? [])
+      if (typeof data.maxMb === 'number' && data.maxMb > 0) setMaxMb(data.maxMb)
     } catch (e) {
       toast({
         title: 'Не удалось загрузить документы',
@@ -113,6 +117,7 @@ export function DocumentsSection({
         <DocumentCreateDialog
           documentsUrl={documentsUrl}
           canMarkInternal={canMarkInternal}
+          maxMb={maxMb}
           onCreated={load}
         />
       </CardHeader>
@@ -206,6 +211,7 @@ export function DocumentsSection({
       <DocumentVersionDialog
         doc={versionDoc}
         versionsUrlFor={versionsUrlFor}
+        maxMb={maxMb}
         onClose={() => setVersionDoc(null)}
         onDone={load}
       />

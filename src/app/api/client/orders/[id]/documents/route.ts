@@ -1,13 +1,16 @@
+// no-event: события пишет ядро document-upload/document-confirm (document_created на confirm; pending-запись событие не пишет — документ ещё не существует)
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireClient } from '@/lib/client-auth'
 import { clientActor } from '@/lib/activity'
 import { apiErrorResponse } from '@/lib/api-errors'
+import { getSetting } from '@/lib/settings'
+import { DOC_LIST_READY_WHERE, DOC_PUBLIC_FIELDS } from '@/lib/documents'
 import {
-  DOC_PUBLIC_FIELDS,
-  createDocumentOnDeal,
-  parseDocumentCreateForm,
-} from '@/lib/documents'
+  createPendingDocument,
+  DocumentCreateUploadSchema,
+  parseBody,
+} from '@/lib/document-upload'
 import { projectDocumentAuthors } from '@/lib/actor-name'
 
 type Params = { params: Promise<{ id: string }> }
@@ -32,13 +35,14 @@ export async function GET(req: NextRequest, { params }: Params) {
     }
 
     const documents = await db.document.findMany({
-      where: { orderId: id, isInternal: false },
+      where: { orderId: id, isInternal: false, ...DOC_LIST_READY_WHERE },
       select: DOC_PUBLIC_FIELDS,
       orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
     })
     // DF-02A (Блок 4): автор версии — человек. Коллеги по компании
     // видят имена, чужие авторы — компанию (снимок как был).
     return NextResponse.json({
+      maxMb: await getSetting('files.max_mb'),
       documents: await projectDocumentAuthors(documents, {
         kind: 'client',
         customerId: auth.client.id,
@@ -63,22 +67,23 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Заявка не найдена' }, { status: 404 })
     }
 
-    const parsed = await parseDocumentCreateForm(req)
+    const parsed = await parseBody(req, DocumentCreateUploadSchema)
     if (!parsed.ok) return parsed.response
-
-    const document = await createDocumentOnDeal(
+    // DF-11: шаг 1 — pending-запись и presigned PUT (байты грузит браузер).
+    // Клиент не может создать внутренний документ: createPendingDocument
+    // принудительно гасит isInternal для не-сотрудников.
+    const result = await createPendingDocument(
       { orderId: id },
       clientActor(auth.client),
-      parsed.meta,
-      parsed.file
+      parsed.data
     )
     // DF-02A (Блок 4): автор версии 1 — этот пользователь; в ответе
     // сразу имя человека (свой кабинет — коллега).
-    const [projected] = await projectDocumentAuthors([document], {
+    const [document] = await projectDocumentAuthors([result.document], {
       kind: 'client',
       customerId: auth.client.id,
     })
-    return NextResponse.json({ document: projected }, { status: 201 })
+    return NextResponse.json({ ...result, document, confirmUrl: `/api/client/document-versions/${result.version.id}/confirm` }, { status: 201 })
   } catch (e) {
     return apiErrorResponse(e, 'client order documents POST', 'Не удалось загрузить документ')
   }

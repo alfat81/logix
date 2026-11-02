@@ -43,6 +43,10 @@ export function proxy(req: NextRequest) {
 
 export const config = {
   // D31: страницы кабинета подрядчика тоже идут через proxy (404 при
-  // заморозке); API — дополнительно origin-проверка мутаций (E0-09)
-  matcher: ['/api/:path*', '/contractor/:path*'],
+  // заморозке); API — дополнительно origin-проверка мутаций (E0-09).
+  // DF-11: /api/storage/local исключён — это capability-ссылки (HMAC в
+  // query, короткий срок), точный аналог presigned URL S3: origin-проверка
+  // для них бессмысленна, а буфер middleware режет тело загрузки на
+  // 10 МиБ — файл 20+ МБ до роута не доходил бы целиком.
+  matcher: ['/api/((?!storage/local).*)', '/contractor/:path*'],
 }

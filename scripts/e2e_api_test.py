@@ -44,6 +44,39 @@ def multipart(fields, fname, fbytes, mime):
     for k,v in fields.items(): out+=f'--{bd}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
     out+=f'--{bd}\r\nContent-Disposition: form-data; name="file"; filename="{fname}"\r\nContent-Type: {mime}\r\n\r\n'.encode()+fbytes+b'\r\n'
     out+=f'--{bd}--\r\n'.encode(); return out, 'multipart/form-data; boundary='+bd
+def up2(ses, url, fname, fbytes, mime, permit_id=None, extra=None):
+    """DF-11: двухфазная загрузка (create JSON → PUT в хранилище → confirm).
+    Возвращает (status, data) последнего шага (confirm, либо create при отказе)."""
+    body = {'fileName': fname, 'mimeType': mime, 'size': len(fbytes)}
+    if extra: body.update(extra)
+    s1, d1 = ses.r('POST', url, b=body)
+    if s1 not in (200, 201): return s1, d1
+    up = d1.get('upload') or {}
+    conf = d1.get('confirmUrl')
+    purl = up.get('url', '')
+    if not purl.startswith('http'): purl = B + purl
+    req = urllib.request.Request(purl, data=fbytes, method='PUT')
+    for k, v in (up.get('headers') or {}).items(): req.add_header(k, v)
+    try:
+        x = ses.o.open(req); x.read()
+        if x.status >= 300: return x.status, {'error': 'PUT rejected'}
+    except urllib.error.HTTPError as e:
+        return e.code, {'error': 'PUT rejected'}
+    cb = {'permitRequirementId': permit_id} if permit_id else {}
+    return ses.r('POST', conf, b=cb)
+
+def raw_get(ses, path):
+    """GET без следования редиректам: для проверки 302 на presigned GET.
+    Заголовки нормализуются в нижний регистр (Next шлёт location строчными)."""
+    class NR(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k): return None
+    op = urllib.request.build_opener(NR, urllib.request.HTTPCookieProcessor(ses.j))
+    try:
+        x = op.open(urllib.request.Request(B + path if path.startswith('/') else path))
+        return x.status, {k.lower(): v for k, v in dict(x.headers).items()}, x.read()
+    except urllib.error.HTTPError as e:
+        return e.code, {k.lower(): v for k, v in dict(e.headers).items()}, e.read()
+
 u=uuid.uuid4().hex[:6]; ph=lambda n: '+7999%07d'%n
 import random; base=random.randint(1000000,8000000)
 # --- admin
@@ -134,18 +167,12 @@ bph=ph(base+1); s,d=a.r('POST','/api/admin/brokers',{'companyName':'Брокер
 s,d=a.r('POST',f'/api/admin/leads/{lid}/brokers',{'brokerId':bid}); chk('брокер подключён к запросу',s in(200,201),(s,d))
 s,d=a.r('POST',f'/api/admin/leads/{lid}/brokers',{'brokerId':bid}); chk('повторное подключение → 409',s==409,s)
 # document on lead (internal + public)
-body,ct=multipart({'type':'invoice','title':'Инвойс '+u,'isInternal':'false'},'inv.pdf',b'%PDF-1.4 test',"application/pdf")
-s,d=a.r('POST',f'/api/admin/leads/{lid}/documents',raw=body,ct=ct); chk('загрузка документа на запрос',s in(200,201),(s,d))
-body,ct=multipart({'type':'contract','title':'Тариф подрядчика '+u,'isInternal':'true'},'tariff.pdf',b'%PDF-1.4 secret',"application/pdf")
-s,d=a.r('POST',f'/api/admin/leads/{lid}/documents',raw=body,ct=ct); chk('загрузка внутреннего документа',s in(200,201),(s,d))
-body,ct=multipart({'type':'other','title':'html'},'x.html',b'<script>alert(1)</script>',"text/html")
-s,d=a.r('POST',f'/api/admin/leads/{lid}/documents',raw=body,ct=ct); chk('HTML-файл отклонён',s==400,s)
-body,ct=multipart({'type':'other','title':'html as pdf'},'x.pdf',b'<html><script>alert(1)</script></html>',"application/pdf")
-s,d=a.r('POST',f'/api/admin/leads/{lid}/documents',raw=body,ct=ct); chk('E0-07 HTML под видом PDF отклонён (проверка сигнатуры файла)',s==400,s)
-body,ct=multipart({'type':'other','title':'docx без MIME'},'act.docx',b'PK\x03\x04'+b'\x00'*64,'application/octet-stream')
-s,d=a.r('POST',f'/api/admin/leads/{lid}/documents',raw=body,ct=ct); chk('E0-07 DOCX без MIME от браузера принимается по сигнатуре',s in(200,201),(s,d))
-body,ct=multipart({'type':'other','title':'big'},'big.pdf',b'%PDF'+b'0'*(4*1024*1024+10),"application/pdf")
-s,d=a.r('POST',f'/api/admin/leads/{lid}/documents',raw=body,ct=ct); chk('файл >4МБ отклонён',s in(400,413),s)
+s,d=up2(a,f'/api/admin/leads/{lid}/documents','inv.pdf',b'%PDF-1.4 test',"application/pdf",extra={'type':'invoice','title':'Инвойс '+u}); chk('загрузка документа на запрос',s in(200,201),(s,d))
+s,d=up2(a,f'/api/admin/leads/{lid}/documents','tariff.pdf',b'%PDF-1.4 secret',"application/pdf",extra={'type':'contract','title':'Тариф подрядчика '+u,'isInternal':True}); chk('загрузка внутреннего документа',s in(200,201),(s,d))
+s,d=up2(a,f'/api/admin/leads/{lid}/documents','x.html',b'<script>alert(1)</script>',"text/html",extra={'type':'other','title':'html'}); chk('HTML-файл отклонён',s==400,s)
+s,d=up2(a,f'/api/admin/leads/{lid}/documents','x.pdf',b'<html><script>alert(1)</script></html>',"application/pdf",extra={'type':'other','title':'html as pdf'}); chk('E0-07 HTML под видом PDF отклонён (проверка сигнатуры файла)',s==400,s)
+s,d=up2(a,f'/api/admin/leads/{lid}/documents','act.docx',b'PK\x03\x04'+b'\x00'*64,'application/octet-stream',extra={'type':'other','title':'docx без MIME'}); chk('E0-07 DOCX без MIME от браузера принимается по сигнатуре',s in(200,201),(s,d))
+s,d=up2(a,f'/api/admin/leads/{lid}/documents','big.pdf',b'%PDF',"application/pdf",extra={'type':'other','title':'big','size':26*1024*1024}); chk('файл >25МБ отклонён (лимит files.max_mb, DF-11)',s in(400,413),s)
 # parallel convert
 res=[]
 def cv(): res.append(a.r('POST',f'/api/admin/leads/{lid}/convert',{'legalEntityId':leid,'incoterm':'FOB'}))
@@ -485,8 +512,7 @@ s,d=a.r('GET',f'/api/admin/customers/{cust}/access'); nofin=[x for x in d.get('u
 chk('DF-02A: контакт без входа в списке (hasPassword=false)',len(nofin)==1 and nofin[0].get('hasPassword') is False,nofin)
 s,d=a.r('GET',f'/api/admin/customers/{cust}'); chk('DF-02A: доступ компании = активный пользователь с паролем',(d.get('customer',d)).get('hasCabinetAccess') is True,(s,d))
 # --- DF-02A: автор-человек в версиях документов ---
-body,ct=multipart({'type':'invoice','title':'Счёт от клиента '+u},'cl.pdf',b'%PDF-1.4 client',"application/pdf")
-s,d=c.r('POST',f'/api/client/orders/{oid}/documents',raw=body,ct=ct); chk('DF-02A: клиент загрузил документ (версия 1)',s in(200,201),(s,d))
+s,d=up2(c,f'/api/client/orders/{oid}/documents','cl.pdf',b'%PDF-1.4 client',"application/pdf",extra={'type':'invoice','title':'Счёт от клиента '+u}); chk('DF-02A: клиент загрузил документ (версия 1)',s in(200,201),(s,d))
 v1=((d.get('document') or {}).get('versions') or [{}])[0]
 chk('DF-02A: автор версии — человек (свой кабинет видит имя)',v1.get('authorType')=='client' and v1.get('authorName')==prim_name and bool(v1.get('authorId')),v1)
 s,d=a.r('GET',f'/api/admin/orders/{oid}/documents'); txt=json.dumps(d,ensure_ascii=False)
@@ -507,8 +533,7 @@ s,d=bu2.r('GET','/api/broker/orders'); chk('DF-02A: сессия деактив�
 s,d=C().r('POST','/api/auth/broker/login',{'phone':bu2ph,'password':'broker-pass-3'}); chk('DF-02A: деактивированный брокер не входит (403)',s==403,s)
 # автор-человек у брокера: личность известна — правим имя, грузим документ
 s,d=a.r('PATCH',f'/api/admin/brokers/{bid}/users',{'userId':buid1,'name':'Брокер Олег '+u}); chk('DF-02A: имя человека у основного брокера правится',s==200,(s,d))
-body,ct=multipart({'type':'other','title':'Акт брокера '+u},'br.pdf',b'%PDF-1.4 broker',"application/pdf")
-s,d=b.r('POST',f'/api/broker/orders/{oid}/documents',raw=body,ct=ct); chk('DF-02A: брокер загрузил документ',s in(200,201),(s,d))
+s,d=up2(b,f'/api/broker/orders/{oid}/documents','br.pdf',b'%PDF-1.4 broker',"application/pdf",extra={'type':'other','title':'Акт брокера '+u}); chk('DF-02A: брокер загрузил документ',s in(200,201),(s,d))
 bv1=((d.get('document') or {}).get('versions') or [{}])[0]
 chk('DF-02A: автор-брокер — человек (свой кабинет)',bv1.get('authorType')=='broker' and bv1.get('authorName')=='Брокер Олег '+u and bool(bv1.get('authorId')),bv1)
 s,d=a.r('GET',f'/api/admin/orders/{oid}/documents'); txt=json.dumps(d,ensure_ascii=False)
@@ -662,7 +687,13 @@ chk('DF-03: в окне — одно письмо-дайджест, а не тр
 body=dg[0].get('body','') if dg else ''
 chk('DF-03: дайджест сгруппирован по заявке, события внутри',body.count('•')>=3 and '— заявка №' in body,(body.count('•'),body[:200]))
 chk('DF-03: дайджест доставлен fake-транспортом',bool(dg) and (dg[0].get('providerId') or '').startswith('fake:'),dg[0].get('providerId') if dg else None)
-s,d=a.r('DELETE','/api/admin/settings',{'key':'notifications.client_digest_times'}); chk('DF-03: окна сброшены к дефолту (09:00/16:00)',s==200,(s,d))
+# Окна НЕ сбрасываем в дефолт до конца блока DF-16: служебные disp() ниже
+# (DF-08, версии документов, красные сканы) при прогоне внутри
+# [16:00..16:15] MSK собирают дефолтные 16:00-дайджесты и съедают
+# pending-события (флак «Ждём от вас» DF-16: прогон 02.11.2026 16:10 MSK
+# упал, 12:16 и 12:38 MSK — зелёные; окно 16:00 в допуске 15 мин).
+# Дефолт вернёт DELETE в конце блока DF-16.
+s,d=a.r('PATCH','/api/admin/settings',{'key':'notifications.client_digest_times','value':[future]}); chk('DF-03: окна удержаны в будущем (служебные disp() не собирают дефолтных дайджестов)',s==200,(s,d))
 # --- DF-08: ежедневная сводка владельцу (письмо type=digest мастеру) ---
 # Окно owner_digest.window_start/end — ДИАПАЗОН, диспетчер решает сам;
 # идемпотентность — dedupKey ownerdigest:{мастер}:{дата} (второй вызов
@@ -695,8 +726,7 @@ s,d=a.r('DELETE','/api/admin/settings',{'key':'owner_digest.window_end'}); chk('
 import time as _t
 _t.sleep(61)  # бакет «5 провалов/мин на IP» из секции rate-limit — ждём окно
 c3=C(); s,d=c3.r('POST','/api/auth/client/login',{'phone':ph(base+43),'password':'df03-pass-1'}); chk('DF-03: клиент входит',s==200,(s,d))
-body,ct=multipart({'type':'invoice','title':'DF03 счёт '+u},'inv3.pdf',b'%PDF-1.4 df03',"application/pdf")
-s,d=c3.r('POST',f'/api/client/orders/{oid3}/documents',raw=body,ct=ct); chk('DF-03: клиент загрузил документ',s in(200,201),(s,d)); doc3=(d.get('document') or d)['id']
+s,d=up2(c3,f'/api/client/orders/{oid3}/documents','inv3.pdf',b'%PDF-1.4 df03',"application/pdf",extra={'type':'invoice','title':'DF03 счёт '+u}); chk('DF-03: клиент загрузил документ',s in(200,201),(s,d)); doc3=(d.get('document') or d)['id']
 s,d=disp()
 # Поллинг до 3 с: после ответа роута параллельно стартует after()-диспетчер
 # (троттлинг 15 с) — гонка claim→send оставляет строку pending на миллисекунды.
@@ -710,16 +740,14 @@ for _ in range(6):
     _t.sleep(0.5)
 chk('DF-03: документ загружен клиентом → ответственному письмо',len(docr)>=1,(len(docr),s))
 s,d=a.r('GET','/api/admin/notifications?recipientKind=broker&take=200'); bcnt=len([x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-buser-'+u+'@test.example'])
-body,ct=multipart({'type':'invoice','title':'DF03 счёт '+u},'inv3b.pdf',b'%PDF-1.4 df03-v2',"application/pdf")
-s,d=c3.r('POST',f'/api/client/documents/{doc3}/versions',raw=body,ct=ct); chk('DF-03: клиент добавил версию (та же карточка)',s in(200,201),(s,d))
+s,d=up2(c3,f'/api/client/documents/{doc3}/versions','inv3b.pdf',b'%PDF-1.4 df03-v2',"application/pdf",extra={'comment':'правка веса'}); chk('DF-03: клиент добавил версию (та же карточка)',s in(200,201),(s,d))
 s,d=disp()
 s,d=a.r('GET','/api/admin/notifications?recipientKind=broker&take=200'); b2=[x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-buser-'+u+'@test.example']
 chk('DF-03: новая версия документа → брокеру письмо (видит документ)',len(b2)>bcnt,(bcnt,len(b2)))
 s,d=a.r('GET',f'/api/admin/brokers/{brk3}/users'); bu=(d.get('users') or [])
 bud=[x for x in bu if x.get('email')=='df03-buser-'+u+'@test.example']
 s,d=a.r('PATCH',f'/api/admin/brokers/{brk3}/users',{'userId':bud[0]['id'],'isActive':False}); chk('DF-03: человек брокера деактивирован',s==200,(s,d))
-body,ct=multipart({'type':'invoice','title':'DF03 счёт '+u},'inv3c.pdf',b'%PDF-1.4 df03-v3',"application/pdf")
-s,d=c3.r('POST',f'/api/client/documents/{doc3}/versions',raw=body,ct=ct)
+s,d=up2(c3,f'/api/client/documents/{doc3}/versions','inv3c.pdf',b'%PDF-1.4 df03-v3',"application/pdf",extra={'comment':'ещё правка'})
 s,d=disp()
 s,d=a.r('GET','/api/admin/notifications?recipientKind=broker&take=200'); b3=[x for x in d.get('notifications',[]) if x.get('toAddress')=='df03-buser-'+u+'@test.example']
 chk('DF-03: деактивированный получатель письма не получает',len(b3)==len(b2),(len(b2),len(b3)))
@@ -908,13 +936,12 @@ s,d=a.r('PATCH',f'/api/admin/permits/{pid16}',{'status':'waived'}); chk('DF-16: 
 s,d=b17.r('POST',f'/api/broker/leads/{lid16}/permits',{'title':'Экспортная декларация DF16','providedBy':'broker'}); chk('DF-16: брокер добавил свою строку',s in(200,201),(s,d)); pid16b=(d.get('permit') or d)['id']
 # чужие: клиент c и свежий чужой брокер не связаны с lid16 → 404
 target16=[x for x in pm16 if 'Фитосанитарный' in x['title']][0]
-body,ct=multipart({'type':'permit','title':'Чужой документ'},'x.pdf',b'%PDF-1.4 x','application/pdf')
-s,d=c.r('POST',f'/api/client/permits/{target16["id"]}/document',raw=body,ct=ct); chk('DF-16: чужой клиент закрывает строку → 404',s==404,s)
+s,d=up2(c,f'/api/client/permits/{target16["id"]}/document','x.pdf',b'%PDF-1.4 x','application/pdf',permit_id=target16["id"],extra={'title':'Чужой документ'}); chk('DF-16: чужой клиент закрывает строку → 404',s==404,s)
 # свежая сессия чужого брокера: сессии прежних брокеров погашены
 # тестами деактивации (DF-02A/DF-03) — 401 не годится для проверки 404
 s,d=a.r('POST','/api/admin/brokers',{'companyName':'DF16 чужой брокер '+u,'phone':ph(base+62),'password':'df16-pass-9'}); chk('DF-16: чужой брокер создан',s in(200,201),(s,d)); bid16=(d.get('broker') or d)['id']
 bx16=C(); s,d=bx16.r('POST','/api/auth/broker/login',{'phone':ph(base+62),'password':'df16-pass-9'}); chk('DF-16: чужой брокер вошёл',s==200,(s,d))
-s,d=bx16.r('POST',f'/api/broker/permits/{target16["id"]}/document',raw=body,ct=ct); chk('DF-16: чужой брокер закрывает строку → 404',s==404,s)
+s,d=up2(bx16,f'/api/broker/permits/{target16["id"]}/document','x.pdf',b'%PDF-1.4 x','application/pdf',permit_id=target16["id"],extra={'title':'Чужой документ'}); chk('DF-16: чужой брокер закрывает строку → 404',s==404,s)
 s,_=bx16.r('GET',f'/api/broker/leads/{lid16}'); chk('DF-16: чужой брокер не читает строки запроса',s in(403,404),s)
 # конвертация: строки переносятся в заявку; ответственный с email
 s,d=a.r('POST',f'/api/admin/leads/{lid16}/options',{'description':'Море DF16','price':300000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':35,'priorityFit':'cost','isSelected':True}); chk('DF-16: вариант расчёта создан',s in(200,201),(s,d))
@@ -923,13 +950,11 @@ s,d=a.r('PATCH',f'/api/admin/orders/{oid16}',{'assignedToId':staff3}); chk('DF-1
 s,d=a.r('GET',f'/api/admin/orders/{oid16}'); OM16=(d.get('order') or d).get('permitRequirements',[])
 chk('DF-16: строки перенесены в заявку (4: 2 оценки + админ + брокер)',len([x for x in OM16 if x['id']==target16['id']])==1 and len(OM16)==4 and sum(1 for x in OM16 if x['status']=='received')==0 and sum(1 for x in OM16 if x['status']=='waived')==0,[x.get('status') for x in OM16])
 # клиент закрывает строку оценки документом прямо в строке
-body,ct=multipart({'type':'permit','title':'Фитосанитарный сертификат DF16 (скан)','comment':'оригинал отгрузили'},'permit16.pdf',b'%PDF-1.4 df16','application/pdf')
-s,d=c3.r('POST',f'/api/client/permits/{target16["id"]}/document',raw=body,ct=ct); chk('DF-16: клиент загрузил документ в строку',s in(200,201),(s,d))
+s,d=up2(c3,f'/api/client/permits/{target16["id"]}/document','permit16.pdf',b'%PDF-1.4 df16','application/pdf',permit_id=target16["id"],extra={'title':'Фитосанитарный сертификат DF16 (скан)','comment':'оригинал отгрузили'}); chk('DF-16: клиент загрузил документ в строку',s in(200,201),(s,d))
 s,d=c3.r('GET',f'/api/client/orders/{oid16}'); cp2=(d.get('order') or d).get('permitRequirements',[])
 rec=[x for x in cp2 if x['id']==target16['id']]
 chk('DF-16: строка стала received с именем загрузившего',len(rec)==1 and rec[0]['status']=='received' and bool(rec[0].get('documentId')) and bool(rec[0].get('receivedAt')),rec[:1])
-body,ct=multipart({'type':'permit','title':'ещё один'},'y.pdf',b'%PDF-1.4 y','application/pdf')
-s,d=c3.r('POST',f'/api/client/permits/{target16["id"]}/document',raw=body,ct=ct)
+s,d=up2(c3,f'/api/client/permits/{target16["id"]}/document','y.pdf',b'%PDF-1.4 y','application/pdf',permit_id=target16["id"],extra={'title':'ещё один'})
 chk('DF-16: повторная загрузка в закрытую строку → 409',s==409,(s,d))
 import time as _tp
 pr=[]
@@ -954,9 +979,13 @@ chk('DF-16: красное с префиксом темы «Срочно:»',boo
 s,d=disp(); chk('DF-16: повторный проход скана — без дубликатов (lastRemindedAt)',s==200 and d.get('permitOverdue')==0,(s,d))
 s,d=a.r('GET','/api/admin/notifications?mode=red&take=300'); ro2=[x for x in d.get('notifications',[]) if x.get('type')=='permit_overdue' and x.get('mode')=='red']
 chk('DF-16: красных писем по-прежнему по одному на адресата',len([x for x in ro2 if x.get('toAddress')==CL16EM])==1 and len([x for x in ro2 if x.get('toAddress')=='df03-staff-'+u+'@test.example'])==1,len(ro2))
-# блок «Ждём от вас» в дайджесте клиента (DF-03): regular-событие в окне
-cur16=datetime.now(ZoneInfo('Europe/Moscow')).strftime('%H:%M')
-s,d=a.r('PATCH','/api/admin/settings',{'key':'notifications.client_digest_times','value':[cur16]}); chk('DF-16: окно дайджеста = сейчас',s==200,(s,d))
+# блок «Ждём от вас» в дайджесте клиента: regular-событие сделки в окне.
+# Окно DF-16 = T0−1 мин (T0 — nowmsk блока DF-03 выше): окно обязано быть
+# в прошлом (dueWindow: now >= start), но НЕ совпадать с окном дайджеста
+# DF-03 — dedupKey digest:<получатель>:<дата>:<окно>, при совпадении минут
+# P2002 молча пропустит свежий дайджест (получатель общий — фикстуры DF-03).
+cur16=(nowmsk-timedelta(minutes=1)).strftime('%H:%M')
+s,d=a.r('PATCH','/api/admin/settings',{'key':'notifications.client_digest_times','value':[cur16]}); chk('DF-16: окно дайджеста = T0−1мин (в прошлом, отлично от окна DF-03)',s==200,(s,d))
 s,d=c3.r('GET',f'/api/client/orders/{oid16}'); chk('DF-16: клиент видит строки pending в карточке заявки (наружу)',s==200 and any(x['status']=='pending' for x in ((d.get('order') or d).get('permitRequirements') or [])),(s,))
 # regular-событие заявки16 в окне — иначе сделка без событий в дайджест
 # не попадает и «Ждём от вас» не с чем привязать
@@ -1071,6 +1100,58 @@ if ch9d:
     chk('DF-09: неверные коды считаются в лимитах guard\'а (429)',s==429,(s,))
 else:
     chk('DF-09: неверные коды считаются в лимитах guard\'а (429)',False,'challenge не выдан: '+str(d)[:150])
+
+
+# ═══ DF-11: хранилище файлов (двухфазная загрузка, 302, лимит из настроек, изоляция) ═══
+_du16=f'/api/admin/orders/{oid16}/documents'
+s,d=up2(a,_du16,'df11.pdf',b'%PDF-1.4 df11',"application/pdf",extra={'type':'other','title':'DF-11 скан BL'})
+_v11=(d.get('version') or {})
+chk('DF-11: админ загрузил PDF (create→PUT→confirm), версия ready',s==200 and _v11.get('status')=='ready',(s,_v11))
+s,d=a.r('POST',_du16,b={'type':'other','title':'DF-11 pending','fileName':'p.pdf','mimeType':'application/pdf','size':100})
+chk('DF-11: create без байтов → pending-версия + presigned PUT',s in(200,201) and (d.get('version') or {}).get('status')=='pending' and bool((d.get('upload') or {}).get('url')),(s,d))
+_pendv=(d.get('version') or {}).get('id')
+s,d=a.r('GET',_du16); _lst=d.get('documents',[])
+chk('DF-11: pending-версия скрыта из списков',all(v.get('id')!=_pendv for doc in _lst for v in doc.get('versions',[])),len(_lst))
+s,_h,_b=raw_get(a,f'/api/document-versions/{_v11["id"]}/file')
+chk('DF-11: скачивание — 302 без кеша на подписанный URL',s==302 and _h.get('cache-control')=='private, no-store' and '/api/storage/local/' in _h.get('location',''),(s,_h.get('location','')[:70]))
+_loc=_h.get('location','')
+if _loc.startswith('/'): _loc=B+_loc
+s2,_h2,_body2=raw_get(a,_loc)
+chk('DF-11: по ссылке отдаются байты PDF inline',s2==200 and _h2.get('content-type')=='application/pdf' and _h2.get('content-disposition','').startswith('inline'),(s2,_h2.get('content-type'),_h2.get('content-disposition','')[:40]))
+s3,_h3,body3=raw_get(a,_loc)
+chk('DF-11: байты совпадают с загруженными',body3==b'%PDF-1.4 df11',len(body3))
+s,d=cb.r('GET',f'/api/document-versions/{_v11["id"]}/file'); chk('DF-11: чужой клиент не получает ссылку (404 до выдачи)',s==404,s)
+s,d=cb.r('POST',f'/api/client/document-versions/{_v11["id"]}/confirm'); chk('DF-11: чужой confirm — 404 (права до хранилища)',s==404,(s,d))
+s,d=a.r('POST',f'/api/admin/document-versions/{_pendv}/confirm'); chk('DF-11: confirm без байтов → 400, pending остаётся на повтор',s==400,(s,d))
+s,d=a.r('POST',f'/api/admin/document-versions/{_pendv}/confirm'); chk('DF-11: повторный confirm без байтов — снова 400',s==400,(s,d))
+s,d=up2(a,_du16,'evil.pdf',('<html>не pdf</html>').encode(),"application/pdf",extra={'type':'other','title':'DF-11 evil'})
+chk('DF-11: HTML под видом PDF → confirm 400, объект удалён',s==400,(s,d))
+s,d=a.r('POST',_du16,b={'type':'other','title':'DF-11 big','fileName':'big.pdf','mimeType':'application/pdf','size':26*1024*1024})
+chk('DF-11: create 26 МБ → 400 (лимит files.max_mb)',s==400,(s,d))
+s,d=up2(a,_du16,'df11-20mb.zip',b'PK\x03\x04'+b'0'*(20*1024*1024),"application/zip",extra={'type':'other','title':'DF-11 20MB'})
+_v20=(d.get('version') or {})
+chk('DF-11: загрузка 20 МБ проходит (критерий приёмки)',s==200,(s,))
+chk('DF-11: фактический размер зафиксирован confirm-ом',_v20.get('fileSize')==20*1024*1024+4,_v20.get('fileSize'))
+s,d=up2(c3,f'/api/client/orders/{oid16}/documents','cl11.pdf',b'%PDF-1.4 cl',"application/pdf",extra={'type':'invoice','title':'DF-11 счёт клиента'})
+chk('DF-11: клиент загрузил через свой портал',s==200,(s,d))
+s,d=up2(b17,f'/api/broker/orders/{oid16}/documents','br11.pdf',b'%PDF-1.4 br',"application/pdf",extra={'type':'other','title':'DF-11 акт брокера'})
+chk('DF-11: брокер загрузил через свой портал',s==200,(s,d))
+s,d=up2(a,_du16,'a11.docx',b'PK\x03\x04'+b'\x00'*32,'application/octet-stream',extra={'type':'other','title':'DF-11 docx'})
+_vd11=(d.get('version') or {})
+s4,_h4,_=raw_get(a,f'/api/document-versions/{_vd11["id"]}/file')
+_loc4=_h4.get('location','')
+if _loc4.startswith('/'): _loc4=B+_loc4
+s5,_h5,_=raw_get(a,_loc4)
+chk('DF-11: docx — attachment octet-stream (не inline)',s5==200 and _h5.get('content-disposition','').startswith('attachment') and _h5.get('content-type')=='application/octet-stream',(s5,_h5.get('content-type')))
+s6,_h6,_=raw_get(a,f'/api/document-versions/{_vd11["id"]}/file')
+_bad=_h6.get('location','').replace('sig=','sig=0')
+if _bad.startswith('/'): _bad=B+_bad
+s7,_,_=raw_get(a,_bad)
+chk('DF-11: подделанная подпись ссылки — 403',s7==403,(s7,))
+s,d=a.r('DELETE',f'/api/admin/documents/{(d.get("document") or {}).get("id")}')
+chk('DF-11: удаление документа менеджером — ок',s in(200,204),(s,d))
+s8,_h8,_=raw_get(a,f'/api/document-versions/{_vd11["id"]}/file')
+chk('DF-11: после удаления версии файла нет (404)',s8==404,(s8,))
 
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)
