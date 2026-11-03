@@ -401,7 +401,39 @@ SQL Editor вручную для сложных миграций). Vercel сам
 | `S3_FORCE_PATH_STYLE` | `true` (path-style) — **для Cloud.ru обязателен**: virtual-hosted (`<bucket>.s3.cloud.ru`) без привязанного DNS-домена бакета даёт PUT/GET 404; path-style равнозначен и DNS не требует. Пусто (virtual-host) — только если домен бакета привязан у провайдера | Vercel env |
 | `STORAGE_LOCAL_DIR` | каталог локального драйвера; только dev/e2e, на проде не задаётся | локально |
 
-Бакет приватный; CORS — только GET/PUT с Origin прод-домена (`APP_BASE_URL`).
+Бакет приватный. **CORS бакета обязателен**: браузер грузит байты напрямую
+(XHR PUT — шаг 2 двухфазной загрузки, `upload-client.ts`), а PUT всегда
+предваряет preflight OPTIONS. Правило: только GET/PUT с Origin прод-домена
+(`APP_BASE_URL`) плюс `http://localhost:3000` для dev. JSON для консоли
+Cloud.ru (Object Storage → бакет → CORS-конфигурация):
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://logix-gamma.vercel.app",
+      "http://localhost:3000"
+    ],
+    "AllowedMethods": ["PUT", "GET"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3000
+  }
+]
+```
+
+Origin в списке обязан совпадать с прод-доменом посимвольно (схема +
+хост, без слэша в конце); смена прод-домена — обновить CORS (иначе
+загрузка снова упадёт). Смоук v0.8.3: бакет без CORS — preflight
+отвечает без `Access-Control-Allow-Origin`, загрузка падает с тостом
+«Хранилище недоступно», в консоли браузера «blocked by CORS policy:
+Response to preflight request doesn't pass access control check».
+e2e это не ловит (локальный драйвер same-origin). Проверка бакета
+без ключей: `curl -si -X OPTIONS "https://s3.cloud.ru/<бакет>/probe" -H
+"Origin: <прод-домен>" -H "Access-Control-Request-Method: PUT"` —
+настроенный бакет отвечает 200 с `Access-Control-Allow-Origin`,
+не настроенный — 403 без CORS-заголовков.
+
 Без настроенного S3 приложение переключается на локальный драйвер (диск
 инстанса) — для прода НЕ годится: запись на диск функции запрещена,
 поэтому загрузка падает (в DevTools — 500 на `/api/storage/local/**`),

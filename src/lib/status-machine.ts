@@ -14,6 +14,10 @@ import {
   type OrderStatus,
 } from '@/lib/order-constants'
 import { LEAD_STATUS_LABELS, type LeadStatus } from '@/lib/leads'
+import {
+  DOCUMENT_STATUS_LABELS,
+  type DocumentStatus,
+} from '@/lib/document-constants'
 
 // ─── Заявка: Расчёт → Согласование → В работе → Завершена ─────
 // • «Отменена» — из любого не-терминального статуса.
@@ -82,6 +86,28 @@ export function checkOrderTransition(from: OrderStatus, to: OrderStatus): Transi
 
 export function checkLeadTransition(from: LeadStatus, to: LeadStatus): TransitionResult {
   return checkTransition(LEAD_TRANSITIONS, LEAD_STATUS_LABELS, from, to)
+}
+
+// ─── Документ (DF-12): Черновик/На проверке → Финальный → возврат ──
+// • финализировать — из draft и in_review; кто может — решает роут
+//   (только сотрудник, requireEmployee), топология переходов — здесь.
+// • у final единственный переход — «Вернуть в работу» с обязательной
+//   причиной → in_review; повтор «Финальный» по финальному — 400
+//   («Статус уже»), как у лида/заявки.
+// • черновик → «На проверке» вручную не ставится: статус in_review
+//   возникает только возвратом из финала; клиент/брокер загружают
+//   версии в draft и in_review, гард финальности — lib/document-upload.ts.
+export const DOCUMENT_TRANSITIONS: Record<DocumentStatus, readonly DocumentStatus[]> = {
+  draft: ['final'],
+  in_review: ['final'],
+  final: ['in_review'],
+}
+
+export function checkDocumentTransition(
+  from: DocumentStatus,
+  to: DocumentStatus
+): TransitionResult {
+  return checkTransition(DOCUMENT_TRANSITIONS, DOCUMENT_STATUS_LABELS, from, to)
 }
 
 // ─── Проекции для UI (P1-05: показываем только допустимое) ────

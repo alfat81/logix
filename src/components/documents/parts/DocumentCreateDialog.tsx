@@ -17,7 +17,9 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -25,10 +27,11 @@ import { useToast } from '@/hooks/use-toast'
 import {
   DOC_COMMENT_MAX_LENGTH,
   DOC_TITLE_MAX_LENGTH,
-  DOCUMENT_TYPES,
-  DOCUMENT_TYPE_LABELS,
+  DOCUMENT_KIND_GROUPS,
+  DOCUMENT_KIND_LABELS,
+  INTERNAL_ONLY_KINDS,
   formatDocSize,
-  type DocumentType,
+  type DocumentKind,
 } from '@/lib/document-constants'
 import { uploadTwoPhase } from '../upload-client'
 import { UploadProgress } from '../UploadProgress'
@@ -38,6 +41,9 @@ import { fileLabel } from './types'
 // DocumentsSection.tsx (резка под лимит 300, RULES 2.14).
 // DF-11: двухфазная загрузка с прогрессом (uploadTwoPhase), лимит —
 // настройка files.max_mb, приходит с сервера страницей (D32).
+// DF-12: вместо свободного типа — вид по D5, группы — по фазам сделки;
+// виды контура подрядчика всегда внутренние (выбор «всем участникам»
+// отключается).
 export function DocumentCreateDialog({
   documentsUrl,
   canMarkInternal,
@@ -53,7 +59,7 @@ export function DocumentCreateDialog({
   const maxBytes = maxMb * 1024 * 1024
 
   const [createOpen, setCreateOpen] = useState(false)
-  const [cType, setCType] = useState<DocumentType>('accompanying')
+  const [cKind, setCKind] = useState<DocumentKind>('other')
   const [cTitle, setCTitle] = useState('')
   const [cComment, setCComment] = useState('')
   const [cInternal, setCInternal] = useState(false)
@@ -63,12 +69,17 @@ export function DocumentCreateDialog({
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // DF-12: подрядческие виды всегда внутренние (DF-15) — селектор
+  // видимости фиксирован, «всем участникам» недоступен.
+  const internalOnly = (INTERNAL_ONLY_KINDS as readonly string[]).includes(cKind)
+  const internal = cInternal || internalOnly
+
   const resetCreateForm = () => {
     setCTitle('')
     setCComment('')
     setCInternal(false)
     setCFile(null)
-    setCType('accompanying')
+    setCKind('other')
     setProgress(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -89,10 +100,10 @@ export function DocumentCreateDialog({
       await uploadTwoPhase({
         createUrl: documentsUrl,
         createBody: {
-          type: cType,
+          kind: cKind,
           title: cTitle.trim(),
           comment: cComment.trim() || undefined,
-          isInternal: cInternal || undefined,
+          isInternal: internal || undefined,
           fileName: cFile.name,
           mimeType: cFile.type || '',
           size: cFile.size,
@@ -134,16 +145,21 @@ export function DocumentCreateDialog({
           </DialogHeader>
           <div className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="doc-type">Тип документа</Label>
-              <Select value={cType} onValueChange={(v) => setCType(v as DocumentType)}>
-                <SelectTrigger id="doc-type">
+              <Label htmlFor="doc-kind">Вид документа</Label>
+              <Select value={cKind} onValueChange={(v) => setCKind(v as DocumentKind)}>
+                <SelectTrigger id="doc-kind">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {DOCUMENT_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {DOCUMENT_TYPE_LABELS[t]}
-                    </SelectItem>
+                  {DOCUMENT_KIND_GROUPS.map((g) => (
+                    <SelectGroup key={g.code}>
+                      <SelectLabel>{g.label}</SelectLabel>
+                      {g.kinds.map((k) => (
+                        <SelectItem key={k} value={k}>
+                          {DOCUMENT_KIND_LABELS[k]}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   ))}
                 </SelectContent>
               </Select>
@@ -162,19 +178,25 @@ export function DocumentCreateDialog({
               <div className="grid gap-2">
                 <Label>Видимость</Label>
                 <Select
-                  value={cInternal ? 'internal' : 'shared'}
-                  onValueChange={(v) => setCInternal(v === 'internal')}
+                  value={internal ? 'internal' : 'shared'}
+                  onValueChange={(v) => {
+                    if (!internalOnly) setCInternal(v === 'internal')
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="shared">Всем участникам сделки</SelectItem>
+                    <SelectItem value="shared" disabled={internalOnly}>
+                      Всем участникам сделки
+                    </SelectItem>
                     <SelectItem value="internal">Только сотрудникам</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Внутренние (договоры с подрядчиками, тарифы) не видны клиенту и брокеру.
+                  {internalOnly
+                    ? 'Документы этого вида всегда видны только сотрудникам.'
+                    : 'Внутренние (договоры с подрядчиками, тарифы) не видны клиенту и брокеру.'}
                 </p>
               </div>
             )}

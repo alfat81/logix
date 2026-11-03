@@ -31,8 +31,15 @@ S3-совместимое хранилище (`DocumentVersion.storageKey`, ми
 `df_11_storage`); колонка `fileData` nullable до переноса легаси-строк скриптом
 `scripts/migrate-files-to-storage.ts` на проде. Добавлена строка ниже.
 
+**03.11.2026, v0.8.4 — DF-12:** документы получают вид по D5 (`Document.kind`,
+справочник `DOCUMENT_KINDS`); легаси колонка `Document.type` остаётся NOT NULL и
+пишется производной от вида (`LEGACY_TYPE_FOR_KIND`), поле `type` в теле
+загрузки принимается как алиас (`legacyKindFromType`) — окно expand до
+contract-релиза. Добавлена строка ниже.
+
 | Что | Чем заменено | Почему оставлено | Версия удаления | Как проверить |
 |---|---|---|---|---|
+| Колонка `Document.type` (легаси-тип, 7 кодов) и поле `type` в теле загрузки | `Document.kind` — вид по D5 (DF-12); type пишется производным, type в теле резолвится алиасом | колонка NOT NULL читается кодом до переключения всех читателей; старые клиенты API работают без правок (expand → migrate → contract) | 0.9.0 (вместе с `fileData`, contract-релиз) | e2e DF-12: kind сохранён + type производный; легаси-алиас резолвится; unit `document-constants.test.ts`; `DEPRECATIONS`-гард CI |
 | `BrokerEstimate.requiredPermits` (Json, свободный список названий) | строки `PermitRequirement` (DF-16: `providedBy`, `isBlocking`, `neededBy`, статус, документ) | контракт PUT оценки не ломаем (расчёт DF-18 живой); sync `requiredPermits` → строки работает в обе стороны (добавленные создают pending, исчезнувшие удаляют СВОИ pending без документа) | 0.8.0+ (минимальный ориентир; факт — contract-релиз пакета документов DF-13) | e2e DF-16: оценка с перечнем создаёт строки; `DEPRECATIONS`-гард CI |
 | Колонка `Order.incoterm` / `Lead`-текст (легаси-текст условия поставки, пишется кодом справочника при конверсии и PATCH) | `incotermCode` — код справочника DF-17 (единственный источник выбора, IC-16; валидность проверяет `resolveActiveRefs`) | старые отображения и печатные формы читают текстовую колонку без join; снимок-принцип (P1-03) — удаляется contract-релизом пакета документов DF-13 вместе с их переносом на `incotermCode` | 0.8.0+ (ориентир — contract-релиз DF-13) | e2e DF-23: конверсия пишет код в обе колонки; `DEPRECATIONS`-гард CI |
 | `DocumentVersion.fileData` (байты в БД, bytea — легаси-хранилище Дорожки Е до DF-11) | содержимое — в S3-совместимом хранилище по `DocumentVersion.storageKey` (миграция `df_11_storage`); dual-хранение до переноса всех строк скриптом `scripts/migrate-files-to-storage.ts` на проде (сначала `--dry`, безопасный повтор), после сверки отчёта — contract-миграция DROP COLUMN | колонка nullable — легаси-строки до переноса читаются из БД как прежде; перенос выполняет владелец по инструкции релиза v0.8.0 (агент на прод не заходит, RULES 2.11) | 0.9.0 (после боевого запуска скрипта переноса и сверки отчёта `--dry`) | e2e DF-11: двухфазная загрузка, 302, inline/attachment, лимит `files.max_mb`; после переноса `SELECT COUNT(*) FROM "DocumentVersion" WHERE "storageKey" IS NULL` = 0; `DEPRECATIONS`-гард CI |

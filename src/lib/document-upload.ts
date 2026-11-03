@@ -10,9 +10,14 @@ import {
   DOC_COMMENT_MAX_LENGTH,
   DOC_MIME_ALIASES,
   DOC_TITLE_MAX_LENGTH,
+  DOCUMENT_KINDS,
   DOCUMENT_TYPES,
+  INTERNAL_ONLY_KINDS,
+  LEGACY_TYPE_FOR_KIND,
   formatDocSize,
+  legacyKindFromType,
   sanitizeFileName,
+  type DocumentKind,
 } from '@/lib/document-constants'
 import {
   DOC_PUBLIC_FIELDS,
@@ -47,19 +52,32 @@ const fileMetaShape = {
     .positive('Прикрепите непустой файл'),
 }
 
-export const DocumentCreateUploadSchema = z.object({
-  type: z.enum(DOCUMENT_TYPES, {
-    errorMap: () => ({ message: 'Неизвестный тип документа' }),
-  }),
-  title: z
-    .string()
-    .trim()
-    .min(1, 'Укажите название документа')
-    .max(DOC_TITLE_MAX_LENGTH, `Название — не длиннее ${DOC_TITLE_MAX_LENGTH} символов`),
-  isInternal: z.boolean().optional(),
-  comment: z.string().trim().max(DOC_COMMENT_MAX_LENGTH).optional(),
-  ...fileMetaShape,
-})
+// DF-12: канонический ввод — kind (D5); легаси type — алиас на окне
+// expand (старые клиенты/e2e), резолвится через legacyKindFromType.
+// Хотя бы одно из двух обязательно — иначе вид потеряется.
+export const DocumentCreateUploadSchema = z
+  .object({
+    kind: z
+      .enum(DOCUMENT_KINDS, {
+        errorMap: () => ({ message: 'Неизвестный вид документа' }),
+      })
+      .optional(),
+    type: z.enum(DOCUMENT_TYPES, {
+      errorMap: () => ({ message: 'Неизвестный тип документа' }),
+    }).optional(),
+    title: z
+      .string()
+      .trim()
+      .min(1, 'Укажите название документа')
+      .max(DOC_TITLE_MAX_LENGTH, `Название — не длиннее ${DOC_TITLE_MAX_LENGTH} символов`),
+    isInternal: z.boolean().optional(),
+    comment: z.string().trim().max(DOC_COMMENT_MAX_LENGTH).optional(),
+    ...fileMetaShape,
+  })
+  .refine((d) => Boolean(d.kind || d.type), {
+    message: 'Укажите вид документа',
+    path: ['kind'],
+  })
 export type DocumentCreateUploadInput = z.infer<typeof DocumentCreateUploadSchema>
 
 export const DocumentVersionUploadSchema = z.object({
@@ -210,7 +228,13 @@ export async function createPendingDocument(
     throw new UploadValidationError(DOC_MIME_UNSUPPORTED.replace('%s', input.mimeType || 'неизвестен'))
   }
   const fileName = sanitizeFileName(input.fileName)
-  const isInternal = actor.type === 'employee' ? (input.isInternal ?? false) : false
+  // DF-12: вид — kind из тела или резолв легаси-алиаса; ветку contract
+  // (чей это договор) разбирает легаси-намерение isInternal. Виды
+  // контура подрядчика всегда внутренние — сотрудничий выбор «всем
+  // участникам» гасится (карточка DF-12,DF-15).
+  const wantsInternal = actor.type === 'employee' ? (input.isInternal ?? false) : false
+  const kind: DocumentKind = input.kind ?? legacyKindFromType(input.type ?? 'other', wantsInternal)
+  const isInternal = wantsInternal || (INTERNAL_ONLY_KINDS as readonly string[]).includes(kind)
 
   // Ключ строится до создания записи: id документа ещё не существует,
   // уникальность даёт uuid внутри префикса сделки.
@@ -223,7 +247,10 @@ export async function createPendingDocument(
   const created = await db.document.create({
     data: {
       ...deal,
-      type: input.type,
+      // DF-12: kind — источник истины, легаси type — производный
+      // (LEGACY_TYPE_FOR_KIND) до contract-релиза (DEPRECATIONS).
+      type: LEGACY_TYPE_FOR_KIND[kind],
+      kind,
       title: input.title,
       isInternal,
       currentVersion: 1,
@@ -263,9 +290,17 @@ export async function createPendingVersion(
 ): Promise<PendingUploadView | null> {
   const doc = await db.document.findUnique({
     where: { id: documentId },
-    select: { id: true, leadId: true, orderId: true },
+    select: { id: true, leadId: true, orderId: true, status: true },
   })
   if (!doc) return null
+
+  // DF-12: финальный документ неизменяем — новая версия только через
+  // «Вернуть в работу» (правило карточки; клиент/брокер получают тот
+  // же 409, что и сотрудник). Повторная быстрая проверка внутри
+  // транзакции ниже — против гонки с одновременной финализацией.
+  if (doc.status === 'final') {
+    throw new UploadValidationError('Документ финальный — сначала верните его в работу', 409)
+  }
 
   const maxBytes = await maxUploadBytes()
   if (input.size > maxBytes) {
@@ -287,9 +322,12 @@ export async function createPendingVersion(
       return await db.$transaction(async (tx) => {
         const fresh = await tx.document.findUnique({
           where: { id: documentId },
-          select: { currentVersion: true },
+          select: { currentVersion: true, status: true },
         })
         if (!fresh) return null
+        if (fresh.status === 'final') {
+          throw new UploadValidationError('Документ финальный — сначала верните его в работу', 409)
+        }
         const next = fresh.currentVersion + 1
         const version = await tx.documentVersion.create({
           data: {
@@ -326,8 +364,14 @@ export async function createPendingVersion(
   return null
 }
 
-// Валидация ввода вне zod (динамический лимит настроек): Error со
-// statusCode 4xx apiErrorResponse превращает в честный ответ 400.
+// Валидация ввода вне zod (динамический лимит настроек, гарды
+// жизненного цикла DF-12): Error со statusCode 4xx apiErrorResponse
+// превращает в честный ответ (400 по умолчанию, 409 — конфликт
+// состояния).
 export class UploadValidationError extends Error {
-  readonly statusCode = 400
+  readonly statusCode: number
+  constructor(message: string, status = 400) {
+    super(message)
+    this.statusCode = status
+  }
 }

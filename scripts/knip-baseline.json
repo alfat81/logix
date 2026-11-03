@@ -12,12 +12,6 @@
     "key": "exports:src/components/ui/dialog.tsx|DialogClose"
   },
   {
-    "key": "exports:src/components/ui/select.tsx|SelectGroup"
-  },
-  {
-    "key": "exports:src/components/ui/select.tsx|SelectLabel"
-  },
-  {
     "key": "exports:src/components/ui/select.tsx|SelectSeparator"
   },
   {

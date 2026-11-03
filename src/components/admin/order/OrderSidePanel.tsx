@@ -98,6 +98,7 @@ export function OrderSidePanel({
           documentsUrl={`/api/admin/orders/${orderId}/documents`}
           versionsUrlFor={(docId) => `/api/admin/documents/${docId}/versions`}
           deleteUrlFor={(docId) => `/api/admin/documents/${docId}`}
+          lifecycleUrlFor={(docId) => `/api/admin/documents/${docId}`}
           canMarkInternal
           emptyText="Документов нет — товаросопроводительные и таможенные бумаги живут здесь, без почты"
         />

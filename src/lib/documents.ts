@@ -57,6 +57,15 @@ export const DOC_LIST_READY_WHERE = { versions: { some: { status: 'ready' } } } 
 export const DOC_PUBLIC_FIELDS = {
   id: true,
   type: true,
+  // DF-12: вид (D5), жизненный цикл и снимок финализации; stageCode —
+  // привязка к этапу (точка записи — DF-13/DF-14, в UI пока не нужен,
+  // но проекция единая для всех читателей списков).
+  kind: true,
+  status: true,
+  finalizedAt: true,
+  finalizedByName: true,
+  finalVersion: true,
+  stageCode: true,
   title: true,
   isInternal: true,
   currentVersion: true,

@@ -82,7 +82,13 @@ describe('EVENT_TYPES — реестр полон и валиден', () => {
     }
     // Документы — все три аудитории (внутренний документ переопределяет
     // точка вызова через documentEventAudience).
-    for (const code of ['document_created', 'document_version_added', 'document_deleted'] as const) {
+    for (const code of [
+      'document_created',
+      'document_version_added',
+      'document_deleted',
+      'document_finalized',
+      'document_reopened',
+    ] as const) {
       expect(EVENT_TYPES[code].audience, code).toEqual(['staff', 'client', 'broker'])
     }
   })

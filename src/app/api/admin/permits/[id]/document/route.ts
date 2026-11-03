@@ -40,7 +40,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     // (permitRequirementId в теле confirm), здесь — шаг 1: pending-документ
     // вида permit и presigned PUT.
     const result = await createPendingDocument(permitTargetOf(permit), employeeActor(auth.employee), {
-      type: 'permit',
+      kind: 'permit_document',
       title: parsed.data.title?.trim() || permit.title,
       isInternal: false,
       comment: parsed.data.comment,

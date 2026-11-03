@@ -216,6 +216,7 @@ export function LeadCard() {
             documentsUrl={`/api/admin/leads/${id}/documents`}
             versionsUrlFor={(docId) => `/api/admin/documents/${docId}/versions`}
             deleteUrlFor={(docId) => `/api/admin/documents/${docId}`}
+            lifecycleUrlFor={(docId) => `/api/admin/documents/${docId}`}
             canMarkInternal
             emptyText="Документов нет — предварительный инвойс брокеру, сканы и прочее загружайте здесь"
           />

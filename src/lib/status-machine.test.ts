@@ -8,11 +8,16 @@ import {
   ORDER_STATUS_LABELS,
 } from '@/lib/order-constants'
 import {
+  DOCUMENT_STATUSES,
+} from '@/lib/document-constants'
+import {
+  DOCUMENT_TRANSITIONS,
   LEAD_TRANSITIONS,
   ORDER_TRANSITIONS,
   TERMINAL_ORDER_STATUSES,
   allowedLeadTransitionsLabeled,
   allowedOrderTransitionsLabeled,
+  checkDocumentTransition,
   checkLeadTransition,
   checkOrderTransition,
 } from '@/lib/status-machine'
@@ -113,5 +118,34 @@ describe('Проекции для UI (подписи переходов)', () =>
         LEAD_TRANSITIONS[from].map((status) => ({ status, label: LEAD_STATUS_LABELS[status] }))
       )
     }
+  })
+})
+
+describe('Матрица переходов документа (DOCUMENT_TRANSITIONS, DF-12)', () => {
+  it('полный перебор 3×3: разрешён ровно входящий в таблицу переход', () => {
+    for (const from of DOCUMENT_STATUSES) {
+      for (const to of DOCUMENT_STATUSES) {
+        const res = checkDocumentTransition(from, to)
+        expect(res.ok).toBe(DOCUMENT_TRANSITIONS[from].includes(to))
+      }
+    }
+  })
+
+  it('финализация — из черновика и с проверки (карточка DF-12)', () => {
+    expect(checkDocumentTransition('draft', 'final').ok).toBe(true)
+    expect(checkDocumentTransition('in_review', 'final').ok).toBe(true)
+  })
+
+  it('у финального единственный переход — возврат в работу (причина проверяет роут)', () => {
+    expect(DOCUMENT_TRANSITIONS.final).toEqual(['in_review'])
+    expect(checkDocumentTransition('final', 'in_review').ok).toBe(true)
+    expect(checkDocumentTransition('final', 'draft').ok).toBe(false)
+    expect(checkDocumentTransition('final', 'final').ok).toBe(false)
+  })
+
+  it('повтор финализации — 400 «Статус уже», запрещённый переход — 409', () => {
+    expect(checkDocumentTransition('final', 'final')).toMatchObject({ ok: false, status: 400 })
+    const reject = checkDocumentTransition('draft', 'in_review')
+    expect(reject).toMatchObject({ ok: false, status: 409 })
   })
 })

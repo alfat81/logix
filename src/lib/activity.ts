@@ -91,6 +91,12 @@ export const ACTIVITY_TYPES = [
   'document_created',
   'document_version_added',
   'document_deleted',
+  // DF-12: финализация и возврат в работу — переходы жизненного цикла
+  // документа; пишутся ядром document-lifecycle.ts в транзакции со
+  // сменой статуса. Аудитория — documentEventAudience(isInternal),
+  // как у прочих документных событий.
+  'document_finalized',
+  'document_reopened',
   // внутренние заметки (Ж3): по заявке и лиду; текст заметки —
   // description, автор — actor, время — createdAt. Попадают в
   // ленту, внешним кабинетам не показываются (audience — staff-only).

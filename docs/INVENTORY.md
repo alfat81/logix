@@ -115,6 +115,13 @@
 | `CustomsTotals` | `src/lib/customs.ts` | — |
 | `DB_OUT_OF_SYNC_HINT` | `src/lib/api-errors.ts` | — |
 | `DEFAULT_LIST_TAKE` | `src/lib/list-query.ts` | — |
+| `DOCUMENT_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Документ (DF-12): черновик — нейтрально, на проверке — движение, |
+| `DOCUMENT_KINDS` | `src/lib/document-constants.ts` | ── DF-12: виды документов (D5) ───────────────────────────────────── |
+| `DOCUMENT_KIND_GROUPS` | `src/lib/document-constants.ts` | Группировка видов по фазам клиента (карточка DF-12): расчёт → |
+| `DOCUMENT_KIND_LABELS` | `src/lib/document-constants.ts` | — |
+| `DOCUMENT_STATUSES` | `src/lib/document-constants.ts` | ── DF-12: статусы жизненного цикла документа ─────────────────────── |
+| `DOCUMENT_STATUS_LABELS` | `src/lib/document-constants.ts` | — |
+| `DOCUMENT_TRANSITIONS` | `src/lib/status-machine.ts` | ─── Документ (DF-12): Черновик/На проверке → Финальный → возврат ── |
 | `DOCUMENT_TYPES` | `src/lib/document-constants.ts` | — |
 | `DOCUMENT_TYPE_LABELS` | `src/lib/document-constants.ts` | — |
 | `DOC_ALLOWED_MIME` | `src/lib/document-constants.ts` | Белый список MIME: всё, что реально ходит в логистическом контуре — |
@@ -135,9 +142,13 @@
 | `DocActor` | `src/lib/documents.ts` | — |
 | `DocAllowedMime` | `src/lib/document-constants.ts` | — |
 | `DocumentCreateUploadInput` | `src/lib/document-upload.ts` | — |
-| `DocumentCreateUploadSchema` | `src/lib/document-upload.ts` | — |
+| `DocumentCreateUploadSchema` | `src/lib/document-upload.ts` | DF-12: канонический ввод — kind (D5); легаси type — алиас на окне |
 | `DocumentDealTarget` | `src/lib/documents.ts` | — |
+| `DocumentKind` | `src/lib/document-constants.ts` | — |
+| `DocumentReopenInput` | `src/lib/document-lifecycle.ts` | — |
+| `DocumentReopenSchema` | `src/lib/document-lifecycle.ts` | — |
 | `DocumentRow` | `src/lib/documents.ts` | — |
+| `DocumentStatus` | `src/lib/document-constants.ts` | — |
 | `DocumentType` | `src/lib/document-constants.ts` | — |
 | `DocumentVersionRow` | `src/lib/documents.ts` | — |
 | `DocumentVersionUploadInput` | `src/lib/document-upload.ts` | — |
@@ -168,7 +179,9 @@
 | `HsSearchItem` | `src/lib/hs-db.ts` | — |
 | `HsSearchResult` | `src/lib/hs-db.ts` | — |
 | `INCOTERM_TRANSPORT_LABELS` | `src/lib/ref.ts` | — |
+| `INTERNAL_ONLY_KINDS` | `src/lib/document-constants.ts` | Виды контура подрядчика (DF-15): всегда внутренние — сервер принуждает |
 | `IncotermMeta` | `src/lib/ref.ts` | ─── Инкотермс: meta-флаги (данные, не логика — DF-19 считает) ────── |
+| `KIND_FOR_LEGACY_TYPE` | `src/lib/document-constants.ts` | Обратный маппинг (легаси type → kind) — совместимость старых клиентов |
 | `LEAD_ACTIVE_STATUSES` | `src/lib/leads.ts` | v0.3.1 (BRANDBOOK §4.1): счётчик навигации у «Лидов» — активные, |
 | `LEAD_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Лид: new/calculated — ждём расчёта/выбора (нейтральная пара review, |
 | `LEAD_CARGO_LABELS` | `src/lib/leads.ts` | Подписи полей анкеты — общие для диалога создания и карточки лида |
@@ -177,6 +190,7 @@
 | `LEAD_STATUSES` | `src/lib/leads.ts` | Статус лида (роадмап, разделы 2 и 8.1): верхнеуровневый статус воронки |
 | `LEAD_STATUS_LABELS` | `src/lib/leads.ts` | — |
 | `LEAD_TRANSITIONS` | `src/lib/status-machine.ts` | ─── Лид: Новый → Рассчитан → Выигран / Отказ ───────────────── |
+| `LEGACY_TYPE_FOR_KIND` | `src/lib/document-constants.ts` | Производный легаси-тип для вида: колонка Document.type NOT NULL и |
 | `LeadCargoData` | `src/lib/leads.ts` | Типизированное чтение cargoInfo в карточке: лиды со старой или |
 | `LeadCargoForm` | `src/lib/leads.ts` | Состояние формы анкеты в UI: все поля — строки (числа парсятся при |
 | `LeadCargoPayload` | `src/lib/leads.ts` | Сборка тела POST/PATCH из формы: маршрут/метрики уходят в route |
@@ -185,6 +199,7 @@
 | `LeadSource` | `src/lib/leads.ts` | — |
 | `LeadStatus` | `src/lib/leads.ts` | — |
 | `LetterDraft` | `src/lib/notifications/templates.ts` | — |
+| `LifecycleError` | `src/lib/document-lifecycle.ts` | Смысловая ошибка перехода со статусом HTTP (см. apiErrorResponse). */ |
 | `LoginKind` | `src/lib/login-guard.ts` | — |
 | `MAX_LIST_TAKE` | `src/lib/list-query.ts` | — |
 | `MAX_QUERY_LENGTH` | `src/lib/list-query.ts` | — |
@@ -346,7 +361,7 @@
 | `UpdateQuoteOptionInput` | `src/lib/leads.ts` | — |
 | `UpdateQuoteOptionSchema` | `src/lib/leads.ts` | PATCH варианта: любое подмножество полей, но не пустое. Инвариант |
 | `UploadTicket` | `src/lib/storage.ts` | — |
-| `UploadValidationError` | `src/lib/document-upload.ts` | Валидация ввода вне zod (динамический лимит настроек): Error со |
+| `UploadValidationError` | `src/lib/document-upload.ts` | Валидация ввода вне zod (динамический лимит настроек, гарды |
 | `UserNameMap` | `src/lib/actor-name.ts` | — |
 | `VAT_MODES` | `src/lib/money.ts` | Режим НДС — метка цены, НЕ расчёт (см. enum VatMode в схеме). |
 | `VAT_MODE_LABELS` | `src/lib/money.ts` | — |
@@ -417,6 +432,7 @@
 | `cbrImportEnabled` | `src/lib/cbr.ts` | Выключатель для CI/e2e (без внешней сети): CBR_IMPORT=off. |
 | `centsOf` | `src/lib/customs.ts` | Строка с двумя знаками (наши же centsToStr) → копейки |
 | `centsToStr` | `src/lib/customs.ts` | Копейки → строка с двумя знаками (формат Decimal для БД и UI) |
+| `checkDocumentTransition` | `src/lib/status-machine.ts` | — |
 | `checkLeadTransition` | `src/lib/status-machine.ts` | — |
 | `checkLoginGuard` | `src/lib/login-guard.ts` | — |
 | `checkOrderTransition` | `src/lib/status-machine.ts` | — |
@@ -484,6 +500,7 @@
 | `escapeHsLike` | `src/lib/hs.ts` | Экранирование %/_/\ в строке для Prisma contains (LIKE): без этого |
 | `eventWhereFor` | `src/lib/audience.ts` | Where-фрагмент для чтения ленты данным кабинетом. |
 | `fillOrderStatusCounts` | `src/lib/order-counts.ts` | Наполнение каркаса из результата groupBy by:['status']. |
+| `finalizeDocument` | `src/lib/document-lifecycle.ts` | — |
 | `findOrCreateContract` | `src/lib/orders.ts` | Для новой пары рамочный договор создаётся прозрачно в момент первой |
 | `findOrCreateCustomer` | `src/lib/orders.ts` | Если передан customerId — берём его. Иначе: по телефону (если указан) |
 | `fmtDiffNum` | `src/lib/lead-edit.ts` | ── Форматирование значений для diff ──────────────────────────────── |
@@ -549,6 +566,7 @@
 | `issueLoginChallenge` | `src/lib/totp-db.ts` | Challenge второго шага после верного пароля (сессия ещё не создана). */ |
 | `issueTotpChallenge` | `src/lib/totp-crypto.ts` | Одноразовая «заявка» второго шага: подписана, живёт 5 минут. */ |
 | `joinRouteText` | `src/lib/route-fields.ts` | Обратная сборка для показа/редактирования: «Страна, город» / «Город» / |
+| `legacyKindFromType` | `src/lib/document-constants.ts` | Резолв вида из легаси-алиаса (тело загрузки с type вместо kind). */ |
 | `linkPermitRequirement` | `src/lib/permits-db.ts` | ─── Привязка подтверждённого документа к строке (DF-16 × DF-11) ──── |
 | `listCalculations` | `src/lib/customs-server.ts` | ─── Чтение: история расчётов сделки (новые сверху) ────────────────── |
 | `listRefItems` | `src/lib/ref-db.ts` | — |
@@ -632,6 +650,7 @@
 | `remapPermitItemIds` | `src/lib/permits-db.ts` | ─── Remap привязок itemId после замены строк оценки ───────────────── |
 | `renderFooter` | `src/lib/notifications/templates.ts` | Подвал: название и подпись — настройки; отключение — ответ на письмо |
 | `renderSingleLetter` | `src/lib/notifications/templates.ts` | Одиночное письмо по событию. Нейтральный вариант (аудит №16) не |
+| `reopenDocument` | `src/lib/document-lifecycle.ts` | — |
 | `requireBroker` | `src/lib/broker-auth.ts` | Единственный способ проверить брокера в роутах кабинета; опций нет — |
 | `requireCalcWriter` | `src/lib/customs-api.ts` | — |
 | `requireClient` | `src/lib/client-auth.ts` | Единственный способ проверить клиента в роутах кабинета; опций нет — |
@@ -841,6 +860,7 @@
 | Компонент | Файл |
 |---|---|
 | `DocumentCreateDialog` | `src/components/documents/parts/DocumentCreateDialog.tsx` |
+| `DocumentLifecycle` | `src/components/documents/parts/DocumentLifecycle.tsx` |
 | `DocumentVersionDialog` | `src/components/documents/parts/DocumentVersionDialog.tsx` |
 | `DocumentsSection` | `src/components/documents/DocumentsSection.tsx` |
 | `UploadProgress` | `src/components/documents/UploadProgress.tsx` |
@@ -885,6 +905,8 @@
 | PUT | `/api/admin/customs-calculations/{id}` | admin | — | — | нет |
 | POST | `/api/admin/document-versions/{id}/confirm` | admin | employee | write | нет |
 | DELETE | `/api/admin/documents/{id}` | admin | employee | write | нет |
+| POST | `/api/admin/documents/{id}/finalize` | admin | employee | write | нет |
+| POST | `/api/admin/documents/{id}/reopen` | admin | employee | write | нет |
 | POST | `/api/admin/documents/{id}/versions` | admin | employee | write | нет |
 | GET, POST | `/api/admin/employees` | admin | employee | — | нет |
 | PATCH | `/api/admin/employees/{id}` | admin | employee | — | нет |
@@ -990,7 +1012,7 @@
 | `CustomsCalculation` | 28 | src/app/admin/orders/[id]/print/page.tsx, src/lib/customs-server.ts |
 | `CustomsCalculationItem` | 17 | — |
 | `CustomsFeeScale` | 5 | scripts/seed.ts, src/lib/customs-server.ts |
-| `Document` | 12 | src/app/api/admin/documents/[id]/versions/route.ts, src/app/api/admin/leads/[id]/documents/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/app/api/client/leads/[id]/documents/route.ts (+3) |
+| `Document` | 18 | src/app/api/admin/documents/[id]/versions/route.ts, src/app/api/admin/leads/[id]/documents/route.ts, src/app/api/admin/orders/[id]/documents/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/orders/[id]/documents/route.ts, src/app/api/client/leads/[id]/documents/route.ts (+4) |
 | `DocumentVersion` | 15 | scripts/migrate-files-to-storage.ts, src/app/api/document-versions/[id]/file/route.ts, src/lib/document-confirm.ts, src/lib/document-upload.ts |
 | `Employee` | 15 | scripts/seed.ts, scripts/set-master-password.ts, src/app/api/admin/employees/[id]/route.ts, src/app/api/admin/employees/route.ts, src/app/api/admin/orders/[id]/patch.ts, src/app/api/admin/profile/totp/route.ts (+6) |
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts, src/lib/totp-db.ts |

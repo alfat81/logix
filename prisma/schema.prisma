@@ -864,6 +864,20 @@ model Document {
   // Стабильный код типа из DOCUMENT_TYPES (lib/document-constants.ts):
   // accompanying | invoice | permit | customs | contract | application | other
   type           String
+  // DF-12: вид документа по D5 (справочник DOCUMENT_KINDS). null —
+  // легаси-строка до backfill миграции df_12_document_lifecycle.
+  kind           String?
+  // DF-12: жизненный цикл draft | in_review | final (переходы —
+  // DOCUMENT_TRANSITIONS в lib/status-machine.ts).
+  status         String  @default("draft")
+  // DF-12: снимок финализации (кто/когда/какая версия объявлена
+  // финальной); при возврате в работу хранится до следующего «Финальный».
+  finalizedAt     DateTime?
+  finalizedByName String?
+  finalVersion    Int?
+  // DF-12: код этапа каталога — привязка документа к этапу; точка
+  // записи появляется с привязкой в UI (DF-13/DF-14).
+  stageCode      String?
   // Человекочитаемое название («Инвойс № INV-123», «Упаковочный лист»).
   title          String
   // Видимость: внутренние документы (подрядческие договоры, тарифы)

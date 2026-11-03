@@ -7,13 +7,16 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
-import { formatDocSize } from '@/lib/document-constants'
+import { DOCUMENT_BADGE_VARIANTS } from '@/lib/status-badges'
+import { formatDocSize, type DocumentStatus } from '@/lib/document-constants'
 import { DocumentCreateDialog } from './parts/DocumentCreateDialog'
+import { DocumentLifecycle } from './parts/DocumentLifecycle'
 import { DocumentVersionDialog } from './parts/DocumentVersionDialog'
 import {
   AUTHOR_ROLE_LABELS,
   fmtDateTime,
-  typeLabel,
+  kindLabel,
+  statusLabel,
   type DocRowUi,
 } from './parts/types'
 
@@ -40,6 +43,9 @@ type DocumentsSectionProps = {
   deleteUrlFor?: (docId: string) => string
   /** Админ: селектор видимости (всем участникам / только сотрудникам) */
   canMarkInternal?: boolean
+  /** DF-12: база URL действий жизненного цикла; нет пропса — кнопок
+   *  «Финальный»/«Вернуть в работу» нет (кабинеты клиента и брокера) */
+  lifecycleUrlFor?: (docId: string) => string
   title?: string
   emptyText?: string
 }
@@ -49,6 +55,7 @@ export function DocumentsSection({
   versionsUrlFor,
   deleteUrlFor,
   canMarkInternal = false,
+  lifecycleUrlFor,
   title = 'Документы',
   emptyText = 'Документов пока нет — загрузите первый файл',
 }: DocumentsSectionProps) {
@@ -137,7 +144,15 @@ export function DocumentsSection({
                   <FileText className="size-4 shrink-0 text-muted-foreground" />
                   <span className="font-medium text-sm truncate">{doc.title}</span>
                   <Badge variant="secondary" className="text-xs">
-                    {typeLabel(doc.type)}
+                    {kindLabel(doc)}
+                  </Badge>
+                  {/* DF-12: жизненный цикл — «ФИНАЛЬНЫЙ» с замком (§3.2) */}
+                  <Badge
+                    variant={DOCUMENT_BADGE_VARIANTS[doc.status as DocumentStatus] ?? 'version'}
+                    className="text-xs gap-1"
+                  >
+                    {doc.status === 'final' && <Lock className="size-3" />}
+                    {statusLabel(doc.status)}
                   </Badge>
                   {doc.isInternal && (
                     <Badge variant="outline" className="text-xs gap-1">
@@ -151,15 +166,22 @@ export function DocumentsSection({
                   </Badge>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setVersionDoc(doc)}
-                    title="Загрузить новую версию (правка)"
-                  >
-                    <FileUp className="size-4" />
-                    Новая версия
-                  </Button>
+                  {/* DF-12: версию финального не даём заменить — сначала
+                      «Вернуть в работу» (правило карточки) */}
+                  {doc.status !== 'final' && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setVersionDoc(doc)}
+                      title="Загрузить новую версию (правка)"
+                    >
+                      <FileUp className="size-4" />
+                      Новая версия
+                    </Button>
+                  )}
+                  {lifecycleUrlFor && (
+                    <DocumentLifecycle doc={doc} urlFor={lifecycleUrlFor} onDone={load} />
+                  )}
                   {deleteUrlFor && (
                     <Button
                       size="sm"
@@ -173,6 +195,14 @@ export function DocumentsSection({
                   )}
                 </div>
               </div>
+
+              {/* DF-12: снимок финализации — кто и какую версию объявил финальной */}
+              {doc.status === 'final' && doc.finalizedAt && (
+                <p className="text-xs text-muted-foreground pl-1">
+                  Финальная версия v{doc.finalVersion ?? doc.currentVersion} · {doc.finalizedByName} ·{' '}
+                  {fmtDateTime(doc.finalizedAt)}
+                </p>
+              )}
 
               {/* История версий: свежая сверху; скачивание — прямой
                   ссылкой, куки уходят с запросом сами */}

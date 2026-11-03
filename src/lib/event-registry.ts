@@ -120,6 +120,11 @@ export const EVENT_TYPES: Record<ActivityType, EventMeta> = {
   document_created: { label: 'Документ загружен', audience: ['staff', 'client', 'broker'], notify: ['responsible-if-external-actor'] },
   document_version_added: { label: 'Добавлена версия документа', audience: ['staff', 'client', 'broker'], notify: ['client-broker-if-visible'] },
   document_deleted: { label: 'Документ удалён', audience: ['staff', 'client', 'broker'], notify: [] },
+  // DF-12: переходы жизненного цикла. Писем нет — переход виден всем
+  // адресатам в ленте сделки, дёргать внешних на каждый «Финальный» —
+  // спам (§8); уведомление о новой версии уже уходит клиенту/брокеру.
+  document_finalized: { label: 'Документ финализирован', audience: ['staff', 'client', 'broker'], notify: [] },
+  document_reopened: { label: 'Документ возвращён в работу', audience: ['staff', 'client', 'broker'], notify: [] },
   // внутренние заметки (Ж3) — только staff, уведомлений нет (§8)
   note_added: { label: 'Внутренняя заметка', audience: ['staff'], notify: [] },
   // настройки системы (DF-00D, D32) — глобальное событие БЕЗ цели-сделки

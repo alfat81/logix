@@ -9,6 +9,7 @@ import type { LeadStatus } from '@/lib/leads'
 import type { OrderStatus, StageStatus } from '@/lib/order-constants'
 import type { ContractorLeadStatus } from '@/lib/contractors'
 import type { PermitStatus } from '@/lib/permits'
+import type { DocumentStatus } from '@/lib/document-constants'
 
 export type StatusBadgeVariant =
   | 'transit' // В ПУТИ/В РАБОТЕ/НА ПРОВЕРКЕ — движение (точка Action-icon §3.2)
@@ -71,4 +72,13 @@ export const PERMIT_BADGE_VARIANTS: Record<PermitStatus, StatusBadgeVariant> = {
   pending: 'pending',
   received: 'delivered',
   waived: 'version',
+}
+
+// Документ (DF-12): черновик — нейтрально, на проверке — движение,
+// финальный — успех («ФИНАЛЬНЫЙ (с замком)» — замок рисует UI рядом
+// с текстом, §3.2).
+export const DOCUMENT_BADGE_VARIANTS: Record<DocumentStatus, StatusBadgeVariant> = {
+  draft: 'version',
+  in_review: 'transit',
+  final: 'delivered',
 }

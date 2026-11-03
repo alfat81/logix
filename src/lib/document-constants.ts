@@ -27,6 +27,142 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   other: 'Прочее',
 }
 
+// ── DF-12: виды документов (D5) ─────────────────────────────────────
+// kind — каноническое поле (Document.kind); легаси type остаётся в БД
+// до contract-релиза (DEPRECATIONS): новые записи пишут оба — kind как
+// выбран, type — производным (LEGACY_TYPE_FOR_KIND).
+export const DOCUMENT_KINDS = [
+  'client_request',
+  'contractor_request',
+  'proforma_invoice',
+  'foreign_trade_contract',
+  'commercial_invoice',
+  'packing_list',
+  'permit_document',
+  'bill_of_lading',
+  'cmr',
+  'awb',
+  'goods_description',
+  'customs_declaration',
+  'contractor_agreement',
+  'contractor_rates',
+  'other',
+] as const
+export type DocumentKind = (typeof DOCUMENT_KINDS)[number]
+
+export const DOCUMENT_KIND_LABELS: Record<DocumentKind, string> = {
+  client_request: 'Заявка клиента',
+  contractor_request: 'Заявка подрядчику',
+  proforma_invoice: 'Проформа-инвойс',
+  foreign_trade_contract: 'Внешнеторговый контракт',
+  commercial_invoice: 'Инвойс',
+  packing_list: 'Упаковочный лист',
+  permit_document: 'Разрешительный документ',
+  bill_of_lading: 'Коносамент (BL)',
+  cmr: 'CMR (авто)',
+  awb: 'AWB (авиа)',
+  goods_description: 'Описание товара',
+  customs_declaration: 'Декларация на товары',
+  contractor_agreement: 'Договор с подрядчиком',
+  contractor_rates: 'Тарифы подрядчика',
+  other: 'Прочее',
+}
+
+// Группировка видов по фазам клиента (карточка DF-12): расчёт →
+// оформление и перевозка; служебные виды (заявки, договоры контура
+// подрядчика) и «Прочее» — в конце. Порядок используется в форме
+// загрузки; фазовые группы — в пакете документов (DF-13). Группы
+// покрывают список ПОЛНОСТЬЮ и без пересечений (unit-тест).
+export const DOCUMENT_KIND_GROUPS: ReadonlyArray<{
+  code: 'calculation' | 'execution' | 'deals' | 'misc'
+  label: string
+  kinds: readonly DocumentKind[]
+}> = [
+  {
+    code: 'calculation',
+    label: 'Расчёт',
+    kinds: ['proforma_invoice', 'goods_description'],
+  },
+  {
+    code: 'execution',
+    label: 'Оформление и перевозка',
+    kinds: [
+      'foreign_trade_contract',
+      'commercial_invoice',
+      'packing_list',
+      'bill_of_lading',
+      'cmr',
+      'awb',
+      'customs_declaration',
+      'permit_document',
+    ],
+  },
+  {
+    code: 'deals',
+    label: 'Заявки и договоры',
+    kinds: ['client_request', 'contractor_request', 'contractor_agreement', 'contractor_rates'],
+  },
+  { code: 'misc', label: 'Прочее', kinds: ['other'] },
+]
+
+// Виды контура подрядчика (DF-15): всегда внутренние — сервер принуждает
+// isInternal=true при загрузке, UI фиксирует видимость на «сотрудникам».
+export const INTERNAL_ONLY_KINDS: readonly DocumentKind[] = [
+  'contractor_request',
+  'contractor_agreement',
+  'contractor_rates',
+]
+
+// Производный легаси-тип для вида: колонка Document.type NOT NULL и
+// читается кодом до contract-релиза, новые записи пишут её из kind.
+export const LEGACY_TYPE_FOR_KIND: Record<DocumentKind, DocumentType> = {
+  client_request: 'application',
+  contractor_request: 'application',
+  proforma_invoice: 'invoice',
+  foreign_trade_contract: 'contract',
+  commercial_invoice: 'invoice',
+  packing_list: 'accompanying',
+  permit_document: 'permit',
+  bill_of_lading: 'accompanying',
+  cmr: 'accompanying',
+  awb: 'accompanying',
+  goods_description: 'accompanying',
+  customs_declaration: 'customs',
+  contractor_agreement: 'contract',
+  contractor_rates: 'other',
+  other: 'other',
+}
+
+// Обратный маппинг (легаси type → kind) — совместимость старых клиентов
+// API на окне expand: поле type в теле загрузки трактуется как алиас
+// вида. contract вне контура подрядчика «чей» — не определить → other;
+// ветку isInternal разбирает legacyKindFromType.
+export const KIND_FOR_LEGACY_TYPE: Record<DocumentType, DocumentKind> = {
+  accompanying: 'other',
+  invoice: 'commercial_invoice',
+  permit: 'permit_document',
+  customs: 'customs_declaration',
+  contract: 'other',
+  application: 'client_request',
+  other: 'other',
+}
+
+/** Резолв вида из легаси-алиаса (тело загрузки с type вместо kind). */
+export function legacyKindFromType(type: DocumentType, isInternal: boolean): DocumentKind {
+  if (type === 'contract') return isInternal ? 'contractor_agreement' : 'other'
+  return KIND_FOR_LEGACY_TYPE[type]
+}
+
+// ── DF-12: статусы жизненного цикла документа ───────────────────────
+export const DOCUMENT_STATUSES = ['draft', 'in_review', 'final'] as const
+export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number]
+
+export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {
+  draft: 'Черновик',
+  in_review: 'На проверке',
+  final: 'Финальный',
+}
+
 // ── Лимиты загрузки ─────────────────────────────────────────────────
 // DF-11: лимит файла — настройка files.max_mb (по умолчанию 25 МБ,
 // валидатор asInt 1..200); байты идут напрямую в хранилище (presigned
