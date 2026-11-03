@@ -41,3 +41,7 @@ package-lock.json
 
 # legacy-копии песочницы (автоснапшот реанимировал в git 29.10 — сняты с трекинга)
 .zscripts/
+
+# runtime песочницы: локальный драйвер хранилища (DF-11) и бинари PostgreSQL
+.storage/
+.pg/

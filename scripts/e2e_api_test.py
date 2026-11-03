@@ -1205,6 +1205,71 @@ chk('DF-12: события внутреннего документа не вид
 s,d=a.r('GET',_du16); chk('DF-12: backfill — у всех документов списка есть kind',all(x.get('kind') for x in d.get('documents',[])),[x.get('kind') for x in d.get('documents',[])][:6])
 s,d=c3.r('GET',f'/api/client/orders/{oid16}/documents'); chk('DF-12: у клиентского списка тоже есть kind (backfill общий)',all(x.get('kind') for x in d.get('documents',[])),[x.get('kind') for x in d.get('documents',[])][:6])
 
+# ═══ DF-13: пакет документов по заявке — слоты, ZIP финальных, фолбэк ═══
+_pu16=f'/api/admin/orders/{oid16}/package'
+s,d=a.r('GET',_pu16)
+_pkg=d if isinstance(d,dict) else {}
+_slots={x['kind']:x for x in _pkg.get('slots',[])}
+chk('DF-13: админский пакет — 15 слотов всех видов (D5)',s==200 and len(_pkg.get('slots',[]))==15,(s,len(_pkg.get('slots',[]))))
+chk('DF-13: в ответе номер заявки и maxMb',bool(_pkg.get('orderNumber')) and isinstance(_pkg.get('maxMb'),int),(_pkg.get('orderNumber'),_pkg.get('maxMb')))
+chk('DF-13: слот BL — финальный (финализирован в DF-12)',_slots.get('bill_of_lading',{}).get('status')=='final',_slots.get('bill_of_lading',{}).get('status'))
+chk('DF-13: слот инвойса — черновик (два документа вида, худший)',_slots.get('commercial_invoice',{}).get('status')=='draft',_slots.get('commercial_invoice',{}).get('status'))
+chk('DF-13: слот «Тарифы подрядчика» виден админу (внутренний контур)',_slots.get('contractor_rates',{}).get('status')=='final' and len(_slots.get('contractor_rates',{}).get('documents',[]))==1,_slots.get('contractor_rates',{}))
+chk('DF-13: у слота BL подсказка поставщика — сотрудник (перевозочные)',_slots.get('bill_of_lading',{}).get('provider')=='staff',_slots.get('bill_of_lading',{}).get('provider'))
+s,d=c3.r('GET',f'/api/client/orders/{oid16}/package')
+_cslots={x['kind']:x for x in (d.get('slots',[]) if isinstance(d,dict) else [])}
+chk('DF-13: клиентский пакет — 12 слотов (подрядческие виды не раскрываются)',s==200 and len(d.get('slots',[]))==12,(s,len(d.get('slots',[]))))
+chk('DF-13: у клиента нет слотов contractor_*',all(not k.startswith('contractor_') for k in _cslots),list(_cslots))
+chk('DF-13: клиент видит финальный BL-слот, внутренних документов нет',_cslots.get('bill_of_lading',{}).get('status')=='final' and all(x.get('isInternal') is False for x in _cslots.get('bill_of_lading',{}).get('documents',[])),_cslots.get('bill_of_lading',{}).get('status'))
+s,d=b17.r('GET',f'/api/broker/orders/{oid16}/package')
+chk('DF-13: брокерский пакет — те же 12 слотов без внутренних',s==200 and len(d.get('slots',[]))==12 and all(not x['kind'].startswith('contractor_') for x in d.get('slots',[])),(s,len(d.get('slots',[]))))
+# чужая заявка — 404 (факт существования не раскрываем)
+s,d=cb.r('GET',f'/api/client/orders/{oid16}/package'); chk('DF-13: чужой клиент на пакете — 404',s==404,(s,d))
+
+# — ZIP финальных (пока пакет мал: BL v2 + внутренние тарифы) —
+_pz16=f'/api/admin/orders/{oid16}/package/zip'
+s,h,body=raw_get(a,_pz16)
+chk('DF-13: админский ZIP — 200, application/zip, attachment',s==200 and h.get('content-type')=='application/zip' and h.get('content-disposition','').startswith('attachment'),(s,h.get('content-type'),h.get('content-disposition','')[:50]))
+_num=None
+s,d=a.r('GET',f'/api/admin/orders/{oid16}'); _num=(d.get('order') or d).get('number')
+import zipfile as _zf, io as _io
+z=_zf.ZipFile(_io.BytesIO(body))
+_names=z.namelist()
+chk('DF-13: структура ZIP — папка <номер заявки>/ и ровно 2 финальных',len(_names)==2 and all(n.startswith(f'{_num}/') for n in _names),(_num,_names))
+chk('DF-13: имена в ZIP санитизированы и транслитерированы',any('bill-of-lading' in n for n in _names) and any('contractor-rates' in n for n in _names),_names)
+_blname=[n for n in _names if 'bill-of-lading' in n][0]
+chk('DF-13: байты финальной версии v2 в архиве совпадают',z.read(_blname)==b'%PDF-1.4 df12-v2',len(z.read(_blname)))
+s,h,cbody=raw_get(c3,f'/api/client/orders/{oid16}/package/zip')
+cz=_zf.ZipFile(_io.BytesIO(cbody)); _cnames=cz.namelist()
+chk('DF-13: клиентский ZIP без внутренних (contractor_rates отсутствует)',s==200 and any('bill-of-lading' in n for n in _cnames) and not any('contractor-rates' in n for n in _cnames),(s,_cnames))
+
+# — пустой пакет: свежая заявка без документов — внятный ответ —
+s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'ООО Пусто '+u,'phone':'8 (999) '+str(base)[:3]+'-'+str(base)[3:5]+'-'+str(base)[5:7]},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':100}})
+_lid13=(d.get('lead') or d)['id']
+s,d=a.r('POST',f'/api/admin/leads/{_lid13}/options',{'description':'Вариант DF-13','price':100000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':30,'priorityFit':'cost','isSelected':True}); chk('DF-13: вариант расчёта для конвертации',s in(200,201),(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{_lid13}/convert',{'legalEntityId':leid}); _oid13=(d.get('order') or d)['id']
+s,d=a.r('GET',f'/api/admin/orders/{_oid13}/package')
+chk('DF-13: пустая заявка — все слоты «нет»',s==200 and len(d.get('slots',[]))==15 and all(x['status']=='none' for x in d.get('slots',[])),(s,[x['status'] for x in d.get('slots',[])][:5]))
+s,d=a.r('GET',f'/api/admin/orders/{_oid13}/package/zip')
+chk('DF-13: ZIP пустого пакета — 400 с внятным текстом',s==400 and 'финальных' in (d.get('error') or ''),(s,d))
+
+# — фолбэк: пакет выше порога — список ссылок вместо архива —
+_big=b'%PDF-1.4 df13-big'+b'\0'*(int(4.5*1024*1024)-16)
+s,d=up2(a,_du16,'big13.pdf',_big,"application/pdf",extra={'kind':'other','title':'DF-13 большой акт '+u})
+chk('DF-13: большой файл (4,5 МБ) загружен и подтверждён',s==200,(s,d))
+_bigdoc=(d.get('document') or d)['id']
+s,d=a.r('POST',f'/api/admin/documents/{_bigdoc}/finalize'); chk('DF-13: большой файл финализирован',s==200,(s,d))
+s,h,body=raw_get(a,_pz16)
+_fb=json.loads(body) if body[:1]==b'{' else {}
+chk('DF-13: пакет выше 4 МиБ — JSON-фолбэк, не архив',s==200 and h.get('content-type','').startswith('application/json') and _fb.get('zip') is False and _fb.get('reason')=='size',(s,h.get('content-type'),_fb.get('zip')))
+chk('DF-13: фолбэк несёт порог и суммарный размер',_fb.get('maxBytes')==4*1024*1024 and (_fb.get('totalBytes') or 0)>4*1024*1024,(_fb.get('maxBytes'),_fb.get('totalBytes')))
+chk('DF-13: фолбэк — 3 финальных (BL + большой + внутренние тарифы)',len(_fb.get('files',[]))==3 and any('bill-of-lading' in x['name'] for x in _fb.get('files',[])) and any('other-DF-13-bolshoy-akt' in x['name'] for x in _fb.get('files',[])),[x['name'] for x in _fb.get('files',[])])
+_furl=(_fb.get('files') or [{}])[0].get('url','')
+chk('DF-13: ссылка фолбэка — на роут версий и отдаёт 302',_furl.startswith('/api/document-versions/') and raw_get(a,_furl)[0]==302,_furl)
+s,h,cbody=raw_get(c3,f'/api/client/orders/{oid16}/package/zip')
+_cf=json.loads(cbody) if cbody[:1]==b'{' else {}
+chk('DF-13: клиентский фолбэк — без внутренних, BL и большой на месте',_cf.get('zip') is False and len(_cf.get('files',[]))==2 and all('contractor' not in x['name'] for x in _cf.get('files',[])),[x.get('name') for x in _cf.get('files',[])])
+
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)
 hard=[r for r in R if not r[1] and not r[0].startswith('[ЦЕЛЬ')]

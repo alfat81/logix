@@ -13,7 +13,7 @@ import {
   BrokerStageStatusBadge,
 } from '@/components/broker/BrokerBadges'
 import { BrokerEstimateForm, type BrokerEstimate } from '@/components/broker/BrokerEstimateForm'
-import { DocumentsSection } from '@/components/documents/DocumentsSection'
+import { DocumentsPackageSection } from '@/components/documents/DocumentsPackageSection'
 import { PermitsSection } from '@/components/permits/PermitsSection'
 import { CARGO_PROFILE_LABELS, type CargoProfile, type OrderStatus, type StageStatus } from '@/lib/order-constants'
 
@@ -214,10 +214,12 @@ export function BrokerOrderCard() {
           целиком (5а): товаросопроводительные, разрешительные,
           правки с комментариями; загрузка ДТ и ответных бумаг —
           отсюда. Внутренние документы менеджера не отдаются. */}
-      <DocumentsSection
+      <DocumentsPackageSection
+        packageUrl={`/api/broker/orders/${order.id}/package`}
+        zipUrl={`/api/broker/orders/${order.id}/package/zip`}
         documentsUrl={`/api/broker/orders/${order.id}/documents`}
         versionsUrlFor={(docId) => `/api/broker/documents/${docId}/versions`}
-        emptyText="Документов нет — загрузите ДТ или запросите бумаги у менеджера"
+        title="Пакет документов"
       />
     </div>
   )

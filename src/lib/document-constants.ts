@@ -163,6 +163,54 @@ export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {
   final: 'Финальный',
 }
 
+// ── DF-13: слоты пакета документов ──────────────────────────────────
+// Статус слота вида = худший из статусов документов этого вида («нет» —
+// документов вида ещё нет; несколько документов одного вида допустимы —
+// мультимодальные BL/CMR, карточка DF-13). Бейджи трёх документных
+// статусов — те же DOCUMENT_BADGE_VARIANTS, «Нет» — нейтральный outline.
+export const PACKAGE_SLOT_STATUSES = ['none', 'draft', 'in_review', 'final'] as const
+export type PackageSlotStatus = (typeof PACKAGE_SLOT_STATUSES)[number]
+
+export const PACKAGE_SLOT_STATUS_LABELS: Record<PackageSlotStatus, string> = {
+  none: 'Нет',
+  draft: 'Черновик',
+  in_review: 'На проверке',
+  final: 'Финальный',
+}
+
+// Кто по умолчанию предоставляет документ вида — подсказка в слоте
+// пакета (D5/D35: клиент приносит проформу, описание товара, контракт
+// и инвойсы от продавца; ДТ и разрешительный контур — брокер; BL/CMR/AWB
+// и внутренний контур подрядчика — сотрудник: документы перевозчика
+// вносит менеджер, карточка DF-14). DF-14 делает состав и владельцев
+// слотов настраиваемым (StageDocumentRequirement) — здесь статичные
+// дефолты, «Прочее» без фиксированного владельца.
+export type DocProvider = 'client' | 'broker' | 'staff'
+
+export const DOC_PROVIDER_LABELS: Record<DocProvider, string> = {
+  client: 'Клиент',
+  broker: 'Брокер',
+  staff: 'Сотрудник',
+}
+
+export const DOCUMENT_KIND_PROVIDERS: Record<DocumentKind, DocProvider | null> = {
+  client_request: 'client',
+  contractor_request: 'staff',
+  proforma_invoice: 'client',
+  foreign_trade_contract: 'client',
+  commercial_invoice: 'client',
+  packing_list: 'client',
+  permit_document: 'broker',
+  bill_of_lading: 'staff',
+  cmr: 'staff',
+  awb: 'staff',
+  goods_description: 'client',
+  customs_declaration: 'broker',
+  contractor_agreement: 'staff',
+  contractor_rates: 'staff',
+  other: null,
+}
+
 // ── Лимиты загрузки ─────────────────────────────────────────────────
 // DF-11: лимит файла — настройка files.max_mb (по умолчанию 25 МБ,
 // валидатор asInt 1..200); байты идут напрямую в хранилище (presigned

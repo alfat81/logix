@@ -2,10 +2,12 @@ import {
   DOCUMENT_KIND_LABELS,
   DOCUMENT_STATUS_LABELS,
   DOCUMENT_TYPE_LABELS,
+  PACKAGE_SLOT_STATUS_LABELS,
   formatDocSize,
   type DocumentKind,
   type DocumentStatus,
   type DocumentType,
+  type PackageSlotStatus,
 } from '@/lib/document-constants'
 
 // v0.5.0 (P1-22): типы и хелперы секции документов (Дорожка Е) —
@@ -61,6 +63,19 @@ export function kindLabel(doc: { kind: string | null; type: string }): string {
 
 export function statusLabel(s: string): string {
   return DOCUMENT_STATUS_LABELS[s as DocumentStatus] ?? s
+}
+
+/** Подпись статуса слота пакета (DF-13): «Нет» / статусы документа. */
+export function slotStatusLabel(s: string): string {
+  return PACKAGE_SLOT_STATUS_LABELS[s as PackageSlotStatus] ?? s
+}
+
+/** DF-13: слот пакета — строка вида документа с его документами. */
+export type PackageSlotUi = {
+  kind: DocumentKind | string
+  status: PackageSlotStatus | string
+  provider: 'client' | 'broker' | 'staff' | null
+  documents: DocRowUi[]
 }
 
 export function fmtDateTime(iso: string): string {

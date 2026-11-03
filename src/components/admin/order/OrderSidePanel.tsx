@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card'
 import { ListTabs } from '@/components/admin/ListTabs'
 import { NoteForm } from '@/components/admin/NoteForm'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
-import { DocumentsSection } from '@/components/documents/DocumentsSection'
+import { DocumentsPackageSection } from '@/components/documents/DocumentsPackageSection'
 import { CustomsCalcScreen } from '@/components/admin/customs/CustomsCalcScreen'
 import type { EstimatePrefill } from '@/components/admin/customs/types'
 import type { OrderStatus } from '@/lib/order-constants'
@@ -94,13 +94,15 @@ export function OrderSidePanel({
       )}
 
       {activeTab === 'documents' && (
-        <DocumentsSection
+        <DocumentsPackageSection
+          packageUrl={`/api/admin/orders/${orderId}/package`}
+          zipUrl={`/api/admin/orders/${orderId}/package/zip`}
           documentsUrl={`/api/admin/orders/${orderId}/documents`}
           versionsUrlFor={(docId) => `/api/admin/documents/${docId}/versions`}
           deleteUrlFor={(docId) => `/api/admin/documents/${docId}`}
           lifecycleUrlFor={(docId) => `/api/admin/documents/${docId}`}
           canMarkInternal
-          emptyText="Документов нет — товаросопроводительные и таможенные бумаги живут здесь, без почты"
+          title="Пакет документов"
         />
       )}
 

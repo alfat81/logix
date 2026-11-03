@@ -10,7 +10,7 @@ import { readApiResponse } from '@/lib/api-client'
 // CargoGroups — общий доменный бланк анкеты (см. комментарий в
 // ClientHome): показывает собственную анкету клиента по заявке.
 import { CargoGroups } from '@/components/admin/CargoGroups'
-import { DocumentsSection } from '@/components/documents/DocumentsSection'
+import { DocumentsPackageSection } from '@/components/documents/DocumentsPackageSection'
 import { PermitsSection } from '@/components/permits/PermitsSection'
 import type { PermitRowUi } from '@/components/permits/types'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
@@ -205,10 +205,12 @@ export function ClientOrderCard() {
           и видит правки брокера/менеджера в истории версий; обмен
           внутри сервиса, без почты. Внутренние документы менеджера
           клиенту не видны (изоляция в API). */}
-      <DocumentsSection
+      <DocumentsPackageSection
+        packageUrl={`/api/client/orders/${order.id}/package`}
+        zipUrl={`/api/client/orders/${order.id}/package/zip`}
         documentsUrl={`/api/client/orders/${order.id}/documents`}
         versionsUrlFor={(docId) => `/api/client/documents/${docId}/versions`}
-        emptyText="Документов нет — прикрепите проект документа или напишите менеджеру"
+        title="Пакет документов"
       />
     </div>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -49,14 +49,23 @@ export function DocumentCreateDialog({
   canMarkInternal,
   maxMb = 25,
   onCreated,
+  // DF-13: управляемый режим слота пакета — кнопки триггера нет
+  // (её рисует слот), вид предзаполнен (presetKind).
+  open: controlledOpen,
+  onOpenChange,
+  presetKind = null,
 }: {
   documentsUrl: string
   canMarkInternal: boolean
   maxMb?: number
   onCreated: () => Promise<void>
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  presetKind?: DocumentKind | null
 }) {
   const { toast } = useToast()
   const maxBytes = maxMb * 1024 * 1024
+  const controlled = typeof onOpenChange === 'function'
 
   const [createOpen, setCreateOpen] = useState(false)
   const [cKind, setCKind] = useState<DocumentKind>('other')
@@ -68,6 +77,22 @@ export function DocumentCreateDialog({
   const [progress, setProgress] = useState<number | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const isOpen = controlled ? Boolean(controlledOpen) : createOpen
+
+  // Управляемый режим: при каждом открытии — чистая форма с видом слота.
+  useEffect(() => {
+    if (controlled && isOpen) {
+      setCKind(presetKind ?? 'other')
+      setCTitle('')
+      setCComment('')
+      setCInternal(false)
+      setCFile(null)
+      setProgress(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlled, isOpen, presetKind])
 
   // DF-12: подрядческие виды всегда внутренние (DF-15) — селектор
   // видимости фиксирован, «всем участникам» недоступен.
@@ -112,7 +137,8 @@ export function DocumentCreateDialog({
         onProgress: setProgress,
       })
       toast({ title: 'Документ загружен', description: cTitle.trim() })
-      setCreateOpen(false)
+      if (controlled) onOpenChange?.(false)
+      else setCreateOpen(false)
       resetCreateForm()
       await onCreated()
     } catch (e) {
@@ -129,12 +155,21 @@ export function DocumentCreateDialog({
 
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-        <Plus className="size-4" />
-        Загрузить документ
-      </Button>
+      {!controlled && (
+        <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
+          <Plus className="size-4" />
+          Загрузить документ
+        </Button>
+      )}
 
-      <Dialog open={createOpen} onOpenChange={(o) => !busy && setCreateOpen(o)}>
+      <Dialog
+        open={isOpen}
+        onOpenChange={(o) => {
+          if (busy) return
+          if (controlled) onOpenChange?.(o)
+          else setCreateOpen(o)
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Новый документ</DialogTitle>
