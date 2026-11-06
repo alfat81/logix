@@ -599,14 +599,18 @@ describe('DF-16 permit_overdue (красная просрочка разреши
   // Дедуп одиночных писем: ключ содержит бакет floor(now/10мин) —
   // три события подряд в одном бакете дали бы одно письмо ответственному.
   // Сдвигаем dedupKey писем прогона (параллельные файлы permit_overdue
-  // не пишут — скоп по типу+маркер-адресу безопасен).
+  // не пишут — скоп по типу+маркер-адресу безопасен). Суффикс с id
+  // строки: все кейсы describe живут в ОДНОМ 10-минутном бакете, и
+  // фиксированный ":s" сталкивал второй сдвиг с первым (K → K:s при
+  // уже сдвинутой строке K:s) — исход зависел от порядка строк
+  // findMany без orderBy: CI ловил P2002 (0.8.6), локально проходило.
   async function shiftDedup() {
     const prior = await db.notification.findMany({
       where: { type: 'permit_overdue', toAddress: { contains: '@test.example' } },
       select: { id: true, dedupKey: true },
     })
     for (const row of prior) {
-      await db.notification.update({ where: { id: row.id }, data: { dedupKey: `${row.dedupKey}:s` } })
+      await db.notification.update({ where: { id: row.id }, data: { dedupKey: `${row.dedupKey}:s${row.id}` } })
     }
   }
 
