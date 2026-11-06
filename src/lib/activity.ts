@@ -50,6 +50,12 @@ export const ACTIVITY_TYPES = [
   'stage_planned_changed',
   'stage_updated',
   'stage_removed',
+  // DF-14: обход блокировки чек-листа — мастер завершает этап без
+  // финального обязательного документа (override + комментарий;
+  // прецедент P1-05). Аудитория staff: клиенту этап всё равно виден
+  // как завершённый (stage_status_changed), а причина обхода —
+  // внутренняя.
+  'stage_done_overridden',
   // подрядчики
   'contractor_created',
   'contractor_updated',
@@ -97,6 +103,21 @@ export const ACTIVITY_TYPES = [
   // как у прочих документных событий.
   'document_finalized',
   'document_reopened',
+  // DF-26: «отправить на проверку» (draft → in_review) — автор или
+  // сотрудник; событие пишет ядро document-lifecycle.ts в транзакции.
+  'document_submitted',
+  // DF-26: семантика скачивания (§6.2) — «выдана ссылка» (302 на
+  // presigned GET, передача не подтверждена) и «скачан документ»
+  // (подтверждённая сервером передача — стрим легаси-версии); ZIP —
+  // «сформирован и отдан архив» (отдача сервером, без утверждения о
+  // сохранении на устройстве). Пишет роут скачивания версии (document-versions)
+  // и POST …/package/zip; писем нет (O5) — факт виден в ленте.
+  'document_link_issued',
+  'document_downloaded',
+  'document_package_downloaded',
+  // DF-26: смена привязки документа к этапу заявки (PATCH stageCode,
+  // закрытие AUD-11). Пишет PATCH-роут статуса документа.
+  'document_stage_changed',
   // внутренние заметки (Ж3): по заявке и лиду; текст заметки —
   // description, автор — actor, время — createdAt. Попадают в
   // ленту, внешним кабинетам не показываются (audience — staff-only).

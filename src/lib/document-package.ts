@@ -1,15 +1,15 @@
 import type { DocumentRow } from '@/lib/documents'
+import { DOCUMENT_KIND_GROUPS } from '@/lib/document-phases'
 import {
-  DOCUMENT_KIND_GROUPS,
   DOCUMENT_KIND_PROVIDERS,
   INTERNAL_ONLY_KINDS,
-  legacyKindFromType,
+  resolveDocumentKind,
   type DocProvider,
   type DocumentKind,
   type DocumentStatus,
-  type DocumentType,
   type PackageSlotStatus,
 } from '@/lib/document-constants'
+import { PHASE_OF_KIND, type DocumentPhase } from '@/lib/document-phases'
 
 // ─── DF-13: пакет документов заявки — чистые хелперы ────────────────
 // Слоты = строки по видам (D5) со статусом «нет/черновик/на проверке/
@@ -27,11 +27,25 @@ export const PACKAGE_ZIP_MAX_TOTAL_BYTES = 4 * 1024 * 1024
 
 // ── Слоты ───────────────────────────────────────────────────────────
 
+// DF-14: требование чек-листа, видимое в слоте («требуется для этапа
+// X»). blocking — вариант подписи: «обязательно»/«рекомендуется».
+export type SlotRequirement = {
+  stageCode: string
+  stageName: string
+  blocking: boolean
+}
+
 export type PackageSlot = {
   kind: DocumentKind
+  // DF-26: фаза вида — группировка реестра и структура ZIP (один
+  // источник — document-phases.ts).
+  phase: DocumentPhase
   status: PackageSlotStatus
   provider: DocProvider | null
   documents: DocumentRow[]
+  // DF-14: этапы ЭТОЙ заявки, в чек-листе которых есть вид слота;
+  // заполняет attachRequirements (buildPackageSlots ставит пусто).
+  requiredFor: SlotRequirement[]
 }
 
 // Худший = наименее продвинутый статус (draft < in_review < final).
@@ -49,12 +63,8 @@ export function worstDocumentStatus(statuses: readonly DocumentStatus[]): Docume
   return worst
 }
 
-// kind — источник истины; страховка чтения для гипотетической строки
-// без kind (окно backfill): резолв по легаси-типу, как в списках.
-function resolveDocKind(doc: Pick<DocumentRow, 'kind' | 'type' | 'isInternal'>): DocumentKind {
-  if (doc.kind) return doc.kind as DocumentKind
-  return legacyKindFromType(doc.type as DocumentType, doc.isInternal)
-}
+// kind — источник истины; страховка чтения — общий resolveDocumentKind
+// (DF-14: тот же резолв у чек-листов и правила 8 «у кого мяч»).
 
 // Слоты для аудитории: staff — все виды, клиенту/брокеру подрядческие
 // виды не показываются вовсе (их документы всегда внутренние, DF-15 —
@@ -73,7 +83,7 @@ export function buildPackageSlots(
 ): PackageSlot[] {
   const byKind = new Map<DocumentKind, DocumentRow[]>()
   for (const doc of documents) {
-    const kind = resolveDocKind(doc)
+    const kind = resolveDocumentKind(doc)
     const bucket = byKind.get(kind)
     if (bucket) bucket.push(doc)
     else byKind.set(kind, [doc])
@@ -82,11 +92,38 @@ export function buildPackageSlots(
     const docs = byKind.get(kind) ?? []
     return {
       kind,
+      phase: PHASE_OF_KIND[kind],
       status: docs.length === 0 ? 'none' : worstDocumentStatus(docs.map((d) => d.status as DocumentStatus)),
       provider: DOCUMENT_KIND_PROVIDERS[kind],
       documents: docs,
+      requiredFor: [],
     }
   })
+}
+
+// DF-14: attach требований чек-листов к слотам. Вход — требования
+// этапов ЭТОЙ заявки (stageCode ∈ orderStageCodes; имена — живой lookup
+// каталога). Слоты видов без требований и виды, которых нет в slots
+// (внутренние у внешних читателей), остаются с пустым requiredFor.
+export function attachRequirements(
+  slots: readonly PackageSlot[],
+  orderStageCodes: readonly string[],
+  requirements: ReadonlyArray<{ stageCode: string; kind: string; isBlocking: boolean }>,
+  stageNames: ReadonlyMap<string, string>
+): PackageSlot[] {
+  const codes = new Set(orderStageCodes)
+  const byKind = new Map<DocumentKind, SlotRequirement[]>()
+  for (const r of requirements) {
+    if (!codes.has(r.stageCode)) continue
+    const list = byKind.get(r.kind as DocumentKind) ?? []
+    list.push({
+      stageCode: r.stageCode,
+      stageName: stageNames.get(r.stageCode) ?? r.stageCode,
+      blocking: r.isBlocking,
+    })
+    byKind.set(r.kind as DocumentKind, list)
+  }
+  return slots.map((s) => ({ ...s, requiredFor: byKind.get(s.kind) ?? [] }))
 }
 
 // Сводка для кнопки ZIP: только финальные документы, размер — по их
@@ -159,7 +196,8 @@ export function packageEntryName(
   return `${kindPart}-${titlePart}-v${version}${ext ? `.${ext}` : ''}`
 }
 
-/** Имя самого архива для Content-Disposition. */
-export function packageZipFileName(orderNumber: string): string {
-  return `documents-${transliterateFileName(orderNumber)}.zip`
+/** Имя самого архива для Content-Disposition (DF-26: + scope). */
+export function packageZipFileName(orderNumber: string, scope?: string): string {
+  const base = `documents-${transliterateFileName(orderNumber)}`
+  return scope ? `${base}-${scope}.zip` : `${base}.zip`
 }

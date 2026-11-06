@@ -1,6 +1,6 @@
 'use client'
 
-import { FileText, FileUp, Lock, Trash2 } from 'lucide-react'
+import { FileText, FileUp, Lock, SendHorizonal, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
@@ -17,7 +17,7 @@ import {
 } from './types'
 
 // DF-13: карточка документа — общий элемент плоского списка
-// (DocumentsSection, лида) и слота пакета (DocumentsPackageSection,
+// (DocumentsSection, лида) и слота пакета (реестре документов (DocumentsRegistrySection),
 // заявки): бейджи вида/статуса/видимости/версии, снимок финализации,
 // история версий со скачиванием, действия — новая версия (замена),
 // жизненный цикл (сотрудник) и удаление (менеджер).
@@ -27,6 +27,7 @@ export function DocumentCard({
   versionsUrlFor,
   deleteUrlFor,
   lifecycleUrlFor,
+  submitUrlFor,
   onVersion,
   onDone,
 }: {
@@ -36,10 +37,34 @@ export function DocumentCard({
   deleteUrlFor?: (docId: string) => string
   /** DF-12: база URL действий жизненного цикла; нет пропса — кнопок нет */
   lifecycleUrlFor?: (docId: string) => string
+  /** DF-26: PATCH draft → in_review («отправить на проверку», автор/сотрудник);
+   *  нет пропса — кнопки нет (плоский список лидов ведёт себя как раньше). */
+  submitUrlFor?: (docId: string) => string
   onVersion: (doc: DocRowUi) => void
   onDone: () => Promise<void>
 }) {
   const { toast } = useToast()
+
+  const submitForReview = async () => {
+    if (!submitUrlFor) return
+    try {
+      const res = await fetch(submitUrlFor(doc.id), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'in_review' }),
+      })
+      const data = await readApiResponse<{ error?: string }>(res)
+      if (!res.ok) throw new Error(data.error || 'Не удалось отправить на проверку')
+      toast({ title: 'Документ отправлен на проверку', description: doc.title })
+      await onDone()
+    } catch (e) {
+      toast({
+        title: 'Не отправлено',
+        description: e instanceof Error ? e.message : '',
+        variant: 'destructive',
+      })
+    }
+  }
 
   const submitDelete = async () => {
     if (!deleteUrlFor) return
@@ -90,6 +115,18 @@ export function DocumentCard({
           </Badge>
         </div>
         <div className="flex items-center gap-1">
+          {/* DF-26: черновик можно отправить на проверку (автор/сотрудник) */}
+          {doc.status === 'draft' && submitUrlFor && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void submitForReview()}
+              title="Отправить на проверку сотруднику"
+            >
+              <SendHorizonal className="size-4" />
+              На проверку
+            </Button>
+          )}
           {/* DF-12: версию финального не даём заменить — сначала
               «Вернуть в работу» (правило карточки) */}
           {doc.status !== 'final' && (

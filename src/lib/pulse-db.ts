@@ -1,6 +1,9 @@
 import { db } from '@/lib/db'
 import { getSetting } from '@/lib/settings'
 import { todayUtcMidnight } from '@/lib/order-summary'
+import { nearestUnfinishedStage } from '@/lib/waiting'
+import { resolveDocumentKind, type DocumentKind } from '@/lib/document-constants'
+import { missingKinds } from '@/lib/stage-doc-requirements'
 import {
   buildCargoRow,
   groupSlowingOrders,
@@ -35,7 +38,7 @@ export async function loadPulseCore(at: Date = new Date()): Promise<PulseCore> {
   const waitingCutoff = new Date(at.getTime() - attentionHours * 60 * 60 * 1000)
   const todayUtc = todayUtcMidnight()
 
-  const [newLeads24h, activeOrders, catalog] = await Promise.all([
+  const [newLeads24h, activeOrders, catalog, blockingReqs] = await Promise.all([
     // Блок 1: новые запросы за 24 ч (поток входа, включая ушедшие
     // в won/lost за сутки — считаем вход, не активный портфель).
     db.lead.count({ where: { createdAt: { gte: new Date(at.getTime() - PULSE_EVENT_WINDOW_HOURS * dayMs) } } }),
@@ -56,19 +59,54 @@ export async function loadPulseCore(at: Date = new Date()): Promise<PulseCore> {
           orderBy: { sequence: 'asc' },
           select: {
             stageCode: true,
+            sequence: true,
             status: true,
+            contractorId: true,
             plannedDate: true,
             contractor: { select: { companyName: true } },
           },
         },
+        // DF-14: финальные документы — виды для счётчика
+        // missingFinalDocs (та же семантика, что у правила 8).
+        documents: {
+          where: { status: 'final' },
+          select: { kind: true, type: true, isInternal: true },
+        },
       },
     }),
     db.orderStageCatalog.findMany({ select: { code: true, name: true } }),
+    // DF-14: блокирующие требования — таблица маленькая (чек-лист
+    // настраивается вручную), берём целиком один запрос и группируем
+    // по этапу в JS.
+    db.stageDocumentRequirement.findMany({
+      where: { isBlocking: true },
+      select: { stageCode: true, kind: true },
+    }),
   ])
 
   const stageNames = new Map(catalog.map((c) => [c.code, c.name]))
   const cargo = activeOrders.map((o) => buildCargoRow(o, stageNames, todayUtc))
   const slowing = groupSlowingOrders(activeOrders, PULSE_SLOWING_GROUP_LIMIT)
+
+  // DF-14: число активных заявок, у ближайшего этапа которых есть
+  // блокирующее требование без финального документа этого вида на
+  // заявке. Тот же missingKinds, что у правила 8 «у кого мяч» — цифры
+  // Пульса и мячи не расходятся. Требования группируются по этапу один
+  // раз (таблица маленькая).
+  const blockingByStage = new Map<string, Array<{ kind: DocumentKind; isBlocking: boolean }>>()
+  for (const r of blockingReqs) {
+    const list = blockingByStage.get(r.stageCode) ?? []
+    list.push({ kind: r.kind as DocumentKind, isBlocking: true })
+    blockingByStage.set(r.stageCode, list)
+  }
+  const missingFinalDocs = activeOrders.filter((o) => {
+    const nearest = nearestUnfinishedStage(o.stages)
+    if (!nearest) return false
+    const reqs = blockingByStage.get(nearest.stageCode)
+    if (!reqs || reqs.length === 0) return false
+    const finals = o.documents.map((d) => resolveDocumentKind(d))
+    return missingKinds(reqs, finals).length > 0
+  }).length
 
   const stats: PulseStats = {
     newLeads24h,
@@ -86,6 +124,7 @@ export async function loadPulseCore(at: Date = new Date()): Promise<PulseCore> {
       (acc, o) => acc + o.stages.filter((s) => s.status === 'problem').length,
       0
     ),
+    missingFinalDocs,
     attentionHours,
   }
 

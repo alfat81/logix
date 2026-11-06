@@ -106,6 +106,48 @@ export async function finalizeDocument(
   })
 }
 
+// ── DF-26: «отправить на проверку» (draft → in_review) ─────────────
+// Автор документа или сотрудник переводит черновик в «На проверке»
+// (§14.2: «переход draft → in_review доступен автору и сотрудникам»);
+// финализация остаётся сотрудничей. Права автора проверяет роут
+// (загружал ли он версии документа), здесь — матрица переходов и
+// событие в транзакции (DoD 9).
+export async function submitDocumentForReview(
+  documentId: string,
+  actor: DocActor,
+): Promise<DocumentRow | null> {
+  const doc = await loadForLifecycle(documentId)
+  if (!doc) return null
+
+  const transition = checkDocumentTransition(doc.status as DocumentStatus, 'in_review')
+  if (!transition.ok) {
+    throw new LifecycleError(transition.error, transition.status)
+  }
+
+  const deal = dealOf(doc)
+  return db.$transaction(async (tx) => {
+    await tx.document.update({
+      where: { id: doc.id },
+      data: { status: 'in_review' },
+    })
+    const document = await tx.document.findUnique({
+      where: { id: doc.id },
+      select: DOC_PUBLIC_FIELDS,
+    })
+    if (!document) throw new LifecycleError('Не удалось отправить документ на проверку', 500)
+
+    await emitEvent(tx, {
+      target: deal,
+      actor,
+      type: 'document_submitted',
+      description: `Документ «${doc.title}» отправлен на проверку`,
+      documentId: doc.id,
+      audience: documentEventAudience(doc.isInternal),
+    })
+    return document
+  })
+}
+
 export async function reopenDocument(
   documentId: string,
   actor: Extract<DocActor, { type: 'employee' }>,

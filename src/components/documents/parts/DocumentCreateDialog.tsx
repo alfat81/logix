@@ -24,10 +24,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
+import { DOCUMENT_KIND_GROUPS } from '@/lib/document-phases'
 import {
   DOC_COMMENT_MAX_LENGTH,
   DOC_TITLE_MAX_LENGTH,
-  DOCUMENT_KIND_GROUPS,
   DOCUMENT_KIND_LABELS,
   INTERNAL_ONLY_KINDS,
   formatDocSize,
@@ -54,6 +54,15 @@ export function DocumentCreateDialog({
   open: controlledOpen,
   onOpenChange,
   presetKind = null,
+  // DF-26/AUD-11: загрузка из слота с требованием этапа — привязка
+  // проставляется автоматически (stageCode требования); пользователь
+  // не меняет её в форме (смена — в раскрытой строке реестра).
+  presetStageCode = null,
+  // DF-26 §3.3.6 (T21-02): загрузка по требованию — та же форма: вид
+  // предвыбран permit_document и зафиксирован, название по умолчанию —
+  // название строки; привязка — на create (ранняя валидация) + confirm.
+  presetPermitRequirementId = null,
+  presetPermitTitle = null,
 }: {
   documentsUrl: string
   canMarkInternal: boolean
@@ -62,6 +71,9 @@ export function DocumentCreateDialog({
   open?: boolean
   onOpenChange?: (open: boolean) => void
   presetKind?: DocumentKind | null
+  presetStageCode?: string | null
+  presetPermitRequirementId?: string | null
+  presetPermitTitle?: string | null
 }) {
   const { toast } = useToast()
   const maxBytes = maxMb * 1024 * 1024
@@ -80,19 +92,21 @@ export function DocumentCreateDialog({
 
   const isOpen = controlled ? Boolean(controlledOpen) : createOpen
 
+  // T21-02: режим «по разрешительному требованию» — вид фиксирован.
+  const byPermit = Boolean(presetPermitRequirementId)
+
   // Управляемый режим: при каждом открытии — чистая форма с видом слота.
   useEffect(() => {
     if (controlled && isOpen) {
       setCKind(presetKind ?? 'other')
-      setCTitle('')
+      setCTitle(presetPermitTitle ?? '')
       setCComment('')
       setCInternal(false)
       setCFile(null)
       setProgress(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [controlled, isOpen, presetKind])
+  }, [controlled, isOpen, presetKind, presetPermitTitle])
 
   // DF-12: подрядческие виды всегда внутренние (DF-15) — селектор
   // видимости фиксирован, «всем участникам» недоступен.
@@ -129,10 +143,15 @@ export function DocumentCreateDialog({
           title: cTitle.trim(),
           comment: cComment.trim() || undefined,
           isInternal: internal || undefined,
+          ...(presetStageCode ? { stageCode: presetStageCode } : {}),
+          ...(byPermit ? { permitRequirementId: presetPermitRequirementId } : {}),
           fileName: cFile.name,
           mimeType: cFile.type || '',
           size: cFile.size,
         },
+        // Закрытие строки разрешительных — на confirm (DF-16); create
+        // уже прошёл раннюю валидацию той же привязки (§3.3.6).
+        ...(byPermit ? { confirmBody: { permitRequirementId: presetPermitRequirementId } } : {}),
         file: cFile,
         onProgress: setProgress,
       })
@@ -181,7 +200,13 @@ export function DocumentCreateDialog({
           <div className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="doc-kind">Вид документа</Label>
-              <Select value={cKind} onValueChange={(v) => setCKind(v as DocumentKind)}>
+              {/* T21-02: по требованию вид фиксирован (permit_document) —
+                  селект читается, но не меняется. */}
+              <Select
+                value={cKind}
+                onValueChange={(v) => setCKind(v as DocumentKind)}
+                disabled={byPermit}
+              >
                 <SelectTrigger id="doc-kind">
                   <SelectValue />
                 </SelectTrigger>

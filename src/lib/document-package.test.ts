@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import { DOCUMENT_KIND_GROUPS } from '@/lib/document-phases'
 import {
   DOCUMENT_KINDS,
   DOCUMENT_KIND_PROVIDERS,
-  DOCUMENT_KIND_GROUPS,
-  type DocumentKind,
   type DocumentStatus,
 } from '@/lib/document-constants'
 import {
   PACKAGE_ZIP_MAX_TOTAL_BYTES,
+  attachRequirements,
   buildPackageSlots,
   packageEntryName,
   packageFinalSummary,
@@ -114,7 +114,9 @@ describe('DF-13: buildPackageSlots', () => {
 
   it('пустой список — все слоты «нет» с поставщиками', () => {
     const slots = buildPackageSlots([], kinds)
-    expect(slots).toHaveLength(15)
+    // DF-26: состав видов расширен до 19 — проверяем свойство «слот на каждый
+    // вид аудитории», точный состав фиксирует document-constants.test.
+    expect(slots).toHaveLength(kinds.length)
     expect(slots.every((s) => s.status === 'none')).toBe(true)
     expect(slots.every((s) => s.documents.length === 0)).toBe(true)
     expect(slots.find((s) => s.kind === 'other')?.provider).toBeNull()
@@ -217,5 +219,69 @@ describe('DF-13: транслитерация и имена файлов ZIP', (
     expect(packageFolderName('17-1')).toBe('17-1')
     expect(packageFolderName('АБ/12')).toBe('AB12')
     expect(packageZipFileName('17-1')).toBe('documents-17-1.zip')
+  })
+})
+
+describe('DF-14: attachRequirements — чек-листы в слотах', () => {
+  const kinds = packageKindsForAudience(true)
+  const names = new Map([
+    ['import_customs', 'Импортное таможенное оформление'],
+    ['final_delivery', 'Доставка до получателя'],
+  ])
+
+  it('требования этапов заявки попадают в свои слоты (blocking в подписи)', () => {
+    const slots = attachRequirements(
+      buildPackageSlots([], kinds),
+      ['import_customs'],
+      [{ stageCode: 'import_customs', kind: 'customs_declaration', isBlocking: true }],
+      names
+    )
+    const slot = slots.find((s) => s.kind === 'customs_declaration')
+    expect(slot?.requiredFor).toEqual([
+      { stageCode: 'import_customs', stageName: 'Импортное таможенное оформление', blocking: true },
+    ])
+    // чужие слоты пусты
+    expect(slots.find((s) => s.kind === 'bill_of_lading')?.requiredFor).toEqual([])
+  })
+
+  it('требования этапов, которых нет на заявке, не попадают в слоты', () => {
+    const slots = attachRequirements(
+      buildPackageSlots([], kinds),
+      ['final_delivery'],
+      [{ stageCode: 'import_customs', kind: 'customs_declaration', isBlocking: true }],
+      names
+    )
+    expect(slots.find((s) => s.kind === 'customs_declaration')?.requiredFor).toEqual([])
+  })
+
+  it('несколько этапов заявки с одним видом — обе строки, имя fallback на код', () => {
+    // custom_stage есть на заявке, но нет в каталоге имён — fallback
+    // на код (UI не ломается); этап вне заявки отфильтрован.
+    const slots = attachRequirements(
+      buildPackageSlots([], kinds),
+      ['import_customs', 'final_delivery', 'custom_stage'],
+      [
+        { stageCode: 'import_customs', kind: 'permit_document', isBlocking: false },
+        { stageCode: 'final_delivery', kind: 'permit_document', isBlocking: true },
+        { stageCode: 'custom_stage', kind: 'permit_document', isBlocking: true },
+        { stageCode: 'unknown_stage', kind: 'permit_document', isBlocking: true },
+      ],
+      names
+    )
+    const reqs = slots.find((s) => s.kind === 'permit_document')?.requiredFor ?? []
+    expect(reqs).toHaveLength(3)
+    expect(reqs.some((r) => r.stageName === 'custom_stage' && r.blocking)).toBe(true)
+    expect(reqs.filter((r) => r.blocking)).toHaveLength(2)
+  })
+
+  it('внутренние виды (нет слота у внешних) просто не получают attach', () => {
+    const staffKinds = packageKindsForAudience(false) // без contractor_*
+    const slots = attachRequirements(
+      buildPackageSlots([], staffKinds),
+      ['import_customs'],
+      [{ stageCode: 'import_customs', kind: 'contractor_rates', isBlocking: true }],
+      names
+    )
+    expect(slots.find((s) => s.kind === 'contractor_rates')).toBeUndefined()
   })
 })

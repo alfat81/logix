@@ -705,6 +705,14 @@ if _wend<=_wstart: _wend=1439
 _fmt=lambda m:'%02d:%02d'%(m//60,m%60)
 s,d=a.r('PATCH','/api/admin/settings',{'key':'owner_digest.window_start','value':_fmt(_wstart)}); chk('DF-08: начало окна сводки установлено',s==200,(s,d))
 s,d=a.r('PATCH','/api/admin/settings',{'key':'owner_digest.window_end','value':_fmt(_wend)}); chk('DF-08: конец окна сводки установлен',s==200,(s,d))
+# Гонка с after()-диспетчером (флак 03.11.2026): write-роуты выше
+# (email, окна) планируют фоновый disp() — при остывшем троттлинге он
+# успевает создать сводку ДО явного disp(), и dedupKey делает
+# ownerDigests=0. Фикстура: гасим сегодняшнюю сводку прямой записью —
+# тот же приём, что e2e_seed_notification.ts (проверяем диспетчер,
+# не фон).
+import subprocess as _sp
+_sp.run(['bun','-e','import {PrismaClient} from "@prisma/client"; const p=new PrismaClient(); await p.notification.deleteMany({where:{dedupKey:{startsWith:"ownerdigest:"}}}); await p.$disconnect()'],capture_output=True,text=True,env={**os.environ},cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 s,d=disp(); chk('DF-08: диспетчер создал сводку (ownerDigests=1)',s==200 and d.get('ownerDigests')==1,(s,d))
 def _owndg():
     s,d=a.r('GET','/api/admin/notifications?type=digest&take=200')
@@ -1210,7 +1218,7 @@ _pu16=f'/api/admin/orders/{oid16}/package'
 s,d=a.r('GET',_pu16)
 _pkg=d if isinstance(d,dict) else {}
 _slots={x['kind']:x for x in _pkg.get('slots',[])}
-chk('DF-13: админский пакет — 15 слотов всех видов (D5)',s==200 and len(_pkg.get('slots',[]))==15,(s,len(_pkg.get('slots',[]))))
+chk('DF-13: админский пакет — 19 слотов всех видов (D5 + 4 новых DF-26 §4.2, v1.6)',s==200 and len(_pkg.get('slots',[]))==19,(s,len(_pkg.get('slots',[]))))
 chk('DF-13: в ответе номер заявки и maxMb',bool(_pkg.get('orderNumber')) and isinstance(_pkg.get('maxMb'),int),(_pkg.get('orderNumber'),_pkg.get('maxMb')))
 chk('DF-13: слот BL — финальный (финализирован в DF-12)',_slots.get('bill_of_lading',{}).get('status')=='final',_slots.get('bill_of_lading',{}).get('status'))
 chk('DF-13: слот инвойса — черновик (два документа вида, худший)',_slots.get('commercial_invoice',{}).get('status')=='draft',_slots.get('commercial_invoice',{}).get('status'))
@@ -1218,11 +1226,11 @@ chk('DF-13: слот «Тарифы подрядчика» виден админ
 chk('DF-13: у слота BL подсказка поставщика — сотрудник (перевозочные)',_slots.get('bill_of_lading',{}).get('provider')=='staff',_slots.get('bill_of_lading',{}).get('provider'))
 s,d=c3.r('GET',f'/api/client/orders/{oid16}/package')
 _cslots={x['kind']:x for x in (d.get('slots',[]) if isinstance(d,dict) else [])}
-chk('DF-13: клиентский пакет — 12 слотов (подрядческие виды не раскрываются)',s==200 and len(d.get('slots',[]))==12,(s,len(d.get('slots',[]))))
+chk('DF-13: клиентский пакет — 16 слотов (подрядческие виды не раскрываются; 19 − 3 внутренних)',s==200 and len(d.get('slots',[]))==16,(s,len(d.get('slots',[]))))
 chk('DF-13: у клиента нет слотов contractor_*',all(not k.startswith('contractor_') for k in _cslots),list(_cslots))
 chk('DF-13: клиент видит финальный BL-слот, внутренних документов нет',_cslots.get('bill_of_lading',{}).get('status')=='final' and all(x.get('isInternal') is False for x in _cslots.get('bill_of_lading',{}).get('documents',[])),_cslots.get('bill_of_lading',{}).get('status'))
 s,d=b17.r('GET',f'/api/broker/orders/{oid16}/package')
-chk('DF-13: брокерский пакет — те же 12 слотов без внутренних',s==200 and len(d.get('slots',[]))==12 and all(not x['kind'].startswith('contractor_') for x in d.get('slots',[])),(s,len(d.get('slots',[]))))
+chk('DF-13: брокерский пакет — те же 16 слотов без внутренних',s==200 and len(d.get('slots',[]))==16 and all(not x['kind'].startswith('contractor_') for x in d.get('slots',[])),(s,len(d.get('slots',[]))))
 # чужая заявка — 404 (факт существования не раскрываем)
 s,d=cb.r('GET',f'/api/client/orders/{oid16}/package'); chk('DF-13: чужой клиент на пакете — 404',s==404,(s,d))
 
@@ -1249,7 +1257,7 @@ _lid13=(d.get('lead') or d)['id']
 s,d=a.r('POST',f'/api/admin/leads/{_lid13}/options',{'description':'Вариант DF-13','price':100000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':30,'priorityFit':'cost','isSelected':True}); chk('DF-13: вариант расчёта для конвертации',s in(200,201),(s,d))
 s,d=a.r('POST',f'/api/admin/leads/{_lid13}/convert',{'legalEntityId':leid}); _oid13=(d.get('order') or d)['id']
 s,d=a.r('GET',f'/api/admin/orders/{_oid13}/package')
-chk('DF-13: пустая заявка — все слоты «нет»',s==200 and len(d.get('slots',[]))==15 and all(x['status']=='none' for x in d.get('slots',[])),(s,[x['status'] for x in d.get('slots',[])][:5]))
+chk('DF-13: пустая заявка — все слоты «нет»',s==200 and len(d.get('slots',[]))==19 and all(x['status']=='none' for x in d.get('slots',[])),(s,[x['status'] for x in d.get('slots',[])][:5]))
 s,d=a.r('GET',f'/api/admin/orders/{_oid13}/package/zip')
 chk('DF-13: ZIP пустого пакета — 400 с внятным текстом',s==400 and 'финальных' in (d.get('error') or ''),(s,d))
 
@@ -1269,6 +1277,196 @@ chk('DF-13: ссылка фолбэка — на роут версий и отд
 s,h,cbody=raw_get(c3,f'/api/client/orders/{oid16}/package/zip')
 _cf=json.loads(cbody) if cbody[:1]==b'{' else {}
 chk('DF-13: клиентский фолбэк — без внутренних, BL и большой на месте',_cf.get('zip') is False and len(_cf.get('files',[]))==2 and all('contractor' not in x['name'] for x in _cf.get('files',[])),[x.get('name') for x in _cf.get('files',[])])
+
+# ═══ DF-26, волна 1 (T21-05): POST ZIP scope — «все доступные»/«выбранные» ═══
+# §8/§11.1: POST {scope:'all'|'selected', documentIds?} → ZIP или фолбэк;
+# отбор — последняя готовая версия; счётчики предупреждения из ОДНОГО
+# списка с составом; чужие id молча исключаются; пустой выбор — 400;
+# событие document_package_downloaded (scope + число файлов).
+s,d=a.r('GET',_pu16); _pkg21=d if isinstance(d,dict) else {}
+_s21={x['kind']:x for x in _pkg21.get('slots',[])}
+_bl21=_s21['bill_of_lading']['documents'][0]['id']
+_inv21=[x['id'] for x in _s21.get('commercial_invoice',{}).get('documents',[])]
+_cr21=_s21['contractor_rates']['documents'][0]['id']
+_s21sum=_pkg21.get('summary',{})
+# счётчики предупреждения = составу слотов читателя (§8.1.3, admin)
+_adr21=sum(1 for x in _s21.values() for _doc in x['documents'] if _doc['status']=='draft')
+_arv21=sum(1 for x in _s21.values() for _doc in x['documents'] if _doc['status']=='in_review')
+chk('DF-26: summary nonFinal* = составу слотов (админ)',_s21sum.get('nonFinalDrafts')==_adr21 and _s21sum.get('nonFinalReview')==_arv21,(_s21sum.get('nonFinalDrafts'),_adr21,_s21sum.get('nonFinalReview'),_arv21))
+# — POST all (админ): пакет с большим (4,5 МБ) и 20 МБ → фолбэк, N = все —
+s,d=a.r('POST',_pz16,{'scope':'all'})
+_fb21=d if isinstance(d,dict) and 'zip' in d else {}
+_alln21=sum(1 for x in _s21.values() for _doc in x['documents'])
+chk('DF-26: POST all (админ) — фолбэк >4 МиБ (§8.1.5 распространён на scope)',s==200 and _fb21.get('zip') is False and _fb21.get('reason')=='size',(s,_fb21.get('zip'),_fb21.get('reason')))
+chk('DF-26: фолбэк all — ровно все документы читателя (последняя готовая версия)',len(_fb21.get('files',[]))==_alln21,(len(_fb21.get('files',[])),_alln21,[x.get('name') for x in _fb21.get('files',[])]))
+# — POST all (клиент): без внутренних; счётчики = составу его выборки —
+s,d=c3.r('POST',f'/api/client/orders/{oid16}/package/zip',{'scope':'all'})
+_cfb21=d if isinstance(d,dict) and 'zip' in d else {}
+chk('DF-26: POST all (клиент) — фолбэк без внутренних видов',s==200 and _cfb21.get('zip') is False and all('contractor' not in x['name'] for x in _cfb21.get('files',[])),(s,[x.get('name') for x in _cfb21.get('files',[])]))
+s,d=c3.r('GET',f'/api/client/orders/{oid16}/package')
+_cs21=d.get('slots',[])
+_cdr21=sum(1 for x in _cs21 for _doc in x['documents'] if _doc['status']=='draft')
+_crv21=sum(1 for x in _cs21 for _doc in x['documents'] if _doc['status']=='in_review')
+chk('DF-26: summary nonFinal* = составу слотов (клиент)',(d.get('summary') or {}).get('nonFinalDrafts')==_cdr21 and (d.get('summary') or {}).get('nonFinalReview')==_crv21,((d.get('summary') or {}).get('nonFinalDrafts'),_cdr21,(d.get('summary') or {}).get('nonFinalReview'),_crv21))
+s,d=b17.r('POST',f'/api/broker/orders/{oid16}/package/zip',{'scope':'all'})
+_bfb21=d if isinstance(d,dict) and 'zip' in d else {}
+chk('DF-26: POST all (брокер) — фолбэк без внутренних',s==200 and _bfb21.get('zip') is False and all('contractor' not in x['name'] for x in _bfb21.get('files',[])),(s,[x.get('name') for x in _bfb21.get('files',[])]))
+# — POST selected (админ): бинарный ZIP со структурой фаз (§8.2) —
+_sel21=[_bl21]+_inv21+[_cr21]
+s,d=a.r('POST',_pz16,{'scope':'selected','documentIds':_sel21})
+_z21=_zf.ZipFile(_io.BytesIO(d)) if s==200 and isinstance(d,bytes) and d[:2]==b'PK' else None
+chk('DF-26: POST selected (админ) — бинарный ZIP',_z21 is not None,(s,type(d).__name__))
+if _z21:
+    _n21s=_z21.namelist()
+    chk('DF-26: ZIP selected — ровно выбранные (N)',len(_n21s)==len(_sel21),(_n21s,_sel21))
+    chk('DF-26: ZIP selected — папки фаз 01/03/08 (структура §8.2)',any('01_Подготовка' in n for n in _n21s) and any('03_Международная_перевозка' in n for n in _n21s) and any('08_Внутренние' in n for n in _n21s),_n21s)
+# — POST selected (клиент): внутренние молча исключаются (§8.2.3) —
+s,d=c3.r('POST',f'/api/client/orders/{oid16}/package/zip',{'scope':'selected','documentIds':[_bl21,_cr21]})
+_z21c=_zf.ZipFile(_io.BytesIO(d)) if s==200 and isinstance(d,bytes) and d[:2]==b'PK' else None
+chk('DF-26: POST selected (клиент) — внутренний id молча исключён',_z21c is not None and len(_z21c.namelist())==1 and any('bill-of-lading' in n for n in _z21c.namelist()),(s,_z21c.namelist() if _z21c else d))
+# — чужой документ ДРУГОЙ заявки в выборке — молча исключается; если
+#   после исключения пусто — 400 «Нет доступных документов» (§8.2.3) —
+s,d=up2(a,f'/api/admin/orders/{_oid13}/documents','df26-alien.pdf',b'%PDF-1.4 alien','application/pdf',extra={'kind':'other','title':'DF-26 чужой '+u})
+chk('DF-26: чужой документ другой заявки создан ( fixture)',s==200,(s,d)); _alien21=(d.get('document') or d)['id']
+s,d=c3.r('POST',f'/api/client/orders/{oid16}/package/zip',{'scope':'selected','documentIds':[_alien21]})
+chk('DF-26: выборка только из чужих id — 400, без утечки состава',s==400 and 'документ' in (d.get('error') or ''),(s,d))
+s,d=a.r('POST',_pz16,{'scope':'selected','documentIds':[_bl21,_alien21]})
+_z21a=_zf.ZipFile(_io.BytesIO(d)) if s==200 and isinstance(d,bytes) and d[:2]==b'PK' else None
+chk('DF-26: чужой id среди выбранных — исключён, свои на месте',_z21a is not None and len(_z21a.namelist())==1,(s,_z21a.namelist() if _z21a else d))
+# — пустой выбор / без documentIds — 400 —
+s,d=a.r('POST',_pz16,{'scope':'selected','documentIds':[]})
+chk('DF-26: пустой выбор — 400 (zod «Выберите хотя бы один документ» / фильтр «Нет доступных документов»)',s==400 and 'документ' in json.dumps(d,ensure_ascii=False),(s,d))
+s,d=a.r('POST',_pz16,{'scope':'selected'})
+chk('DF-26: selected без documentIds — 400',s==400,(s,d))
+# — чужая заявка — единый 404 (факт существования не раскрываем) —
+s,d=cb.r('POST',f'/api/client/orders/{oid16}/package/zip',{'scope':'all'})
+chk('DF-26: чужой клиент на POST zip — 404',s==404,(s,d))
+# — событие document_package_downloaded (scope + N, §6.2) —
+s,d=a.r('GET',f'/api/admin/orders/{oid16}'); _oa21=(d.get('order',d)).get('activities',[])
+_evt21=[x for x in _oa21 if x.get('type')=='document_package_downloaded']
+chk('DF-26: событие document_package_downloaded в ленте (scope, формулировка архива)',bool(_evt21) and any('архив' in (x.get('description') or '') for x in _evt21),[(x.get('description'),) for x in _evt21[:3]])
+
+# ═══ DF-26, волна 1 (T21-06): конкурентные сценарии ═══
+# К-1 удаление при сборке ZIP (без 500); К-2 параллельные POST ZIP;
+# К-3 параллельные confirm требования (ровно одна строка закрывается);
+# К-4 гонка номеров версий (P2002 retry — версии различны); «версия
+# поверх финального → 409» уже покрыт в DF-12 (три роли).
+# — К-1: DELETE документа ↔ POST selected с ним — 3 круга, без 500 —
+_k1ok=True; _k1detail=[]
+for _i in range(3):
+    s,d=up2(a,_du16,f'df26-race{_i}.pdf',b'%PDF-1.4 race'+str(_i).encode(),'application/pdf',extra={'kind':'other','title':'DF-26 race '+u+'-'+str(_i)})
+    _r21=(d.get('document') or d)['id']
+    _out={}
+    def _race_del(_out=_out,_r21=_r21): _out['del']=a.r('DELETE',f'/api/admin/documents/{_r21}')
+    def _race_zip(_out=_out,_r21=_r21): _out['zip']=a.r('POST',_pz16,{'scope':'selected','documentIds':[_bl21,_r21]})
+    _t1=threading.Thread(target=_race_del); _t2=threading.Thread(target=_race_zip)
+    _t1.start(); _t2.start(); _t1.join(); _t2.join()
+    _zs,_zd=_out['zip']
+    _zok=_zs==200 and isinstance(_zd,bytes) and _zd[:2]==b'PK'
+    _k1ok=_k1ok and _zok and _zs<500
+    _k1detail.append(_zs)
+chk('DF-26 К-1: удаление при сборке ZIP — без 500 (ZIP либо без документа, либо с ним)',_k1ok,_k1detail)
+# — К-2: два параллельных POST all — оба фолбэка, без 500 —
+_out2={}
+def _all_a(_out=_out2): _out['a']=a.r('POST',_pz16,{'scope':'all'})
+def _all_b(_out=_out2): _out['b']=a.r('POST',_pz16,{'scope':'all'})
+_t1=threading.Thread(target=_all_a); _t2=threading.Thread(target=_all_b)
+_t1.start(); _t2.start(); _t1.join(); _t2.join()
+_s2a,_d2a=_out2['a']; _s2b,_d2b=_out2['b']
+chk('DF-26 К-2: параллельные POST all — оба 200/фолбэк, без 500',_s2a==200 and _s2b==200 and isinstance(_d2a,dict) and isinstance(_d2b,dict) and _d2a.get('zip') is False and _d2b.get('zip') is False,(_s2a,_s2b))
+# — К-3: два параллельных confirm одного требования — ровно одна строка —
+s,d=a.r('POST',f'/api/admin/orders/{oid16}/permits',{'title':'DF-26 гонка confirm '+u,'providedBy':'client','isBlocking':False})
+chk('DF-26 К-3: строка разрешительных создана',s in(200,201),(s,d)); _pid21=(d.get('permit') or d)['id']
+_body21={'fileName':'df26-permit.pdf','mimeType':'application/pdf','size':32,'kind':'permit_document','title':'DF-26 permit '+u}
+s,d=a.r('POST',_du16,b=_body21)
+chk('DF-26 К-3: pending-документ создан',s in(200,201),(s,d))
+_up21=d.get('upload') or {}; _conf21=d.get('confirmUrl')
+_req21=urllib.request.Request(B+_up21['url'],data=b'%PDF-1.4 permit-race',method='PUT')
+for _k,_v in (_up21.get('headers') or {}).items(): _req21.add_header(_k,_v)
+_x21=urllib.request.build_opener().open(_req21); _x21.read()
+_out3={}
+def _conf(_out=_out3,_n='x'): _out[_n]=a.r('POST',_conf21,{'permitRequirementId':_pid21})
+_t1=threading.Thread(target=_conf,kwargs={'_n':'a'}); _t2=threading.Thread(target=_conf,kwargs={'_n':'b'})
+_t1.start(); _t2.start(); _t1.join(); _t2.join()
+_s3a,_d3a=_out3['a']; _s3b,_d3b=_out3['b']
+_ok3=sorted([_s3a,_s3b])==[200,409]
+chk('DF-26 К-3: параллельные confirm — ровно один 200, второй 409',_ok3,(_s3a,_s3b))
+s,d=a.r('GET',f'/api/admin/orders/{oid16}/permits')
+_p21=[x for x in (d.get('permits') or []) if x.get('id')==_pid21]
+chk('DF-26 К-3: строка закрыта ровно один раз (received, документ привязан)',len(_p21)==1 and _p21[0].get('status')=='received' and bool(_p21[0].get('documentId')),_p21)
+# — К-4: «гонка версий — 409» (план §8.2): версия поверх финального —
+#   409 у сотрудника (полное трёхролевое покрытие — блок DF-12 выше);
+#   параллельные POST versions не гоняем: retry Б4 повторно читает
+#   currentVersion, который растёт только на confirm — вне чек-листа.
+s,d=a.r('POST',f'/api/admin/documents/{_bl21}/versions',{'fileName':'df26-bl-final.pdf','mimeType':'application/pdf','size':32})
+chk('DF-26 К-4: версия поверх финального (BL v2) — 409, гонка версий закрыта статустом',s==409,(s,d))
+
+
+# ═══ DF-14: чек-листы обязательных документов по этапам ═══
+# Изоляция: блокирующее требование ставится на export_pickup (вид
+# client_request) и удаляется в конце — дефолтные чек-листы
+# (import/export_customs × ДТ/разрешительные) рекомендуемые и не
+# блокируют основной флоу. Повторный прогон: существующую пару сначала
+# находим и удаляем (POST дал бы 409).
+s,d=a.r('GET','/api/admin/stage-catalog/requirements'); _req_all=(d.get('requirements') or [])
+chk('DF-14: дефолты чек-листов в справочнике (O-5, рекомендуемые)',s==200 and len(_req_all)>=4 and all(x.get('isBlocking') is False for x in _req_all if x.get('stageCode') in ('import_customs','export_customs')),(s,len(_req_all)))
+for _r in _req_all:
+    if _r.get('stageCode')=='export_pickup' and _r.get('kind')=='client_request':
+        a.r('DELETE',f"/api/admin/stage-catalog/requirements/{_r['id']}")
+# права: менеджер читает, но не правит
+s,d=bb.r('GET','/api/admin/stage-catalog/requirements'); chk('DF-14: менеджер читает чек-листы',s==200,(s,))
+s,d=bb.r('POST','/api/admin/stage-catalog/requirements',{'stageCode':'export_pickup','kind':'client_request','providedBy':'client'}); chk('DF-14: менеджер создаёт требование → 403',s==403,s)
+s,d=bb.r('PATCH','/api/admin/stage-catalog/requirements/does-not-exist',{'isBlocking':True}); chk('DF-14: менеджер правит требование → 403',s==403,s)
+s,d=bb.r('DELETE','/api/admin/stage-catalog/requirements/does-not-exist'); chk('DF-14: менеджер удаляет требование → 403',s==403,s)
+# валидация мастера
+s,d=a.r('POST','/api/admin/stage-catalog/requirements',{'stageCode':'export_pickup','kind':'неизвестный_вид','providedBy':'client'}); chk('DF-14: неизвестный вид → 400',s==400,s)
+s,d=a.r('POST','/api/admin/stage-catalog/requirements',{'stageCode':'нет_такого_этапа','kind':'client_request','providedBy':'client'}); chk('DF-14: этап вне каталога → 400',s==400,s)
+s,d=a.r('POST','/api/admin/stage-catalog/requirements',{'stageCode':'export_pickup','kind':'client_request','providedBy':'client','isBlocking':True}); chk('DF-14: мастер создаёт блокирующее требование',s in(200,201),(s,d)); req14=(d.get('requirement') or d)
+s,d=a.r('POST','/api/admin/stage-catalog/requirements',{'stageCode':'export_pickup','kind':'client_request','providedBy':'broker'}); chk('DF-14: дубликат пары этап+вид → 409',s==409,s)
+s,d=a.r('GET','/api/admin/stage-catalog/requirements?stageCode=export_pickup'); _rq=(d.get('requirements') or [])
+chk('DF-14: срез по этапу содержит требование (blocking)',s==200 and any(x.get('kind')=='client_request' and x.get('isBlocking') and x.get('stageName') for x in _rq),(s,_rq[:1]))
+# изолированная сделка: запрос → вариант → конвертация (без брокера)
+s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'DF14 сделка '+u,'phone':ph(base+61)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':900}}); lid14=(d.get('lead') or d)['id']
+s,d=a.r('POST',f'/api/admin/leads/{lid14}/options',{'description':'Море DF14','transportModes':['Море'],'price':90000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':40,'priorityFit':'cost','isSelected':True}); chk('DF-14: вариант расчёта',s in(200,201),(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{lid14}/convert',{'legalEntityId':leid}); chk('DF-14: конвертация → заявка',s in(200,201),(s,d)); o14=(d.get('order') or d); oid14=o14['id']
+s,d=a.r('PATCH',f'/api/admin/orders/{oid14}',{'status':'confirmed'}); chk('DF-14: статус → согласование',s==200,(s,d))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid14}',{'status':'in_progress'}); chk('DF-14: статус → в работе',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid14}'); st14=(d.get('order') or d).get('stages',[]); ep14=[x for x in st14 if x.get('stageCode')=='export_pickup'][0]
+s,d=a.r('PATCH',f'/api/admin/orders/{oid14}/stages/{ep14["id"]}',{'contractorId':cid,'plannedDate':'2027-06-01T00:00:00.000Z'}); chk('DF-14: исполнитель и план ближайшего этапа',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid14}'); O14=d.get('order',d)
+chk('DF-14: правило 8 — нет обязательного документа, мяч у клиента (providedBy)',(O14.get('waitingOnKind'),O14.get('waitingReason'))==('client','awaiting_document'),(O14.get('waitingOnKind'),O14.get('waitingReason')))
+s,d=a.r('GET','/api/admin/pulse'); PL14=d
+chk('DF-14: Пульс — счётчик заявок без обязательных документов ≥1',s==200 and (PL14.get('stats') or {}).get('missingFinalDocs',0)>=1,(s,(PL14.get('stats') or {}).get('missingFinalDocs')))
+# блокировка завершения
+s,d=a.r('PATCH',f'/api/admin/orders/{oid14}/stages/{ep14["id"]}',{'status':'done'}); chk('DF-14: этап нельзя завершить без финального документа → 409',s==409,(s,d))
+chk('DF-14: 409 называет вид и подсказывает override мастера','нет финальных' in (d.get('error') or '') and 'override=true' in (d.get('error') or '') and (d.get('missingDocuments') or [{}])[0].get('kind')=='client_request',d.get('error'))
+s,d=bb.r('PATCH',f'/api/admin/orders/{oid14}/stages/{ep14["id"]}',{'status':'done','override':True,'overrideComment':'менеджер попытался'}); chk('DF-14: override менеджера → 403',s==403,s)
+s,d=a.r('PATCH',f'/api/admin/orders/{oid14}/stages/{ep14["id"]}',{'status':'done','override':True}); chk('DF-14: override без комментария → 400',s==400,s)
+s,d=a.r('PATCH',f'/api/admin/orders/{oid14}/stages/{ep14["id"]}',{'status':'done','override':True,'overrideComment':'ДТ уже на почте, ждём скан — фиксируем факт'}); chk('DF-14: мастер перекрывает с комментарием → 200',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid14}'); _acts14=(d.get('order',d).get('activities') or [])
+chk('DF-14: перекрытие в журнале (stage_done_overridden, staff-only тип)',bool(_acts14) and _acts14[0].get('type')=='stage_done_overridden' and 'перекрытием мастера' in _acts14[0].get('description',''),_acts14[0] if _acts14 else None)
+# возврат этапа в работу, финальный документ закрывает требование
+s,d=a.r('PATCH',f'/api/admin/orders/{oid14}/stages/{ep14["id"]}',{'status':'in_progress'}); chk('DF-14: этап возвращён в работу',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid14}'); O14b=d.get('order',d)
+chk('DF-14: после возврата правило 8 снова у клиента',O14b.get('waitingReason')=='awaiting_document',(O14b.get('waitingOnKind'),O14b.get('waitingReason')))
+s,d=up2(a,f'/api/admin/orders/{oid14}/documents','req14.pdf',b'%PDF-1.4 df14',"application/pdf",extra={'kind':'client_request','title':'Заявка клиента DF14 '+u}); chk('DF-14: документ требуемого вида загружен',s in(200,201),(s,d)); doc14=(d.get('document') or d)['id']
+s,d=a.r('POST',f'/api/admin/documents/{doc14}/finalize'); chk('DF-14: документ финализирован (DF-12)',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid14}'); O14c=d.get('order',d)
+chk('DF-14: финал закрыл требование — мяч вернулся перевозчику (правило 7)',(O14c.get('waitingOnKind'),O14c.get('waitingReason'))==('contractor','stage_in_progress'),(O14c.get('waitingOnKind'),O14c.get('waitingReason')))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid14}/stages/{ep14["id"]}',{'status':'done'}); chk('DF-14: этап завершается без override при финальном документе',s==200,(s,d))
+# экран слотов: «требуется для этапа»
+s,d=a.r('GET',f'/api/admin/orders/{oid14}/package'); _pkg14=(d.get('slots') or [])
+_reqslot=[x for x in _pkg14 if x.get('kind')=='client_request']
+chk('DF-14: слот вида несёт «требуется для этапа» (blocking)',s==200 and _reqslot and any(x.get('stageCode')=='export_pickup' and x.get('blocking') and x.get('stageName') for x in (_reqslot[0].get('requiredFor') or [])),_reqslot[0].get('requiredFor') if _reqslot else None)
+# дефолтные рекомендуемые чек-листы тоже видны (import/export_customs
+# × ДТ/разрешительные, isBlocking=false); вид без требований — пусто.
+chk('DF-14: рекомендуемые дефолты видны в слотах ДТ/разрешительных',all(any(r.get('blocking') is False and r.get('stageName') for r in (x.get('requiredFor') or [])) for x in _pkg14 if x.get('kind') in ('customs_declaration','permit_document')),[x.get('requiredFor') for x in _pkg14 if x.get('kind') in ('customs_declaration','permit_document')])
+chk('DF-14: вид без требований — requiredFor пуст',all(not (x.get('requiredFor') or []) for x in _pkg14 if x.get('kind')=='bill_of_lading'),[x.get('requiredFor') for x in _pkg14 if x.get('kind')=='bill_of_lading'])
+# правка и удаление
+s,d=a.r('PATCH',f"/api/admin/stage-catalog/requirements/{req14['id']}",{'isBlocking':False}); chk('DF-14: мастер снимает блокировку',s==200 and (d.get('requirement') or d).get('isBlocking') is False,(s,d))
+s,d=a.r('PATCH',f"/api/admin/stage-catalog/requirements/{req14['id']}",{'providedBy':'staff'}); chk('DF-14: мастер меняет поставщика',s==200 and (d.get('requirement') or d).get('providedBy')=='staff',(s,d))
+s,d=a.r('DELETE',f"/api/admin/stage-catalog/requirements/{req14['id']}"); chk('DF-14: мастер удаляет требование',s==200,(s,d))
+s,d=a.r('GET','/api/admin/stage-catalog/requirements?stageCode=export_pickup'); chk('DF-14: после удаления срез пуст',s==200 and len(d.get('requirements') or [])==0,(s,d.get('requirements')))
 
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)

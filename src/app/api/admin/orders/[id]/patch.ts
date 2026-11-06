@@ -13,6 +13,7 @@ import { PatchOrderSchema } from './schemas'
 import { buildLeadEditDiff, hsCodePatch } from '@/lib/lead-edit'
 import { getIncompleteMandatoryStages, emitOrderEvents } from '@/lib/orders'
 import { checkOrderTransition, TERMINAL_ORDER_STATUSES } from '@/lib/status-machine'
+import { assertOverridePermission } from '@/lib/override-guard'
 import type { ActivityType } from '@/lib/activity'
 
 // v0.5.0 (P1-22): PATCH /api/admin/orders/[id] — выезд из route.ts
@@ -102,17 +103,15 @@ export async function patchOrder(
       if (to === 'completed') {
         const incomplete = await getIncompleteMandatoryStages(id)
         if (incomplete.length > 0) {
-          if (data.override && !isMaster) {
-            return NextResponse.json(
-              { error: 'Перекрытие завершения доступно только мастеру' },
-              { status: 403 }
-            )
-          }
-          if (data.override && !data.overrideComment) {
-            return NextResponse.json(
-              { error: 'Укажите комментарий перекрытия (overrideComment) — он попадёт в журнал заявки' },
-              { status: 400 }
-            )
+          // Лестница 403/400 — общий гард с DF-14 (stages/[stageId]):
+          // только мастер и только с комментарием в журнал.
+          const denial = assertOverridePermission({
+            override: data.override,
+            overrideComment: data.overrideComment,
+            isMaster,
+          })
+          if (denial) {
+            return NextResponse.json({ error: denial.error }, { status: denial.status })
           }
           if (!data.override) {
             return NextResponse.json(

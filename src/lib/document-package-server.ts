@@ -1,56 +1,48 @@
-import { zipSync } from 'fflate'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getStorage } from '@/lib/storage'
+import { attachRequirements, buildPackageSlots, packageKindsForAudience } from '@/lib/document-package'
 import {
-  PACKAGE_ZIP_MAX_TOTAL_BYTES,
-  buildPackageSlots,
-  packageEntryName,
-  packageFolderName,
-  packageKindsForAudience,
-  packageZipFileName,
-  type PackageSlot,
-} from '@/lib/document-package'
-import type { DocumentKind } from '@/lib/document-constants'
-import {
-  DOC_LIST_READY_WHERE,
-  DOC_PUBLIC_FIELDS,
-  type DocumentRow,
-} from '@/lib/documents'
+  isTransportKind,
+  suggestedTransportVariant,
+} from '@/lib/document-phases'
+import { buildPackageSummary } from '@/lib/document-summary'
+import { DOC_LIST_READY_WHERE, DOC_PUBLIC_FIELDS, type DocumentRow } from '@/lib/documents'
+import { PERMIT_EXTERNAL_FIELDS } from '@/lib/permits-db'
 import { projectDocumentAuthors, type ActorNameReader } from '@/lib/actor-name'
 
-// ─── DF-13: пакет документов заявки — серверное ядро ────────────────
-// Чтение документов пакета, сборка финальных версий в ZIP (fflate —
-// зависимость, разрешённая роадмапом для DF-13) и ответ-фолбэк списком
-// ссылок, когда суммарный размер финальных версий выше порога ответа
-// serverless-функции Vercel (4,5 МБ, порог 4 МиБ — document-package.ts).
-// Роуты трёх кабинетов делают только auth-guard и зовут один из двух
-// общих ответов: резолв владения заявкой и видимость внутри — здесь
-// (аудитория пакета — тот же ActorNameReader, что и проекция имён).
-
-// ── Слоты пакета ────────────────────────────────────────────────────
+// ─── DF-13/DF-26: пакет документов заявки — серверное ядро слотов ───
+// Чтение документов пакета и сводка позиций (§3.4). Роуты трёх
+// кабинетов делают только auth-guard и зовут общий ответ: резолв
+// владения заявкой и видимость внутри (аудитория пакета — тот же
+// ActorNameReader, что и проекция имён). Сборка ZIP — в
+// document-zip-server.ts (финальные — DF-13; все доступные/выбранные —
+// DF-26 §8).
 
 /**
  * Заявка пакета с проверкой владения по кабинету: сотрудник — любой,
  * клиент — своя (customerId), брокер — связь OrderBroker; null → 404
  * (факт существования чужой заявки не раскрываем, паттерн И1).
+ * transportType — подсказка варианта транспортной накладной (§4.3).
  */
-async function resolvePackageOrder(
+export async function resolvePackageOrder(
   orderId: string,
   reader: ActorNameReader,
-): Promise<{ id: string; number: string } | null> {
+): Promise<{ id: string; number: string; transportType: string | null } | null> {
   if (reader.kind === 'staff') {
-    return db.order.findUnique({ where: { id: orderId }, select: { id: true, number: true } })
+    return db.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, number: true, transportType: true },
+    })
   }
   if (reader.kind === 'client') {
     return db.order.findFirst({
       where: { id: orderId, customerId: reader.customerId },
-      select: { id: true, number: true },
+      select: { id: true, number: true, transportType: true },
     })
   }
   const link = await db.orderBroker.findUnique({
     where: { orderId_brokerId: { orderId, brokerId: reader.brokerId } },
-    select: { order: { select: { id: true, number: true } } },
+    select: { order: { select: { id: true, number: true, transportType: true } } },
   })
   return link?.order ?? null
 }
@@ -82,172 +74,68 @@ export async function packageSlotsResponse(
     return NextResponse.json({ error: 'Заявка не найдена' }, { status: 404 })
   }
   const includeInternal = reader.kind === 'staff'
-  const documents = await projectDocumentAuthors(
-    await loadPackageDocuments(orderId, includeInternal),
-    reader,
+  // DF-14: чек-листы этапов ЭТОЙ заявки — подпись «требуется для этапа»
+  // в слоте; имена этапов — живой lookup каталога (клиент/брокер видят
+  // те же названия в степпере; требований подрядческих видов в их
+  // ответе нет вместе со слотами — buildPackageSlots их отрезает).
+  // DF-26: разрешительные — для сводки позиций и строк реестра (§3.2,
+  // §3.3.3) — ОДИН запрос (полная проекция без staffNote), статусы
+  // строк питают и buildPackageSummary, и реестр.
+  const [documents, stageRows, requirementRows, permitRows, catalog] = await Promise.all([
+    loadPackageDocuments(orderId, includeInternal).then((docs) =>
+      projectDocumentAuthors(docs, reader)
+    ),
+    db.orderStageInstance.findMany({
+      where: { orderId },
+      select: { stageCode: true, status: true, sequence: true },
+      orderBy: { sequence: 'asc' },
+    }),
+    db.stageDocumentRequirement.findMany({
+      select: { stageCode: true, kind: true, isBlocking: true },
+    }),
+    db.permitRequirement.findMany({
+      where: { orderId },
+      select: PERMIT_EXTERNAL_FIELDS,
+      orderBy: [{ isBlocking: 'desc' }, { createdAt: 'asc' }],
+    }),
+    db.orderStageCatalog.findMany({ select: { code: true, name: true } }),
+  ])
+  // DF-26 §3.2/§3.3.3: строки разрешительных для реестра и сводки панели
+  // — внешняя проекция (без staffNote), независимо от кабинета.
+  // Реестр строится одним запросом + список требований (§11.1).
+  // DF-26 §11.1: stagePhase — фаза реестра, куда попадает строка
+  // требования (PHASE_OF_STAGE от PermitRequirement.stageCode → остаточная
+  // группа 07). В очереди №21 колонки stageCode у требования ещё нет
+  // (миграция df_26_docs_center — волна 2): все строки уходят в 07;
+  // при появлении stageCode в волне 2 вычисление включается без смены
+  // контракта ответа.
+  const permits = permitRows.map((p) => ({ ...p, stagePhase: 'permits' as const }))
+  const stageNames = new Map(catalog.map((c) => [c.code, c.name]))
+  const slots = attachRequirements(
+    buildPackageSlots(documents, packageKindsForAudience(includeInternal)),
+    stageRows.map((s) => s.stageCode),
+    requirementRows,
+    stageNames
   )
-  const slots = buildPackageSlots(documents, packageKindsForAudience(includeInternal))
-  return NextResponse.json({ orderNumber: order.number, maxMb, slots })
-}
-
-// ── Финальные версии → ZIP ──────────────────────────────────────────
-
-type FinalFile = {
-  versionId: string
-  version: number
-  fileName: string
-  fileSize: number
-  storageKey: string | null
-  // Prisma 6 отдаёт Bytes как Uint8Array (легаси-версии до 4 МБ).
-  fileData: Uint8Array<ArrayBuffer> | null
-  entryName: string
-}
-
-/** Ссылка скачивания отдельной версии — существующий авторизующий роут (DF-11). */
-function versionUrl(versionId: string): string {
-  return `/api/document-versions/${versionId}/file`
-}
-
-async function collectFinalFiles(
-  orderId: string,
-  includeInternal: boolean,
-): Promise<FinalFile[]> {
-  // fileData в select сознательно: это финальный ZIP-путь, легаси-версии
-  // (< 4 МБ) читаются из БД; списочные проекции fileData по-прежнему не
-  // отдают (DOC_VERSION_PUBLIC_FIELDS без байтов).
-  const docs = await db.document.findMany({
-    where: {
-      orderId,
-      status: 'final',
-      ...(includeInternal ? {} : { isInternal: false }),
-    },
-    // Порядок как в списках — детерминированные имена/порядок в ZIP.
-    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
-    select: {
-      kind: true,
-      title: true,
-      finalVersion: true,
-      currentVersion: true,
-      versions: {
-        where: { status: 'ready' },
-        select: {
-          id: true,
-          version: true,
-          fileName: true,
-          fileSize: true,
-          storageKey: true,
-          fileData: true,
-        },
-      },
-    },
+  // DF-26 §4.3: подсказка варианта транспортной накладной — только
+  // слотам семейства (у остальных null), из типа перевозки заявки.
+  const suggested = suggestedTransportVariant(order.transportType)
+  const slotsUi = slots.map((s) => ({
+    ...s,
+    suggestedVariant: isTransportKind(s.kind) ? suggested : null,
+  }))
+  const summary = buildPackageSummary({
+    documents,
+    stageRequirements: requirementRows,
+    stages: stageRows,
+    permits: permitRows,
+    stageNames,
   })
-  const files: FinalFile[] = []
-  for (const doc of docs) {
-    const want = doc.finalVersion ?? doc.currentVersion
-    const v = doc.versions.find((x) => x.version === want)
-    if (!v) continue
-    files.push({
-      versionId: v.id,
-      version: v.version,
-      fileName: v.fileName,
-      fileSize: v.fileSize,
-      storageKey: v.storageKey,
-      fileData: v.fileData,
-      entryName: packageEntryName(doc.kind as DocumentKind, doc.title, v.version, v.fileName),
-    })
-  }
-  return files
-}
-
-async function readVersionBytes(file: FinalFile): Promise<Uint8Array<ArrayBuffer>> {
-  if (file.fileData) return file.fileData
-  if (!file.storageKey) throw new Error(`версия ${file.versionId} без байтов (ни БД, ни хранилище)`)
-  // Размер из метаданных БД: confirm пишет фактический размер объекта.
-  return getStorage().readRange(file.storageKey, 0, file.fileSize - 1)
-}
-
-/** ZIP пакета (папка = номер заявки): null — пусто или выше порога. */
-export async function buildOrderPackageZip(
-  orderId: string,
-  orderNumber: string,
-  includeInternal: boolean,
-): Promise<Uint8Array<ArrayBuffer> | null> {
-  const files = await collectFinalFiles(orderId, includeInternal)
-  const totalBytes = files.reduce((sum, f) => sum + f.fileSize, 0)
-  if (files.length === 0 || totalBytes > PACKAGE_ZIP_MAX_TOTAL_BYTES) return null
-
-  // Структура из карточки: <номер заявки>/<вид>-<название>-v<версия>.<расширение>.
-  // level 0 (store): pdf/офис/картинки уже сжаты — CPU на пересжатие
-  // не тратим, размер архива ≈ сумме исходников.
-  const folder = packageFolderName(orderNumber)
-  const entries: Record<string, [Uint8Array<ArrayBuffer>, { level: 0 }]> = {}
-  for (const file of files) {
-    entries[`${folder}/${file.entryName}`] = [await readVersionBytes(file), { level: 0 }]
-  }
-  return zipSync(entries, { level: 0 })
-}
-
-/** Фолбэк вместо ZIP: подписанные роутом ссылки на отдельные версии. */
-export async function packageFallbackPayload(
-  orderId: string,
-  includeInternal: boolean,
-): Promise<{
-  zip: false
-  reason: 'size'
-  maxBytes: number
-  totalBytes: number
-  files: Array<{ name: string; url: string; size: number }>
-} | null> {
-  const files = await collectFinalFiles(orderId, includeInternal)
-  if (files.length === 0) return null
-  const totalBytes = files.reduce((sum, f) => sum + f.fileSize, 0)
-  return {
-    zip: false,
-    reason: 'size',
-    maxBytes: PACKAGE_ZIP_MAX_TOTAL_BYTES,
-    totalBytes,
-    files: files.map((f) => ({ name: f.entryName, url: versionUrl(f.versionId), size: f.fileSize })),
-  }
-}
-
-// ── Ответ ZIP-роута (общий для трёх кабинетов) ──────────────────────
-// Пустой финальный пакет — 400 с внятным текстом (проверка e2e);
-// порог превышен — 200 JSON со списком ссылок (content-type json);
-// иначе — binary ZIP (store: исходники уже сжатые pdf/офис/картинки).
-
-export async function packageZipResponse(
-  orderId: string,
-  reader: ActorNameReader,
-): Promise<NextResponse> {
-  const order = await resolvePackageOrder(orderId, reader)
-  if (!order) {
-    return NextResponse.json({ error: 'Заявка не найдена' }, { status: 404 })
-  }
-  const includeInternal = reader.kind === 'staff'
-  const fallback = await packageFallbackPayload(orderId, includeInternal)
-  if (!fallback) {
-    return NextResponse.json(
-      { error: 'В пакете нет финальных документов — объявите документ финальным и повторите' },
-      { status: 400 },
-    )
-  }
-  if (fallback.totalBytes > PACKAGE_ZIP_MAX_TOTAL_BYTES) {
-    return NextResponse.json(fallback)
-  }
-  const zip = await buildOrderPackageZip(orderId, order.number, includeInternal)
-  if (!zip) {
-    // Гонка (документ разфинализировали между проверкой и сборкой) — честный 400.
-    return NextResponse.json(
-      { error: 'В пакете нет финальных документов — объявите документ финальным и повторите' },
-      { status: 400 },
-    )
-  }
-  const asciiName = packageZipFileName(order.number).replace(/[^\x20-\x7e]/g, '_')
-  return new NextResponse(new Uint8Array(zip), {
-    headers: {
-      'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${asciiName}"`,
-      'Cache-Control': 'no-store',
-    },
+  return NextResponse.json({
+    orderNumber: order.number,
+    maxMb,
+    slots: slotsUi,
+    summary,
+    permits,
   })
 }

@@ -158,6 +158,7 @@ export function buildOwnerDigestLetter(input: OwnerDigestLetterInput): { subject
     s.activeOrders === 0 &&
     s.waitingOverThreshold === 0 &&
     s.problemStages === 0 &&
+    (s.missingFinalDocs ?? 0) === 0 &&
     input.slowing.length === 0 &&
     input.permits.length === 0
 
@@ -170,6 +171,9 @@ export function buildOwnerDigestLetter(input: OwnerDigestLetterInput): { subject
   lines.push(`• Активных заявок: ${s.activeOrders} (в пути: ${s.inProgress})`)
   lines.push(`• Ждут дольше ${s.attentionHours} ч: ${s.waitingOverThreshold}`)
   lines.push(`• Этапов с проблемой: ${s.problemStages}`)
+  // DF-14: та же цифра, что в Пульсе (одна выборка loadPulseCore —
+  // письмо и экран сходятся по построению).
+  lines.push(`• Заявок без обязательных документов ближайшего этапа: ${s.missingFinalDocs ?? 0}`)
   lines.push('')
   if (input.slowing.length === 0) {
     lines.push('Тормозящих нет.', '')

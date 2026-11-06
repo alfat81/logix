@@ -42,8 +42,12 @@ export const DOCUMENT_KINDS = [
   'bill_of_lading',
   'cmr',
   'awb',
+  'railway_bill',
   'goods_description',
   'customs_declaration',
+  'export_declaration',
+  'delivery_confirmation',
+  'act_of_services',
   'contractor_agreement',
   'contractor_rates',
   'other',
@@ -61,49 +65,22 @@ export const DOCUMENT_KIND_LABELS: Record<DocumentKind, string> = {
   bill_of_lading: 'Коносамент (BL)',
   cmr: 'CMR (авто)',
   awb: 'AWB (авиа)',
+  railway_bill: 'Железнодорожная накладная',
   goods_description: 'Описание товара',
   customs_declaration: 'Декларация на товары',
+  export_declaration: 'Экспортная декларация',
+  delivery_confirmation: 'Подтверждение доставки',
+  act_of_services: 'Акт оказания услуг',
   contractor_agreement: 'Договор с подрядчиком',
   contractor_rates: 'Тарифы подрядчика',
   other: 'Прочее',
 }
 
-// Группировка видов по фазам клиента (карточка DF-12): расчёт →
-// оформление и перевозка; служебные виды (заявки, договоры контура
-// подрядчика) и «Прочее» — в конце. Порядок используется в форме
-// загрузки; фазовые группы — в пакете документов (DF-13). Группы
-// покрывают список ПОЛНОСТЬЮ и без пересечений (unit-тест).
-export const DOCUMENT_KIND_GROUPS: ReadonlyArray<{
-  code: 'calculation' | 'execution' | 'deals' | 'misc'
-  label: string
-  kinds: readonly DocumentKind[]
-}> = [
-  {
-    code: 'calculation',
-    label: 'Расчёт',
-    kinds: ['proforma_invoice', 'goods_description'],
-  },
-  {
-    code: 'execution',
-    label: 'Оформление и перевозка',
-    kinds: [
-      'foreign_trade_contract',
-      'commercial_invoice',
-      'packing_list',
-      'bill_of_lading',
-      'cmr',
-      'awb',
-      'customs_declaration',
-      'permit_document',
-    ],
-  },
-  {
-    code: 'deals',
-    label: 'Заявки и договоры',
-    kinds: ['client_request', 'contractor_request', 'contractor_agreement', 'contractor_rates'],
-  },
-  { code: 'misc', label: 'Прочее', kinds: ['other'] },
-]
+// DF-26: группировка видов по фазам временной шкалы (реестр, ZIP и
+// селект вида — один источник) переехала в document-phases.ts
+// (DOCUMENT_KIND_GROUPS, производная от DOCUMENT_PHASES).
+// kind — TEXT в БД: 4 новых вида (railway_bill, export_declaration,
+// delivery_confirmation, act_of_services) миграции не требуют.
 
 // Виды контура подрядчика (DF-15): всегда внутренние — сервер принуждает
 // isInternal=true при загрузке, UI фиксирует видимость на «сотрудникам».
@@ -126,8 +103,12 @@ export const LEGACY_TYPE_FOR_KIND: Record<DocumentKind, DocumentType> = {
   bill_of_lading: 'accompanying',
   cmr: 'accompanying',
   awb: 'accompanying',
+  railway_bill: 'accompanying',
   goods_description: 'accompanying',
   customs_declaration: 'customs',
+  export_declaration: 'customs',
+  delivery_confirmation: 'accompanying',
+  act_of_services: 'other',
   contractor_agreement: 'contract',
   contractor_rates: 'other',
   other: 'other',
@@ -151,6 +132,20 @@ export const KIND_FOR_LEGACY_TYPE: Record<DocumentType, DocumentKind> = {
 export function legacyKindFromType(type: DocumentType, isInternal: boolean): DocumentKind {
   if (type === 'contract') return isInternal ? 'contractor_agreement' : 'other'
   return KIND_FOR_LEGACY_TYPE[type]
+}
+
+// ── DF-14: страховка чтения вида ────────────────────────────────────
+// kind — источник истины; у гипотетической строки без kind (окно
+// backfill) вид резолвится по легаси-типу. Один хелпер на всех
+// читателях вида: пакет документов (DF-13), чек-листы этапов и правило
+// 8 «у кого мяч» (DF-14) — рассинхрон исключён (IC-14: одна точка).
+export function resolveDocumentKind(doc: {
+  kind: string | null
+  type: string
+  isInternal: boolean
+}): DocumentKind {
+  if (doc.kind) return doc.kind as DocumentKind
+  return legacyKindFromType(doc.type as DocumentType, doc.isInternal)
 }
 
 // ── DF-12: статусы жизненного цикла документа ───────────────────────
@@ -204,8 +199,12 @@ export const DOCUMENT_KIND_PROVIDERS: Record<DocumentKind, DocProvider | null> =
   bill_of_lading: 'staff',
   cmr: 'staff',
   awb: 'staff',
+  railway_bill: 'staff',
   goods_description: 'client',
   customs_declaration: 'broker',
+  export_declaration: 'broker',
+  delivery_confirmation: 'staff',
+  act_of_services: 'staff',
   contractor_agreement: 'staff',
   contractor_rates: 'staff',
   other: null,

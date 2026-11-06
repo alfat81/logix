@@ -306,6 +306,33 @@ model OrderStageInstance {
   @@index([contractorId])
 }
 
+model StageDocumentRequirement {
+  // DF-14: чек-лист документов этапа — какие виды документов нужны для
+  // этапа каталога, кто должен предоставить и блокирует ли завершение.
+  // Ссылка на каталог — по code (тот же паттерн живого lookup'а, что у
+  // OrderStageInstance): имя этапа и его существование читаются из
+  // каталога на момент запроса, FK не нужен.
+  id         String   @id @default(cuid())
+  // Код этапа из OrderStageCatalog.code (валидация — на уровне API).
+  stageCode  String
+  // Вид документа — код из DOCUMENT_KINDS (lib/document-constants.ts).
+  kind       String
+  // Кто предоставляет: client | broker | staff (документы перевозчика
+  // вносит менеджер — D31: подрядчик в системе не работает).
+  providedBy String   @default("client")
+  // O-5: дефолты чек-листа включаются «рекомендуется» (false), пока
+  // владелец не подтвердит блокировки. true — этап нельзя перевести в
+  // done без финального документа этого вида (обход — мастер, P1-05).
+  isBlocking Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Одна строка на пару этап+вид: чек-лист — множество, не счётчик
+  // (несколько документов вида допустимы, требование — одно).
+  @@unique([stageCode, kind])
+  @@index([stageCode])
+}
+
 // ─── Воронка (Дорожка В, В1) ────────────────────────────────────────
 // Lead/QuoteOption добавлены с Дорожкой В; Order получил опциональную
 // ссылку leadId (ручные заявки без лида — законны, null).

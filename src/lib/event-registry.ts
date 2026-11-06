@@ -79,6 +79,10 @@ export const EVENT_TYPES: Record<ActivityType, EventMeta> = {
   stage_planned_changed: { label: 'План этапа изменён', audience: ['staff', 'client'], notify: [] },
   stage_updated: { label: 'Этап обновлён', audience: ['staff', 'client'], notify: [] },
   stage_removed: { label: 'Этап удалён', audience: ['staff', 'client'], notify: [] },
+  // DF-14: обход блокировки чек-листа (мастер, override + комментарий).
+  // staff-only: причина обхода — внутренняя; клиенту достаточно
+  // stage_status_changed «этап завершён».
+  stage_done_overridden: { label: 'Завершение этапа перекрыто мастером', audience: ['staff'], notify: [] },
   // подрядчики — внутренний контур (кабинет заморожен, D31)
   contractor_created: { label: 'Перевозчик добавлен', audience: ['staff'], notify: [] },
   contractor_updated: { label: 'Данные перевозчика обновлены', audience: ['staff'], notify: [] },
@@ -125,6 +129,21 @@ export const EVENT_TYPES: Record<ActivityType, EventMeta> = {
   // спам (§8); уведомление о новой версии уже уходит клиенту/брокеру.
   document_finalized: { label: 'Документ финализирован', audience: ['staff', 'client', 'broker'], notify: [] },
   document_reopened: { label: 'Документ возвращён в работу', audience: ['staff', 'client', 'broker'], notify: [] },
+  // DF-26: «отправить на проверку» — как у document_created: внешний
+  // автор двигает документ, ответственному видно (письмо решает правило;
+  // лента — всем адресатам документа).
+  document_submitted: { label: 'Документ отправлен на проверку', audience: ['staff', 'client', 'broker'], notify: ['responsible-if-external-actor'] },
+  // DF-26 (§6.2, O5): семантика скачивания — без уведомлений и
+  // дедупликации; формулировки различают «выдана ссылка» (302,
+  // передача не подтверждена) и «скачан» (сервер отдал байты).
+  // Аудиторию переопределяет точка вызова по isInternal документа
+  // (документ-загрузка), как у прочих документных событий.
+  document_link_issued: { label: 'Выдана ссылка на скачивание', audience: ['staff', 'client', 'broker'], notify: [] },
+  document_downloaded: { label: 'Документ скачан', audience: ['staff', 'client', 'broker'], notify: [] },
+  document_package_downloaded: { label: 'Сформирован и отдан архив (ZIP)', audience: ['staff', 'client', 'broker'], notify: [] },
+  // DF-26 (AUD-11): смена привязки документа к этапу — сотрудник; всем
+  // адресатам документа (факт виден в ленте), без писем.
+  document_stage_changed: { label: 'Изменён этап документа', audience: ['staff', 'client', 'broker'], notify: [] },
   // внутренние заметки (Ж3) — только staff, уведомлений нет (§8)
   note_added: { label: 'Внутренняя заметка', audience: ['staff'], notify: [] },
   // настройки системы (DF-00D, D32) — глобальное событие БЕЗ цели-сделки

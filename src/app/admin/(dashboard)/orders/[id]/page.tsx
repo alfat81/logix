@@ -5,20 +5,16 @@
 // order/types.ts (RULES 2.14, файлы ≤ 300). Layout — BRANDBOOK §4:
 // рабочая область 1fr + правая панель 320px.
 //
-// DF-21: правая панель — вкладки «События | Документы | Расчёт»
-// (order/OrderSidePanel.tsx) с номером заявки, совпадающим с шапкой
-// страницы (один GET — один order.number); заметка и лента переехали
-// во вкладку «События», документы — в «Документы», расчёт таможенных
-// платежей — в «Расчёт» (DF-19 закрыт; чата и «AI Assistant» нет).
-// На телефоне (≤768px, §4.5) страница — полноэкранный «лист деталей»
-// с кнопкой «Назад»; основная колонка складывается под панелью без
-// изменения DOM-порядка.
+// DF-21: правая панель — вкладки «События | Документы | Расчёт»;
+// DF-26: выбор вкладки «Документы» переводит основную область в реестр
+// документов (order/OrderRegistryMode), возврат — «К заявке» в его
+// шапке; карточки заявки (груз, расчёт, этапы) скрываются, состояние
+// страницы сохраняется. На телефоне (≤768px, §4.5) страница —
+// полноэкранный «лист деталей» с кнопкой «Назад»; основная колонка
+// складывается под панелью без изменения DOM-порядка.
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { ArrowLeft, ArrowRight, Loader2, Printer } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Loader2, Printer } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -32,18 +28,18 @@ import { OrderStatusBadge } from '@/components/admin/OrdersList'
 import { WaitingBadge } from '@/components/admin/WaitingBadge'
 import { Breadcrumbs } from '@/components/admin/Breadcrumbs'
 import { AssigneeField } from '@/components/admin/AssigneeField'
-import { InfoField } from '@/components/admin/InfoField'
 import { BrokerLinksSection, type BrokerEstimateRow } from '@/components/admin/BrokerLinksSection'
 import { toEstimatePrefill } from '@/components/admin/customs/prefill'
 import { OrderSidePanel } from '@/components/admin/order/OrderSidePanel'
-import { PermitsSection } from '@/components/permits/PermitsSection'
-import { CARGO_PROFILE_LABELS } from '@/lib/order-constants'
+import { OrderInfoCards } from '@/components/admin/order/OrderInfoCards'
+import { OrderRegistryMode } from '@/components/admin/order/OrderRegistryMode'
 import { ORDER_STATUSES, ORDER_STATUS_LABELS } from '@/lib/order-constants'
-import { fmtDate, type OrderFull } from '@/components/admin/order/types'
+import type { OrderFull } from '@/components/admin/order/types'
 import { OrderCargoCard } from '@/components/admin/order/OrderCargoCard'
 import { OrderQuoteCard } from '@/components/admin/order/OrderQuoteCard'
 import { OrderStages } from '@/components/admin/order/OrderStages'
 import { StatusSuggestion } from '@/components/admin/order/StatusSuggestion'
+import { BackLink } from '@/components/admin/order/BackLink'
 
 export default function OrderPage() {
   const { id } = useParams<{ id: string }>()
@@ -52,6 +48,8 @@ export default function OrderPage() {
 
   const [order, setOrder] = useState<OrderFull | null>(null)
   const [loading, setLoading] = useState(true)
+  // DF-26: режим основной области — карточки заявки или реестр документов
+  const [docsOpen, setDocsOpen] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -104,9 +102,6 @@ export default function OrderPage() {
     )
   }
 
-  const doneCount = order.stages.filter((s) => s.status === 'done').length
-  const problemCount = order.stages.filter((s) => s.status === 'problem').length
-
   // Д: оценки брокеров по brokerId — с лида-источника (перенос В4):
   // оценка живёт на связи LeadBroker, заявка показывает её в
   // контексте каждого подключённого брокера
@@ -119,21 +114,12 @@ export default function OrderPage() {
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-6">
-      {/* BRANDBOOK §4: рабочая область 1fr + правая панель 320px (DF-21 —
-          панель с вкладками «События | Документы | Расчёт»); < xl панель
+      {/* BRANDBOOK §4: рабочая область 1fr + правая панель 320px; < xl панель
           складывается вниз после основной колонки, DOM-порядок сохранён */}
       <div className="space-y-4 min-w-0">
         {/* §4.5 (DF-21): на телефоне лист деталей начинается кнопкой
             «Назад» (md:hidden); на md+ путь показывает Ж7-крошки */}
-        <Link
-          href="/admin/orders"
-          className="md:hidden inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" aria-hidden />
-          Назад
-        </Link>
-        {/* Ж7: крошки вместо кнопки «назад» — путь виден целиком
-            (Главная / Заявки / текущая заявка). */}
+        <BackLink href="/admin/orders" />
         <Breadcrumbs
           items={[
             { label: 'Главная', href: '/admin' },
@@ -197,92 +183,48 @@ export default function OrderPage() {
           onApply={(to) => patchOrder({ status: to })}
         />
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Условия перевозки</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <InfoField label="Клиент" value={order.customer.name} />
-            {/* Ж1: контакты клиента прямо в карточке — менеджеру не
-                ходить за ними в справочник */}
-            <InfoField label="Телефон клиента" value={order.customer.phone ?? '—'} />
-            <InfoField label="Email клиента" value={order.customer.email ?? '—'} />
-            <InfoField label="Юрлицо" value={order.legalEntity.name} />
-            <InfoField label="Договор" value={`№ ${order.contract.number}`} />
-            <InfoField label="Создана" value={fmtDate(order.createdAt)} />
-            <InfoField label="Инкотермс" value={order.incoterm ?? '—'} />
-            <InfoField label="Место поставки" value={order.incotermPlace ?? '—'} />{/* DF-23 (г): DF-19, место — рядом с кодом */}
-            <InfoField label="ТН ВЭД" value={order.hsCode ?? '—'} />
-            <InfoField label="Груз" value={CARGO_PROFILE_LABELS[order.cargoProfile]} />
-            <InfoField
-              label="Этапы"
-              value={`${doneCount}/${order.stages.length} завершено${problemCount ? ` · ${problemCount} проблема` : ''}`}
+        {docsOpen ? (
+          /* DF-26: режим реестра — карточки заявки скрыты, состояние
+             страницы сохраняется; возврат — «К заявке» в шапке реестра */
+          <OrderRegistryMode
+            orderId={String(id)}
+            transportType={order.transportType ?? null}
+            stages={order.stages}
+            onBack={() => setDocsOpen(false)}
+            onChanged={load}
+          />
+        ) : (
+          <>
+            <OrderInfoCards order={order} />
+            <OrderCargoCard
+              orderId={String(id)}
+              route={order}
+              cargoInfo={order.cargoInfo}
+              onChanged={load}
             />
-          </CardContent>
-        </Card>
-
-        {/* ── Ж1: лид-источник (заявки из воронки В4) ───────────────
-            Снимки груза и условий уже скопированы в заявку — ссылка
-            ведёт к истории запроса (варианты, отказы, анкета лида) */}
-        {order.lead && (
-          <Card className="p-4 flex flex-wrap items-center gap-4 border-success/50 bg-success/5">
-            <div className="flex-1">
-              <div className="font-medium">Конвертирована из запроса от {fmtDate(order.lead.createdAt)}</div>
-              <div className="text-sm text-muted-foreground">
-                Груз и условия скопированы снимком — заявка живёт независимо от запроса
-              </div>
-            </div>
-            <Button variant="outline" asChild>
-              <Link href={`/admin/leads/${order.lead.id}`}>
-                Запрос-источник
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-          </Card>
+            <OrderQuoteCard
+              orderId={String(id)}
+              snapshot={order.quoteSnapshot}
+              onChanged={load}
+            />
+            {/* ── Д: брокеры сделки (5а) — видимость заявки целиком;
+                оценки — с лида-источника, живые (брокер уточняет и после В4) */}
+            <BrokerLinksSection
+              targetType="order"
+              targetId={String(id)}
+              links={order.brokers}
+              estimatesByBrokerId={estimatesByBrokerId}
+              onChanged={load}
+              emptyText="Брокеры не подключены — сделка видна только менеджеру и подключённым подрядчикам своих этапов"
+            />
+            <OrderStages orderId={String(id)} stages={order.stages} onChanged={load} />
+          </>
         )}
-
-        {/* ── Ж1: суть заявки — груз и маршрут + условия сделки
-            (компоненты order/, P1-19) ─────────────────────────────── */}
-        <OrderCargoCard
-          orderId={String(id)}
-          route={order}
-          cargoInfo={order.cargoInfo}
-          onChanged={load}
-        />
-        <OrderQuoteCard
-          orderId={String(id)}
-          snapshot={order.quoteSnapshot}
-          onChanged={load}
-        />
-
-        {/* ── Д: брокеры сделки (5а) — видимость заявки целиком; оценки
-            — с лида-источника, живые (брокер уточняет и после В4) ── */}
-        <BrokerLinksSection
-          targetType="order"
-          targetId={String(id)}
-          links={order.brokers}
-          estimatesByBrokerId={estimatesByBrokerId}
-          onChanged={load}
-          emptyText="Брокеры не подключены — сделка видна только менеджеру и подключённым подрядчикам своих этапов"
-        />
-
-        {/* ── DF-16: разрешительные — обязательства из ответа брокера и
-            добавленные вручную; закрытие загрузкой файла в строке ── */}
-        <PermitsSection
-          viewer="staff"
-          permitsUrl={`/api/admin/orders/${id}/permits`}
-          createUrl={`/api/admin/orders/${id}/permits`}
-          patchUrlFor={(permitId) => `/api/admin/permits/${permitId}`}
-          documentUrlFor={(permitId) => `/api/admin/permits/${permitId}/document`}
-          onChanged={load}
-        />
-
-        <OrderStages orderId={String(id)} stages={order.stages} onChanged={load} />
       </div>
 
       {/* Правая панель (BRANDBOOK §4, 320px) — DF-21: вкладки
-          «События | Документы | Расчёт»; номер в панели = номер шапки
-          (один order.number). Sticky на xl; на < xl — блок внизу. */}
+          «События | Документы | Расчёт»; DF-26: «Документы» — сводка
+          и переключение основной области в реестр */}
       <aside className="min-w-0 xl:sticky xl:top-14">
         <OrderSidePanel
           orderNumber={order.number}
@@ -293,6 +235,7 @@ export default function OrderPage() {
           initialIncoterm={order.incotermCode}
           initialPlace={order.incotermPlace}
           onChanged={load}
+          onOpenRegistry={() => setDocsOpen(true)}
         />
       </aside>
     </div>

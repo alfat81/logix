@@ -10,9 +10,7 @@ import { readApiResponse } from '@/lib/api-client'
 // CargoGroups — общий доменный бланк анкеты (см. комментарий в
 // ClientHome): показывает собственную анкету клиента по заявке.
 import { CargoGroups } from '@/components/admin/CargoGroups'
-import { DocumentsPackageSection } from '@/components/documents/DocumentsPackageSection'
-import { PermitsSection } from '@/components/permits/PermitsSection'
-import type { PermitRowUi } from '@/components/permits/types'
+import { DocumentsRegistrySection } from '@/components/documents/DocumentsRegistrySection'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
 import {
   ClientOrderStatusBadge,
@@ -61,9 +59,10 @@ type ClientOrder = {
   // DF-21: журнал сделки — события с аудиторией 'client' (заметки
   // «видна клиенту», статусы, документы); без служебных меток
   activities?: ClientActivityRow[]
-  // DF-16: разрешительные заявки (наружная проекция — staffNote не
-  // покидает сервер; загрузкой файла в строке клиент её закрывает)
-  permitRequirements?: PermitRowUi[]
+  // DF-26: разрешительные приходят в реестр через package-роут
+  // (строки требований в фазах, §3.3.3); поле карточки сохранено
+  // для совместимости ответа GET, UI его больше не читает.
+  permitRequirements?: unknown[]
 }
 
 const fmtDate = (iso: string | null): string =>
@@ -183,16 +182,7 @@ export function ClientOrderCard() {
         </CardContent>
       </Card>
 
-      {/* DF-16: разрешительные документы вашей заявки — что ждём от вас,
-          закрывается загрузкой файла прямо в строке; до загрузки видно
-          напоминание наверху секции */}
-      <PermitsSection
-        viewer="client"
-        initialPermits={order.permitRequirements ?? []}
-        documentUrlFor={(permitId) => `/api/client/permits/${permitId}/document`}
-        onChanged={load}
-        emptyText="Разрешительных документов по заявке нет"
-      />
+
 
       {/* DF-21: журнал сделки — заметки менеджера «видна клиенту» и
           события статусов; без служебных меток и внутренних событий */}
@@ -201,16 +191,19 @@ export function ClientOrderCard() {
         emptyText="Событий пока нет — здесь появятся новости по вашей заявке"
       />
 
-      {/* ── Е: документы сделки (роадмап 5) — клиент загружает проекты
-          и видит правки брокера/менеджера в истории версий; обмен
-          внутри сервиса, без почты. Внутренние документы менеджера
-          клиенту не видны (изоляция в API). */}
-      <DocumentsPackageSection
+      {/* ── DF-26: единый реестр документов заявки по фазам перевозки —
+          клиент загружает проекты и видит правки в истории версий;
+          разрешительные — строки требований в фазах реестра (§3.3.3,
+          T21-03), загрузка — единая форма «Новый документ» (T21-02).
+          Внутренние документы менеджера не отдаются (изоляция в API). */}
+      <DocumentsRegistrySection
+        transportType={order.transportType ?? null}
         packageUrl={`/api/client/orders/${order.id}/package`}
         zipUrl={`/api/client/orders/${order.id}/package/zip`}
         documentsUrl={`/api/client/orders/${order.id}/documents`}
         versionsUrlFor={(docId) => `/api/client/documents/${docId}/versions`}
-        title="Пакет документов"
+        submitUrlFor={(docId) => `/api/client/documents/${docId}/status`}
+        onChanged={load}
       />
     </div>
   )

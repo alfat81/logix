@@ -1,9 +1,15 @@
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 import { db } from './db'
 import { clearSettingsCache, setSetting, resetSetting } from './settings'
 import { employeeActor } from './activity'
 import { detectFamily, mimeForFileName, resolveFileMime } from './file-signature'
-import { maxUploadBytes, normalizeUploadMime, uploadSizeError } from './document-upload'
+import {
+  createPendingDocument,
+  maxUploadBytes,
+  normalizeUploadMime,
+  uploadSizeError,
+  UploadValidationError,
+} from './document-upload'
 
 // ─── DF-11: unit — лимиты из настроек, MIME двухфазной загрузки ──────
 // Карточка DF-11: «unit: … проверка сигнатуры, лимиты». Сигнатура —
@@ -74,5 +80,102 @@ describe('uploadSizeError (формулировка 2.7: что случилос
     const text = uploadSizeError(30 * 1024 * 1024, 25 * 1024 * 1024)
     expect(text).toContain('25.0 МБ')
     expect(text).toContain('уменьшите файл')
+  })
+})
+
+// ─── DF-26/AUD-11 + §3.3.6 (T21-04): ранняя валидация привязок ───────
+// stageCode — этап ЭТОЙ заявки; permitRequirementId — строка той же
+// сделки в pending (T21-02). Проверки выполняются ДО отправки файла в
+// хранилище (fail-fast): успех полного цикла — e2e двухфазной загрузки.
+
+const CREATE_INPUT = {
+  kind: 'customs_declaration' as const,
+  title: 'ДТ',
+  fileName: 'dt.pdf',
+  mimeType: 'application/pdf',
+  size: 1024,
+}
+
+describe('createPendingDocument: привязки stageCode/permitRequirementId (AUD-11, T21-02)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('stageCode на лиде — 400 (этапы есть только у заявки)', async () => {
+    await expect(
+      createPendingDocument({ leadId: 'lead-1' }, MASTER, { ...CREATE_INPUT, stageCode: 'import_customs' }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'Этап указывается только у документов заявки',
+    } satisfies Partial<UploadValidationError>)
+  })
+
+  it('stageCode не из этой заявки — 400, а не тихий null', async () => {
+    vi.spyOn(db.orderStageInstance, 'findFirst').mockResolvedValue(null)
+    await expect(
+      createPendingDocument({ orderId: 'ord-1' }, MASTER, { ...CREATE_INPUT, stageCode: 'warehouse' }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'Этап не найден в этой заявке',
+    } satisfies Partial<UploadValidationError>)
+    expect(db.orderStageInstance.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { orderId: 'ord-1', stageCode: 'warehouse' } }),
+    )
+  })
+
+  it('permitRequirementId чужой сделки — 404 (факт существования не раскрываем)', async () => {
+    vi.spyOn(db.permitRequirement, 'findUnique').mockResolvedValue({
+      id: 'p1',
+      status: 'pending',
+      orderId: 'other-order',
+      leadId: null,
+    } as never)
+    await expect(
+      createPendingDocument({ orderId: 'ord-1' }, MASTER, {
+        ...CREATE_INPUT,
+        permitRequirementId: 'p1',
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 404,
+      message: 'Разрешительное требование не найдено в этой сделке',
+    } satisfies Partial<UploadValidationError>)
+  })
+
+  it('permitRequirementId закрытой строки — 409 (документ правится версиями)', async () => {
+    vi.spyOn(db.permitRequirement, 'findUnique').mockResolvedValue({
+      id: 'p2',
+      status: 'received',
+      orderId: 'ord-1',
+      leadId: null,
+    } as never)
+    await expect(
+      createPendingDocument({ orderId: 'ord-1' }, MASTER, {
+        ...CREATE_INPUT,
+        permitRequirementId: 'p2',
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'Строка уже закрыта — документ прикладывается версиями к загруженному',
+    } satisfies Partial<UploadValidationError>)
+  })
+
+  it('строка той же сделки в pending проходит проверку (ошибка дальше — по циклу e2e)', async () => {
+    vi.spyOn(db.permitRequirement, 'findUnique').mockResolvedValue({
+      id: 'p3',
+      status: 'pending',
+      orderId: 'ord-1',
+      leadId: null,
+    } as never)
+    // Дальше валидации идёт presign хранилища — в unit не заходим:
+    // ловим ЛЮБУЮ ошибку после проверки привязки и сверяем, что она не
+    // про требование (успешный полный цикл — e2e POST documents).
+    await expect(
+      createPendingDocument({ orderId: 'ord-1' }, MASTER, {
+        ...CREATE_INPUT,
+        permitRequirementId: 'p3',
+      }),
+    ).rejects.not.toMatchObject({
+      message: 'Разрешительное требование не найдено в этой сделке',
+    })
   })
 })

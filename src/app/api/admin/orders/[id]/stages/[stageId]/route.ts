@@ -7,6 +7,7 @@ import { isStageMandatory, todayUtcMidnight, utcDayStart } from '@/lib/orders'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { employeeActor, fmtRuDate, type ActivityType } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
+import { guardStageDone, type StageDoneGuard } from '@/lib/stage-doc-requirements-server'
 
 type Params = { params: Promise<{ id: string; stageId: string }> }
 
@@ -25,6 +26,11 @@ const PatchStageSchema = z.object({
   // Пустая строка — НЕ «снять», а некорректные данные (400): явный
   // null в JSON однозначнее молчаливой конвертации.
   contractorId: z.string().trim().min(1).nullable().optional(),
+  // DF-14: обход блокировки чек-листа — ТОЛЬКО мастер с комментарием
+  // (прецедент P1-05: override осознанный, попадает в журнал — не
+  // молчаливый обход). Менеджеру — 403, без комментария — 400.
+  override: z.boolean().optional(),
+  overrideComment: z.string().trim().max(500).optional(),
 })
 
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -71,6 +77,30 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const warnings: string[] = []
     if (data.plannedDate && utcDayStart(new Date(data.plannedDate)) < todayUtcMidnight()) {
       warnings.push('Плановая дата этапа — в прошлом: проверьте, не нужно ли её актуализировать')
+    }
+
+    // ── DF-14: блокировка чек-листа при завершении этапа ──
+    // Лестница 409/403/400 — в guardStageDone (общий override-guard с
+    // P1-05); рекомендованные требования (дефолты O-5) не блокируют.
+    let overrideMissing: Extract<StageDoneGuard, { ok: true }>['missing'] = []
+    if (data.status === 'done') {
+      const guard = await guardStageDone({
+        orderId: id,
+        stageCode: stage.stageCode,
+        override: data.override,
+        overrideComment: data.overrideComment,
+        isMaster: auth.employee.roles.includes('master'),
+      })
+      if (!guard.ok) {
+        return NextResponse.json(
+          {
+            error: guard.error,
+            ...(guard.missing && guard.status === 409 ? { missingDocuments: guard.missing } : {}),
+          },
+          { status: guard.status }
+        )
+      }
+      overrideMissing = guard.missing
     }
 
     // Перестановка — только для необязательных: порядок обязательного
@@ -173,6 +203,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       events.push({
         type: 'stage_status_changed',
         description: `Этап «${stageName}»: ${STAGE_STATUS_LABELS[stage.status as StageStatus] ?? stage.status} → ${STAGE_STATUS_LABELS[data.status]}`,
+      })
+    }
+    // DF-14: обход блокировки — отдельное staff-событие с комментарием
+    // мастера (клиенту уходит только stage_status_changed «этап
+    // завершён»; причина обхода — внутренняя).
+    if (data.status === 'done' && data.override && overrideMissing.length > 0) {
+      events.push({
+        type: 'stage_done_overridden',
+        description: `Этап «${stageName}» завершён перекрытием мастера: ${data.overrideComment} (нет финальных: ${overrideMissing
+          .map((m) => `«${m.label}»`)
+          .join(', ')})`,
       })
     }
     if (data.plannedDate !== undefined) {

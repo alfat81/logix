@@ -98,7 +98,10 @@ export function checkLeadTransition(from: LeadStatus, to: LeadStatus): Transitio
 //   возникает только возвратом из финала; клиент/брокер загружают
 //   версии в draft и in_review, гард финальности — lib/document-upload.ts.
 export const DOCUMENT_TRANSITIONS: Record<DocumentStatus, readonly DocumentStatus[]> = {
-  draft: ['final'],
+  // DF-26: «отправить на проверку» — автор/сотрудник переводит черновик
+  // в in_review (событие document_submitted); финализация из черновика
+  // остаётся (короткий контур без проверки).
+  draft: ['in_review', 'final'],
   in_review: ['final'],
   final: ['in_review'],
 }

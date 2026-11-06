@@ -6,6 +6,7 @@ import {
   isChoiceFollowupDue,
   isStageOverdue,
   nearestUnfinishedStage,
+  WAITING_CLIENT_LABELS,
   WAITING_REASON_LABELS,
   type WaitingBrokerSnapshot,
   type WaitingLeadSnapshot,
@@ -431,5 +432,195 @@ describe('computeWaiting* (DF-16, awaiting_permit)', () => {
     expect(
       computeWaitingOrder(orderSnap({ pendingPermits: [] }), TODAY).reason
     ).not.toBe('awaiting_permit')
+  })
+})
+
+// ─── DF-14: правило 8 — чек-листы обязательных документов этапа ──────
+// Условие: у БЛИЖАЙШЕГО незавершённого этапа есть блокирующее требование
+// без финального документа этого вида на заявке → мяч у стороны из
+// чек-листа (providedBy). Приоритет: 6 → 6б → 8 → 7 (решение отчёта
+// DF-14: строгий порядок таблицы DF-05 делал бы 8 мёртвым кодом —
+// правило 7 catch-all).
+describe('computeWaitingOrder: правило 8 awaiting_document (DF-14)', () => {
+  const reqs = [
+    { kind: 'customs_declaration' as const, providedBy: 'broker' as const, isBlocking: true },
+  ]
+  // Ближайший этап в срок, с исполнителем — без правила 8 мяч был бы у
+  // перевозчика (правило 7 catch-all).
+  const base = {
+    status: 'in_progress',
+    customerId: 'c1',
+    assignedToId: 'm1',
+    stages: [stage(1, 'in_progress', 'k1', TOMORROW)],
+    brokers: [],
+    pendingPermits: [],
+  }
+
+  it('8: блокирующий документ этапа отсутствует — мяч у брокера (providedBy)', () => {
+    expect(
+      computeWaitingOrder(orderSnap({ ...base, stageRequirements: reqs, finalKinds: [] }), TODAY)
+    ).toEqual({ kind: 'broker', reason: 'awaiting_document', onId: null })
+  })
+
+  it('8: брокер подключён — onId = брокер', () => {
+    expect(
+      computeWaitingOrder(
+        orderSnap({ ...base, brokers: brokers('b1', true), stageRequirements: reqs, finalKinds: [] }),
+        TODAY
+      )
+    ).toEqual({ kind: 'broker', reason: 'awaiting_document', onId: 'b1' })
+  })
+
+  it('8: providedBy client → мяч у клиента (клиентская плашка neutral)', () => {
+    expect(
+      computeWaitingOrder(
+        orderSnap({
+          ...base,
+          stageRequirements: [{ kind: 'commercial_invoice', providedBy: 'client', isBlocking: true }],
+          finalKinds: [],
+        }),
+        TODAY
+      )
+    ).toEqual({ kind: 'client', reason: 'awaiting_document', onId: 'c1' })
+  })
+
+  it('8: providedBy staff → менеджер (документы перевозчика вносит менеджер, D31)', () => {
+    expect(
+      computeWaitingOrder(
+        orderSnap({
+          ...base,
+          stageRequirements: [{ kind: 'bill_of_lading', providedBy: 'staff', isBlocking: true }],
+          finalKinds: [],
+        }),
+        TODAY
+      )
+    ).toEqual({ kind: 'manager', reason: 'awaiting_document', onId: 'm1' })
+  })
+
+  it('8: финальный документ вида на заявке — требование закрыто, мяч у перевозчика', () => {
+    expect(
+      computeWaitingOrder(orderSnap({ ...base, stageRequirements: reqs, finalKinds: ['customs_declaration'] }), TODAY)
+    ).toEqual({ kind: 'contractor', reason: 'stage_in_progress', onId: 'k1' })
+  })
+
+  it('8: черновик не закрывает требование (финальные виды — только final)', () => {
+    // finalKinds собирается из status='final' — черновик в снапшот не
+    // попадает; кейс фиксирует семантику missingKinds (final — источник).
+    expect(
+      computeWaitingOrder(orderSnap({ ...base, stageRequirements: reqs, finalKinds: [] }), TODAY).reason
+    ).toBe('awaiting_document')
+  })
+
+  it('8: рекомендованное требование (isBlocking=false) не отбивает мяч', () => {
+    expect(
+      computeWaitingOrder(
+        orderSnap({
+          ...base,
+          stageRequirements: [{ kind: 'customs_declaration', providedBy: 'broker', isBlocking: false }],
+          finalKinds: [],
+        }),
+        TODAY
+      )
+    ).toEqual({ kind: 'contractor', reason: 'stage_in_progress', onId: 'k1' })
+  })
+
+  it('8: требования другого этапа не действуют (снапшот — только ближайший)', () => {
+    // waiting-db кладёт в снапшот требования ТОЛЬКО ближайшего этапа;
+    // регресс пустого снапшота: правило не срабатывает
+    expect(
+      computeWaitingOrder(orderSnap({ ...base, stageRequirements: [], finalKinds: [] }), TODAY)
+    ).toEqual({ kind: 'contractor', reason: 'stage_in_progress', onId: 'k1' })
+  })
+
+  it('приоритет: проблема этапа (2) сильнее правила 8', () => {
+    expect(
+      computeWaitingOrder(
+        orderSnap({
+          status: 'in_progress',
+          customerId: 'c1',
+          assignedToId: 'm1',
+          stages: [stage(1, 'problem'), stage(2, 'in_progress', 'k1', TOMORROW)],
+          brokers: [],
+          pendingPermits: [],
+          stageRequirements: reqs,
+          finalKinds: [],
+        }),
+        TODAY
+      )
+    ).toEqual({ kind: 'manager', reason: 'stage_problem', onId: 'm1' })
+  })
+
+  it('приоритет: исполнитель не назначен (6) сильнее правила 8', () => {
+    expect(
+      computeWaitingOrder(
+        orderSnap({ ...base, stages: [stage(1, 'in_progress', null, TOMORROW)], stageRequirements: reqs, finalKinds: [] }),
+        TODAY
+      )
+    ).toEqual({ kind: 'manager', reason: 'stage_unassigned', onId: 'm1' })
+  })
+
+  it('приоритет: просроченный план (6б) сильнее правила 8', () => {
+    expect(
+      computeWaitingOrder(
+        orderSnap({ ...base, stages: [stage(1, 'in_progress', 'k1', YESTERDAY)], stageRequirements: reqs, finalKinds: [] }),
+        TODAY
+      )
+    ).toEqual({ kind: 'manager', reason: 'stage_overdue_followup', onId: 'm1' })
+  })
+
+  it('приоритет: calculating (3) сильнее правила 8', () => {
+    expect(
+      computeWaitingOrder(orderSnap({ ...base, status: 'calculating', stageRequirements: reqs, finalKinds: [] }), TODAY)
+    ).toEqual({ kind: 'manager', reason: 'calculating', onId: 'm1' })
+  })
+
+  it('приоритет: ожидание оценки брокера (5) сильнее правила 8', () => {
+    expect(
+      computeWaitingOrder(
+        orderSnap({ ...base, brokers: brokers('b1', false), stageRequirements: reqs, finalKinds: [] }),
+        TODAY
+      )
+    ).toEqual({ kind: 'broker', reason: 'awaiting_broker_estimate', onId: 'b1' })
+  })
+
+  it('8: несколько недостающих — первый по порядку справочника DOCUMENT_KINDS', () => {
+    expect(
+      computeWaitingOrder(
+        orderSnap({
+          ...base,
+          stageRequirements: [
+            { kind: 'customs_declaration', providedBy: 'broker', isBlocking: true },
+            { kind: 'commercial_invoice', providedBy: 'client', isBlocking: true },
+          ],
+          finalKinds: [],
+        }),
+        TODAY
+      ).reason
+    ).toBe('awaiting_document')
+    // commercial_invoice раньше в DOCUMENT_KINDS → мяч у клиента
+    expect(
+      computeWaitingOrder(
+        orderSnap({
+          ...base,
+          stageRequirements: [
+            { kind: 'customs_declaration', providedBy: 'broker', isBlocking: true },
+            { kind: 'commercial_invoice', providedBy: 'client', isBlocking: true },
+          ],
+          finalKinds: [],
+        }),
+        TODAY
+      ).kind
+    ).toBe('client')
+  })
+
+  it('8: completed — мяча нет даже с недостающими (правило 1)', () => {
+    expect(
+      computeWaitingOrder(orderSnap({ ...base, status: 'completed', stageRequirements: reqs, finalKinds: [] }), TODAY)
+    ).toEqual({ kind: 'none', reason: null, onId: null })
+  })
+
+  it('подписи причины добавлены (клиентская — нейтральная)', () => {
+    expect(WAITING_REASON_LABELS.awaiting_document).toBeTruthy()
+    expect(WAITING_CLIENT_LABELS.awaiting_document).toBeTruthy()
   })
 })

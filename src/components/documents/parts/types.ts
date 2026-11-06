@@ -34,6 +34,8 @@ export type DocRowUi = {
   // всегда — fallback на легаси type оставлен страховкой чтения.
   kind: DocumentKind | string | null
   status: DocumentStatus | string
+  // DF-26/AUD-11: привязка к этапу заявки (точка записи — реестр).
+  stageCode?: string | null
   finalizedAt: string | null
   finalizedByName: string | null
   finalVersion: number | null
@@ -68,14 +70,6 @@ export function statusLabel(s: string): string {
 /** Подпись статуса слота пакета (DF-13): «Нет» / статусы документа. */
 export function slotStatusLabel(s: string): string {
   return PACKAGE_SLOT_STATUS_LABELS[s as PackageSlotStatus] ?? s
-}
-
-/** DF-13: слот пакета — строка вида документа с его документами. */
-export type PackageSlotUi = {
-  kind: DocumentKind | string
-  status: PackageSlotStatus | string
-  provider: 'client' | 'broker' | 'staff' | null
-  documents: DocRowUi[]
 }
 
 export function fmtDateTime(iso: string): string {

@@ -1,14 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { db } from '@/lib/db'
 import {
   activeOrdersTotal,
   emptyOrderStatusCounts,
   fillOrderStatusCounts,
+  orderDocListCounts,
 } from '@/lib/order-counts'
 import { ORDER_ACTIVE_STATUSES, ORDER_STATUSES } from '@/lib/order-constants'
 
 // DF-21: счётчики заявок — единый источник для бейджа меню и табов
 // списка. Проверяется чистый слой: каркас, наполнение, активный итог
 // (групповые запросы к БД покрывает e2e).
+// DF-26 §3.7 (T21-04): строка «Документы: N · M разрешительных
+// ожидаются» — каркас orderDocListCounts (карта по id, нули без строк,
+// короткое замыкание на пустом списке).
 
 describe('order-counts (DF-21: один источник счётчиков)', () => {
   it('каркас содержит все статусы ORDER_STATUSES и «all», нули', () => {
@@ -56,5 +61,49 @@ describe('order-counts (DF-21: один источник счётчиков)', (
     ])
     expect(counts.all).toBe(1)
     expect(counts.calculating).toBe(1)
+  })
+})
+
+describe('orderDocListCounts (DF-26 §3.7: строка документов в списке)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('пустой список id — нулевая карта, БД не запрашивается', async () => {
+    const docSpy = vi.spyOn(db.document, 'groupBy')
+    const permitSpy = vi.spyOn(db.permitRequirement, 'groupBy')
+    const map = await orderDocListCounts([])
+    expect(map.size).toBe(0)
+    expect(docSpy).not.toHaveBeenCalled()
+    expect(permitSpy).not.toHaveBeenCalled()
+  })
+
+  it('счётчики по заявкам: документы с готовой версией + pending-разрешительные', async () => {
+    vi.spyOn(db.document, 'groupBy').mockResolvedValue([
+      { orderId: 'o1', _count: { _all: 8 } },
+      { orderId: 'o3', _count: { _all: 1 } },
+    ] as never)
+    vi.spyOn(db.permitRequirement, 'groupBy').mockResolvedValue([
+      { orderId: 'o1', _count: { _all: 2 } },
+    ] as never)
+    const map = await orderDocListCounts(['o1', 'o2', 'o3'])
+    // «Документы: 8 · 2 разрешительных ожидаются»
+    expect(map.get('o1')).toEqual({ docs: 8, permitsPending: 2 })
+    // заявка без строк — нули (каркас по всем запрошенным id)
+    expect(map.get('o2')).toEqual({ docs: 0, permitsPending: 0 })
+    expect(map.get('o3')).toEqual({ docs: 1, permitsPending: 0 })
+    expect(map.size).toBe(3)
+  })
+
+  it('строки groupBy с orderId null игнорируются (документ вне сделки)', async () => {
+    vi.spyOn(db.document, 'groupBy').mockResolvedValue([
+      { orderId: null, _count: { _all: 5 } },
+      { orderId: 'o1', _count: { _all: 2 } },
+    ] as never)
+    vi.spyOn(db.permitRequirement, 'groupBy').mockResolvedValue([
+      { orderId: null, _count: { _all: 3 } },
+    ] as never)
+    const map = await orderDocListCounts(['o1'])
+    expect(map.get('o1')).toEqual({ docs: 2, permitsPending: 0 })
   })
 })

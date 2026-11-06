@@ -18,6 +18,8 @@
 
 import { businessDaysElapsed } from '@/lib/business-days'
 import { pickMostUrgentPermit, permitHolderKind, type PermitUrgencyRow, type PermitProvider } from '@/lib/permits'
+import { awaitingDocumentOutcome } from '@/lib/stage-doc-requirements'
+import type { DocProvider, DocumentKind } from '@/lib/document-constants'
 
 // ─── Кто держит мяч ───────────────────────────────────────────────────
 
@@ -40,8 +42,8 @@ export const WAITING_KIND_LABELS: Record<WaitingKind, string> = {
 }
 
 // ─── Причины (коды — в БД, подписи — в UI сотрудника) ────────────────
-// awaiting_permit добавлен DF-16; awaiting_document (DF-14) появится
-// со своей карточкой — мёртвых кодов заранее не заводим (G4).
+// awaiting_permit добавлен DF-16; awaiting_document — DF-14 (чек-листы
+// обязательных документов по этапам).
 
 export const WAITING_REASONS = [
   'stage_problem',
@@ -59,6 +61,10 @@ export const WAITING_REASONS = [
   // мяч у того, кто должен предоставить (providedBy: client|broker →
   // клиент/брокер, staff → менеджер).
   'awaiting_permit',
+  // DF-14: для ближайшего этапа не хватает обязательного документа
+  // (чек-лист StageDocumentRequirement, isBlocking) — мяч у стороны
+  // из чек-листа (providedBy).
+  'awaiting_document',
 ] as const
 export type WaitingReason = (typeof WAITING_REASONS)[number]
 
@@ -75,6 +81,7 @@ export const WAITING_REASON_LABELS: Record<WaitingReason, string> = {
   no_quote: 'Вариант расчёта не готов',
   awaiting_client_choice: 'Ждём выбор варианта расчёта',
   awaiting_permit: 'Ждём разрешительный документ',
+  awaiting_document: 'Ждём обязательный документ этапа',
 }
 
 // Нейтральные формулировки для клиента (кабинет клиента показывает
@@ -86,6 +93,7 @@ export const WAITING_CLIENT_LABELS: Partial<Record<WaitingReason, string>> = {
   awaiting_client_approval: 'Ожидает вашего подтверждения',
   awaiting_proforma: 'Ожидаем проформу-инвойс или описание товара',
   awaiting_permit: 'Ожидаем разрешительный документ — загрузите его в заявке',
+  awaiting_document: 'Ожидаем обязательные документы этапа — загрузите их в заявке',
 }
 
 // ─── D45: эскалация «клиент не выбрал расчёт» ────────────────────────
@@ -150,6 +158,12 @@ export type WaitingOrderSnapshot = {
   brokers: WaitingBrokerSnapshot[]
   // DF-16: незакрытые обязательства по разрешительным (status='pending').
   pendingPermits: PermitUrgencyRow[]
+  // DF-14: блокирующие требования чек-листа БЛИЖАЙШЕГО незавершённого
+  // этапа (stageCode снапшота; пусто — требований нет/этапа нет) и
+  // финальные виды документов заявки (легаси-строки резолвятся общим
+  // resolveDocumentKind). Заполняет waiting-db.ts.
+  stageRequirements?: Array<{ kind: DocumentKind; providedBy: DocProvider; isBlocking: boolean }>
+  finalKinds?: DocumentKind[]
 }
 
 export type WaitingLeadSnapshot = {
@@ -181,9 +195,12 @@ export function isStageOverdue(
 
 // Ближайший незавершённый этап = первый по sequence со статусом != done
 // (определение Ж4; включая «проблему» — её ловит правило 2 раньше).
-export function nearestUnfinishedStage(
-  stages: WaitingStageSnapshot[]
-): WaitingStageSnapshot | null {
+// Дженерик: вызывающие, которым нужен stageCode (правило 8 DF-14 —
+// requirements по коду этапа), передают строки со stageCode и получают
+// их же типом; unit-снапшоты без stageCode продолжают работать.
+export function nearestUnfinishedStage<T extends WaitingStageSnapshot>(
+  stages: T[]
+): T | null {
   const unfinished = stages.filter((s) => s.status !== 'done')
   if (unfinished.length === 0) return null
   return unfinished.reduce((a, b) => (a.sequence <= b.sequence ? a : b))
@@ -258,6 +275,32 @@ export function computeWaitingOrder(
     // статусы ведёт менеджер, поэтому просрочка — его мяч).
     if (isStageOverdue(nearest, todayUtc)) {
       return { kind: 'manager', reason: 'stage_overdue_followup', onId: snap.assignedToId }
+    }
+    // 8. DF-14: для ближайшего этапа не хватает обязательного документа
+    //    (блокирующее требование чек-листа без финального документа
+    //    этого вида на заявке) — мяч у стороны из чек-листа (D31:
+    //    providedBy staff → менеджер — документы перевозчика вносит он;
+    //    брокер без подключения — kind 'broker' с пустым onId, как у
+    //    permits DF-16). ПОЗИЦИЯ В ПРИОРИТЕТЕ: таблица DF-05 перечисляет
+    //    правило 8 последним, но 7 — catch-all («этап в срок» срабатывает
+    //    всегда) — при строгом порядке 8 был бы мёртвым кодом. Ставим
+    //    между 6б и 7: просрочка плана (эскалация менеджеру) важнее
+    //    paperwork, а недостающий обязательный документ — важнее
+    //    дежурного «этап в работе». Решение зафиксировано в отчёте
+    //    DF-14, приоритеты покрыты unit-матрицей.
+    if (snap.stageRequirements && snap.stageRequirements.length > 0) {
+      const hold = awaitingDocumentOutcome(snap.stageRequirements, snap.finalKinds ?? [])
+      if (hold) {
+        const kind: WaitingKind =
+          hold.providedBy === 'client' ? 'client' : hold.providedBy === 'broker' ? 'broker' : 'manager'
+        const onId =
+          hold.providedBy === 'client'
+            ? snap.customerId
+            : hold.providedBy === 'broker'
+              ? (snap.brokers[0]?.brokerId ?? null)
+              : snap.assignedToId
+        return { kind, reason: 'awaiting_document', onId: onId ?? null }
+      }
     }
     // 7. Этап у перевозчика в срок — мяч у перевозчика (маркер только
     // для сотрудников; клиенту ничего не отдаётся).

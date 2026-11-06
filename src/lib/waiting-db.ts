@@ -1,6 +1,13 @@
 import { Prisma } from '@prisma/client'
-import { computeWaitingLead, computeWaitingOrder, type WaitingOutcome } from '@/lib/waiting'
+import {
+  computeWaitingLead,
+  computeWaitingOrder,
+  nearestUnfinishedStage,
+  type WaitingOutcome,
+} from '@/lib/waiting'
 import type { PermitProvider } from '@/lib/permits'
+import { resolveDocumentKind } from '@/lib/document-constants'
+import type { DocProvider, DocumentKind } from '@/lib/document-constants'
 
 // ─── DF-05: пересчёт ожидания в транзакции сделки ────────────────────
 // Единственная точка ЗАПИСИ колонок waitingOn* (роуты их не трогают).
@@ -51,7 +58,14 @@ export async function recomputeWaitingOrder(
       waitingOnKind: true,
       waitingReason: true,
       waitingOnId: true,
-      stages: { select: { sequence: true, status: true, contractorId: true, plannedDate: true } },
+      stages: { select: { stageCode: true, sequence: true, status: true, contractorId: true, plannedDate: true } },
+      // DF-14: финальные документы заявки — виды для правила 8 «у кого
+      // мяч» (финал любого документа вида закрывает требование — та же
+      // семантика, что у слотов пакета DF-13).
+      documents: {
+        where: { status: 'final' },
+        select: { kind: true, type: true, isInternal: true },
+      },
       // Оценки платежей живут на связях лида (DF-02/5а): заявка видит
       // их через свой leadId. У ручной заявки (без лида) оценить
       // не из чего — брокеры без hasEstimate не приходят (правило 5
@@ -74,17 +88,43 @@ export async function recomputeWaitingOrder(
   const estimateBrokers = new Set(
     (order.lead?.brokers ?? []).filter((b) => b.estimate).map((b) => b.brokerId)
   )
+  // DF-14: снапшот правила 8 — блокирующие требования чек-листа
+  // БЛИЖАЙШЕГО незавершённого этапа (тот же nearest, что считает
+  // computeWaitingOrder — правило живёт только на нём) + финальные
+  // виды документов заявки (легаси-строки без kind — через общий
+  // resolveDocumentKind).
+  const sortedStages = [...order.stages].sort((a, b) => a.sequence - b.sequence)
+  const nearest = nearestUnfinishedStage(sortedStages)
+  const stageRequirements: Array<{
+    kind: DocumentKind
+    providedBy: DocProvider
+    isBlocking: boolean
+  }> = nearest
+    ? (
+        await tx.stageDocumentRequirement.findMany({
+          where: { stageCode: nearest.stageCode, isBlocking: true },
+          select: { kind: true, providedBy: true, isBlocking: true },
+        })
+      ).map((r) => ({
+        kind: r.kind as DocumentKind,
+        providedBy: r.providedBy as DocProvider,
+        isBlocking: r.isBlocking,
+      }))
+    : []
+  const finalKinds = order.documents.map((d) => resolveDocumentKind(d))
   const outcome = computeWaitingOrder(
     {
       status: order.status,
       customerId: order.customerId,
       assignedToId: order.assignedToId,
-      stages: [...order.stages].sort((a, b) => a.sequence - b.sequence),
+      stages: sortedStages,
       brokers: order.brokers.map((b) => ({ brokerId: b.brokerId, hasEstimate: estimateBrokers.has(b.brokerId) })),
       pendingPermits: order.permitRequirements.map((p) => ({
         ...p,
         providedBy: p.providedBy as PermitProvider,
       })),
+      stageRequirements,
+      finalKinds,
     },
     todayUtcStart(now)
   )

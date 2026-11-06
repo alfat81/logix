@@ -193,6 +193,34 @@ async function seedStageCatalog(): Promise<void> {
   console.log(`  = Каталог этапов: ${STAGE_CATALOG.length} записей (6 обязательных + примеры) — актуализирован`)
 }
 
+// ── DF-14: дефолтный чек-лист документов этапов ─────────────────────
+// Те же дефолты, что сидирует миграция df_14_stage_doc_requirements
+// (таможенный контур обоих оформлений — брокер). O-5: все строки
+// «рекомендуется» (isBlocking=false), блокировки подтверждает владелец.
+// Idempotent upsert по паре (stageCode, kind); isBlocking у существующей
+// строки НЕ перезаписывается — решение владельца переживает пересид.
+const DEFAULT_STAGE_REQUIREMENTS: Array<{
+  stageCode: string
+  kind: string
+  providedBy: string
+}> = [
+  { stageCode: 'import_customs', kind: 'customs_declaration', providedBy: 'broker' },
+  { stageCode: 'import_customs', kind: 'permit_document', providedBy: 'broker' },
+  { stageCode: 'export_customs', kind: 'customs_declaration', providedBy: 'broker' },
+  { stageCode: 'export_customs', kind: 'permit_document', providedBy: 'broker' },
+]
+
+async function seedStageRequirements(): Promise<void> {
+  for (const req of DEFAULT_STAGE_REQUIREMENTS) {
+    await prisma.stageDocumentRequirement.upsert({
+      where: { stageCode_kind: { stageCode: req.stageCode, kind: req.kind } },
+      create: { ...req, isBlocking: false },
+      update: {},
+    })
+  }
+  console.log(`  = Чек-листы этапов: ${DEFAULT_STAGE_REQUIREMENTS.length} дефолтов D5 (рекомендуется, O-5) — актуализированы`)
+}
+
 async function seedLegalEntity(): Promise<void> {
   const existing = await prisma.legalEntity.findFirst()
   if (existing) {
@@ -324,6 +352,7 @@ async function main(): Promise<void> {
   console.log('Seed Logix:')
   await seedEmployee()
   await seedStageCatalog()
+  await seedStageRequirements()
   await seedLegalEntity()
   await seedReferences()
   await seedCustomsFeeScale()

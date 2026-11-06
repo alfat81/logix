@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { DOCUMENT_KIND_GROUPS } from '@/lib/document-phases'
 import {
   DOCUMENT_KINDS,
-  DOCUMENT_KIND_GROUPS,
   DOCUMENT_KIND_LABELS,
   DOCUMENT_STATUSES,
   DOCUMENT_STATUS_LABELS,
@@ -29,14 +29,36 @@ describe('Справочник DOCUMENT_KINDS (DF-12)', () => {
     expect(new Set(seen).size).toBe(seen.length)
   })
 
-  it('фазовый порядок карточки: Расчёт → Оформление и перевозка → служебные', () => {
+  it('фазовый порядок DF-26: подготовка → экспорт → перевозка → таможня → доставка → завершение', () => {
+    // DF-26: группы — производная фаз временной шкалы (document-phases);
+    // прежние группы «Расчёт/Оформление/Заявки» замещены (G4).
     expect(DOCUMENT_KIND_GROUPS.map((g) => g.code)).toEqual([
-      'calculation',
-      'execution',
-      'deals',
+      'preparation',
+      'export',
+      'international',
+      'import_customs',
+      'delivery',
+      'closing',
+      'permits',
+      'internal',
       'misc',
     ])
-    expect(DOCUMENT_KIND_GROUPS[0].kinds).toEqual(['proforma_invoice', 'goods_description'])
+    expect(DOCUMENT_KIND_GROUPS[0].kinds).toEqual([
+      'client_request',
+      'proforma_invoice',
+      'foreign_trade_contract',
+      'commercial_invoice',
+      'packing_list',
+      'goods_description',
+    ])
+  })
+
+  it('DF-26: 19 видов — 15 прежних + 4 новых (§4.2)', () => {
+    expect(DOCUMENT_KINDS).toHaveLength(19)
+    for (const k of ['railway_bill', 'export_declaration', 'delivery_confirmation', 'act_of_services'] as const) {
+      expect(DOCUMENT_KINDS).toContain(k)
+      expect(DOCUMENT_KIND_LABELS[k]).toBeTruthy()
+    }
   })
 
   it('паспортов в справочнике нет (D5)', () => {
@@ -89,6 +111,10 @@ describe('Легаси-маппинги type ↔ kind (окно expand до cont
     expect(LEGACY_TYPE_FOR_KIND.awb).toBe('accompanying')
     expect(LEGACY_TYPE_FOR_KIND.goods_description).toBe('accompanying')
     expect(LEGACY_TYPE_FOR_KIND.customs_declaration).toBe('customs')
+    expect(LEGACY_TYPE_FOR_KIND.export_declaration).toBe('customs')
+    expect(LEGACY_TYPE_FOR_KIND.railway_bill).toBe('accompanying')
+    expect(LEGACY_TYPE_FOR_KIND.delivery_confirmation).toBe('accompanying')
+    expect(LEGACY_TYPE_FOR_KIND.act_of_services).toBe('other')
     expect(LEGACY_TYPE_FOR_KIND.permit_document).toBe('permit')
     expect(LEGACY_TYPE_FOR_KIND.client_request).toBe('application')
     expect(LEGACY_TYPE_FOR_KIND.contractor_request).toBe('application')

@@ -13,8 +13,7 @@ import {
   BrokerStageStatusBadge,
 } from '@/components/broker/BrokerBadges'
 import { BrokerEstimateForm, type BrokerEstimate } from '@/components/broker/BrokerEstimateForm'
-import { DocumentsPackageSection } from '@/components/documents/DocumentsPackageSection'
-import { PermitsSection } from '@/components/permits/PermitsSection'
+import { DocumentsRegistrySection } from '@/components/documents/DocumentsRegistrySection'
 import { CARGO_PROFILE_LABELS, type CargoProfile, type OrderStatus, type StageStatus } from '@/lib/order-constants'
 
 // ─── Карточка заявки для брокера (Д, роадмап 5а) ───────────────────
@@ -199,27 +198,24 @@ export function BrokerOrderCard() {
         </Card>
       )}
 
-      {/* ── DF-16: разрешительные документы заявки — перечень из оценки
-          и добавленные брокером строки; закрытие загрузкой файла в
-          строке ──────────────────────────────────────────────────── */}
-      <PermitsSection
-        viewer="broker"
-        permitsUrl={`/api/broker/orders/${order.id}/permits`}
-        createUrl={`/api/broker/orders/${order.id}/permits`}
-        documentUrlFor={(permitId) => `/api/broker/permits/${permitId}/document`}
-        onChanged={load}
-      />
 
-      {/* ── Е: документы сделки (роадмап 5) — видимость заявки
-          целиком (5а): товаросопроводительные, разрешительные,
-          правки с комментариями; загрузка ДТ и ответных бумаг —
-          отсюда. Внутренние документы менеджера не отдаются. */}
-      <DocumentsPackageSection
+
+      {/* ── DF-26: единый реестр документов заявки по фазам — видимость
+          заявки целиком (5а): загрузка ДТ и ответных бумаг, правки с
+          комментариями; разрешительные — строки требований в фазах
+          реестра (§3.3.3, T21-03), добавление строк — брокером, загрузка
+          — единая форма (T21-02). Внутренние документы менеджера не
+          отдаются. */}
+      <DocumentsRegistrySection
+        transportType={order.transportType ?? null}
         packageUrl={`/api/broker/orders/${order.id}/package`}
         zipUrl={`/api/broker/orders/${order.id}/package/zip`}
         documentsUrl={`/api/broker/orders/${order.id}/documents`}
         versionsUrlFor={(docId) => `/api/broker/documents/${docId}/versions`}
-        title="Пакет документов"
+        submitUrlFor={(docId) => `/api/broker/documents/${docId}/status`}
+        permitsCreateUrl={`/api/broker/orders/${order.id}/permits`}
+        permitViewer="broker"
+        onChanged={load}
       />
     </div>
   )

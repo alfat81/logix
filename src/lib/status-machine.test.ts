@@ -133,6 +133,8 @@ describe('Матрица переходов документа (DOCUMENT_TRANSIT
 
   it('финализация — из черновика и с проверки (карточка DF-12)', () => {
     expect(checkDocumentTransition('draft', 'final').ok).toBe(true)
+    // DF-26 (§14.2 ред. 1.4): «отправить на проверку» — черновик уходит в in_review.
+    expect(checkDocumentTransition('draft', 'in_review').ok).toBe(true)
     expect(checkDocumentTransition('in_review', 'final').ok).toBe(true)
   })
 
@@ -145,7 +147,7 @@ describe('Матрица переходов документа (DOCUMENT_TRANSIT
 
   it('повтор финализации — 400 «Статус уже», запрещённый переход — 409', () => {
     expect(checkDocumentTransition('final', 'final')).toMatchObject({ ok: false, status: 400 })
-    const reject = checkDocumentTransition('draft', 'in_review')
+    const reject = checkDocumentTransition('in_review', 'draft')
     expect(reject).toMatchObject({ ok: false, status: 409 })
   })
 })

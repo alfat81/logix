@@ -5,6 +5,7 @@ import {
   ORDER_STATUSES,
   type OrderStatus,
 } from '@/lib/order-constants'
+import { DOC_LIST_READY_WHERE } from '@/lib/documents'
 
 // ─── DF-21: счётчики заявок — единый источник ───────────────────────
 // Бейдж «Заявки» в меню (layout) и табы статусов списка (API
@@ -57,4 +58,43 @@ export async function orderStatusCounts(
 // бейджа «Заявки»; e2e сверяет его с суммой активных табов API.
 export function activeOrdersTotal(counts: OrderStatusCounts): number {
   return ORDER_ACTIVE_STATUSES.reduce((sum, s) => sum + (counts[s] ?? 0), 0)
+}
+
+// ─── DF-26 §3.7: строка документов на карточке заявки в списке ──────
+// «Документы: N · M разрешительных ожидаются» — счётчики из этого же
+// модуля (единый источник со списком): N — документы с готовой версией
+// (списки показывают только ready), M — ненагруженные pending («на
+// проверке» в список не выводится — позиция не «не готово», §3.4).
+// Два groupBy на страницу списка — дешевле N+1 include.
+export type OrderDocCounts = { docs: number; permitsPending: number }
+
+export async function orderDocListCounts(
+  orderIds: readonly string[],
+): Promise<Map<string, OrderDocCounts>> {
+  const ids = [...orderIds]
+  const map = new Map<string, OrderDocCounts>(ids.map((id) => [id, { docs: 0, permitsPending: 0 }]))
+  if (ids.length === 0) return map
+  const [docs, permits] = await Promise.all([
+    db.document.groupBy({
+      by: ['orderId'],
+      where: { orderId: { in: ids }, ...DOC_LIST_READY_WHERE },
+      _count: { _all: true },
+    }),
+    db.permitRequirement.groupBy({
+      by: ['orderId'],
+      where: { orderId: { in: ids }, status: 'pending' },
+      _count: { _all: true },
+    }),
+  ])
+  for (const g of docs) {
+    if (!g.orderId) continue
+    const c = map.get(g.orderId)
+    if (c) c.docs = g._count._all
+  }
+  for (const g of permits) {
+    if (!g.orderId) continue
+    const c = map.get(g.orderId)
+    if (c) c.permitsPending = g._count._all
+  }
+  return map
 }

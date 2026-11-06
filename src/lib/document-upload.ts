@@ -72,6 +72,15 @@ export const DocumentCreateUploadSchema = z
       .max(DOC_TITLE_MAX_LENGTH, `Название — не длиннее ${DOC_TITLE_MAX_LENGTH} символов`),
     isInternal: z.boolean().optional(),
     comment: z.string().trim().max(DOC_COMMENT_MAX_LENGTH).optional(),
+    // DF-26/AUD-11: привязка к этапу заявки при загрузке (из слота с
+    // требованием этапа). Принадлежность этапа заявке проверяет сервер
+    // (createPendingDocument); на лиде этапов нет — 400.
+    stageCode: z.string().trim().min(1).max(40).nullable().optional(),
+    // DF-26 §3.3.6/§11.1 (T21-02): загрузка по разрешительному требованию
+    // — та же форма «Новый документ» с привязкой к строке. Валидация на
+    // create — честный отказ ДО отправки файла (fail-fast); закрытие
+    // строки остаётся на шаге confirm (linkPermitRequirement).
+    permitRequirementId: z.string().trim().min(1).max(64).optional(),
     ...fileMetaShape,
   })
   .refine((d) => Boolean(d.kind || d.type), {
@@ -89,6 +98,13 @@ export const DocumentVersionUploadSchema = z.object({
   ...fileMetaShape,
 })
 export type DocumentVersionUploadInput = z.infer<typeof DocumentVersionUploadSchema>
+
+// DF-26/AUD-11: админская надстройка — сотрудник может перенести/править
+// привязку документа к этапу при добавлении версии. У клиентского и
+// брокерского роутов схемы без stageCode — поле наружу не уходит.
+export const AdminVersionUploadSchema = DocumentVersionUploadSchema.extend({
+  stageCode: z.string().trim().min(1).max(40).nullable().optional(),
+})
 
 // Загрузка документа в строку разрешительных (DF-16 × DF-11): тип всегда
 // 'permit', название по умолчанию — название строки (роут подставляет).
@@ -236,6 +252,47 @@ export async function createPendingDocument(
   const kind: DocumentKind = input.kind ?? legacyKindFromType(input.type ?? 'other', wantsInternal)
   const isInternal = wantsInternal || (INTERNAL_ONLY_KINDS as readonly string[]).includes(kind)
 
+  // DF-26/AUD-11: stageCode — этап ЭТОЙ заявки (лид этапов не имеет);
+  // чужой/несуществующий код — честный 400, а не тихий null.
+  let stageCode: string | null = null
+  if (input.stageCode) {
+    if (!('orderId' in deal)) {
+      throw new UploadValidationError('Этап указывается только у документов заявки')
+    }
+    const stage = await db.orderStageInstance.findFirst({
+      where: { orderId: deal.orderId, stageCode: input.stageCode },
+      select: { id: true },
+    })
+    if (!stage) throw new UploadValidationError('Этап не найден в этой заявке')
+    stageCode = input.stageCode
+  }
+
+  // DF-26 §3.3.6 (T21-02): привязка к разрешительному требованию —
+  // fail-fast на create: строка должна существовать, принадлежать той
+  // же сделке и ждать документ (pending). Чужая/несуществующая — 404
+  // (факт существования не раскрываем, паттерн И1); уже закрытая — 409.
+  // Семантика совпадает с confirm (linkPermitRequirement): закрытие
+  // строки происходит там, здесь — ранняя проверка той же сделки.
+  if (input.permitRequirementId) {
+    const permit = await db.permitRequirement.findUnique({
+      where: { id: input.permitRequirementId },
+      select: { id: true, status: true, orderId: true, leadId: true },
+    })
+    const sameDeal =
+      permit != null &&
+      (('orderId' in deal && permit.orderId === deal.orderId) ||
+        ('leadId' in deal && permit.leadId === deal.leadId))
+    if (!permit || !sameDeal) {
+      throw new UploadValidationError('Разрешительное требование не найдено в этой сделке', 404)
+    }
+    if (permit.status !== 'pending') {
+      throw new UploadValidationError(
+        'Строка уже закрыта — документ прикладывается версиями к загруженному',
+        409,
+      )
+    }
+  }
+
   // Ключ строится до создания записи: id документа ещё не существует,
   // уникальность даёт uuid внутри префикса сделки.
   const dealId = 'orderId' in deal ? deal.orderId : deal.leadId
@@ -253,6 +310,7 @@ export async function createPendingDocument(
       kind,
       title: input.title,
       isInternal,
+      stageCode,
       currentVersion: 1,
       versions: {
         create: {
@@ -287,6 +345,9 @@ export async function createPendingVersion(
   documentId: string,
   actor: DocActor,
   input: DocumentVersionUploadInput,
+  // DF-26/AUD-11: перенос/правка stageCode документа сотрудником при
+  // добавлении версии (передают только админские роуты).
+  opts?: { stageCode?: string | null },
 ): Promise<PendingUploadView | null> {
   const doc = await db.document.findUnique({
     where: { id: documentId },
@@ -329,6 +390,26 @@ export async function createPendingVersion(
           throw new UploadValidationError('Документ финальный — сначала верните его в работу', 409)
         }
         const next = fresh.currentVersion + 1
+        if (opts && 'stageCode' in opts && opts.stageCode != null) {
+          // Привязка к этапу — только для документов заявки; чужой код —
+          // честный 400 (та же семантика, что и при создании).
+          const doc = await tx.document.findUnique({
+            where: { id: documentId },
+            select: { orderId: true },
+          })
+          if (!doc?.orderId) {
+            throw new UploadValidationError('Этап указывается только у документов заявки')
+          }
+          const stage = await tx.orderStageInstance.findFirst({
+            where: { orderId: doc.orderId, stageCode: opts.stageCode },
+            select: { id: true },
+          })
+          if (!stage) throw new UploadValidationError('Этап не найден в этой заявке')
+          await tx.document.update({
+            where: { id: documentId },
+            data: { stageCode: opts.stageCode },
+          })
+        }
         const version = await tx.documentVersion.create({
           data: {
             documentId,

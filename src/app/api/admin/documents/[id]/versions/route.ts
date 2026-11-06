@@ -5,8 +5,8 @@ import { requireEmployee } from '@/lib/auth'
 import { employeeActor } from '@/lib/activity'
 import { apiErrorResponse } from '@/lib/api-errors'
 import {
+  AdminVersionUploadSchema,
   createPendingVersion,
-  DocumentVersionUploadSchema,
   parseBody,
 } from '@/lib/document-upload'
 
@@ -30,9 +30,11 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Документ не найден' }, { status: 404 })
     }
 
-    const parsed = await parseBody(req, DocumentVersionUploadSchema)
+    const parsed = await parseBody(req, AdminVersionUploadSchema)
     if (!parsed.ok) return parsed.response
-    const result = await createPendingVersion(id, employeeActor(auth.employee), parsed.data)
+    const result = await createPendingVersion(id, employeeActor(auth.employee), parsed.data, {
+      stageCode: parsed.data.stageCode ?? null,
+    })
     if (!result) {
       return NextResponse.json({ error: 'Документ не найден' }, { status: 404 })
     }

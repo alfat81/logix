@@ -24,7 +24,23 @@
     "key": "exports:src/lib/phone.ts|isValidEmail"
   },
   {
+    "key": "files:scripts/clear-login-attempts.ts|scripts/clear-login-attempts.ts"
+  },
+  {
     "key": "files:scripts/e2e_seed_notification.ts|scripts/e2e_seed_notification.ts"
+  },
+  {
+    "key": "files:scripts/find-demo-order.ts|scripts/find-demo-order.ts"
+  },
+  {
+    "key": "files:scripts/import-hs.ts|scripts/import-hs.ts",
+    "reason": "операционный скрипт импорта ТН ВЭД — живёт вне TS-графа (запуск руками: bun scripts/import-hs.ts), как e2e-фикстура DF-04"
+  },
+  {
+    "key": "files:scripts/verify-hs-db.ts|scripts/verify-hs-db.ts"
+  },
+  {
+    "key": "files:scripts/verify-hs-prefix.ts|scripts/verify-hs-prefix.ts"
   },
   {
     "key": "types:src/components/admin/CargoGroups.tsx|RouteView"
@@ -94,15 +110,5 @@
   },
   {
     "key": "types:src/lib/orders.ts|StageViewRow"
-  },
-  {
-    "key": "files:scripts/import-hs.ts|scripts/import-hs.ts",
-    "reason": "операционный скрипт импорта ТН ВЭД — живёт вне TS-графа (запуск руками: bun scripts/import-hs.ts), как e2e-фикстура DF-04"
-  },
-  {
-    "key": "files:scripts/verify-hs-db.ts|scripts/verify-hs-db.ts"
-  },
-  {
-    "key": "files:scripts/verify-hs-prefix.ts|scripts/verify-hs-prefix.ts"
   }
 ]

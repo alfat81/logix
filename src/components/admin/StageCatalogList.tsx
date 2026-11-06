@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Loader2, Pencil } from 'lucide-react'
+import { ArrowDown, ArrowUp, ClipboardList, Loader2, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { StageCreateDialog } from './stagecatalog/StageCreateDialog'
 import { StageEditDialog } from './stagecatalog/StageEditDialog'
+import { StageRequirementsDialog } from './stagecatalog/StageRequirementsDialog'
 import { MANDATORY_WARNING, type StageRow } from './stagecatalog/types'
 
 // ─── Каталог этапов (Ж6б) ──────────────────────────────────────
@@ -48,6 +49,8 @@ export function StageCatalogList({ isMaster }: { isMaster: boolean }) {
 
   // Диалог правки (форма живёт в диалоге)
   const [editRow, setEditRow] = useState<StageRow | null>(null)
+  // DF-14: диалог чек-листа документов этапа
+  const [reqRow, setReqRow] = useState<StageRow | null>(null)
 
   const reload = useCallback(() => {
     const id = ++reqId.current
@@ -159,6 +162,17 @@ export function StageCatalogList({ isMaster }: { isMaster: boolean }) {
                       <ArrowDown className="size-4" />
                     </Button>
                   </div>
+                  <div className="flex shrink-0 flex-col gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Чек-лист документов этапа «${row.name}»`}
+                      title="Документы этапа (чек-лист DF-14)"
+                      onClick={() => setReqRow(row)}
+                    >
+                      <ClipboardList className="size-4" />
+                    </Button>
+                  </div>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="text-muted-foreground tabular-nums">{i + 1}.</span>
@@ -190,6 +204,13 @@ export function StageCatalogList({ isMaster }: { isMaster: boolean }) {
           setEditRow(null)
           setVersion((v) => v + 1)
         }}
+      />
+
+      {/* DF-14: чек-лист документов этапа — читают все, правит мастер */}
+      <StageRequirementsDialog
+        row={reqRow}
+        isMaster={isMaster}
+        onClose={() => setReqRow(null)}
       />
     </div>
   )

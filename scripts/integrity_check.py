@@ -167,12 +167,17 @@ def ic03() -> None:
     # (P1-22, лимит 300) событийно: patchLead/patchOrder зовут emitEvent.
     # Делегирование настроек (DF-00D): setSetting/resetSetting зовут emitEvent
     # внутри — инвариант держит IC-15 no-event (settings.ts без emitEvent = красный).
+    #   enableTotp/disableTotp — события внутри totp-db.ts, той же транзакцией.
+    # DF-26: события пишут ядра document-lifecycle.ts (submitDocumentForReview —
+    # document_submitted) и document-zip-server.ts (packageScopeZipResponse —
+    # document_package_downloaded); роуты только делегируют, как setSetting (DF-00D).
     event_call = (r"emitEvent\(|logActivity\(|logInternalNote\(|"
                   r"createDocumentOnDeal\(|addDocumentVersion\(|deleteDocument\(|"
                   r"patchLead\(|patchOrder\(|detachBrokerFromLead\(|detachBrokerFromOrder\(|"
                   r"setSetting\(|resetSetting\(|"
                   r"createCalculation\(|updateCalculation\(|"
-                  r"enableTotp\(|disableTotp\(")
+                  r"enableTotp\(|disableTotp\(|"
+                  r"submitDocumentForReview\(|packageScopeZipResponse\(")
     # DF-09: включение/выключение TOTP пишут события внутри totp-db.ts
     # (emitEvent в той же транзакции) — делегирование как setSetting (DF-00D).
     for f in rglob("src/app/api/**/route.ts"):

@@ -51,6 +51,10 @@ export type OrderRow = {
   stagesTotal: number
   stagesDone: number
   stagesProblem: number
+  // DF-26 §3.7: строка документов карточки списка («Документы: N ·
+  // M разрешительных ожидаются» — счётчики orderDocListCounts)
+  docsTotal?: number
+  permitsPending?: number
   nearestStage: {
     code: string
     name: string
@@ -174,6 +178,15 @@ export function OrderCard({ order }: { order: OrderRow }) {
               'Все этапы завершены'
             )}
           </span>
+          {/* DF-26 §3.7: приглушённая строка документов — без красного;
+              «ожидаются» = ненагруженные pending (позиция «на проверке»
+              в список не выводится, §3.4) */}
+          {(order.docsTotal ?? 0) > 0 && (
+            <span className="truncate text-xs text-muted-foreground">
+              Документы: {order.docsTotal}
+              {(order.permitsPending ?? 0) > 0 && ` · ${order.permitsPending} разрешительных ожидаются`}
+            </span>
+          )}
           {order.overdue && order.overdueStage && (
             <span className="flex items-center gap-1.5 text-sm text-destructive">
               <CircleAlert className="size-4 shrink-0" aria-hidden />

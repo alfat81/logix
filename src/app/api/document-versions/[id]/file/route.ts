@@ -4,7 +4,9 @@ import { getCurrentEmployee } from '@/lib/auth'
 import { getCurrentClient } from '@/lib/client-auth'
 import { getCurrentBroker } from '@/lib/broker-auth'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { documentVisibleToBroker, documentVisibleToClient } from '@/lib/documents'
+import { documentVisibleToBroker, documentVisibleToClient, type DocActor } from '@/lib/documents'
+import { documentEventAudience } from '@/lib/audience'
+import { emitEvent } from '@/lib/events'
 import { DOC_INLINE_MIME } from '@/lib/document-constants'
 import { resolveFileMime } from '@/lib/file-signature'
 import { getStorage, StorageError, STORAGE_GET_EXPIRES } from '@/lib/storage'
@@ -25,37 +27,41 @@ type Params = { params: Promise<{ id: string }> }
 // в подписи); легаси-версия (байты в БД) — потоковая отдача 200, как
 // было, с повторной проверкой сигнатуры для inline.
 
-// no-event: только чтение — событие скачивания роадмапом не предусмотрено
+// Событие скачивания (DF-26 §6.2, уточнения 1.1/1.2): 302 →
+// document_link_issued («выдана ссылка», передача НЕ подтверждена);
+// стрим легаси-версии (200) → document_downloaded (сервер отдал байты).
+// Актёр — читатель; аудитория — по isInternal документа; писем нет (O5).
 export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params
   try {
     // ── Периметр ПЕРЕД поиском версии: без какой-либо сессии — 401
     // на любом id (периметр не зависит от существования ресурса);
     // сессия есть, а версии нет/не ваша — единый 404.
-    let actorKind: 'employee' | 'client' | 'broker' | null = null
+    let actor: DocActor | null = null
     let clientId: string | null = null
     let brokerId: string | null = null
 
     const employee = await getCurrentEmployee(req)
     if (employee) {
-      actorKind = 'employee'
+      actor = { type: 'employee', id: employee.id, name: employee.name }
     } else {
       const client = await getCurrentClient(req)
       if (client) {
-        actorKind = 'client'
+        actor = { type: 'client', id: client.userId, name: client.name }
         clientId = client.id
       } else {
         const broker = await getCurrentBroker(req)
         if (broker) {
-          actorKind = 'broker'
+          actor = { type: 'broker', id: broker.userId, name: broker.companyName }
           brokerId = broker.id
         }
       }
     }
 
-    if (!actorKind) {
+    if (!actor) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
     }
+    const actorKind = actor.type
 
     // fileData в select НЕ входит: права решаются до чтения тела, а
     // байты легаси-версии читаются отдельным запросом после проверки.
@@ -68,6 +74,9 @@ export async function GET(req: NextRequest, { params }: Params) {
         storageKey: true,
         status: true,
         documentId: true,
+        document: {
+          select: { title: true, isInternal: true, orderId: true, leadId: true },
+        },
       },
     })
     if (!version) {
@@ -89,6 +98,25 @@ export async function GET(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Файл не найден' }, { status: 404 })
     }
 
+    // ── DF-26 §6.2: событие скачивания — цель-сделка берётся с
+    // документа (заявка/запрос), аудитория по isInternal.
+    const deal = version.document.orderId
+      ? { orderId: version.document.orderId }
+      : { leadId: version.document.leadId! }
+    const audience = documentEventAudience(version.document.isInternal)
+    const emitDownloadEvent = (type: 'document_link_issued' | 'document_downloaded') =>
+      emitEvent(db, {
+        target: deal,
+        actor,
+        type,
+        description:
+          type === 'document_link_issued'
+            ? `Выдана ссылка на скачивание: «${version.document.title}» (${version.fileName})`
+            : `Документ «${version.document.title}» скачан (${version.fileName})`,
+        documentId: version.documentId,
+        audience,
+      })
+
     const asciiFallback = version.fileName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_')
     const dispositionHeader = (value: string) =>
       `${value}; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(version.fileName)}`
@@ -109,6 +137,7 @@ export async function GET(req: NextRequest, { params }: Params) {
           contentType: inline ? version.mimeType : 'application/octet-stream',
           expiresIn: STORAGE_GET_EXPIRES,
         })
+        await emitDownloadEvent('document_link_issued')
         return new NextResponse(null, {
           status: 302,
           headers: {
@@ -143,6 +172,8 @@ export async function GET(req: NextRequest, { params }: Params) {
     const contentType = verified ? version.mimeType : 'application/octet-stream'
     const isImage = contentType.startsWith('image/')
 
+    // Стрим легаси-версии — подтверждённая сервером передача (§6.2).
+    await emitDownloadEvent('document_downloaded')
     return new NextResponse(bytes, {
       status: 200,
       headers: {

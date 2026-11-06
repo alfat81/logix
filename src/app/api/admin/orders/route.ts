@@ -12,7 +12,7 @@ import { ORDER_SORTS, orderOrderBy } from '@/lib/orders'
 import { TRANSPORT_TYPE_CODES } from '@/lib/route-fields'
 import { resolveDealCodes } from '@/lib/ref-db'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { emptyOrderStatusCounts, fillOrderStatusCounts } from '@/lib/order-counts'
+import { emptyOrderStatusCounts, fillOrderStatusCounts, orderDocListCounts } from '@/lib/order-counts'
 
 // ─── GET /api/admin/orders — список заявок (Ж4: рабочий инструмент) ───
 // Эталонный паттерн списка (принцип 2 очереди) — его копируют Ж5/Ж6:
@@ -121,6 +121,10 @@ export async function GET(req: NextRequest) {
     const hasMore = rows.length > take
     const page = hasMore ? rows.slice(0, take) : rows
 
+    // DF-26 §3.7: строка «Документы: N · M разрешительных ожидаются» —
+    // счётчики страницы одним хелпером (lib/order-counts.ts)
+    const docCounts = await orderDocListCounts(page.map((o) => o.id))
+
     const stageNames = new Map(catalog.map((c) => [c.code, c.name]))
     const todayUtc = todayUtcMidnight()
 
@@ -144,6 +148,9 @@ export async function GET(req: NextRequest) {
         waitingReason: o.waitingReason,
         waitingSince: o.waitingSince?.toISOString() ?? null,
         customer: o.customer,
+        // DF-26: счётчики строки документов карточки списка
+        docsTotal: docCounts.get(o.id)?.docs ?? 0,
+        permitsPending: docCounts.get(o.id)?.permitsPending ?? 0,
         contract: o.contract,
         legalEntity: o.legalEntity,
         // P1-03: маршрут и тип — строка 2 карточки списка (§4.3)

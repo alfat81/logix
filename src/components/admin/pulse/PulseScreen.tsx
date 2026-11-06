@@ -40,6 +40,9 @@ export function PulseScreen() {
       label: `Ждут дольше ${s?.attentionHours ?? 24} ч`,
     },
     { value: s?.problemStages ?? 0, label: 'Этапы с проблемой' },
+    // DF-14: заявки, у ближайшего этапа которых не хватает финальных
+    // документов по блокирующим требованиям чек-листа.
+    { value: s?.missingFinalDocs ?? 0, label: 'Без обязательных документов' },
   ]
 
   const generatedAt = data?.generatedAt

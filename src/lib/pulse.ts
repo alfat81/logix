@@ -40,6 +40,9 @@ export type PulseStats = {
   waitingOverThreshold: number
   // этапов с проблемой на активных заявках
   problemStages: number
+  // DF-14: активных заявок, у ближайшего этапа которых не хватает
+  // финальных документов по блокирующим требованиям чек-листа
+  missingFinalDocs: number
   // порог секции — для подписи в UI
   attentionHours: number
 }

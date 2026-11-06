@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card'
 import { ListTabs } from '@/components/admin/ListTabs'
 import { NoteForm } from '@/components/admin/NoteForm'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
-import { DocumentsPackageSection } from '@/components/documents/DocumentsPackageSection'
+import { DocumentsSummaryPart } from '@/components/documents/DocumentsSummaryPart'
 import { CustomsCalcScreen } from '@/components/admin/customs/CustomsCalcScreen'
 import type { EstimatePrefill } from '@/components/admin/customs/types'
 import type { OrderStatus } from '@/lib/order-constants'
@@ -36,6 +36,7 @@ export function OrderSidePanel({
   initialIncoterm,
   initialPlace,
   onChanged,
+  onOpenRegistry,
 }: {
   orderNumber: string
   orderId: string
@@ -45,6 +46,8 @@ export function OrderSidePanel({
   initialIncoterm?: string | null
   initialPlace?: string | null
   onChanged: () => void
+  /** DF-26: вкладка «Документы» переключает основную область в реестр */
+  onOpenRegistry: () => void
 }) {
   const [tab, setTab] = useState<PanelTab>('events')
 
@@ -74,7 +77,12 @@ export function OrderSidePanel({
         <ListTabs
           tabs={tabs}
           active={activeTab}
-          onChange={(k) => setTab(k as PanelTab)}
+          onChange={(k) => {
+            setTab(k as PanelTab)
+            // DF-26: выбор вкладки «Документы» переводит основную
+            // область в реестр (§3.3); возврат — «К заявке» в его шапке
+            if (k === 'documents') onOpenRegistry()
+          }}
         />
       </div>
 
@@ -94,15 +102,9 @@ export function OrderSidePanel({
       )}
 
       {activeTab === 'documents' && (
-        <DocumentsPackageSection
+        <DocumentsSummaryPart
           packageUrl={`/api/admin/orders/${orderId}/package`}
-          zipUrl={`/api/admin/orders/${orderId}/package/zip`}
-          documentsUrl={`/api/admin/orders/${orderId}/documents`}
-          versionsUrlFor={(docId) => `/api/admin/documents/${docId}/versions`}
-          deleteUrlFor={(docId) => `/api/admin/documents/${docId}`}
-          lifecycleUrlFor={(docId) => `/api/admin/documents/${docId}`}
-          canMarkInternal
-          title="Пакет документов"
+          onOpenRegistry={onOpenRegistry}
         />
       )}
 
