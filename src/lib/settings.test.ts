@@ -43,16 +43,32 @@ const CARD_KEYS = [
 
 const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
+// Ключи, которые пишет/читает ЭТОТ файл (setSetting/resetSetting ниже).
+// Очистка скоупится ими, а не deleteMany({}): полная очистка стирала
+// ЧУЖИЕ настройки общей БД, которые в этот момент читают параллельные
+// файлы — notifications.test.ts ловил стёртый red_max_per_hour
+// (антишторм DF-03 получал дефолт реестра вместо 1, письмо не
+// откладывалось, ассерт падал; CI 0.8.6 run 42280469474). Урок 0.7.7
+// о гонках параллельных файлов общей БД — в приложении к настройкам.
+const OWN_KEYS = [
+  'files.max_mb',
+  'waiting.attention_hours',
+  'notifications.client_digest_times',
+  'notifications.immediate_phases',
+  'brand.name',
+  'brand.signature',
+] as const
+
 beforeEach(async () => {
   clearSettingsCache()
-  await db.setting.deleteMany({})
+  await db.setting.deleteMany({ where: { key: { in: [...OWN_KEYS] } } })
   // События тоже чистим: без этого находка «события нет» поймает
   // событие предыдущего теста (изоляция описов).
   await db.activity.deleteMany({ where: { type: 'setting_changed' } })
 })
 
 afterAll(async () => {
-  await db.setting.deleteMany({})
+  await db.setting.deleteMany({ where: { key: { in: [...OWN_KEYS] } } })
   await db.activity.deleteMany({ where: { type: 'setting_changed' } })
   consoleSpy.mockRestore()
 })
