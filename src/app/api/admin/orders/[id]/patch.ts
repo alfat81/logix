@@ -15,6 +15,7 @@ import { getIncompleteMandatoryStages, emitOrderEvents } from '@/lib/orders'
 import { checkOrderTransition, TERMINAL_ORDER_STATUSES } from '@/lib/status-machine'
 import { assertOverridePermission } from '@/lib/override-guard'
 import type { ActivityType } from '@/lib/activity'
+import { ensureDealHsCodeCheck } from '@/lib/permit-checks-db'
 
 // v0.5.0 (P1-22): PATCH /api/admin/orders/[id] — выезд из route.ts
 // (резка под лимит 300, RULES 2.14); zod-схема — в schemas.ts. Логика 1:1:
@@ -172,8 +173,7 @@ export async function patchOrder(
     }
 
     // DF-23 (в): ТН ВЭД — одна точка правки (бланк cargoInfo → колонка
-    // hsCode); хелпер и обоснование — lib/lead-edit.ts. Разовое
-    // выравнивание исторического расхождения — инструкция релиза v0.7.15.
+    // hsCode); обоснование — lib/lead-edit.ts, релиз v0.7.15.
     const order = await db.order.update({
       where: { id },
       data: {
@@ -283,6 +283,9 @@ export async function patchOrder(
       events.push({ type: 'order_fields_changed', description: `Поля заявки: ${fields.join('; ')}` })
     }
     await emitOrderEvents(events, id, employee)
+    // DF-26 волна 2 (§5.2): код ТН ВЭД заявки изменился — auto-запись (модуль проверок).
+    const actorW2 = { type: 'employee' as const, id: employee.id, name: employee.name }
+    await ensureDealHsCodeCheck(id, hsCodePatch(data.cargoInfo, data.hsCode)?.hsCode ?? null, existing.hsCode, actorW2)
 
     return NextResponse.json({
       order,

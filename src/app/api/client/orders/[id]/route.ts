@@ -87,6 +87,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     const activities = await projectActors(order.activities, {
       kind: 'client',
       customerId: auth.client.id,
+      companyName: auth.client.name,
     })
 
     return NextResponse.json({

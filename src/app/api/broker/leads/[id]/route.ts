@@ -83,6 +83,9 @@ export async function GET(req: NextRequest, { params }: Params) {
               status: link.estimate.status,
               sentAt: link.estimate.sentAt,
               items: link.estimate.items.map((i) => ({
+                // DF-26 волна 2 (§5.7 п. 0а): id строки — для дифф-
+                // сохранения (обновление на месте при правке ответа).
+                id: i.id,
                 hsCode: i.hsCode,
                 isManualCode: i.isManualCode,
                 dutyPercent: i.dutyPercent,

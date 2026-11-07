@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   const { id } = await params
   try {
-    return await packageZipResponse(id, { kind: 'broker', brokerId: auth.broker.id })
+    return await packageZipResponse(id, { kind: 'broker', brokerId: auth.broker.id, companyName: auth.broker.companyName })
   } catch (e) {
     return apiErrorResponse(e, 'broker order package zip GET', 'Не удалось собрать пакет')
   }
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!parsed.ok) return parsed.response
     return await packageScopeZipResponse(
       id,
-      { kind: 'broker', brokerId: auth.broker.id },
+      { kind: 'broker', brokerId: auth.broker.id, companyName: auth.broker.companyName },
       brokerActor(auth.broker),
       parsed.data,
     )

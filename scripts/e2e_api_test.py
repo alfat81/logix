@@ -11,7 +11,7 @@
 Код выхода 1, если упала хотя бы одна проверка без префикса [ЦЕЛЬ].
 """
 import os
-import json, urllib.request, urllib.error, uuid, threading, sys
+import json, urllib.request, urllib.error, uuid, threading, sys, subprocess
 from urllib.parse import quote as urlquote
 from http.cookiejar import CookieJar
 B=os.environ.get('BASE_URL','http://localhost:3000')
@@ -545,7 +545,7 @@ s,d=bb.r('GET','/api/admin/settings'); chk('[ПРИЁМКА DF-00D] менедж
 s,d=bb.r('PATCH','/api/admin/settings',{'key':'files.max_mb','value':50}); chk('[ПРИЁМКА DF-00D] менеджер не меняет настройки → 403',s==403,s)
 s,d=C().r('GET','/api/admin/settings'); chk('DF-00D: аноним не читает настройки → 401',s==401,s)
 s,d=a.r('GET','/api/admin/settings'); st=d.get('settings',[]) if isinstance(d,dict) else []
-chk('[ПРИЁМКА DF-00D] мастер читает реестр: 20 ключей (DF-19 +customs.fx_reserve_percent), группы, дефолты',s==200 and len(st)==20 and bool(d.get('groups')) and all('defaultValue' in x for x in st),(s,len(st)))
+chk('[ПРИЁМКА DF-00D] мастер читает реестр: 21 ключ (DF-26 w2 +permits.warn_days_before), группы, дефолты',s==200 and len(st)==21 and bool(d.get('groups')) and all('defaultValue' in x for x in st),(s,len(st)))
 f0=[x for x in st if x['key']=='files.max_mb'][0]
 chk('DF-00D: пустая таблица — значение равно дефолту',f0['value']==25 and f0['isModified']==False,f0)
 s,d=a.r('PATCH','/api/admin/settings',{'key':'files.max_mb','value':50}); chk('[ПРИЁМКА DF-00D] мастер меняет значение, новое видно в ответе',s==200 and (d.get('setting') or {}).get('value')==50,(s,d))
@@ -961,7 +961,7 @@ chk('DF-16: строки перенесены в заявку (4: 2 оценки
 s,d=up2(c3,f'/api/client/permits/{target16["id"]}/document','permit16.pdf',b'%PDF-1.4 df16','application/pdf',permit_id=target16["id"],extra={'title':'Фитосанитарный сертификат DF16 (скан)','comment':'оригинал отгрузили'}); chk('DF-16: клиент загрузил документ в строку',s in(200,201),(s,d))
 s,d=c3.r('GET',f'/api/client/orders/{oid16}'); cp2=(d.get('order') or d).get('permitRequirements',[])
 rec=[x for x in cp2 if x['id']==target16['id']]
-chk('DF-16: строка стала received с именем загрузившего',len(rec)==1 and rec[0]['status']=='received' and bool(rec[0].get('documentId')) and bool(rec[0].get('receivedAt')),rec[:1])
+chk('DF-16 волна 2: строка стала submitted с именем загрузившего (§5.4: загрузка ≠ принятие)',len(rec)==1 and rec[0]['status']=='submitted' and bool(rec[0].get('documentId')) and bool(rec[0].get('submittedAt')),rec[:1])
 s,d=up2(c3,f'/api/client/permits/{target16["id"]}/document','y.pdf',b'%PDF-1.4 y','application/pdf',permit_id=target16["id"],extra={'title':'ещё один'})
 chk('DF-16: повторная загрузка в закрытую строку → 409',s==409,(s,d))
 import time as _tp
@@ -969,10 +969,13 @@ pr=[]
 for _ in range(6):  # поллинг: after()-диспетчер PATCH может опередить disp()
     s,d=disp()
     s,d=a.r('GET','/api/admin/notifications?status=sent&take=200'); sent=d.get('notifications',[])
-    pr=[x for x in sent if x.get('toAddress')=='df03-staff-'+u+'@test.example' and x.get('type')=='permit_received']
+    # DF-26 волна 2 (§5.4: загрузка ≠ принятие): письмо ответственному при
+    # загрузке клиентом — permit_submitted; permit_received уходит при
+    # принятии/финализации (проверяется в блоке DF-26 w2).
+    pr=[x for x in sent if x.get('toAddress')=='df03-staff-'+u+'@test.example' and x.get('type')=='permit_submitted']
     if pr: break
     _tp.sleep(0.5)
-chk('DF-16: ответственному письмо о полученном разрешительном',len(pr)>=1,len(pr))
+chk('DF-16: ответственному письмо о загруженном разрешительном (permit_submitted, §5.4)',len(pr)>=1,len(pr))
 # «не требуется» с причиной
 s,d=a.r('PATCH',f'/api/admin/permits/{pid16b}',{'status':'waived','waivedReason':'товар не подлежит сертификации DF16'}); chk('DF-16: сотрудник отметил «не требуется» с причиной',s==200,(s,d))
 # красный скан: блокирующая с прошедшим сроком → permit_overdue клиенту и ответственному
@@ -1393,7 +1396,9 @@ _ok3=sorted([_s3a,_s3b])==[200,409]
 chk('DF-26 К-3: параллельные confirm — ровно один 200, второй 409',_ok3,(_s3a,_s3b))
 s,d=a.r('GET',f'/api/admin/orders/{oid16}/permits')
 _p21=[x for x in (d.get('permits') or []) if x.get('id')==_pid21]
-chk('DF-26 К-3: строка закрыта ровно один раз (received, документ привязан)',len(_p21)==1 and _p21[0].get('status')=='received' and bool(_p21[0].get('documentId')),_p21)
+# DF-26 волна 2 (§5.4): confirm → submitted (загрузка ≠ принятие);
+# снимок загрузившего (submittedAt/Name) на строке, acceptedVersion ещё нет.
+chk('DF-26 К-3: строка закрыта ровно один раз (submitted — НА ПРОВЕРКЕ, снимок загрузившего)',len(_p21)==1 and _p21[0].get('status')=='submitted' and bool(_p21[0].get('documentId')) and bool(_p21[0].get('submittedAt')),_p21)
 # — К-4: «гонка версий — 409» (план §8.2): версия поверх финального —
 #   409 у сотрудника (полное трёхролевое покрытие — блок DF-12 выше);
 #   параллельные POST versions не гоняем: retry Б4 повторно читает
@@ -1439,7 +1444,7 @@ s,d=a.r('GET','/api/admin/pulse'); PL14=d
 chk('DF-14: Пульс — счётчик заявок без обязательных документов ≥1',s==200 and (PL14.get('stats') or {}).get('missingFinalDocs',0)>=1,(s,(PL14.get('stats') or {}).get('missingFinalDocs')))
 # блокировка завершения
 s,d=a.r('PATCH',f'/api/admin/orders/{oid14}/stages/{ep14["id"]}',{'status':'done'}); chk('DF-14: этап нельзя завершить без финального документа → 409',s==409,(s,d))
-chk('DF-14: 409 называет вид и подсказывает override мастера','нет финальных' in (d.get('error') or '') and 'override=true' in (d.get('error') or '') and (d.get('missingDocuments') or [{}])[0].get('kind')=='client_request',d.get('error'))
+chk('DF-14: 409 называет вид и подсказывает override мастера','нет документов' in (d.get('error') or '') and 'override=true' in (d.get('error') or '') and (d.get('missingDocuments') or [{}])[0].get('kind')=='client_request',d.get('error'))
 s,d=bb.r('PATCH',f'/api/admin/orders/{oid14}/stages/{ep14["id"]}',{'status':'done','override':True,'overrideComment':'менеджер попытался'}); chk('DF-14: override менеджера → 403',s==403,s)
 s,d=a.r('PATCH',f'/api/admin/orders/{oid14}/stages/{ep14["id"]}',{'status':'done','override':True}); chk('DF-14: override без комментария → 400',s==400,s)
 s,d=a.r('PATCH',f'/api/admin/orders/{oid14}/stages/{ep14["id"]}',{'status':'done','override':True,'overrideComment':'ДТ уже на почте, ждём скан — фиксируем факт'}); chk('DF-14: мастер перекрывает с комментарием → 200',s==200,(s,d))
@@ -1467,6 +1472,143 @@ s,d=a.r('PATCH',f"/api/admin/stage-catalog/requirements/{req14['id']}",{'isBlock
 s,d=a.r('PATCH',f"/api/admin/stage-catalog/requirements/{req14['id']}",{'providedBy':'staff'}); chk('DF-14: мастер меняет поставщика',s==200 and (d.get('requirement') or d).get('providedBy')=='staff',(s,d))
 s,d=a.r('DELETE',f"/api/admin/stage-catalog/requirements/{req14['id']}"); chk('DF-14: мастер удаляет требование',s==200,(s,d))
 s,d=a.r('GET','/api/admin/stage-catalog/requirements?stageCode=export_pickup'); chk('DF-14: после удаления срез пуст',s==200 and len(d.get('requirements') or [])==0,(s,d.get('requirements')))
+
+# ═══ DF-26, волна 2 (T22): загрузка ≠ принятие, проверки ТН ВЭД, привязки ═══
+# §5.4: pending→submitted (confirm)→received («Принять»/finalize)|pending
+# («Отклонить» с причиной); авто-возврат received→submitted при новой
+# версии/«Вернуть в работу» (§6.4, пересчёт по каждому требованию);
+# §5.1–5.3/§5.7: проверки ТН ВЭД (auto/ручные/пересмотр), дифф-сохранение
+# оценки (идентичность позиции — id строки, «требует ручной привязки»).
+_w2=_pid21  # строка из К-3 — submitted, документ привязан
+_doc21=_p21[0]['documentId']
+# — права: клиент не принимает (§7) —
+s,d=c3.r('POST',f'/api/admin/permits/{_w2}/accept'); chk('DF-26 w2: клиент на accept — не авторизован (401/404)',s in(401,404),(s,d))
+# — двойной accept: второй — 409 (атомарный переход) —
+s,d=a.r('POST',f'/api/admin/permits/{_w2}/accept'); chk('DF-26 w2: «Принять» — submitted→received',s==200,(s,d))
+_acc21=(d.get('permit') or d)
+_cur21=a.r('GET',f'/api/admin/orders/{oid16}/package')[1]
+_cv21=[dv for sl in (_cur21.get('slots') or []) for dv in sl.get('documents',[]) if dv.get('id')==_doc21]
+_cv21=_cv21[0].get('currentVersion') if _cv21 else None
+chk('DF-26 w2: acceptedVersion = текущей версии документа',_acc21.get('status')=='received' and _acc21.get('acceptedVersion')==_cv21,(_acc21.get('status'),_acc21.get('acceptedVersion'),_cv21))
+s,d=a.r('POST',f'/api/admin/permits/{_w2}/accept'); chk('DF-26 w2: повторный accept — 409',s==409,(s,d))
+s,d=a.r('POST',f'/api/admin/permits/{_w2}/reject',{'reason':'x'}); chk('DF-26 w2: reject по received — 409',s==409,(s,d))
+# — новая версия документа → авто-возврат received→submitted (§6.4 п. 4) —
+s,d=a.r('POST',f'/api/admin/documents/{_doc21}/versions',{'fileName':'df26-w2-v2.pdf','mimeType':'application/pdf','size':40})
+chk('DF-26 w2: новая версия создана (pending)',s in(200,201),(s,d))
+_vup21=(d.get('upload') or {}); _vconf21=d.get('confirmUrl')
+_vr21=urllib.request.Request(B+_vup21['url'],data=b'%PDF-1.4 w2 version 2',method='PUT')
+for _k,_v in (_vup21.get('headers') or {}).items(): _vr21.add_header(_k,_v)
+urllib.request.build_opener().open(_vr21).read()
+s,d=a.r('POST',_vconf21)
+chk('DF-26 w2: версия подтверждена',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid16}/permits')
+_w2r=[x for x in (d.get('permits') or []) if x.get('id')==_w2][0]
+chk('DF-26 w2: новая версия вернула принятое требование в submitted (acceptedVersion сохранён)',_w2r.get('status')=='submitted' and _w2r.get('acceptedVersion')==_cv21,(_w2r.get('status'),_w2r.get('acceptedVersion'),_cv21))
+s,d=a.r('GET',f'/api/admin/orders/{oid16}'); _acts_w2=(d.get('order',d)).get('activities',[])
+chk('DF-26 w2: событие permit_reopened в ленте (авто-возврат)',any(x.get('type')=='permit_reopened' and _w2 in json.dumps(x) for x in _acts_w2) or any(x.get('type')=='permit_reopened' for x in _acts_w2),[x.get('description') for x in _acts_w2 if x.get('type')=='permit_reopened'][:2])
+# — «Отклонить» с обязательной причиной (§5.4) —
+s,d=a.r('POST',f'/api/admin/permits/{_w2}/reject',{'reason':''}); chk('DF-26 w2: reject без причины — 400',s==400,(s,d))
+s,d=a.r('POST',f'/api/admin/permits/{_w2}/reject',{'reason':'нужен сертификат на другую партию'}); chk('DF-26 w2: reject с причиной — submitted→pending',s==200 and (d.get('permit') or d).get('status')=='pending',(s,d))
+s,d=a.r('POST',f'/api/admin/permits/{_w2}/reject',{'reason':'повтор'}); chk('DF-26 w2: повторный reject — 409',s==409,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid16}'); _acts_w2=(d.get('order',d)).get('activities',[])
+chk('DF-26 w2: событие permit_rejected с причиной и снимком',any(x.get('type')=='permit_rejected' and 'другую партию' in (x.get('description') or '') for x in _acts_w2),[x.get('description') for x in _acts_w2 if x.get('type')=='permit_rejected'][:2])
+# — финализация закрывает submitted автоматически (§5.4, acceptedVersion=финал):
+#   отдельная строка, документ тот же (вторая версия подтверждена выше) —
+s,d=a.r('POST',f'/api/admin/orders/{oid16}/permits',{'title':'DF-26 w2 финал-авто '+u,'providedBy':'client'})
+chk('DF-26 w2: вторая строка создана',s in(200,201),(s,d)); _w2b=(d.get('permit') or d)['id']
+s,d=up2(a,_du16,'df26-w2-final.pdf',b'%PDF-1.4 w2 final','application/pdf',permit_id=_w2b,extra={'kind':'permit_document','title':'DF-26 w2 permit2 '+u})
+chk('DF-26 w2: загрузка по второй строке — confirm → submitted',s in(200,201),(s,d))
+_doc21b=((d.get('document') or d).get('id'))
+s,d=a.r('POST',f'/api/admin/documents/{_doc21}/finalize')
+chk('DF-26 w2: документ _doc21 уже с версиями, финализация — 200/409 по статусу',s in(200,409),(s,d))
+# _doc21 может быть уже final (если финализировали ранее) — финализируем документ второй строки:
+s,d=a.r('POST',f'/api/admin/documents/{_doc21b}/finalize'); chk('DF-26 w2: документ второй строки финализирован',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid16}/permits')
+_w2f=[x for x in (d.get('permits') or []) if x.get('id')==_w2b][0]
+chk('DF-26 w2: финал закрыл submitted-требование (received)',_w2f.get('status')=='received',(_w2f.get('status'),))
+s,d=a.r('GET',f'/api/admin/orders/{oid16}'); _acts_w2=(d.get('order',d)).get('activities',[])
+chk('DF-26 w2: авто-закрытие в ленте (permit_received «принят автоматически»)',any(x.get('type')=='permit_received' and 'автоматически' in (x.get('description') or '') for x in _acts_w2),[x.get('description') for x in _acts_w2 if x.get('type')=='permit_received'][:2])
+
+# ── Проверки ТН ВЭД и дифф-сохранение оценки (изолированная сделка с брокером b17) ──
+s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'DF26w2 проверка '+u,'phone':ph(base+77)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':300}})
+_lw2=(d.get('lead') or d)['id']
+# Выделенный брокер сделки (создание → подключение → вход портала).
+s,d=a.r('POST','/api/admin/brokers',{'companyName':'Брокер w2 '+u,'phone':ph(base+78),'password':'broker-w2-1'}); _bw2id=(d.get('broker') or d)['id']
+s,d=a.r('POST',f'/api/admin/leads/{_lw2}/brokers',{'brokerId':_bw2id}); chk('DF-26 w2: брокер подключён к лиду проверок',s in(200,201),(s,d))
+# Гард логинов копит неудачные попытки предыдущих блоков (отрицательные
+# тесты выше) — минутное окно по IP. Чистим счётчик (тот же хелпер, что
+# между прогонами), иначе выделенный вход брокера ловит 429.
+subprocess.run(['bunx','tsx','scripts/clear-login-attempts.ts'],cwd=os.path.dirname(os.path.abspath(__file__))+'/..',capture_output=True)
+bw2s=C(); s,d=bw2s.r('POST','/api/auth/broker/login',{'phone':ph(base+78),'password':'broker-w2-1'})
+chk('DF-26 w2: брокер входит в портал',s==200,(s,d))
+# PUT без id: создание строк — дифф-сохранение поддерживает оба формата
+s,d=bw2s.r('PUT',f'/api/broker/leads/{_lw2}/estimate',{'customsDutyEstimate':1000,'items':[{'hsCode':'8708299009','dutyPercent':5,'vatPercent':20},{'hsCode':'8471300000','dutyPercent':0,'vatPercent':20}],'send':True})
+chk('DF-26 w2: PUT оценки (строки без id) — созданы с id',s==200 and len((d.get('estimate') or {}).get('items',[]))==2,(s,d))
+_itw2=(d.get('estimate') or {}).get('items',[]); _ia21=(_itw2+[{}])[0].get('id')
+# auto-запись: код появился → PermitCheck unclear + permit_check_needed
+s,d=a.r('GET',f'/api/admin/leads/{_lw2}/permit-checks'); _cw2=(d.get('checks') or [])
+chk('DF-26 w2: auto-запись кода создана (unclear, авто, охват позиции)',s==200 and any(x.get('hsCode')=='8708299009' and x.get('result')=='unclear' and x.get('source')=='auto' and len(x.get('items') or [])==1 for x in _cw2),[(x.get('hsCode'),x.get('result'),x.get('source'),x.get('items')) for x in _cw2])
+s,d=bw2s.r('GET',f'/api/broker/leads/{_lw2}/permit-checks'); chk('DF-26 w2: брокер видит проверки своей сделки',s==200 and any(x.get('hsCode')=='8708299009' for x in (d.get('checks') or [])),(s,))
+s,d=c3.r('GET',f'/api/admin/leads/{_lw2}/permit-checks'); chk('DF-26 w2: чужой кабинет на checks — не авторизован',s in(401,404),(s,))
+# «Проверить» руками: not_required без основания → 400; с основанием — ок
+s,d=a.r('POST',f'/api/admin/leads/{_lw2}/permit-checks',{'hsCode':'8471300000','result':'not_required'}); chk('DF-26 w2: not_required без основания — 400',s==400,(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{_lw2}/permit-checks',{'hsCode':'8471300000','result':'not_required','basis':'Товар вне перечня ТР ТС'})
+chk('DF-26 w2: not_required с основанием — запись (manual, снимок сотрудника)',s in(200,201) and (d.get('check') or {}).get('source')=='manual' and bool((d.get('check') or {}).get('checkedByUserName')),(s,d))
+# «Требуется» — требование по охваченной позиции + происхождение
+s,d=a.r('POST',f'/api/admin/leads/{_lw2}/permit-checks',{'hsCode':'8708299009','result':'required','basis':'ТР ТС 018/2011','requirement':{'title':'Сертификат ТР ТС 018/2011 w2','providedBy':'client','isBlocking':True,'stageCode':'import_customs'}})
+chk('DF-26 w2: required создаёт требование по позиции (связь с проверкой)',s in(200,201),(s,d))
+_ckw2=(d.get('check') or {})
+s,d=a.r('GET',f'/api/admin/leads/{_lw2}/permits'); _prw2=[x for x in (d.get('permits') or []) if x.get('title')=='Сертификат ТР ТС 018/2011 w2']
+chk('DF-26 w2: требование с stageCode и привязкой к позиции создано',len(_prw2)==1 and _prw2[0].get('stageCode')=='import_customs' and _prw2[0].get('itemId')==_ia21,(_prw2[0].get('stageCode'),_prw2[0].get('itemId')==_ia21) if _prw2 else None)
+# ── дифф-сохранение: смена кода сохранённой строки → needs_review (§5.7 п. 2) ──
+s,d=bw2s.r('PUT',f'/api/broker/leads/{_lw2}/estimate',{'items':[{'id':_ia21,'hsCode':'8708400000','dutyPercent':5,'vatPercent':20},{'hsCode':'8471300000','dutyPercent':0,'vatPercent':20}],'send':True})
+_itw2b=(d.get('estimate') or {}).get('items',[])
+chk('DF-26 w2: PUT с id — строка обновлена на месте (id сохранён)',s==200 and (_itw2b+[{}])[0].get('id')==_ia21,(s,[(_itw2b+[{}])[0].get('id')==_ia21]))
+# строка 8471300000 пересоздана (payload без id) — её актуальный id:
+_i8471=(_itw2b+[{},{}])[1].get('id')
+s,d=a.r('GET',f'/api/admin/leads/{_lw2}/permit-checks'); _cw2=(d.get('checks') or [])
+chk('DF-26 w2: смена кода — открытая needs_review со ссылкой на прежнюю',any(x.get('hsCode')=='8708400000' and x.get('reviewStatus')=='needs_review' and x.get('reviewItemId')==_ia21 and x.get('reviewOfCheckId') for x in _cw2),[(x.get('hsCode'),x.get('reviewStatus'),bool(x.get('reviewOfCheckId'))) for x in _cw2])
+# чужой id строки в payload → 400; дубль id → 400
+s,d=bw2s.r('PUT',f'/api/broker/leads/{_lw2}/estimate',{'items':[{'id':'no-such','hsCode':'8708400000'}]}); chk('DF-26 w2: чужой id строки — 400',s==400,(s,d))
+s,d=bw2s.r('PUT',f'/api/broker/leads/{_lw2}/estimate',{'items':[{'id':_ia21,'hsCode':'8708400000'},{'id':_ia21,'hsCode':'8471300000'}]}); chk('DF-26 w2: дубль id в payload — 400',s==400,(s,d))
+# ── пересмотр (§5.7): needs_review → review (уполномоченный сотрудник) ──
+_nrw2=[x for x in _cw2 if x.get('reviewStatus')=='needs_review'][0]
+s,d=a.r('POST',f'/api/admin/permit-checks/{_nrw2["id"]}/review',{'outcome':'requirement_waived'}); chk('DF-26 w2: пересмотр без решения по активному требованию — 400',s==400,(s,d))
+_pidw2=_prw2[0]['id']
+s,d=a.r('POST',f'/api/admin/permit-checks/{_nrw2["id"]}/review',{'outcome':'requirement_waived','decisions':[{'requirementId':_pidw2,'action':'waive','reason':'код изменён на 8708400000, требование не нужно'}]})
+chk('DF-26 w2: пересмотр requirement_waived — запись reviewed, снимки',s==200 and (d.get('check') or {}).get('reviewStatus')=='reviewed' and (d.get('check') or {}).get('reviewOutcome')=='requirement_waived' and bool((d.get('check') or {}).get('reviewedByUserName')),(s,d))
+s,d=a.r('POST',f'/api/admin/permit-checks/{_nrw2["id"]}/review',{'outcome':'requirement_kept'}); chk('DF-26 w2: повторный пересмотр — 409',s==409,(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{_lw2}/permits'); _pw2b=[x for x in (d.get('permits') or []) if x.get('id')==_pidw2][0]
+chk('DF-26 w2: требование снято с причиной (waived)',_pw2b.get('status')=='waived' and '8708400000' in (_pw2b.get('waivedReason') or ''),(_pw2b.get('status'),_pw2b.get('waivedReason')))
+# ── «требует ручной привязки» (§5.7 п. 0а): удаление позиции из оценки ──
+s,d=a.r('POST',f'/api/admin/leads/{_lw2}/permits',{'title':'Требование к 8471 w2','providedBy':'client','itemId':_i8471})
+chk('DF-26 w2: требование к позиции 8471 создано',s in(200,201),(s,d))
+_pid8471=(d.get('permit') or d)['id']
+s,d=bw2s.r('PUT',f'/api/broker/leads/{_lw2}/estimate',{'items':[{'id':_ia21,'hsCode':'8708400000','dutyPercent':5,'vatPercent':20}],'send':True})
+chk('DF-26 w2: строка 8471 удалена из оценки (дифф)',s==200 and len((d.get('estimate') or {}).get('items',[]))==1,(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{_lw2}/permits'); _p8471=[x for x in (d.get('permits') or []) if x.get('id')==_pid8471][0]
+chk('DF-26 w2: требование удалённой строки — pending_manual, замороженная ссылка (не NULL)',_p8471.get('bindingState')=='pending_manual' and _p8471.get('itemId')==_i8471,(_p8471.get('bindingState'),_p8471.get('itemId')==_i8471))
+s,d=a.r('GET',f'/api/admin/leads/{_lw2}'); _aw2l=(d.get('lead',d)).get('activities',[])
+chk('DF-26 w2: событие permit_relink_needed в ленте',any(x.get('type')=='permit_relink_needed' for x in _aw2l),[x.get('description') for x in _aw2l if x.get('type')=='permit_relink_needed'][:1])
+# ручное разрешение: «ко всей сделке» — осознанный NULL
+s,d=a.r('PATCH',f'/api/admin/permits/{_pid8471}',{'itemId':None})
+chk('DF-26 w2: «ко всей сделке» — itemId NULL, bindingState bound, permit_relinked',s==200 and (d.get('permit') or d).get('bindingState')=='bound' and (d.get('permit') or d).get('itemId') is None,(s,d))
+# ── блокировка этапа разрешительным требованием со stageCode (§9) ──
+s,d=a.r('POST',f'/api/admin/leads/{_lw2}/options',{'description':'DF26w2 море','transportModes':['Море'],'price':50000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':30,'priorityFit':'cost','isSelected':True})
+s,d=a.r('POST',f'/api/admin/leads/{_lw2}/convert',{'legalEntityId':leid}); _ow2=(d.get('order') or d); oidw2=_ow2['id']
+chk('DF-26 w2: лид с требованиями конвертирован',s in(200,201),(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oidw2}'); _stw2=[x for x in (d.get('order',d)).get('stages',[]) if x.get('stageCode')=='import_customs'][0]
+# Свежее блокирующее требование заявки (проверка на orders-роуте; прежнее
+# _pidw2 снято пересмотром — история не трогается).
+s,d=a.r('POST',f'/api/admin/orders/{oidw2}/permit-checks',{'hsCode':'8708400000','result':'required','basis':'по коду 8708400000 нужен сертификат','requirement':{'title':'Сертификат заявки w2','providedBy':'client','isBlocking':True,'stageCode':'import_customs'}})
+chk('DF-26 w2: required на заявке — требование создано (после конвертации)',s in(200,201),(s,d))
+s,d=a.r('PATCH',f'/api/admin/orders/{oidw2}/stages/{_stw2["id"]}',{'status':'done'})
+_mv=[x for x in (d.get('missingDocuments') or []) if x.get('source')=='permit']
+chk('DF-26 w2: этап нельзя завершить — 409 со списком, требование в missingDocuments (source=permit)',s==409 and any('Сертификат заявки w2'==x.get('label') for x in _mv),(s,_mv))
+s,d=a.r('PATCH',f'/api/admin/orders/{oidw2}/stages/{_stw2["id"]}',{'status':'done','override':True,'overrideComment':'чек-лист закроем после поставки — фиксируем факт'})
+chk('DF-26 w2: мастер перекрывает блокировку требования → 200',s==200,(s,d))
+# Submitted не сканируется просрочкой и уходит из «ждём от вас»: строка pending
+# после reject снова в контроле — covered unit-набором (скан читает только pending).
 
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)

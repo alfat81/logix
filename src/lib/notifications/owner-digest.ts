@@ -174,6 +174,11 @@ export function buildOwnerDigestLetter(input: OwnerDigestLetterInput): { subject
   // DF-14: та же цифра, что в Пульсе (одна выборка loadPulseCore —
   // письмо и экран сходятся по построению).
   lines.push(`• Заявок без обязательных документов ближайшего этапа: ${s.missingFinalDocs ?? 0}`)
+  // DF-26 волна 2 (§11.3): «документов ждут проверки» — submitted одним
+  // числом (та же цифра, что в Пульсе).
+  if ((s.submittedPermits ?? 0) > 0) {
+    lines.push(`• Документов ждут проверки: ${s.submittedPermits}`)
+  }
   lines.push('')
   if (input.slowing.length === 0) {
     lines.push('Тормозящих нет.', '')

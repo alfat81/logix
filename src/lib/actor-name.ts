@@ -26,10 +26,14 @@ import { db } from '@/lib/db'
 // Роль читателя: сотрудник (проекция «Имя (Компания)») или внешний
 // кабинет, скоупированный своей компанией (коллеги — имена, чужие —
 // компания). id компании у Current* — именно он (Блок 3).
+// DF-26 волна 2 (§6.1): companyName у внешнего читателя — имя СВОЕЙ
+// компании для сверки с историческим снимком (без него внешние читатели
+// видят снимки как есть — сверить «свой/чужой» нечем, живой lookup
+// для легаси-строк сохраняется).
 export type ActorNameReader =
   | { kind: 'staff' }
-  | { kind: 'client'; customerId: string }
-  | { kind: 'broker'; brokerId: string }
+  | { kind: 'client'; customerId: string; companyName?: string }
+  | { kind: 'broker'; brokerId: string; companyName?: string }
 
 // Единственный скоуп роутов админки — константа вместо литерала в
 // четырёх местах (дашборд, карточки лида/заявки, конвертация).
@@ -40,6 +44,10 @@ export type ActorRef = {
   actorType: string
   actorId: string | null
   actorName: string
+  // DF-26 волна 2 (§6.1): исторические снимки (если записаны — они
+  // приоритетны, НЕ меняются при правке профиля); у легаси-строк NULL.
+  actorUserName?: string | null
+  actorCompanyName?: string | null
 }
 // …и на автора (строка DocumentVersion) — та же семантика, другие имена
 // колонок (исторические: журнал живёт с Ж2, версии — с Е).
@@ -47,10 +55,18 @@ export type AuthorRef = {
   authorType: string
   authorId: string | null
   authorName: string
+  authorUserName?: string | null
+  authorCompanyName?: string | null
 }
 
 // Нормализованная ссылка — единая точка правил проекции.
-type NameRef = { type: string; id: string | null; name: string }
+type NameRef = {
+  type: string
+  id: string | null
+  name: string
+  userName?: string | null
+  companyName?: string | null
+}
 
 type ResolvedUser = {
   userName: string
@@ -121,12 +137,34 @@ export async function resolveUserNames(
 // ── Правило проекции (чистая функция) ───────────────────────────────
 // employee/contractor/system — снимок как есть (человек у сотрудника
 // свой, у подрядчика людей нет — Г4, у системы имени нет).
+// DF-26 волна 2 (§6.1): исторические снимки (userName/companyName)
+// приоритетны — правка профиля историю не меняет; живой lookup —
+// fallback для легаси-строк (снимков нет). У внешнего читателя без
+// своего companyName сверить «коллега/чужой» по снимку нечем —
+// действует прежнее правило живого lookup (регрессий нет).
 export function projectActorName(
   ref: NameRef,
   users: UserNameMap,
   reader: ActorNameReader,
 ): string {
   if (ref.type !== 'client' && ref.type !== 'broker') return ref.name
+  if (ref.userName || ref.companyName) {
+    const name = ref.userName ?? null
+    const company = ref.companyName ?? null
+    if (reader.kind === 'staff') {
+      // «Имя (Компания)» из снимков; неполный снимок — что достоверно.
+      if (name && company) return `${name} (${company})`
+      return name ?? company ?? ref.name
+    }
+    if (reader.kind === 'client') {
+      // Коллега по СВОЕЙ компании (снимок компании совпал с именем
+      // компании читателя) — имя из снимка; чужие/неполные — компания.
+      const mine = ref.type === 'client' && reader.companyName != null && company === reader.companyName
+      return mine && name ? name : (company ?? ref.name)
+    }
+    const mine = ref.type === 'broker' && reader.companyName != null && company === reader.companyName
+    return mine && name ? name : (company ?? ref.name)
+  }
   const user = ref.id ? users.get(ref.id) : undefined
   if (reader.kind === 'staff') {
     // «Имя (Компания)»; устаревшая строка (пользователя нет) — компания.
@@ -160,7 +198,13 @@ export async function projectActors<T extends ActorRef>(
   return rows.map((r) => ({
     ...r,
     actorName: projectActorName(
-      { type: r.actorType, id: r.actorId, name: r.actorName },
+      {
+        type: r.actorType,
+        id: r.actorId,
+        name: r.actorName,
+        userName: r.actorUserName,
+        companyName: r.actorCompanyName,
+      },
       users,
       reader,
     ),
@@ -177,7 +221,13 @@ export async function projectAuthors<T extends AuthorRef>(
   return rows.map((r) => ({
     ...r,
     authorName: projectActorName(
-      { type: r.authorType, id: r.authorId, name: r.authorName },
+      {
+        type: r.authorType,
+        id: r.authorId,
+        name: r.authorName,
+        userName: r.authorUserName,
+        companyName: r.authorCompanyName,
+      },
       users,
       reader,
     ),
@@ -198,7 +248,13 @@ export async function projectDocumentAuthors<
     versions: d.versions.map((v) => ({
       ...v,
       authorName: projectActorName(
-        { type: v.authorType, id: v.authorId, name: v.authorName },
+        {
+          type: v.authorType,
+          id: v.authorId,
+          name: v.authorName,
+          userName: v.authorUserName,
+          companyName: v.authorCompanyName,
+        },
         users,
         reader,
       ),

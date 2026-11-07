@@ -1,11 +1,6 @@
 import { db } from '@/lib/db'
 import { ORDER_ACTIVE_STATUSES } from '@/lib/order-constants'
-import { resolveDocumentKind } from '@/lib/document-constants'
-import {
-  DOCUMENT_KIND_LABELS,
-  type DocProvider,
-  type DocumentKind,
-} from '@/lib/document-constants'
+import { resolveDocumentKind, type DocProvider, type DocumentKind } from '@/lib/document-constants'
 import {
   requirementKindLabel,
   requirementSatisfiedBy,
@@ -25,6 +20,9 @@ export type MissingDocRow = {
   label: string
   providedBy: DocProvider
 }
+
+/** Строка недостающего для 409/override-диалога (объединённый список). */
+export type StageBlocker = MissingDocRow & { source: 'doc_requirement' | 'permit' }
 
 /**
  * Блокирующие требования этапа без финального документа этого вида на
@@ -117,18 +115,52 @@ export async function recomputeActiveOrdersForStage(stageCode: string): Promise<
   return orders.length
 }
 
-// ── Гард завершения этапа (DF-14, критерий приёмки) ─────────────────
-// Этап нельзя перевести в done, пока для него есть блокирующее
-// требование без финального документа этого вида на заявке. Обход —
-// осознанный: мастер + override=true + overrideComment (журнал,
-// прецедент P1-05; лестница 403/400 — общий override-guard). Реко-
-// мендованные требования (isBlocking=false, дефолты O-5) не блокируют.
+// ── Гард завершения этапа (DF-14 + DF-26 волна 2, критерий приёмки) ─
+// Этап нельзя перевести в done, пока (а) для него есть блокирующее
+// требование чек-листа без финального документа вида ИЛИ (б) есть
+// блокирующее разрешительное требование PermitRequirement со
+// stageCode=этот этап в статусе pending|submitted (SPEC §9 п. 2;
+// requirements без stageCode блокировку не получают внезапно —
+// существующие строки не блокируют). Обход — осознанный: мастер +
+// override=true + overrideComment (журнал, прецедент P1-05; лестница
+// 403/400 — общий override-guard). Рекомендованные (isBlocking=false)
+// не блокируют.
 
 import { assertOverridePermission } from '@/lib/override-guard'
 
 export type StageDoneGuard =
-  | { ok: true; missing: MissingDocRow[] }
-  | { ok: false; status: number; error: string; missing?: MissingDocRow[] }
+  | { ok: true; missing: StageBlocker[] }
+  | { ok: false; status: number; error: string; missing?: StageBlocker[] }
+
+/**
+ * Полный список блокеров этапа: чек-листы (вид документа) + разрешительные
+ * требования (stageCode, pending|submitted, isBlocking). Не выполняется
+ * в одной паре запросов сознательно: оба лёгкие, читаемость важнее.
+ */
+export async function stageBlockers(orderId: string, stageCode: string): Promise<StageBlocker[]> {
+  const [docs, permits] = await Promise.all([
+    missingBlockingDocsForStage(orderId, stageCode),
+    db.permitRequirement.findMany({
+      where: {
+        orderId,
+        stageCode,
+        isBlocking: true,
+        status: { in: ['pending', 'submitted'] },
+      },
+      select: { id: true, title: true, providedBy: true, status: true },
+      orderBy: { createdAt: 'asc' },
+    }),
+  ])
+  return [
+    ...docs.map((m) => ({ ...m, source: 'doc_requirement' as const })),
+    ...permits.map((p) => ({
+      kind: 'permit_document' as RequirementKind,
+      label: p.title,
+      providedBy: p.providedBy as DocProvider,
+      source: 'permit' as const,
+    })),
+  ]
+}
 
 export async function guardStageDone(opts: {
   orderId: string
@@ -137,7 +169,7 @@ export async function guardStageDone(opts: {
   overrideComment?: string
   isMaster: boolean
 }): Promise<StageDoneGuard> {
-  const missing = await missingBlockingDocsForStage(opts.orderId, opts.stageCode)
+  const missing = await stageBlockers(opts.orderId, opts.stageCode)
   if (missing.length === 0) return { ok: true, missing: [] }
   const denial = assertOverridePermission({
     override: opts.override,
@@ -149,7 +181,7 @@ export async function guardStageDone(opts: {
     return {
       ok: false,
       status: 409,
-      error: `Этап нельзя завершить: нет финальных документов — ${missing
+      error: `Этап нельзя завершить: нет документов — ${missing
         .map((m) => `«${m.label}»`)
         .join(', ')}. Мастер может перекрыть: override=true + overrideComment`,
       missing,

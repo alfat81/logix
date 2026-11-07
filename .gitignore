@@ -45,3 +45,7 @@ package-lock.json
 # runtime песочницы: локальный драйвер хранилища (DF-11) и бинари PostgreSQL
 .storage/
 .pg/
+
+# кэши Python и локальный вывод сборки релизных архивов
+__pycache__/
+releases/

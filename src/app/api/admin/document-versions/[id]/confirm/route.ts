@@ -8,6 +8,7 @@ import {
   loadVersionForConfirm,
 } from '@/lib/document-confirm'
 import { readJsonBody } from '@/lib/document-upload'
+import { parseConfirmPermitOpts } from '@/lib/document-confirm'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -23,11 +24,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params
   try {
     const body = await readJsonBody(req)
-    const opts =
-      body && typeof body === 'object' && 'permitRequirementId' in body
-        ? { permitRequirementId: String((body as { permitRequirementId: unknown }).permitRequirementId) }
-        : {}
-
+    // DF-26 волна 2 (§6.4 п. 1): один документ — несколько требований
+    // (парсер общий — permit-checks-http не нужен, document-confirm).
+    const opts = parseConfirmPermitOpts(body)
+    const permitIds = [
+      ...(opts.permitRequirementId ? [opts.permitRequirementId] : []),
+      ...(opts.permitRequirementIds ?? []),
+    ]
     const pending = await loadVersionForConfirm(id)
     if (!pending) {
       return NextResponse.json({ error: 'Версия не найдена' }, { status: 404 })
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: outcome.error }, { status: outcome.status })
     }
     return NextResponse.json(
-      { version: outcome.version, document: outcome.document, permitId: outcome.permitId },
+      { version: outcome.version, document: outcome.document, permitId: outcome.permitIds[0], permitIds: outcome.permitIds },
       { status: 200 }
     )
   } catch (e) {

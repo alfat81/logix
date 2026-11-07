@@ -8,18 +8,13 @@
 // v0.7.10 (DF-22): секция — эталонная обёртка Card (CardTitle
 // text-base с иконкой, действие — CardAction в заголовке, как у
 // брокеров) вместо голого h2 text-lg рядом с Card-секциями страницы.
+// DF-26 волна 2 (§9.3): при 409 гарда этапа — диалог обхода
+// (список недостающего + комментарий мастера).
 import { useEffect, useState } from 'react'
 import { Loader2, ListOrdered, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -31,6 +26,7 @@ import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { type CatalogRow, type PoolRow, type StageRow } from './types'
 import { StageCard } from './StageCard'
+import { StageOverrideDialog, type StageOverrideState } from './StageOverrideDialog'
 
 export function OrderStages({
   orderId,
@@ -51,6 +47,9 @@ export function OrderStages({
   const [addOpen, setAddOpen] = useState(false)
   const [addCode, setAddCode] = useState('')
   const [adding, setAdding] = useState(false)
+  // DF-26 волна 2 (§9.3): при 409 гарда этапа — диалог обхода
+  // (StageOverrideDialog: список недостающего + комментарий мастера).
+  const [override, setOverride] = useState<StageOverrideState | null>(null)
 
   useEffect(() => {
     if (!catalog.length) {
@@ -80,8 +79,24 @@ export function OrderStages({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await readApiResponse<{ message?: string; error?: string }>(res)
+      const data = await readApiResponse<{
+        message?: string
+        error?: string
+        missingDocuments?: { label: string; source?: 'doc_requirement' | 'permit' }[]
+      }>(res)
       if (!res.ok) {
+        if (res.status === 409 && Array.isArray(data.missingDocuments) && data.missingDocuments.length > 0) {
+          // Гард этапа (DF-14/DF-26): недостающие — в диалог обхода,
+          // мастер решает осознанно (комментарий в журнал).
+          setOverride({
+            stageId,
+            missing: data.missingDocuments.map((m) => ({
+              label: m.label,
+              source: m.source ?? 'doc_requirement',
+            })),
+          })
+          return
+        }
         toast({ title: data.error || 'Ошибка', variant: 'destructive' })
         return
       }
@@ -247,6 +262,18 @@ export function OrderStages({
           />
         ))}
       </CardContent>
+
+      <StageOverrideDialog
+        state={override}
+        onClose={() => setOverride(null)}
+        onConfirm={(stageId, comment) => {
+          void patchStage(stageId, {
+            status: 'done',
+            override: true,
+            overrideComment: comment,
+          }).then(() => setOverride(null))
+        }}
+      />
     </Card>
   )
 }

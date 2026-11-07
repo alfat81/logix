@@ -37,14 +37,28 @@ export function providerLabelFor(
 
 // ─── Статусы строки ──────────────────────────────────────────────────
 
-export const PERMIT_STATUSES = ['pending', 'received', 'waived'] as const
+// DF-26 волна 2 (SPEC §5.4): загрузка ≠ принятие — домен расширен
+// submitted. pending → submitted (confirm загрузки по требованию) →
+// received («Принять»/финализация) | обратно в pending («Отклонить»,
+// причина обязательна); received → submitted — авто-возврат при новой
+// версии/«Вернуть в работу» (§6.4).
+export const PERMIT_STATUSES = ['pending', 'submitted', 'received', 'waived'] as const
 export type PermitStatus = (typeof PERMIT_STATUSES)[number]
 
 export const PERMIT_STATUS_LABELS: Record<PermitStatus, string> = {
   pending: 'Ожидается',
+  submitted: 'На проверке',
   received: 'Получен',
   waived: 'Не требуется',
 }
+
+// DF-26 волна 2 (SPEC §5.7 п. 0а): состояние привязки к позиции строки
+// оценки. bound — норма (bound + itemId=null — «ко всей сделке»);
+// pending_manual — «требует ручной привязки» (строка оценки удалена
+// при дифф-сохранении; itemId хранит замороженную ссылку). CHECK
+// chk_permitreq_binding_state — в БД (миграция df_26_docs_center).
+// Значения домена: 'bound' | 'pending_manual' — словарь закреплён
+// CHECK-ом в БД; подписи для UI — в parts/RegistryPermitRow (макет 10).
 
 // ─── Лимиты полей (потолки схем zod + maxLength UI) ──────────────────
 
@@ -52,6 +66,8 @@ export const PERMIT_TITLE_MAX = 200 // как PERMIT_MAX_LENGTH свободно
 export const PERMIT_STAFF_NOTE_MAX = 1000
 export const PERMIT_WAIVED_REASON_MAX = 500
 export const PERMIT_ITEM_ID_MAX = 40
+export const PERMIT_REJECT_REASON_MAX = 500 // §11.2 reject: reason 1..500
+export const PERMIT_STAGE_CODE_MAX = 40 // код этапа каталога (как у Document.stageCode)
 
 // ─── Схемы API ───────────────────────────────────────────────────────
 
@@ -62,7 +78,10 @@ const dateStr = z
 
 // POST /api/{admin|broker}/.../permits — добавляет брокер или сотрудник.
 // itemId — необязательная привязка к строке ответа брокера (валидацию
-// «строка существует у этой сделки» делает роут).
+// «строка существует у этой сделки» делает роут); stageCode — этап,
+// который требование блокирует (§5.3; валидацию «этап заявки» делает
+// роут). Проверка «Требуется» (PermitCheck) создаёт требования по
+// охваченным позициям — origin-строки PermitCheckRequirement.
 export const CreatePermitSchema = z.object({
   title: z
     .string()
@@ -81,12 +100,16 @@ export const CreatePermitSchema = z.object({
     .nullable()
     .optional(),
   itemId: z.string().trim().max(PERMIT_ITEM_ID_MAX).nullable().optional(),
+  stageCode: z.string().trim().max(PERMIT_STAGE_CODE_MAX).nullable().optional(),
 })
 export type CreatePermitInput = z.infer<typeof CreatePermitSchema>
 
 // PATCH /api/admin/permits/[id] — правит ТОЛЬКО сотрудник: поля строки
-// и «не требуется» с причиной. Перевод в received — только загрузкой
-// документа (POST /permits/[id]/document), PATCH его не подделывает.
+// и «не требуется» с причиной. Перевод в submitted/received — только
+// загрузкой документа (confirm) и «Принять» (POST accept), PATCH его
+// не подделывает. itemId — ручная привязка (§5.7 п. 0а): валидный id
+// АКТУАЛЬНОЙ строки оценки этой сделки или NULL «ко всей сделке» —
+// валидацию и снятие pending_manual делает сервер (permit_relinked).
 export const PatchPermitSchema = z
   .object({
     title: z
@@ -100,6 +123,7 @@ export const PatchPermitSchema = z
     neededBy: dateStr.nullable().optional(),
     staffNote: z.string().trim().max(PERMIT_STAFF_NOTE_MAX).nullable().optional(),
     itemId: z.string().trim().max(PERMIT_ITEM_ID_MAX).nullable().optional(),
+    stageCode: z.string().trim().max(PERMIT_STAGE_CODE_MAX).nullable().optional(),
     status: z.enum(PERMIT_STATUSES).optional(),
     waivedReason: z.string().trim().max(PERMIT_WAIVED_REASON_MAX).nullable().optional(),
   })
@@ -124,6 +148,23 @@ export function isPermitRed(neededBy: Date, nowUtc: Date, redDaysBefore: number)
 // Просрочка: срок прошёл (независимо от isBlocking — для плашки/письма).
 export function isPermitOverdue(neededBy: Date, nowUtc: Date): boolean {
   return neededBy.getTime() < nowUtc.getTime()
+}
+
+// DF-26 волна 2 (SPEC §5.5): усиленная нейтральная плашка «до срока N
+// дн.» — все требования с neededBy внутри окна permits.warn_days_before
+// (дефолт 7). БЕЗ красного цвета и БЕЗ писем (§3.5: красный — только
+// срочное; красное окно остаётся у isPermitRed). Статус фильтрует
+// вызывающий (плашка — у незакрытых строк: pending; в сводке панели —
+// то же окно). Не overdue: внутри окна, срок ещё не прошёл.
+export function isPermitAttention(neededBy: Date, nowUtc: Date, warnDaysBefore: number): boolean {
+  const diff = neededBy.getTime() - nowUtc.getTime()
+  return diff >= 0 && diff <= warnDaysBefore * DAY_MS
+}
+
+// Число дней до срока (для текста плашки «до срока N дн.»); 0 — срок
+// сегодня; отрицательное — не вызывается (вне окна).
+export function permitDaysLeft(neededBy: Date, nowUtc: Date): number {
+  return Math.ceil((neededBy.getTime() - nowUtc.getTime()) / DAY_MS)
 }
 
 // Строка в порядке срочности для правила «у кого мяч» (DF-05): первой

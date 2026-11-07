@@ -8,6 +8,7 @@ import {
 } from '@/lib/document-constants'
 import { checkDocumentTransition } from '@/lib/status-machine'
 import { DOC_PUBLIC_FIELDS, type DocActor, type DocumentRow } from '@/lib/documents'
+import { closePermitsOnFinalize, reopenPermitsForDocument } from '@/lib/permits-db'
 
 // ─── DF-12: жизненный цикл документа (финализация / возврат) ────────
 // Третий серверный модуль документооборота (рядом с document-upload и
@@ -87,6 +88,15 @@ export async function finalizeDocument(
         finalizedByName: actor.name,
         finalVersion: doc.currentVersion,
       },
+    })
+    // DF-26 волна 2 (§5.4/§6.4): авто-закрытие связанных submitted-
+    // требований в received (acceptedVersion = объявленная финальной
+    // версия) — в той же транзакции, по строке на каждое требование.
+    await closePermitsOnFinalize(tx, {
+      documentId: doc.id,
+      documentTitle: doc.title,
+      finalVersion: doc.currentVersion,
+      actor,
     })
     const document = await tx.document.findUnique({
       where: { id: doc.id },
@@ -168,6 +178,15 @@ export async function reopenDocument(
     await tx.document.update({
       where: { id: doc.id },
       data: { status: 'in_review' },
+    })
+    // DF-26 волна 2 (§5.4/§6.4 п. 3): отзыв финальной версии возвращает
+    // связанные ПРИНЯТЫЕ требования в submitted (acceptedVersion и
+    // снимки прежнего принятия не затираются) — в той же транзакции.
+    await reopenPermitsForDocument(tx, {
+      documentId: doc.id,
+      documentTitle: doc.title,
+      actor,
+      reason: 'документ возвращён в работу (финальная версия отозвана)',
     })
     const document = await tx.document.findUnique({
       where: { id: doc.id },

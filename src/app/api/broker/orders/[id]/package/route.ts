@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   try {
     return await packageSlotsResponse(
       id,
-      { kind: 'broker', brokerId: auth.broker.id },
+      { kind: 'broker', brokerId: auth.broker.id, companyName: auth.broker.companyName },
       await getSetting('files.max_mb'),
     )
   } catch (e) {

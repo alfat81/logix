@@ -95,7 +95,7 @@ export async function emitEvent(
     console.error('[emitEvent] пустая аудитория, событие не записано:', input.type)
     return null
   }
-  let created: { id: string }
+  let created: { id: string } | null = null
   try {
     created = await tx.activity.create({
       data: {
@@ -103,6 +103,21 @@ export async function emitEvent(
         actorType: input.actor.type,
         actorId: input.actor.type === 'system' ? null : input.actor.id,
         actorName: input.actor.type === 'system' ? SYSTEM_ACTOR_NAME : input.actor.name,
+        // DF-26 волна 2 (§6.1): двойной снимок НА МОМЕНТ ДЕЙСТВИЯ.
+        // Клиент/брокер — имя человека (userName) + компания (name);
+        // сотрудник/подрядчик/система — имя в actorName (компания
+        // «Logix» не подставляется задним числом — NULL). Заполняется
+        // «когда известны»: userName может не передаваться (legacy
+        // точки вызова) — тогда колонка остаётся NULL, чтение
+        // деградирует по существующей проекции actor-name.ts.
+        actorUserName:
+          input.actor.type === 'client' || input.actor.type === 'broker'
+            ? input.actor.userName ?? null
+            : input.actor.type === 'system'
+              ? null
+              : input.actor.name,
+        actorCompanyName:
+          input.actor.type === 'client' || input.actor.type === 'broker' ? input.actor.name : null,
         type: input.type,
         description: input.description,
         audience,

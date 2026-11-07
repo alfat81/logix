@@ -58,6 +58,7 @@ function letterInput(over: Partial<OwnerDigestLetterInput> = {}): OwnerDigestLet
       waitingOverThreshold: 2,
       problemStages: 1,
       missingFinalDocs: 0,
+    submittedPermits: 0,
       attentionHours: 24,
     },
     unsentLetters: 0,
@@ -158,7 +159,8 @@ describe('buildOwnerDigestLetter (текст письма)', () => {
   it('пустой день — «изменений нет», письмо всё равно полноценное', () => {
     const { body } = buildOwnerDigestLetter(
       letterInput({
-        stats: { newLeads24h: 0, activeOrders: 0, inProgress: 0, waitingOverThreshold: 0, problemStages: 0, missingFinalDocs: 0, attentionHours: 24 },
+        stats: { newLeads24h: 0, activeOrders: 0, inProgress: 0, waitingOverThreshold: 0, problemStages: 0, missingFinalDocs: 0,
+    submittedPermits: 0, attentionHours: 24 },
       })
     )
     expect(body).toContain('Существенных изменений нет.')

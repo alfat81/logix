@@ -90,6 +90,19 @@ export const ACTIVITY_TYPES = [
   'permit_received',
   'permit_waived',
   'permit_overdue',
+  // DF-26 волна 2: жизненный цикл требования — загрузка ≠ принятие
+  // (SPEC §5.4: pending → submitted → received, отклонение возвращает
+  // контроль); проверки ТН ВЭД (§5.1–5.3, §5.7) и дифф-сохранение
+  // оценки (§5.7 п. 0а — привязки).
+  'permit_submitted',
+  'permit_rejected',
+  'permit_reopened',
+  'permit_check_needed',
+  'permit_check_not_required',
+  'permit_check_review_needed',
+  'permit_check_reviewed',
+  'permit_relink_needed',
+  'permit_relinked',
   // документы (Е): создание/версии/удаление — цель событие лид ИЛИ
   // заявка (сделка, на которой живёт документ); события о ВНУТРЕННИХ
   // документах пишутся staff-only (audience staff) — внешний кабинет
@@ -145,11 +158,14 @@ export type ActivityType = (typeof ACTIVITY_TYPES)[number]
 // привилегированная строка: актёр-человек собирается при чтении
 // lib/actor-name.ts по actorId — «Имя (Компания)»/компания/имя
 // по роли читателя). У сотрудника/подрядчика — прежние снимки.
+// DF-26 волна 2 (§6.1): userName — имя человека НА МОМЕНТ ДЕЙСТВИЯ
+// (только у клиента/брокера; у сотрудника name и есть имя) — двойной
+// снимок actorUserName/actorCompanyName пишется emitEvent'ом.
 export type ActivityActor =
   | { type: 'employee'; id: string; name: string }
   | { type: 'contractor'; id: string; name: string }
-  | { type: 'client'; id: string; name: string }
-  | { type: 'broker'; id: string; name: string }
+  | { type: 'client'; id: string; name: string; userName?: string }
+  | { type: 'broker'; id: string; name: string; userName?: string }
   | { type: 'system' }
 
 // Конкретные типы актёров (Е: документы требуют ровно один из трёх
@@ -157,8 +173,8 @@ export type ActivityActor =
 // возврат хелперов делает их взаимозаменяемыми с DocActor без
 // спредов и каста на каждом вызове).
 export type EmployeeActor = { type: 'employee'; id: string; name: string }
-export type ClientActor = { type: 'client'; id: string; name: string }
-export type BrokerActor = { type: 'broker'; id: string; name: string }
+export type ClientActor = { type: 'client'; id: string; name: string; userName?: string }
+export type BrokerActor = { type: 'broker'; id: string; name: string; userName?: string }
 
 export function employeeActor(e: { id: string; name: string }): EmployeeActor {
   return { type: 'employee', id: e.id, name: e.name }
@@ -170,16 +186,18 @@ export function contractorActor(c: { id: string; companyName: string }): Activit
 }
 
 // Клиент кабинета (И1). DF-02A (Блок 4): актор — ЧЕЛОВЕК (userId),
-// name — снимок КОМПАНИИ (CurrentClient.name = имя компании).
+// name — снимок компании (CurrentClient.name = имя компании),
+// userName — снимок имени пользователя (CurrentClient.userName).
 // Проекция отображаемого имени — lib/actor-name.ts при чтении.
-export function clientActor(c: { userId: string; name: string }): ClientActor {
-  return { type: 'client', id: c.userId, name: c.name }
+export function clientActor(c: { userId: string; name: string; userName?: string }): ClientActor {
+  return { type: 'client', id: c.userId, name: c.name, ...(c.userName ? { userName: c.userName } : {}) }
 }
 
 // Брокер портала (Д). DF-02A (Блок 4): актор — ЧЕЛОВЕК (userId),
-// name — снимок компании (companyName); проекция — lib/actor-name.ts.
-export function brokerActor(b: { userId: string; companyName: string }): BrokerActor {
-  return { type: 'broker', id: b.userId, name: b.companyName }
+// name — снимок компании (companyName), userName — снимок имени
+// пользователя; проекция — lib/actor-name.ts.
+export function brokerActor(b: { userId: string; companyName: string; userName?: string }): BrokerActor {
+  return { type: 'broker', id: b.userId, name: b.companyName, ...(b.userName ? { userName: b.userName } : {}) }
 }
 
 export const SYSTEM_ACTOR: ActivityActor = { type: 'system' }

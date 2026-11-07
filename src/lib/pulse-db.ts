@@ -38,7 +38,7 @@ export async function loadPulseCore(at: Date = new Date()): Promise<PulseCore> {
   const waitingCutoff = new Date(at.getTime() - attentionHours * 60 * 60 * 1000)
   const todayUtc = todayUtcMidnight()
 
-  const [newLeads24h, activeOrders, catalog, blockingReqs] = await Promise.all([
+  const [newLeads24h, activeOrders, catalog, blockingReqs, blockingPermits, submittedPermits] = await Promise.all([
     // Блок 1: новые запросы за 24 ч (поток входа, включая ушедшие
     // в won/lost за сутки — считаем вход, не активный портфель).
     db.lead.count({ where: { createdAt: { gte: new Date(at.getTime() - PULSE_EVENT_WINDOW_HOURS * dayMs) } } }),
@@ -82,6 +82,20 @@ export async function loadPulseCore(at: Date = new Date()): Promise<PulseCore> {
       where: { isBlocking: true },
       select: { stageCode: true, kind: true },
     }),
+    // DF-26 волна 2 (§11.3): блокирующие требования этапов (stageCode) —
+    // дополнение счётчика missingFinalDocs; таблица маленькая, берём
+    // целиком и фильтруем в JS по ближайшим этапам активных заявок.
+    db.permitRequirement.findMany({
+      where: {
+        orderId: { not: null },
+        isBlocking: true,
+        stageCode: { not: null },
+        status: { in: ['pending', 'submitted'] },
+      },
+      select: { orderId: true, stageCode: true, status: true },
+    }),
+    // «Документов ждут проверки» — submitted одним числом (§11.3).
+    db.permitRequirement.count({ where: { status: 'submitted' } }),
   ])
 
   const stageNames = new Map(catalog.map((c) => [c.code, c.name]))
@@ -99,13 +113,25 @@ export async function loadPulseCore(at: Date = new Date()): Promise<PulseCore> {
     list.push({ kind: r.kind as DocumentKind, isBlocking: true })
     blockingByStage.set(r.stageCode, list)
   }
+  // DF-26 волна 2 (§11.3): блокирующие требования этапов — та же
+  // семантика «ближайший этап не закрыт»: pending (нет документа) ИЛИ
+  // submitted (документ ждёт решения сотрудника) считаются недостающими.
+  const blockingPermitsByStage = new Map<string, Set<string>>()
+  const orderIds = new Set(activeOrders.map((o) => o.id))
+  for (const p of blockingPermits) {
+    if (!p.orderId || !orderIds.has(p.orderId)) continue
+    const set = blockingPermitsByStage.get(p.stageCode as string) ?? new Set()
+    set.add(p.orderId)
+    blockingPermitsByStage.set(p.stageCode as string, set)
+  }
   const missingFinalDocs = activeOrders.filter((o) => {
     const nearest = nearestUnfinishedStage(o.stages)
     if (!nearest) return false
     const reqs = blockingByStage.get(nearest.stageCode)
-    if (!reqs || reqs.length === 0) return false
     const finals = o.documents.map((d) => resolveDocumentKind(d))
-    return missingKinds(reqs, finals).length > 0
+    const docMissing = reqs && reqs.length > 0 && missingKinds(reqs, finals).length > 0
+    const permitBlocks = blockingPermitsByStage.get(nearest.stageCode)?.has(o.id) ?? false
+    return docMissing || permitBlocks
   }).length
 
   const stats: PulseStats = {
@@ -125,6 +151,7 @@ export async function loadPulseCore(at: Date = new Date()): Promise<PulseCore> {
       0
     ),
     missingFinalDocs,
+    submittedPermits,
     attentionHours,
   }
 

@@ -51,9 +51,14 @@ export function buildPhaseGroups(
     permitsByPhase.set(ph, list)
   }
 
+  // DF-26 волна 2: требования со stageCode живут в фазах СВОИХ этапов
+  // (§3.3.3), остаточная группа 07 — только для требований без этапа и
+  // проверок. Фильтр «Разрешительные» показывает фазу 07 И фазы, где
+  // есть строки требований (иначе строки «терялись» при фильтре).
+  const phasesWithPermits = new Set(permitsByPhase.keys())
   const result: PhaseGroup[] = []
   for (const phase of DOCUMENT_PHASES) {
-    if (filter === 'permits' && phase !== 'permits') continue
+    if (filter === 'permits' && phase !== 'permits' && !phasesWithPermits.has(phase)) continue
     const phaseSlots = data.slots.filter((s) => s.phase === phase)
     const docs = phaseSlots.flatMap((s) => s.documents)
     const visibleDocs =

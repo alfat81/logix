@@ -42,10 +42,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     const [version] = await projectAuthors([result.version], {
       kind: 'broker',
       brokerId: auth.broker.id,
+      companyName: auth.broker.companyName,
     })
     const [document] = await projectDocumentAuthors([result.document], {
       kind: 'broker',
       brokerId: auth.broker.id,
+      companyName: auth.broker.companyName,
     })
     return NextResponse.json({ version, document, upload: result.upload, confirmUrl: `/api/broker/document-versions/${result.version.id}/confirm` }, { status: 201 })
   } catch (e) {

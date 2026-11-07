@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { LEAD_ACTIVE_STATUSES } from '@/lib/leads'
 import { LogoutButton } from '@/components/admin/LogoutButton'
 import { AdminNav } from '@/components/admin/AdminNav'
+import { IsMasterProvider } from '@/components/admin/EmployeeRolesProvider'
 import { AdminBottomNav } from '@/components/admin/AdminBottomNav'
 import { GlobalSearch } from '@/components/admin/GlobalSearch'
 import { activeOrdersTotal, orderStatusCounts } from '@/lib/order-counts'
@@ -111,7 +112,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
           {/* Нижняя панель навигации телефона — в конце layout (fixed),
               контенту ниже задан отступ pb-20; DF-21 */}
-          <main className="px-4 md:px-6 py-6 pb-20 md:pb-6">{children}</main>
+          <main className="px-4 md:px-6 py-6 pb-20 md:pb-6">
+            {/* DF-26 волна 2 (§9.3): флаг мастера — клиентским диалогам
+                обхода блокировки этапа (кнопка «Завершить с обходом»). */}
+            <IsMasterProvider isMaster={isMaster}>{children}</IsMasterProvider>
+          </main>
 
           <footer className="border-t hidden md:block">
             <div className="px-4 md:px-6 h-12 flex items-center text-sm text-muted-foreground">

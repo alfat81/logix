@@ -416,19 +416,11 @@
       "reason": "первичный baseline DF-00B"
     },
     {
-      "key": "block:src/components/admin/lead/LeadStatusControls.tsx~src/components/admin/order/OrderStages.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
       "key": "block:src/components/admin/legalentity/LegalEntityCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
       "reason": "первичный baseline DF-00B"
     },
     {
       "key": "block:src/components/admin/legalentity/LegalEntityEditDialog.tsx~src/components/admin/stagecatalog/StageEditDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/order/OrderQuoteDialog.tsx~src/components/admin/order/OrderStages.tsx",
       "reason": "первичный baseline DF-00B"
     },
     {

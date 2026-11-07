@@ -46,6 +46,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       documents: await projectDocumentAuthors(documents, {
         kind: 'client',
         customerId: auth.client.id,
+        companyName: auth.client.name,
       }),
     })
   } catch (e) {
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const [document] = await projectDocumentAuthors([result.document], {
       kind: 'client',
       customerId: auth.client.id,
+      companyName: auth.client.name,
     })
     return NextResponse.json({ ...result, document, confirmUrl: `/api/client/document-versions/${result.version.id}/confirm` }, { status: 201 })
   } catch (e) {

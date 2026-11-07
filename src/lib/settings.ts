@@ -142,6 +142,12 @@ export const SETTINGS = [
     defaultValue: 24, validate: (v) => asInt(v, 1, 168),
   }),
   defineSetting({
+    key: 'permits.warn_days_before', group: 'permits', uiType: 'number',
+    label: 'Усиленная плашка за N дней до срока',
+    hint: 'DF-26 волна 2 (§5.5): требования со сроком внутри окна — усиленная нейтральная плашка «до срока N дн.» в сводке панели и списке требований; без красного цвета и без писем.',
+    defaultValue: 7, validate: (v) => asInt(v, 1, 30),
+  }),
+  defineSetting({
     key: 'permits.red_days_before', group: 'permits', uiType: 'number',
     label: 'Красная подсветка за N дней до срока',
     hint: 'Разрешительный документ со сроком ближе N дней — красный (D35, DF-16). 0 — в день срока.',

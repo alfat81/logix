@@ -49,8 +49,8 @@ model Employee {
   // P1-01: назначение ответственным менеджером (обратные связи
   // Lead/Order). Назначение НЕ блокирует деактивацию — проверка
   // isActive живёт в API смены ответственного.
-  assignedLeads  Lead[]            @relation("LeadAssignee")
-  assignedOrders Order[]           @relation("OrderAssignee")
+  assignedLeads  Lead[]             @relation("LeadAssignee")
+  assignedOrders Order[]            @relation("OrderAssignee")
 }
 
 model EmployeeSession {
@@ -199,10 +199,10 @@ model Order {
   // роуты эти колонки не задают. kind 'none' = мяча нет (терминальная
   // или нет подходящего правила); NULL = ещё не пересчитано (до
   // backfill). waitingSince сдвигается только при смене kind/reason.
-  waitingOnKind  String?
-  waitingOnId    String?
-  waitingReason  String?
-  waitingSince   DateTime?
+  waitingOnKind String?
+  waitingOnId   String?
+  waitingReason String?
+  waitingSince  DateTime?
 
   // ─── P1-03: маршрут и груз — те же колонки, что на Lead (см. там) ──
   // Заявка — источник правды после конвертации: копируется с лида
@@ -231,22 +231,24 @@ model Order {
   // переезжает на код, expand-паттерн тот же).
   incotermPlace          String?
 
-  contract    Contract             @relation(fields: [contractId], references: [id])
-  legalEntity LegalEntity          @relation(fields: [legalEntityId], references: [id])
-  customer    Customer             @relation(fields: [customerId], references: [id])
-  lead        Lead?                @relation(fields: [leadId], references: [id])
-  assignee    Employee?            @relation("OrderAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  stages      OrderStageInstance[]
-  activities  Activity[]
+  contract            Contract             @relation(fields: [contractId], references: [id])
+  legalEntity         LegalEntity          @relation(fields: [legalEntityId], references: [id])
+  customer            Customer             @relation(fields: [customerId], references: [id])
+  lead                Lead?                @relation(fields: [leadId], references: [id])
+  assignee            Employee?            @relation("OrderAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  stages              OrderStageInstance[]
+  activities          Activity[]
   // Д (роадмап 5а): брокеры заявки — полная видимость сделки целиком,
   // не per-stage (в отличие от подрядчиков). Переносится из LeadBroker
   // при конвертации В4; менеджер может добавить/снять и после.
-  brokers     OrderBroker[]
+  brokers             OrderBroker[]
   // Е (роадмап 5): документы заявки — обмен клиент/брокер/менеджер
   // внутри сервиса. Внутренние (isInternal) наружу не отдаются.
-  documents   Document[]
+  documents           Document[]
   // DF-16: обязательства предоставить разрешительные документы.
-  permitRequirements PermitRequirement[]
+  permitRequirements  PermitRequirement[]
+  // DF-26 волна 2: проверки ТН ВЭД (PermitCheck, §5.1 SPEC v1.6).
+  permitChecks        PermitCheck[]
   // DF-19: расчёты таможенных платежей (история версий)
   customsCalculations CustomsCalculation[]
 
@@ -412,10 +414,10 @@ model Lead {
 
   // ─── DF-05 «У кого мяч»: вычисляемое ожидание — см. Order (правила
   // фазы расчёта свои: proforma/брокер/варианты, карточка DF-05).
-  waitingOnKind  String?
-  waitingOnId    String?
-  waitingReason  String?
-  waitingSince   DateTime?
+  waitingOnKind String?
+  waitingOnId   String?
+  waitingReason String?
+  waitingSince  DateTime?
 
   // ─── P1-03: маршрут и груз — поля, а не только JSON ─────────────
   // Структурированные поля бланка: фильтры списков, сортировки и
@@ -445,23 +447,26 @@ model Lead {
   // справочника мест DF-17B ещё нет; стартовое значение формы расчёта)
   incotermPlace          String?
 
-  customer   Customer?     @relation(fields: [customerId], references: [id])
-  assignee   Employee?     @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  options    QuoteOption[]
-  order      Order?
-  activities Activity[]
+  customer            Customer?            @relation(fields: [customerId], references: [id])
+  assignee            Employee?            @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  options             QuoteOption[]
+  order               Order?
+  activities          Activity[]
   // Д (роадмап 5а): брокеры консультируют сделку уже на расчёте —
   // связь на уровне лида, до рождения заявки. При конвертации В4
   // переносится в OrderBroker автоматически («переживает конвертацию,
   // не заводится заново» — формулировка роадмапа).
-  brokers    LeadBroker[]
+  brokers             LeadBroker[]
   // Е (роадмап 5): документы могут родиться ещё на лида — например,
   // предварительный инвойс для расчёта пошлины брокером; при
   // конвертации В4 переносятся на заявку (leadId → orderId).
-  documents  Document[]
+  documents           Document[]
   // DF-16: обязательства предоставить разрешительные документы
   // (при конвертации В4 переносятся на заявку, как документы).
-  permitRequirements PermitRequirement[]
+  permitRequirements  PermitRequirement[]
+  // DF-26 волна 2: проверки ТН ВЭД на лидах (при конвертации В4
+  // переносятся на заявку — carryPermitChecksToOrder, SPEC §10.3 п. 6).
+  permitChecks        PermitCheck[]
   // DF-19: расчёты таможенных платежей (история версий; при
   // конвертации НЕ переносятся — лид остаётся источником истории,
   // заявка считает свои расчёты с фрахтом от выбранного варианта)
@@ -806,13 +811,13 @@ model BrokerEstimate {
   // (решение И1), поэтому оценка пока внутренняя: менеджер видит её
   // на карточках лида/заявки, клиенту не показывается. Обновлять
   // может только сам брокер (его заявление, не слово менеджера).
-  id                  String   @id @default(cuid())
-  leadBrokerId        String   @unique
+  id                  String    @id @default(cuid())
+  leadBrokerId        String    @unique
   // P1-04: Decimal по RULES 2.15 (все деньги — Decimal). Валюта —
   // RUB по природе платежа (таможенные платежи РФ, ТК ЕАЭС) —
   // отдельный код валюты не нужен. Nullable — «посчитаю позже»:
   // брокер может сначала сообщить список документов, а сумму потом.
-  customsDutyEstimate Decimal? @db.Decimal(14, 2)
+  customsDutyEstimate Decimal?  @db.Decimal(14, 2)
   // Список разрешительных документов (строки: «Сертификат
   // соответствия», «Лицензия Минпромторга»…). Json, а не связь со
   // справочником: разрешительная база по ТН ВЭД — Phase 2 (роадмап 6),
@@ -824,12 +829,12 @@ model BrokerEstimate {
   // менеджеру (событие broker_estimate_sent, ответственный получает
   // уведомление). Правки после отправки пишутся estimate_updated с
   // разницей строк; sentAt — момент ПЕРВОЙ отправки, не перезаписывается.
-  status              String   @default("draft")
+  status              String    @default("draft")
   sentAt              DateTime?
-  createdAt           DateTime @default(now())
+  createdAt           DateTime  @default(now())
   // @updatedAt: оценка уточняется (точные платежи после классификации
   // товара) — менеджеру важно видеть, насколько свежие цифры.
-  updatedAt           DateTime @default(now()) @updatedAt
+  updatedAt           DateTime  @default(now()) @updatedAt
 
   // Строки по кодам ТН ВЭД (DF-18): «код · пошлина % · доп. пошлина % · НДС %».
   items BrokerEstimateItem[]
@@ -880,23 +885,23 @@ model BrokerEstimateItem {
 // Все таблицы новые — db:push на живой базе не разрушающий.
 
 model Document {
-  id             String   @id @default(cuid())
+  id              String    @id @default(cuid())
   // Цель — ровно одна: лид ИЛИ заявка (инвариант на уровне роутов,
   // как у Activity — SQLite не умеет CHECK между колонками).
   // Документ на лиде живёт своей жизнью до конвертации, затем В4
   // переносит его на заявку (leadId → orderId, связь с лидом через
   // order.lead остаётся у сделки, история не рвётся).
-  orderId        String?
-  leadId         String?
+  orderId         String?
+  leadId          String?
   // Стабильный код типа из DOCUMENT_TYPES (lib/document-constants.ts):
   // accompanying | invoice | permit | customs | contract | application | other
-  type           String
+  type            String
   // DF-12: вид документа по D5 (справочник DOCUMENT_KINDS). null —
   // легаси-строка до backfill миграции df_12_document_lifecycle.
-  kind           String?
+  kind            String?
   // DF-12: жизненный цикл draft | in_review | final (переходы —
   // DOCUMENT_TRANSITIONS в lib/status-machine.ts).
-  status         String  @default("draft")
+  status          String    @default("draft")
   // DF-12: снимок финализации (кто/когда/какая версия объявлена
   // финальной); при возврате в работу хранится до следующего «Финальный».
   finalizedAt     DateTime?
@@ -904,9 +909,9 @@ model Document {
   finalVersion    Int?
   // DF-12: код этапа каталога — привязка документа к этапу; точка
   // записи появляется с привязкой в UI (DF-13/DF-14).
-  stageCode      String?
+  stageCode       String?
   // Человекочитаемое название («Инвойс № INV-123», «Упаковочный лист»).
-  title          String
+  title           String
   // Видимость: внутренние документы (подрядческие договоры, тарифы)
   // видны только сотрудникам — клиент и брокер их не видят ни в
   // списках, ни в скачивании. Решение №1 от 14.10.2026 (клиент не
@@ -914,11 +919,11 @@ model Document {
   // флага менеджеру некуда положить «не для внешних» файл. Симметрия
   // с Activity.isInternal (Ж3). Клиент и брокер создавать внутренние
   // не могут — роуты принуждают false.
-  isInternal     Boolean  @default(false)
+  isInternal      Boolean   @default(false)
   // Номер последней версии (кэш для списков без подсчёта версий).
-  currentVersion Int      @default(1)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @default(now()) @updatedAt
+  currentVersion  Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
 
   order    Order?            @relation(fields: [orderId], references: [id], onDelete: Cascade)
   lead     Lead?             @relation(fields: [leadId], references: [id], onDelete: Cascade)
@@ -932,34 +937,38 @@ model DocumentVersion {
   // Версия документа: файл + автор + комментарий «что изменено и
   // почему» (роадмап 5: проект правится несколько раз до финала,
   // минимум — история версий с датой и автором правки).
-  id         String   @id @default(cuid())
-  documentId String
-  version    Int
+  id                String   @id @default(cuid())
+  documentId        String
+  version           Int
   // Метаданные файла: оригинальное имя (санитизированное при загрузке),
   // MIME из белого списка (DOC_ALLOWED_MIME), размер в байтах.
-  fileName   String
-  mimeType   String
-  fileSize   Int
+  fileName          String
+  mimeType          String
+  fileSize          Int
   // Содержимое легаси-версий — в БД (bytea). Новые загрузки (DF-11) байты
   // в БД не пишут: объект лежит в S3-совместимом хранилище по storageKey,
   // скачивание — 302 на presigned GET. Поле остаётся до переноса всех
   // строк скриптом migrate-files-to-storage.ts (DEPRECATIONS.md).
-  fileData   Bytes?
+  fileData          Bytes?
   // DF-11: ключ объекта в хранилище (уникален по построению:
   // docs/<id сделки>/<uuid>/<имя>). null — легаси-версия, байты в fileData.
-  storageKey String?
+  storageKey        String?
   // DF-11: статус загрузки: pending (метаданные созданы, объект ещё не
   // подтверждён) | ready (объект в хранилище проверен сигнатурой). Легаси-
   // строки — ready по умолчанию; pending без объекта скачиванию не подлежит.
-  status     String   @default("ready")
+  status            String   @default("ready")
   // Что изменено и почему — правка от брокера/клиента.
-  comment    String?
+  comment           String?
   // Кто загрузил: сотрудник | клиент | брокер (подрядчика в контуре Е
   // нет). authorName — снимок имени на момент загрузки (лента Ж2).
-  authorType String
-  authorId   String?
-  authorName String
-  createdAt  DateTime @default(now())
+  authorType        String
+  authorId          String?
+  authorName        String
+  // DF-26 волна 2 (SPEC §6.1/§10.2): двойной снимок автора версии —
+  // тот же backfill-паттерн, что у Activity.
+  authorUserName    String?
+  authorCompanyName String?
+  createdAt         DateTime @default(now())
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
@@ -993,42 +1002,76 @@ model DocumentVersion {
 // скана просрочки (диспетчер): красное событие не чаще раза в
 // permits.remind_every_days суток на строку (идемпотентность повтора).
 model PermitRequirement {
-  id         String    @id @default(cuid())
-  orderId    String?
-  leadId     String?
-  title      String
-  providedBy String // client | broker | staff
+  id                     String                   @id @default(cuid())
+  orderId                String?
+  leadId                 String?
+  title                  String
+  providedBy             String // client | broker | staff
+  // DF-26 волна 2: этап, который требование блокирует (SPEC §9).
+  // NULL у существующих строк и требований «без этапа» — блокировка
+  // этапа на них не появляется внезапно (гард считает только
+  // isBlocking + stageCode IS NOT NULL).
+  stageCode              String?
   // Блокирует отправку/этап — красный сигнал и скан просрочки только
   // для блокирующих строк (красный — только срочное, §3.3 брендбука).
-  isBlocking Boolean   @default(false)
+  isBlocking             Boolean                  @default(false)
   // Срок предоставления (дата, необязательно) — из него считаются
   // «красное окно» permits.red_days_before и просрочка.
-  neededBy   DateTime?
-  status     String    @default("pending") // pending | received | waived
+  neededBy               DateTime?
+  // DF-26 волна 2: домен расширен значением submitted (SPEC §5.4:
+  // загрузка ≠ принятие). pending | submitted | received | waived.
+  status                 String                   @default("pending")
   // Загруженный документ (Document.type='permit') без FK; receivedAt/
   // receivedByName — снимок факта и того, кто загрузил.
-  documentId     String?
-  receivedAt     DateTime?
-  receivedByName String?
+  documentId             String?
+  receivedAt             DateTime?
+  receivedByName         String?
+  // DF-26 волна 2 (SPEC §5.4/§10.2): снимок загрузившего (когда
+  // строка перешла в submitted) — одиночный и двойной (§6.1).
+  submittedAt            DateTime?
+  submittedByName        String?
+  submittedByUserName    String?
+  submittedByCompanyName String?
+  // DF-26 волна 2 (SPEC §6.4): фактически принятая версия связанного
+  // документа («Принять» — текущая, finalize — объявленная финальной);
+  // при авто-возврате в submitted НЕ затирается — «ранее принята
+  // версия N». Backfill — только при единственной готовой версии (§10.3).
+  acceptedVersion        Int?
+  // DF-26 волна 2 (SPEC §10.2): двойные снимки автора и принявшего —
+  // backfill только из исторических снимков (createdByName/
+  // receivedByName), текущие профили не читаются (§10.3).
+  createdByUserName      String?
+  createdByCompanyName   String?
+  receivedByUserName     String?
+  receivedByCompanyName  String?
+  // DF-26 волна 2 (SPEC §5.7 п. 0а): состояние привязки к позиции —
+  // bound (норма; bound + itemId=NULL — «ко всей сделке») |
+  // pending_manual («требует ручной привязки» — строка оценки
+  // удалена при дифф-сохранении; itemId хранит замороженную ссылку).
+  // CHECK chk_permitreq_binding_state — в миграции df_26_docs_center.
+  bindingState           String                   @default("bound")
+  // DF-26 волна 2: требования, созданные проверкой (происхождение —
+  // PermitCheckRequirement, у строки ровно одно происхождение).
+  checks                 PermitCheckRequirement[]
   // «Не требуется» — только сотрудник, с причиной (строка остаётся в
   // истории, плашка исчезает у всех сторон).
-  waivedReason String?
+  waivedReason           String?
   // Внутренняя заметка строки — только сотрудникам (наружу не отдаётся).
-  staffNote String?
+  staffNote              String?
   // Привязка к строке ответа брокера (BrokerEstimateItem.id, БЕЗ FK —
   // строки оценки пересоздаются каждым PUT; remap в роуте оценки
   // восстанавливает связь по коду ТН ВЭД). Null = ко всему запросу.
-  itemId String?
+  itemId                 String?
   // Происхождение строки: estimate (sync ответа брокера) | manual (/permits).
-  source String @default("manual")
+  source                 String                   @default("manual")
   // Кто добавил — снимок (паттерн actorName): сотрудник | клиент |
   // брокер | система (миграция данных).
-  createdByType   String
-  createdById     String?
-  createdByName   String
-  lastRemindedAt  DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @default(now()) @updatedAt
+  createdByType          String
+  createdById            String?
+  createdByName          String
+  lastRemindedAt         DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @default(now()) @updatedAt
 
   // Cascade — как у Document: сделка без заявки удаляется мастером,
   // её обязательства бессмысленны без сделки (лента уходит каскадом тоже).
@@ -1039,6 +1082,106 @@ model PermitRequirement {
   @@index([leadId, status])
 }
 
+// DF-26 волна 2 (SPEC §5.1): проверка разрешительных по коду ТН ВЭД —
+// ЗАПИСЬ О РЕЗУЛЬТАТЕ, а не требование (требование — PermitRequirement).
+// Одна проверка на пару (сделка, код): результат — свойство пары, все
+// позиции кода получают один ответ. Охват позиций — связями
+// PermitCheckItem (скаляра позиции у проверки нет; позицию
+// needs_review-записи несёт reviewItemId). Инварианты закреплены
+// ограничениями БД (CHECK «ровно одна цель», частичные уникальные
+// индексы открытых записей — миграция df_26_docs_center).
+model PermitCheck {
+  id                    String    @id @default(cuid())
+  // Цель — ровно одна: заявка ИЛИ лид (CHECK chk_permitcheck_one_target
+  // физически; API дополнительно проверяет до INSERT — 400).
+  orderId               String?
+  leadId                String?
+  // Код ТН ВЭД (10 знаков), по которому проверяли.
+  hsCode                String
+  // Позиция needs_review-записи (§5.7): только для пересмотра; у
+  // первичных и ручных проверок NULL. При удалении строки оценки
+  // ссылка сохраняется замороженной (§5.7 п. 0а).
+  reviewItemId          String?
+  // required | not_required | unclear | failed (auto — всегда unclear,
+  // система не создаёт требования сама — инвариант 2).
+  result                String
+  // Основание/источник (ТР ТС 018/2011, решение брокера, письмо…).
+  basis                 String?
+  dictionaryVersion     String? // версия справочника; ручная — 'manual:<дата>'
+  // auto | manual. Автоматический источник — точка расширения (О7).
+  source                String    @default("manual")
+  // Кто проверил — одиночный снимок + двойной (§6.1).
+  checkedByType         String
+  checkedById           String?
+  checkedByName         String
+  checkedByUserName     String?
+  checkedByCompanyName  String?
+  // Пересмотр при изменении кода (§5.7): ссылка на предыдущую проверку
+  // той же позиции; статус none | needs_review | reviewed.
+  reviewOfCheckId       String?
+  reviewStatus          String    @default("none")
+  reviewedAt            DateTime?
+  reviewedByUserName    String?
+  reviewedByCompanyName String?
+  // requirement_kept | requirement_waived | new_requirement |
+  // not_required | unclear_confirmed | mixed (§5.7 п. 3/3а).
+  reviewOutcome         String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
+
+  order        Order?                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  lead         Lead?                    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  // Пересмотр: проверка-предшественник (история не редактируется,
+  // удалять проверки API не умеет — Restrict как страховка).
+  reviewOf     PermitCheck?             @relation("PermitCheckReview", fields: [reviewOfCheckId], references: [id], onDelete: Restrict)
+  reviews      PermitCheck[]            @relation("PermitCheckReview")
+  // Охваченные позиции (инвариант 3) и созданные требования (§5.3).
+  items        PermitCheckItem[]
+  requirements PermitCheckRequirement[]
+
+  @@index([orderId, result])
+  @@index([leadId, result])
+  @@index([reviewStatus])
+}
+
+// DF-26 волна 2 (SPEC §5.1, замечание 2 ред. 1.4): связь «проверка →
+// охваченные позиции» — позиции сделки с текущим hsCode записи. Без FK
+// на itemId (строки оценки пересоздаются/удаляются; охват открытой
+// auto-записи синхронизируется дифф-сохранением оценки — §5.7 п. 0а;
+// у подтверждённой фиксируется на момент решения). UNIQUE пары —
+// uq_permitcheckitem_pair в миграции.
+model PermitCheckItem {
+  id            String   @id @default(cuid())
+  permitCheckId String
+  // BrokerEstimateItem.id БЕЗ FK (паттерн PermitRequirement.itemId).
+  itemId        String
+  createdAt     DateTime @default(now())
+
+  permitCheck PermitCheck @relation(fields: [permitCheckId], references: [id], onDelete: Cascade)
+
+  // map — имя из SPEC §5.1/§10.2 (uq_permitcheckitem_pair), не конвенция
+  // Prisma: уникальность пары «проверка — позиция» именована миграцией.
+  @@unique([permitCheckId, itemId], map: "uq_permitcheckitem_pair")
+  @@index([itemId])
+}
+
+// DF-26 волна 2 (SPEC §5.1, замечание 2 ред. 1.3): связь «проверка →
+// созданные ею требования». У каждого созданного проверкой требования
+// ровно одно происхождение (UNIQUE permitRequirementId); требования
+// без проверки (source='estimate'/manual) строк связи не имеют.
+model PermitCheckRequirement {
+  id                  String   @id @default(cuid())
+  permitCheckId       String
+  permitRequirementId String
+  createdAt           DateTime @default(now())
+
+  permitCheck       PermitCheck       @relation(fields: [permitCheckId], references: [id], onDelete: Cascade)
+  permitRequirement PermitRequirement @relation(fields: [permitRequirementId], references: [id])
+
+  @@unique([permitRequirementId])
+  @@index([permitCheckId])
+}
+
 // ─── Журнал событий (Дорожка Ж, Ж2) ────────────────────────────────
 // Лента «кто что сделал и когда» для заявки, лида и подрядчика.
 // Пишется хелпером emitEvent() (lib/events.ts, единая точка с DF-01)
@@ -1046,7 +1189,7 @@ model PermitRequirement {
 // инвариант «не больше одной цели», аудитория и формат актёра
 // держались в одном месте.
 model Activity {
-  id           String   @id @default(cuid())
+  id               String   @id @default(cuid())
   // Цель события — не больше одной из трёх (инвариант union
   // ActivityTarget на TS-уровне; SQLite не умеет CHECK-ограничения
   // между колонками). События сделки несут ровно одну цель — удаление
@@ -1056,28 +1199,35 @@ model Activity {
   // Г3). ГЛОБАЛЬНЫЕ события возможны без цели — все три колонки
   // nullable (DF-00D: setting_changed — настройка не belongs сделке;
   // читается только staff-лентой).
-  orderId      String?
-  leadId       String?
-  contractorId String?
+  orderId          String?
+  leadId           String?
+  contractorId     String?
   // Кто действовал: сотрудник | подрядчик | система. actorName —
   // СНИМОК на момент действия: переименование/деактивация сотрудника
   // или подрядчика историю не переписывают, живой lookup ленте не
   // нужен. actorId — строка без FK по той же причине: справочник
   // живёт короче истории (и не тянет каскады при чистках).
-  actorType    String // employee | contractor | system
-  actorId      String?
-  actorName    String
+  actorType        String // employee | contractor | client | broker | system
+  actorId          String?
+  actorName        String
+  // DF-26 волна 2 (SPEC §6.1): двойной снимок — имя и компания НА
+  // МОМЕНТ ДЕЙСТВИЯ. Заполняется emitEvent'ом, когда известны; backfill
+  // миграции df_26_docs_center — только из исторического снимка
+  // actorName по типу актёра (client/broker → компания; employee/
+  // contractor/system → имя), текущие профили не читаются.
+  actorUserName    String?
+  actorCompanyName String?
   // Стабильный код события (словарь ACTIVITY_TYPES в lib/activity.ts)
   // и человекочитаемое описание с деталями — что именно изменилось.
-  type         String
-  description  String
+  type             String
+  description      String
   // Ж3: приватность события несёт audience (staff-only = «не показывать
   // внешним кабинетам»): read-контексты фильтруют через eventWhereFor
   // (lib/audience.ts), админская лента видит всё. Колонка isInternal
   // удалена contract-миграцией df_03_contract (DEPRECATIONS 0.6.5):
   // двойная правда «isInternal ⇔ audience=={staff}» заменена одной
   // колонкой audience.
-  createdAt    DateTime @default(now())
+  createdAt        DateTime @default(now())
 
   // DF-01: аудитория события — кому ВИДНО в лентах кабинетов
   // (staff | client | broker; 'contractor' зарезервирован ради
@@ -1345,30 +1495,30 @@ model HsImport {
 // Document/Activity). Расчёты лида при конвертации НЕ переносятся (В4):
 // лид остаётся историей расчёта, заявка считает свои.
 model CustomsCalculation {
-  id        String  @id @default(cuid())
-  leadId    String?
-  orderId   String?
+  id                 String   @id @default(cuid())
+  leadId             String?
+  orderId            String?
   // Условие поставки: КОД из справочника DF-17 + место текстом (снимок
   // на момент расчёта; поля Lead/Order — стартовые значения формы).
   // Флаги правил (что добавить/вычесть) читаются из meta справочника —
   // НЕ из кода (D39/O-12); черновые правила (meta.draft) расчёт не
   // применяет — 409 до сида справочников.
-  incoterm      String
-  incotermPlace String?
+  incoterm           String
+  incotermPlace      String?
   // Дата расчёта и дата курсов в снимке («курс от <дата>»). Для ТС
   // применяется курс на дату регистрации ДТ — менеджер вводит дату
   // (по умолчанию сегодня); финальные платежи определятся при
   // декларировании, взаиморасчёты — по курсу на дату оплаты (D41).
-  calcDate      DateTime
-  fxDate        DateTime @db.Date
+  calcDate           DateTime
+  fxDate             DateTime @db.Date
   // Снимок курсов ЗА ОДНУ единицу валюты (номиналы ЦБ учтены при
   // импорте, lib/cbr.ts): { "USD": { "rate": "73.1275", "date":
   // "2026-05-18", "source": "cbr" | "manual" }, ... } — эталон №2
   // (TRY котируется за 10: в снимке уже 1,75789 за единицу).
-  fxRates         Json
+  fxRates            Json
   // Запас к курсу, % — СНИМОК настройки customs.fx_reserve_percent на
   // момент расчёта (D41: оценка, не платёж).
-  fxReservePercent Decimal @db.Decimal(5, 2) @default(0)
+  fxReservePercent   Decimal  @default(0) @db.Decimal(5, 2)
   // Расходы, влияющие на ТС (все — в валюте фрахта freightCurrency;
   // разъезжающиеся валюты менеджер приводит к ней сам — D40):
   // freightTotal — фрахт по счёту целиком; freightToArrival — часть
@@ -1376,15 +1526,15 @@ model CustomsCalculation {
   // терминам — freightTotal, вычитающим — 0); insurance — страхование,
   // если фактически понесено покупателем сверх цены (D43); otherCosts —
   // погрузка/разгрузка, посредники, упаковка.
-  freightTotal    Decimal @db.Decimal(14, 2)
-  freightCurrency String  @default("USD")
-  freightToArrival Decimal? @db.Decimal(14, 2)
-  insurance       Decimal @db.Decimal(14, 2) @default(0)
-  otherCosts      Decimal @db.Decimal(14, 2) @default(0)
+  freightTotal       Decimal  @db.Decimal(14, 2)
+  freightCurrency    String   @default("USD")
+  freightToArrival   Decimal? @db.Decimal(14, 2)
+  insurance          Decimal  @default(0) @db.Decimal(14, 2)
+  otherCosts         Decimal  @default(0) @db.Decimal(14, 2)
   // Вознаграждение брокера за ДТ — согласованная ФИКСИРОВАННАЯ сумма
   // (ответ брокера 30.10.2026). Строка итогов ВНЕ таможенных платежей,
   // в ТС и базы пошлин/НДС не входит (D42).
-  brokerFeeRub    Decimal? @db.Decimal(14, 2)
+  brokerFeeRub       Decimal? @db.Decimal(14, 2)
   // Переопределение метода распределения начислений менеджером (D40):
   // { freight: 'weight'|'value', other: 'weight'|'value' } — умолчания
   // по правилам ДТС-1 (перевозка — вес НЕТТО гр. 38, прочие —
@@ -1393,23 +1543,23 @@ model CustomsCalculation {
   // Версия набора правил (формула, состав базы НДС, трактовка флагов) —
   // константа CUSTOMS_RULES_VERSION (lib/customs.ts); воспроизводимость
   // старого расчёта = снимок входа + эта строка.
-  rulesVersion String
+  rulesVersion       String
   // Таможенный сбор: снимок расчёта по шкале CustomsFeeScale либо
   // ручной ввод до утверждения шкалы (feeManual).
-  feeRub    Decimal? @db.Decimal(14, 2)
-  feeManual Boolean  @default(false)
+  feeRub             Decimal? @db.Decimal(14, 2)
+  feeManual          Boolean  @default(false)
   // Итоги расчёта: { customsValueTotal, dutyTotal, addDutyTotal,
   // vatTotal, feeRub, paymentsTotal, brokerFeeRub, grandTotal, ... }
   // — дублируют сумму строк для списков/печати без пересчёта.
-  totals Json
+  totals             Json
   // Актуальная версия (последний пересчёт); история — isCurrent=false,
   // правки (PUT) — только текущей.
-  isCurrent     Boolean  @default(true)
-  createdById   String?
+  isCurrent          Boolean  @default(true)
+  createdById        String?
   // Снимок имени автора (паттерн actorName: история дольше справочника)
-  createdByName String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @default(now()) @updatedAt
+  createdByName      String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @default(now()) @updatedAt
 
   lead  Lead?  @relation(fields: [leadId], references: [id], onDelete: Cascade)
   order Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -1429,15 +1579,15 @@ model CustomsCalculation {
 // actorId: оценка брокера перезаписывается deleteMany/createMany,
 // id живут короче расчёта; связь — для подсказки, не для каскадов).
 model CustomsCalculationItem {
-  id            String  @id @default(cuid())
-  calculationId String
+  id             String   @id @default(cuid())
+  calculationId  String
   // Порядок строки — как внесено (отображение и итоги стабильны)
-  sortOrder     Int
-  brokerItemId  String?
-  hsCode        String
-  goodsValue    Decimal @db.Decimal(14, 2)
-  goodsCurrency String
-  netWeightKg   Decimal @db.Decimal(12, 3)
+  sortOrder      Int
+  brokerItemId   String?
+  hsCode         String
+  goodsValue     Decimal  @db.Decimal(14, 2)
+  goodsCurrency  String
+  netWeightKg    Decimal  @db.Decimal(12, 3)
   // Снимок процентов брокера (null = «не указано»; ставка-строка
   // rateNote из DF-18 в автрасчёт не попадает — isManualRate,
   // lib/brokers.ts: такая строка правится менеджером вручную)
@@ -1449,11 +1599,11 @@ model CustomsCalculationItem {
   // (ТС × %), НДС ((ТС + пошлина + доп. пошлина) × %, сбор в базу НЕ
   // входит — подтверждено эталонами №1–№3), allocatedCosts — доля
   // дополнительных начислений позиции (сумма по кодам = базе).
-  customsValue   Decimal @db.Decimal(14, 2)
-  duty           Decimal @db.Decimal(14, 2) @default(0)
-  addDuty        Decimal @db.Decimal(14, 2) @default(0)
-  vat            Decimal @db.Decimal(14, 2) @default(0)
-  allocatedCosts Decimal @db.Decimal(14, 2) @default(0)
+  customsValue   Decimal  @db.Decimal(14, 2)
+  duty           Decimal  @default(0) @db.Decimal(14, 2)
+  addDuty        Decimal  @default(0) @db.Decimal(14, 2)
+  vat            Decimal  @default(0) @db.Decimal(14, 2)
+  allocatedCosts Decimal  @default(0) @db.Decimal(14, 2)
 
   calculation CustomsCalculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
 

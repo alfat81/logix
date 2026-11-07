@@ -117,6 +117,28 @@ export const EVENT_TYPES: Record<ActivityType, EventMeta> = {
   permit_received: { label: 'Разрешительный документ получен', audience: ['staff', 'client', 'broker'], notify: ['responsible-if-external-actor'] },
   permit_waived: { label: 'Разрешительный отмечен не требуемым', audience: ['staff', 'client', 'broker'], notify: [] },
   permit_overdue: { label: 'Просрочен разрешительный документ', audience: ['staff', 'client', 'broker'], notify: [] },
+  // DF-26 волна 2 (§6.2, О3): загрузка ≠ принятие. permit_submitted —
+  // бывший эффект permit_received при загрузке (pending → submitted);
+  // принятие/отклонение — решение сотрудника (accept/reject), отклонение
+  // возвращает контроль (с новой версией или другим файлом).
+  permit_submitted: { label: 'Документ загружен по разрешительному требованию', audience: ['staff', 'client', 'broker'], notify: ['responsible-if-external-actor'] },
+  permit_rejected: { label: 'Документ отклонён, требование вернулось в ожидание', audience: ['staff', 'client', 'broker'], notify: ['client'] },
+  permit_reopened: { label: 'Принятое требование возвращено на проверку', audience: ['staff', 'client', 'broker'], notify: ['responsible-if-external-actor'] },
+  // DF-26 волна 2: проверки ТН ВЭД (§5.1–5.3, §5.7) — служебные события
+  // контура staff (клиент/брокер видят строки проверок в реестре, но
+  // смена статуса проверки — внутренняя кухня до требования).
+  permit_check_needed: { label: 'Требуется проверка разрешительных (ТН ВЭД)', audience: ['staff'], notify: ['responsible'] },
+  permit_check_not_required: { label: 'Проверка: разрешительный не требуется', audience: ['staff', 'client', 'broker'], notify: [] },
+  permit_check_review_needed: { label: 'Требуется пересмотр проверки (изменён код ТН ВЭД)', audience: ['staff'], notify: ['responsible'] },
+  // Пересмотр завершён: без писем; in-app видимость брокеру — автору
+  // исходной проверки обеспечивает список проверок (reviewStatus,
+  // GET checks admin/broker) — отдельного in-app канала у брокера нет
+  // (DF-03 — очередь писем), «без писем» соблюдено.
+  permit_check_reviewed: { label: 'Проверка по ТН ВЭД пересмотрена', audience: ['staff'], notify: [] },
+  // Дифф-сохранение оценки (§5.7 п. 0а): привязанная строка удалена —
+  // требование «требует ручной привязки» (pending_manual) и обратно.
+  permit_relink_needed: { label: 'Связь требования с позицией требует ручного подтверждения', audience: ['staff'], notify: ['responsible'] },
+  permit_relinked: { label: 'Требование привязано к позиции вручную', audience: ['staff'], notify: [] },
   // документы (Е): аудитория по умолчанию — внешний документ; для
   // ВНУТРЕННЕГО точка вызова (documents.ts) переопределяет на
   // documentEventAudience(true) = ['staff'] — внешний кабинет не должен

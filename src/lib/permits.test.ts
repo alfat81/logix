@@ -116,7 +116,8 @@ describe('fmtPermitDate (дата плашек/писем по UTC)', () => {
 describe('константы домена', () => {
   it('кто предоставляет и статусы строки — точный состав', () => {
     expect(PERMIT_PROVIDERS).toEqual(['client', 'broker', 'staff'])
-    expect(PERMIT_STATUSES).toEqual(['pending', 'received', 'waived'])
+    // DF-26 волна 2 (§5.4): загрузка ≠ принятие — домен расширен submitted.
+    expect(PERMIT_STATUSES).toEqual(['pending', 'submitted', 'received', 'waived'])
   })
 })
 

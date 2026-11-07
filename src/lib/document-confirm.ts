@@ -12,7 +12,7 @@ import {
   type DocumentVersionRow,
 } from '@/lib/documents'
 import { DOC_SIGNATURE_ERROR, maxUploadBytes, uploadSizeError } from '@/lib/document-upload'
-import { linkPermitRequirement } from '@/lib/permits-db'
+import { linkPermitRequirements, reopenPermitsForDocument } from '@/lib/permits-db'
 
 // ─── DF-11: подтверждение загрузки (шаг 3 после presigned PUT) ───────
 // Сервер читает ПЕРВЫЕ байты и размер объекта (не весь файл): проверяет
@@ -50,7 +50,7 @@ export type PendingVersionForConfirm = NonNullable<
 >
 
 export type ConfirmOutcome =
-  | { ok: true; version: DocumentVersionRow; document: DocumentRow; permitId?: string }
+  | { ok: true; version: DocumentVersionRow; document: DocumentRow; permitIds: string[] }
   | { ok: false; status: number; error: string }
 
 /** Сигнал «неудача confirm» без исключений: роут маппит в ответ. */
@@ -65,7 +65,7 @@ class ConfirmRejected extends Error {
 export async function confirmDocumentVersion(
   pending: PendingVersionForConfirm,
   actor: DocActor,
-  opts: { permitRequirementId?: string },
+  opts: { permitRequirementId?: string; permitRequirementIds?: string[] },
 ): Promise<ConfirmOutcome> {
   if (pending.status !== 'pending') {
     return { ok: false, status: 409, error: 'Загрузка уже подтверждена' }
@@ -100,8 +100,17 @@ export async function confirmDocumentVersion(
       ? { orderId: pending.document.orderId }
       : { leadId: pending.document.leadId! }
 
-    const permitId = opts.permitRequirementId
+    // DF-26 волна 2 (§6.4 п. 1): один документ может закрывать несколько
+    // требований (permitRequirementIds); одиночное поле — прежний контракт.
+    const permitIds = [
+      ...(opts.permitRequirementId ? [opts.permitRequirementId] : []),
+      ...(opts.permitRequirementIds ?? []),
+    ]
     const versionNumber = pending.version
+    // Новое содержимое у документа связанного ПРИНЯТОГО требования
+    // возвращает его в submitted (§6.4 п. 4б) — только для версий > 1
+    // (первая загрузка переоткрывать нечего).
+    const isNewVersion = versionNumber > 1
 
     const result = await db.$transaction(async (tx) => {
       // Защита от гонки двух confirm: готовит версию только тот вызов,
@@ -114,12 +123,22 @@ export async function confirmDocumentVersion(
         throw new ConfirmRejected({ status: 409, error: 'Загрузка уже подтверждена' })
       }
 
-      if (permitId) {
-        await linkPermitRequirement(tx, {
-          permitId,
+      if (permitIds.length > 0) {
+        await linkPermitRequirements(tx, {
+          permitIds,
           deal,
           actor,
           documentId: pending.documentId,
+        })
+      }
+      if (isNewVersion) {
+        // §5.4/§6.4 п. 4: авто-возврат ПО КАЖДОМУ принятому требованию
+        // (только received; submitted не трогается) — в той же транзакции.
+        await reopenPermitsForDocument(tx, {
+          documentId: pending.documentId,
+          documentTitle: pending.document.title,
+          actor,
+          reason: `загружена версия ${versionNumber} документа «${pending.document.title}»`,
         })
       }
 
@@ -160,7 +179,7 @@ export async function confirmDocumentVersion(
         audience: documentEventAudience(document.isInternal),
       })
 
-      return { version, document }
+      return { version, document, permitIds }
     })
 
     return { ok: true, ...result }
@@ -168,4 +187,23 @@ export async function confirmDocumentVersion(
     if (e instanceof ConfirmRejected) return { ok: false, ...e.outcome }
     throw e
   }
+}
+
+// ─── Разбор тела confirm: привязка требований (§6.4 п. 1) ───────────
+// Гард IC-14: общий для трёх кабинетов (admin/broker/client) парсер
+// тела confirm — одиночное поле (прежний контракт) и массив.
+export type ConfirmPermitOpts = { permitRequirementId?: string; permitRequirementIds?: string[] }
+
+export function parseConfirmPermitOpts(body: unknown): ConfirmPermitOpts {
+  const opts: ConfirmPermitOpts = {}
+  if (body && typeof body === 'object') {
+    const b = body as { permitRequirementId?: unknown; permitRequirementIds?: unknown }
+    if ('permitRequirementId' in b && b.permitRequirementId) {
+      opts.permitRequirementId = String(b.permitRequirementId)
+    }
+    if (Array.isArray(b.permitRequirementIds)) {
+      opts.permitRequirementIds = b.permitRequirementIds.map(String)
+    }
+  }
+  return opts
 }

@@ -30,8 +30,11 @@ const CARD_KEYS = [
   'notifications.red_event_types', 'notifications.red_max_per_hour', 'notifications.staff_mode',
   // DF-03: префикс темы красных писем (карточка DF-03, «из настроек»)
   'notifications.red_subject_prefix',
-  // owner_digest (2) · waiting (1) · permits (2) · broker (1, DF-18) · files (1)
+  // owner_digest (2) · waiting (1) · permits (3) · broker (1, DF-18) · files (1)
   'owner_digest.window_start', 'owner_digest.window_end', 'waiting.attention_hours',
+  // DF-26 волна 2 (§5.5): окно усиленной нейтральной плашки (без красного
+  // и без писем) — реестр настроек расширен третьим permits-ключом.
+  'permits.warn_days_before',
   'permits.red_days_before', 'permits.remind_every_days', 'files.max_mb',
   // DF-18: потолок строк ответа брокера (D38 — «настройка, по умолчанию 30»)
   'broker.max_items',

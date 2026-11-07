@@ -19,14 +19,11 @@ import type { PermitLiteUi, RegistryData, RegistryFilter } from './parts/registr
 import { PermitCreateDialog } from '@/components/permits/PermitDialogs'
 
 // ─── DF-26 §3.3: единый реестр документов заявки по фазам ───────────
-// Основная область режима «Документы» (замещает слотовый экран DF-13
-// и отдельную PermitsSection на заявке — на лидах PermitsSection
-// остаётся, О8). Фазы — производная вида; строки разрешительных
-// требований — по stagePhase из package-роута (§3.3.3, T21-03);
-// ZIP: финальные (GET), все доступные/выбранные (POST §8).
-// Счётчики — из package-роута (один список с архивом).
-// Загрузка по требованию — та же форма «Новый документ» (§3.3.6,
-// T21-02); «Принять/Отклонить» — волна 2 (разрез Р-2).
+// Основная область «Документов» (замещает слотовый экран DF-13 и
+// PermitsSection на заявке; на лидах PermitsSection остаётся, О8).
+// Фазы — производная вида; строки требований — по stagePhase (§3.3.3);
+// ZIP — GET финальные / POST all·selected (§8); «Принять/Отклонить» —
+// волна 2 (Р-2); загрузка по требованию — §3.3.6.
 
 export type DocumentsRegistrySectionProps = {
   packageUrl: string
@@ -127,6 +124,16 @@ export function DocumentsRegistrySection({
     for (const s of data?.slots ?? []) for (const d of s.documents) map.set(d.id, d)
     return map
   }, [data])
+  // DF-26 волна 2 (§5.4): «Принять/Отклонить» — URL из базы PATCH-роута;
+  // метка «требует привязки» — bindingState отдаётся только сотрудникам.
+  const permitActionUrlFor = permitsPatchUrlFor
+    ? (permitId: string, action: 'accept' | 'reject') => `${permitsPatchUrlFor(permitId)}/${action}`
+    : undefined
+  const permitBindingStateFor = useCallback(
+    (permitId: string) => (data?.permits ?? []).find((p) => p.id === permitId)?.bindingState,
+    [data],
+  )
+
   const permitFileFor = useCallback(
     (permit: PermitLiteUi): PermitFileUi | null => {
       if (!permit.documentId) return null
@@ -151,11 +158,7 @@ export function DocumentsRegistrySection({
       if (fallback) setZipFallback(fallback)
       else toast({ title: 'Архив скачан' })
     } catch (e) {
-      toast({
-        title: 'Архив не собран',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
-      })
+      toast({ title: 'Архив не собран', description: e instanceof Error ? e.message : '', variant: 'destructive' })
     } finally {
       setZipBusy(false)
       setZipConfirm(null)
@@ -199,6 +202,7 @@ export function DocumentsRegistrySection({
               docs={docs}
               emptySlots={emptySlots}
               permits={permits}
+              checks={phase === 'permits' ? data.checks : undefined}
               permitFileFor={permitFileFor}
               open={openPhases.has(phase) || filter !== 'all'}
               highlight={phase === summary?.currentStagePhase && filter === 'all'}
@@ -223,20 +227,15 @@ export function DocumentsRegistrySection({
                 })
               }
               onSlotUpload={(slot) =>
-                setCreateTarget({
-                  kind: slot.kind as DocumentKind,
-                  stageCode: slot.requiredFor?.[0]?.stageCode ?? null,
-                })
+                setCreateTarget({ kind: slot.kind as DocumentKind, stageCode: slot.requiredFor?.[0]?.stageCode ?? null })
               }
               onPermitUpload={(permit) =>
-                setCreateTarget({
-                  kind: 'permit_document',
-                  stageCode: null,
-                  permitRequirementId: permit.id,
-                  permitTitle: permit.title,
-                })
+                setCreateTarget({ kind: 'permit_document', stageCode: null, permitRequirementId: permit.id, permitTitle: permit.title })
               }
               permitsPatchUrlFor={permitsPatchUrlFor}
+              permitActionUrlFor={permitActionUrlFor}
+              warnDays={data.warnDaysBefore}
+              permitBindingStateFor={permitBindingStateFor}
               onPermitSaved={refresh}
               headerActions={
                 phase === 'permits' && permitsCreateUrl ? (

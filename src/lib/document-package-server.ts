@@ -3,11 +3,14 @@ import { db } from '@/lib/db'
 import { attachRequirements, buildPackageSlots, packageKindsForAudience } from '@/lib/document-package'
 import {
   isTransportKind,
+  phaseForStage,
   suggestedTransportVariant,
 } from '@/lib/document-phases'
 import { buildPackageSummary } from '@/lib/document-summary'
+import { getSetting } from '@/lib/settings'
 import { DOC_LIST_READY_WHERE, DOC_PUBLIC_FIELDS, type DocumentRow } from '@/lib/documents'
 import { PERMIT_EXTERNAL_FIELDS } from '@/lib/permits-db'
+import { listPermitChecks } from '@/lib/permit-checks-db'
 import { projectDocumentAuthors, type ActorNameReader } from '@/lib/actor-name'
 
 // ─── DF-13/DF-26: пакет документов заявки — серверное ядро слотов ───
@@ -95,7 +98,9 @@ export async function packageSlotsResponse(
     }),
     db.permitRequirement.findMany({
       where: { orderId },
-      select: PERMIT_EXTERNAL_FIELDS,
+      // DF-26 волна 2: bindingState — только сотрудникам (метка
+      // «требует ручной привязки», §5.7 п. 0а); наружу — без него.
+      select: { ...PERMIT_EXTERNAL_FIELDS, bindingState: true },
       orderBy: [{ isBlocking: 'desc' }, { createdAt: 'asc' }],
     }),
     db.orderStageCatalog.findMany({ select: { code: true, name: true } }),
@@ -105,11 +110,14 @@ export async function packageSlotsResponse(
   // Реестр строится одним запросом + список требований (§11.1).
   // DF-26 §11.1: stagePhase — фаза реестра, куда попадает строка
   // требования (PHASE_OF_STAGE от PermitRequirement.stageCode → остаточная
-  // группа 07). В очереди №21 колонки stageCode у требования ещё нет
-  // (миграция df_26_docs_center — волна 2): все строки уходят в 07;
-  // при появлении stageCode в волне 2 вычисление включается без смены
-  // контракта ответа.
-  const permits = permitRows.map((p) => ({ ...p, stagePhase: 'permits' as const }))
+  // группа 07; требование без stageCode — в 07, блокировка этапа на нём
+  // не появляется внезапно, §9). Миграция df_26_docs_center дала колонку
+  // — вычисление включено (контракт ответа не менялся).
+  const permits = permitRows.map((p) => ({
+    ...p,
+    stagePhase: (p.stageCode ? phaseForStage(p.stageCode) : null) ?? ('permits' as const),
+    ...(reader.kind === 'staff' ? {} : { bindingState: undefined }),
+  }))
   const stageNames = new Map(catalog.map((c) => [c.code, c.name]))
   const slots = attachRequirements(
     buildPackageSlots(documents, packageKindsForAudience(includeInternal)),
@@ -131,11 +139,20 @@ export async function packageSlotsResponse(
     permits: permitRows,
     stageNames,
   })
+  // DF-26 волна 2 (§11.1): проверки ТН ВЭД — только admin/broker
+  // (клиенту контур проверок не показывается, §7).
+  const checks =
+    reader.kind === 'staff' || reader.kind === 'broker' ? await listPermitChecks({ orderId }) : []
+  // DF-26 волна 2 (§5.5): окно усиленной плашки — из настроек (одна
+  // выборка с пакетом; UI не ходит за настройкой отдельным запросом).
+  const warnDaysBefore = reader.kind === 'staff' ? await getSetting('permits.warn_days_before') : undefined
   return NextResponse.json({
     orderNumber: order.number,
     maxMb,
     slots: slotsUi,
     summary,
     permits,
+    ...(checks.length > 0 ? { checks } : {}),
+    ...(warnDaysBefore !== undefined ? { warnDaysBefore } : {}),
   })
 }

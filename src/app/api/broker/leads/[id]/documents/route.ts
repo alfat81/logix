@@ -53,6 +53,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       documents: await projectDocumentAuthors(documents, {
         kind: 'broker',
         brokerId: auth.broker.id,
+        companyName: auth.broker.companyName,
       }),
     })
   } catch (e) {
@@ -87,6 +88,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const [document] = await projectDocumentAuthors([result.document], {
       kind: 'broker',
       brokerId: auth.broker.id,
+      companyName: auth.broker.companyName,
     })
     return NextResponse.json({ ...result, document, confirmUrl: `/api/broker/document-versions/${result.version.id}/confirm` }, { status: 201 })
   } catch (e) {

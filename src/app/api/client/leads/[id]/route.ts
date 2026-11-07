@@ -73,6 +73,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     const activities = await projectActors(lead.activities, {
       kind: 'client',
       customerId: auth.client.id,
+      companyName: auth.client.name,
     })
     return NextResponse.json({
       lead: {

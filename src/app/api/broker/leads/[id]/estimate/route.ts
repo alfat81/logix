@@ -6,7 +6,8 @@ import { apiErrorResponse } from '@/lib/api-errors'
 import { brokerActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
 import { BrokerEstimateFullSchema, diffEstimateItems, readPermits } from '@/lib/brokers'
-import { remapPermitItemIds, syncEstimatePermits } from '@/lib/permits-db'
+import { syncEstimatePermits } from '@/lib/permits-db'
+import { lockDeal, saveEstimateItemsDiff } from '@/lib/estimate-diff-db'
 import { getSetting } from '@/lib/settings'
 import { formatMoney } from '@/lib/money'
 
@@ -80,11 +81,17 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     const link = await db.leadBroker.findUnique({
       where: { leadId_brokerId: { leadId: id, brokerId: auth.broker.id } },
-      include: { estimate: { include: { items: { orderBy: { sortOrder: 'asc' } } } } },
+      include: {
+        estimate: { include: { items: { orderBy: { sortOrder: 'asc' } } } },
+        lead: { select: { order: { select: { id: true } } } },
+      },
     })
     if (!link) {
       return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
+    // Цель строк-обязательств и проверок: заявка, если лид уже
+    // конвертирован, иначе запрос (как в syncEstimatePermits).
+    const deal = link.lead.order ? ({ orderId: link.lead.order.id } as const) : ({ leadId: id } as const)
 
     // DF-18: пометку isManualCode верифицирует сервер по справочнику
     // DF-17C (действующие редакции, validTo IS NULL) — клиентскую не
@@ -118,41 +125,29 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
     const result = await db.$transaction(async (tx) => {
+      // DF-26 волна 2 (§5.1 (б)): advisory-блокировка сделки — потоки,
+      // создающие/снимающие требования и записи проверок, идут под ней.
+      await lockDeal(tx, deal)
       const estimate = await tx.brokerEstimate.upsert({
         where: { leadBrokerId: link.id },
         create: { leadBrokerId: link.id, ...estimateData },
         update: estimateData,
       })
 
-      // Полная замена строк: deleteMany + createMany в одной транзакции
-      // (инвариант 2). История — только в событии estimate_updated:
-      // строки не «удалённые», а заменённые целиком (снимок ответа).
-      const oldItems = (link.estimate?.items ?? []).map((i) => ({ id: i.id, hsCode: i.hsCode }))
-      await tx.brokerEstimateItem.deleteMany({ where: { estimateId: estimate.id } })
-      if (items.length > 0) {
-        await tx.brokerEstimateItem.createMany({
-          data: items.map((item, idx) => ({
-            estimateId: estimate.id,
-            sortOrder: idx,
-            hsCode: item.hsCode,
-            isManualCode: !knownCodes.has(item.hsCode),
-            dutyPercent: item.dutyPercent ?? null,
-            addDutyPercent: item.addDutyPercent ?? null,
-            addDutyNote: item.addDutyNote ?? null,
-            vatPercent: item.vatPercent ?? null,
-            rateNote: item.rateNote ?? null,
-          })),
-        })
-      }
-      // DF-16: привязки разрешительных к строкам оценки восстанавливаются
-      // по коду ТН ВЭД (id строк пересозданы).
-      if (oldItems.length > 0) {
-        const newItems = await tx.brokerEstimateItem.findMany({
-          where: { estimateId: estimate.id },
-          select: { id: true, hsCode: true },
-        })
-        await remapPermitItemIds(tx, oldItems, newItems)
-      }
+      // ── Дифф-сохранение строк (SPEC §5.7 п. 0а, ред. 1.6) ──────────
+      // Идентичность позиции — id строки: обновление на месте / создание
+      // / удаление (требования удалённых → pending_manual); смена кода
+      // сохранённой строки — пересмотр по месту; охват проверок — в той
+      // же транзакции (модуль estimate-diff-db, гард IC-09/IC-14).
+      await saveEstimateItemsDiff(tx, {
+        estimateId: estimate.id,
+        deal,
+        actor: brokerActor(auth.broker),
+        items,
+        knownCodes,
+        oldItems: (link.estimate?.items ?? []).map((i) => ({ id: i.id, hsCode: i.hsCode })),
+      })
+
       // DF-16: свободный список requiredPermits превращается в строки
       // PermitRequirement (полная замена — семантика PUT; строки,
       // полученные/снятые вручную и созданные через /permits, не трогаются).
@@ -236,6 +231,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
         status: saved?.status ?? nextStatus,
         sentAt: saved?.sentAt ?? estimateData.sentAt,
         items: (saved?.items ?? []).map((i) => ({
+          // DF-26 волна 2 (§5.7 п. 0а): id строки — наружу: портал
+          // отправляет его обратно при дифф-сохранении (обновление на
+          // месте), идентичность позиции без сопоставления.
+          id: i.id,
           hsCode: i.hsCode,
           isManualCode: i.isManualCode,
           dutyPercent: i.dutyPercent,

@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   const { id } = await params
   try {
-    return await packageZipResponse(id, { kind: 'client', customerId: auth.client.id })
+    return await packageZipResponse(id, { kind: 'client', customerId: auth.client.id, companyName: auth.client.name })
   } catch (e) {
     return apiErrorResponse(e, 'client order package zip GET', 'Не удалось собрать пакет')
   }
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!parsed.ok) return parsed.response
     return await packageScopeZipResponse(
       id,
-      { kind: 'client', customerId: auth.client.id },
+      { kind: 'client', customerId: auth.client.id, companyName: auth.client.name },
       clientActor(auth.client),
       parsed.data,
     )

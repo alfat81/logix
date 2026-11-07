@@ -10,7 +10,7 @@ import {
 import { createOrderWithStages, findOrCreateCustomer } from '@/lib/orders'
 import { resolveActiveRefs } from '@/lib/ref-db'
 import { carryDocumentsToOrder } from '@/lib/documents'
-import { carryPermitsToOrder } from '@/lib/permits-db'
+import { carryPermitChecksToOrder, carryPermitsToOrder } from '@/lib/permits-db'
 import { normalizePhone } from '@/lib/phone'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { employeeActor } from '@/lib/activity'
@@ -238,6 +238,11 @@ export async function POST(req: NextRequest, { params }: Params) {
         // 5а. DF-16: перенос обязательств по разрешительным (лид → заявка)
         const carriedPermits = await carryPermitsToOrder(id, orderRes.id, tx)
 
+        // 5б. DF-26 волна 2 (§10.3 п. 6): перенос проверок ТН ВЭД — вместе
+        // с reviewStatus; связи Item/Requirement ссылаются на проверку и
+        // требование по id и едут автоматически (своих колонок цели нет)
+        const carriedChecks = await carryPermitChecksToOrder(id, orderRes.id, tx)
+
         // 6. Аудит в обе ленты событий
         await emitEvent(tx, {
           target: { leadId: id },
@@ -246,7 +251,8 @@ export async function POST(req: NextRequest, { params }: Params) {
           description: `Сконвертирован в заявку №${orderRes.number}` +
             (carriedBrokers > 0 ? ` — брокеры перенесены: ${carriedBrokers}` : '') +
             (carriedDocs > 0 ? `, документы перенесены: ${carriedDocs}` : '') +
-            (carriedPermits > 0 ? `, разрешительные перенесены: ${carriedPermits}` : ''),
+            (carriedPermits > 0 ? `, разрешительные перенесены: ${carriedPermits}` : '') +
+            (carriedChecks > 0 ? `, проверки ТН ВЭД перенесены: ${carriedChecks}` : ''),
         })
         await emitEvent(tx, {
           target: { orderId: orderRes.id },
@@ -255,7 +261,8 @@ export async function POST(req: NextRequest, { params }: Params) {
           description: `Заявка №${orderRes.number} создана конвертацией из запроса — груз и условия скопированы снимком` +
             (carriedBrokers > 0 ? `, брокеры видимости: ${carriedBrokers}` : '') +
             (carriedDocs > 0 ? `, документы: ${carriedDocs}` : '') +
-            (carriedPermits > 0 ? `, разрешительные: ${carriedPermits}` : ''),
+            (carriedPermits > 0 ? `, разрешительные: ${carriedPermits}` : '') +
+            (carriedChecks > 0 ? `, проверки ТН ВЭД: ${carriedChecks}` : ''),
         })
 
         return {

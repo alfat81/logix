@@ -151,6 +151,13 @@ export function percentValue(label: string) {
 }
 
 export const EstimateItemSchema = z.object({
+  // DF-26 волна 2 (SPEC §5.7 п. 0а, ред. 1.6): идентичность позиции —
+  // id строки. Строка с id — обновление НА МЕСТЕ (id не меняется; связи
+  // PermitRequirement.itemId / PermitCheckItem остаются валидными без
+  // всякого сопоставления); без id — создание; отсутствующие в payload
+  // — удаление (требования удалённых строк → pending_manual). Сопоставления
+  // «старая ↔ новая» нет вовсе — remapPermitItemIds упразднён.
+  id: z.string().trim().max(40).optional(),
   // Ровно 10 цифр (карточка DF-18): справочник DF-17C хранит 10-значные
   // коды; поиск с пробелами («0101 21») обрабатывает HsCodeCombobox —
   // сюда приходит уже нормализованный код выбранной позиции.
