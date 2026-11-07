@@ -48,4 +48,4 @@ package-lock.json
 
 # кэши Python и локальный вывод сборки релизных архивов
 __pycache__/
-releases/
+/releases/
