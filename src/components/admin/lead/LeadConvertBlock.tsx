@@ -36,6 +36,9 @@ export function LeadConvertBlock({
   leadId,
   cargoInfo,
   canConvert,
+  // Поток A (BL-5): подсказка зависит от статуса — при «Рассчитан»
+  // ждём согласование клиента (или фиксируем от его имени)
+  leadStatus,
   // DF-17: условие поставки из запроса клиента (Lead.incotermCode) —
   // предзаполняется, менеджер может изменить при конвертации
   initialIncotermCode,
@@ -43,6 +46,7 @@ export function LeadConvertBlock({
   leadId: string
   cargoInfo: Record<string, unknown> | null
   canConvert: boolean
+  leadStatus?: string
   initialIncotermCode?: string | null
 }) {
   const router = useRouter()
@@ -121,7 +125,9 @@ export function LeadConvertBlock({
         </Button>
         {!canConvert && (
           <span className="text-sm text-muted-foreground">
-            Выберите вариант расчёта — на нём построятся условия заявки
+            {leadStatus === 'calculated'
+              ? 'Дождитесь согласования клиента или зафиксируйте его от имени клиента'
+              : 'Выберите вариант расчёта — на нём построятся условия заявки'}
           </span>
         )}
       </div>

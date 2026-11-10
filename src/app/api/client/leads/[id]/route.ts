@@ -22,13 +22,35 @@ type Params = { params: Promise<{ id: string }> }
 // ─── Карточка запроса (лида) в кабинете клиента (Е, P1-02) ─────────
 // До Е клиент видел свои запросы только списком; теперь у запроса есть
 // карточка — анкета, которую он отправлял, статус и документы.
-// Проекция без lostReason и вариантов (цены клиенту не показываются —
-// решение №1), только свои запросы (404 на чужие).
+// Проекция без lostReason, только свои запросы (404 на чужие).
+// Поток A волна 1 (BL-7): клиент видит варианты и продажные цены
+// (пересмотр решения №1 — решение владельца от 04.11.2026, D49):
+// наружная проекция вариантов БЕЗ costEstimate/costCurrency (комментарий
+// в коде — пересмотр решения №1); согласованная карточка дополнительно
+// отдаёт метаданные согласования (дата/способ/имя) и зафиксированные
+// условия из активного снимка согласования (что клиент видел в момент
+// согласия — то и отображается). Клиент НЕ видит: себестоимость, валюту
+// себестоимости, маржу, внутренние события (спецификация п. 7).
 //
 // P1-02: клиент правит анкету груза, пока менеджер не начал расчёт
 // (статус «новый», вариантов нет, заявки нет) — canEdit в ответе GET
 // подсказывает UI, показывать ли кнопку правки. Каждая правка — событие
 // «lead_edited» в журнале (актёр — клиент), менеджер видит её в ленте.
+
+// Наружная проекция варианта расчёта: продажные поля без себестоимости
+// (belt-and-suspenders — наружу уходят ТОЛЬКО перечисленные поля).
+const CLIENT_OPTION_FIELDS = {
+  id: true,
+  description: true,
+  transportModes: true,
+  price: true,
+  currency: true,
+  vatMode: true,
+  etaDays: true,
+  priorityFit: true,
+  isSelected: true,
+  createdAt: true,
+} as const
 
 const CLIENT_LEAD_DETAIL_SELECT = {
   id: true,
@@ -38,6 +60,31 @@ const CLIENT_LEAD_DETAIL_SELECT = {
   // P1-03: маршрут/метрики — колонки (карточка + diff правки)
   ...ROUTE_COLUMN_SELECT,
   order: { select: { id: true, number: true } },
+  // BL-7: варианты с продажными ценами (без себестоимости)
+  options: { orderBy: { createdAt: 'asc' }, select: CLIENT_OPTION_FIELDS },
+  // BL-3: метаданные активного согласования (факт: кто/как/когда)
+  selectedOptionId: true,
+  clientConfirmedAt: true,
+  clientConfirmedVia: true,
+  clientConfirmedByName: true,
+  // BL-7: активный снимок согласования — зафиксированные условия
+  // (история снимков наружу не отдаётся; себестоимости в снимке нет
+  // по схеме — belt-and-suspenders)
+  approvalSnapshots: {
+    orderBy: { confirmedAt: 'desc' },
+    take: 1,
+    select: {
+      description: true,
+      transportModes: true,
+      price: true,
+      currency: true,
+      vatMode: true,
+      etaDays: true,
+      priorityFit: true,
+      confirmedAt: true,
+      confirmedVia: true,
+    },
+  },
   _count: { select: { options: true } },
   // DF-21: журнал запроса — только события с аудиторией 'client'
   // (eventWhereFor); имена актёров — ридер клиента (DF-02A)
@@ -75,12 +122,23 @@ export async function GET(req: NextRequest, { params }: Params) {
       customerId: auth.client.id,
       companyName: auth.client.name,
     })
+    // BL-7: активный снимок согласования — наружу только при активном
+    // согласовании (история снимков клиенту не отдаётся).
+    const activeSnapshot =
+      rest.status === 'client_approved' && rest.clientConfirmedAt
+        ? (lead.approvalSnapshots.find(
+            (s) => s.confirmedAt.getTime() === rest.clientConfirmedAt!.getTime()
+          ) ?? null)
+        : null
     return NextResponse.json({
       lead: {
         ...rest,
         activities,
+        approvalSnapshot: activeSnapshot,
         // P1-02: правка открыта до первого варианта расчёта
         canEdit: rest.status === 'new' && !rest.order && _count.options === 0,
+        // BL-1: клиент может согласовать вариант, пока согласование не активно
+        canConfirm: rest.status === 'calculated' && !rest.order,
       },
     })
   } catch (e) {

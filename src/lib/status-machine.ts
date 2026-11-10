@@ -39,9 +39,15 @@ export const ORDER_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
 // с причиной (роадмап P1-05). Полностью закрытых статусов у заявки нет.
 export const TERMINAL_ORDER_STATUSES: readonly OrderStatus[] = ['completed', 'cancelled']
 
-// ─── Лид: Новый → Рассчитан → Выигран / Отказ ─────────────────
+// ─── Лид: Новый → Рассчитан → Согласован → Выигран / Отказ ─────
 // • won — строго терминальный: проставляется ТОЛЬКО конвертацией
 //   в заявку (В4), вручную не ставится и назад не открывается.
+// • client_approved (поток A, BL) — в таблице только отказ (lost):
+//   сам переход в client_approved выполняют выделенные confirm-API
+//   (select-option/confirm) напрямую — симметрия с won, который
+//   ставится только конвертацией. Ручной PATCH его не принимает.
+//   Сброс согласования («Изменить условия») тоже выделенный API —
+//   он уходит из статуса напрямую, без строки в таблице.
 // • lost — терминальный с одной веткой: lost→new — только мастеру,
 //   с записью причины отказа в журнал (роут В2).
 // • calculated→new нет: расчёт сделан — лид уже двигается; возврат
@@ -50,6 +56,7 @@ export const TERMINAL_ORDER_STATUSES: readonly OrderStatus[] = ['completed', 'ca
 export const LEAD_TRANSITIONS: Record<LeadStatus, readonly LeadStatus[]> = {
   new: ['calculated', 'lost'],
   calculated: ['lost'],
+  client_approved: ['lost'],
   won: [],
   lost: ['new'],
 }

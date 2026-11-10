@@ -16,6 +16,8 @@ import {
   type LeadStatus,
 } from '@/lib/leads'
 import { routeLineOf } from '@/lib/route-fields'
+import { ClientLeadArchive } from './ClientLeadArchive'
+import { ClientLeadRow } from './ClientLeadRow'
 import type { OrderStatus, StageStatus } from '@/lib/order-constants'
 
 // ─── Главная клиентского кабинета (И1) ──────────────────────────────
@@ -80,7 +82,6 @@ export function ClientHome() {
 
   const [orders, setOrders] = useState<ClientOrder[] | null>(null)
   const [leads, setLeads] = useState<ClientLead[] | null>(null)
-
   const loadOrders = useCallback(async () => {
     try {
       const res = await fetch('/api/client/orders')
@@ -201,39 +202,15 @@ export function ClientHome() {
           </Card>
         ) : (
           <div className="grid gap-2">
-            {leads.map((l) => {
-              const r = routeOf(l)
-              return (
-                <Card key={l.id} className="p-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <Link
-                    href={`/client/leads/${l.id}`}
-                    className="min-w-48 flex-1 group"
-                  >
-                    <div className="text-sm group-hover:underline">
-                      {r.cargoName || <span className="text-muted-foreground">Груз не указан</span>}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {r.from || r.to ? `${r.from || '—'} → ${r.to || '—'}` : 'Маршрут не указан'} · от{' '}
-                      {fmtDate(l.createdAt)}
-                    </div>
-                  </Link>
-                  {l.order ? (
-                    <Link
-                      href={`/client/orders/${l.order.id}`}
-                      className="text-sm font-medium font-mono hover:underline"
-                    >
-                      Заявка {l.order.number}
-                    </Link>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">ждёт расчёта менеджера</span>
-                  )}
-                  <ClientLeadStatusBadge status={l.status} />
-                </Card>
-              )
-            })}
+            {leads.map((l) => (
+              <ClientLeadRow key={l.id} lead={l} />
+            ))}
           </div>
         )}
       </section>
+
+      {/* ── BL-7: архив запросов (won/lost) — ClientLeadArchive.tsx (RULES 2.14) ── */}
+      <ClientLeadArchive />
     </div>
   )
 }

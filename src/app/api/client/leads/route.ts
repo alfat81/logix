@@ -14,8 +14,13 @@ import { ROUTE_COLUMN_SELECT } from '@/lib/route-fields'
 //        из кабинета, и заведённые менеджером по телефону/почте: это
 //        его собственные обращения, показывать их назад честно).
 //        Проекция без lostReason (внутренняя причина отказа) и без
-//        вариантов расчёта — цены клиенту не показываются до решения
-//        по ценообразованию (решение вопроса №1, 14.10.2026).
+//        себестоимости.
+//        Поток A волна 1 (BL-7): клиент ВИДИТ варианты и продажные цены
+//        (пересмотр решения №1 — решение владельца от 04.11.2026, D49).
+//        ?archived=1 — архив (won/lost); по умолчанию — активные
+//        (new/calculated/client_approved): после конвертации запрос
+//        уходит в архив, а основным действующим объектом становится
+//        заявка (спецификация п. 5).
 // POST — новый запрос: лид источника «кабинет» со статусом «новый»,
 //        менеджер видит его в общем списке (В2) с бейджем «Кабинет».
 
@@ -37,8 +42,13 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response
 
   try {
+    // BL-7: архив — ?archived=1; по умолчанию активные (won/lost уходят
+    // из «Моих запросов», но остаются в архиве — история не пропадает).
+    const archived = req.nextUrl.searchParams.get('archived') === '1'
     const leads = await db.lead.findMany({
-      where: { customerId: auth.client.id },
+      where: archived
+        ? { customerId: auth.client.id, status: { in: ['won', 'lost'] } }
+        : { customerId: auth.client.id, status: { notIn: ['won', 'lost'] } },
       orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
       select: CLIENT_LEAD_SELECT,
     })

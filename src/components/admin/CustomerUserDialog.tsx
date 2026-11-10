@@ -25,6 +25,9 @@ import { generatePassword } from '@/components/admin/employee/password'
 //  • edit — пустой пароль = «не менять», снять пароль — отдельная
 //    кнопка (подтверждение не нужно: операция обратимая, вход
 //    восстанавливается новой выдачей).
+// ТЕЛЕФОНА В ПРАВКЕ НЕТ (BL-8, поток A волна 2): телефон — логин,
+// меняется только проверяемой операцией «Изменить телефон» (код на
+// новый номер — CustomerPhoneChangeDialog); при создании поле остаётся.
 // Правила сервера (lib/company-users.ts): пароль без нормализованного
 // телефона не выдаётся, дубли — 409; UI подсказывает, но не дублирует
 // валидацию телефонов/имён — ошибка сервера показывается как есть.
@@ -39,6 +42,9 @@ export type CustomerUserRow = {
   hasPassword: boolean
   lastLoginAt: string | null
   createdAt: string
+  // BL-8: pending-заявка смены телефона (хеш кода наружу не отдаётся)
+  pendingPhone?: string | null
+  phoneCodeExpiresAt?: string | null
 }
 
 export function CustomerUserDialog({
@@ -90,7 +96,6 @@ export function CustomerUserDialog({
         ? {
             userId: user.id,
             name,
-            phone: phone.trim() || null,
             email: email.trim() || null,
             ...(password ? { password } : {}),
           }
@@ -173,18 +178,30 @@ export function CustomerUserDialog({
               disabled={busy}
             />
           </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="cu-phone">Телефон (логин)</Label>
-            <Input
-              id="cu-phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+79001234567"
-              className="font-mono"
-              disabled={busy}
-            />
-            <p className="text-xs text-muted-foreground">{phoneHint}</p>
-          </div>
+          {editing ? (
+            <div className="grid gap-1.5">
+              <Label htmlFor="cu-phone">Телефон (логин)</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-mono">{user.phone ?? '—'}</span>
+                <span className="text-xs text-muted-foreground">
+                  — меняется операцией «Изменить телефон» (с кодом на новый номер)
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-1.5">
+              <Label htmlFor="cu-phone">Телефон (логин)</Label>
+              <Input
+                id="cu-phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+79001234567"
+                className="font-mono"
+                disabled={busy}
+              />
+              <p className="text-xs text-muted-foreground">{phoneHint}</p>
+            </div>
+          )}
           <div className="grid gap-1.5">
             <Label htmlFor="cu-email">Email</Label>
             <Input

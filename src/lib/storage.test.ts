@@ -1,10 +1,12 @@
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
   buildDocStorageKey,
   getLocalStorage,
   getStorage,
+  isProductionRuntime,
   readS3Config,
   resetStorageForTests,
+  StorageError,
   STORAGE_GET_EXPIRES,
   STORAGE_PUT_EXPIRES,
 } from './storage'
@@ -56,8 +58,87 @@ describe('readS3Config (провайдер — env, не код; D32/D36)', () =
     for (const k of ENV_KEYS) delete process.env[k]
     resetStorageForTests()
   })
+})
 
+// ─── AUD-06 (поток A волна 1): fail-fast хранилища в production ──────
+// production без S3_* → StorageError (тихая потеря файлов недопустима);
+// люк STORAGE_ALLOW_LOCAL=1; dev/тесты — локальный драйвер как раньше.
+describe('AUD-06: getStorage fail-fast в production без S3_*', () => {
+  const NODE_ENV = process.env.NODE_ENV
+  const VERCEL_ENV = process.env.VERCEL_ENV
+  const ALLOW = process.env.STORAGE_ALLOW_LOCAL
 
+  afterAll(() => {
+    for (const k of ENV_KEYS) delete process.env[k]
+    Object.assign(process.env, {
+      NODE_ENV: NODE_ENV,
+      VERCEL_ENV: VERCEL_ENV,
+      STORAGE_ALLOW_LOCAL: ALLOW,
+    })
+    resetStorageForTests()
+  })
+
+  it('isProductionRuntime: VERCEL_ENV=production или NODE_ENV=production', () => {
+    process.env.VERCEL_ENV = 'preview'
+    Object.assign(process.env, { NODE_ENV: 'development' })
+    expect(isProductionRuntime()).toBe(false)
+    process.env.VERCEL_ENV = 'production'
+    expect(isProductionRuntime()).toBe(true)
+    Object.assign(process.env, { VERCEL_ENV: undefined })
+    Object.assign(process.env, { NODE_ENV: 'production' })
+    expect(isProductionRuntime()).toBe(true)
+  })
+
+  it('production без S3_* → StorageError с подсказкой конфигурации', () => {
+    for (const k of ENV_KEYS) delete process.env[k]
+    Object.assign(process.env, { NODE_ENV: 'production', VERCEL_ENV: undefined, STORAGE_ALLOW_LOCAL: undefined })
+    resetStorageForTests()
+    expect(() => getStorage()).toThrow(StorageError)
+    try {
+      getStorage()
+    } catch (e) {
+      expect((e as StorageError).message).toContain('S3_ENDPOINT')
+      expect((e as StorageError).status).toBe(500)
+    }
+    resetStorageForTests()
+  })
+
+  it('production + люк STORAGE_ALLOW_LOCAL=1 → локальный драйвер с предупреждением', () => {
+    for (const k of ENV_KEYS) delete process.env[k]
+    Object.assign(process.env, { NODE_ENV: 'production', STORAGE_ALLOW_LOCAL: '1' })
+    resetStorageForTests()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(getStorage().kind).toBe('local')
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+    resetStorageForTests()
+  })
+
+  it('dev без S3_* → локальный драйвер (однократный warn), прежнее поведение', () => {
+    for (const k of ENV_KEYS) delete process.env[k]
+    Object.assign(process.env, { NODE_ENV: 'development', STORAGE_ALLOW_LOCAL: undefined })
+    resetStorageForTests()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(getStorage().kind).toBe('local')
+    warn.mockRestore()
+    resetStorageForTests()
+  })
+
+  it('production с полным набором S3_* → S3Storage (не падает)', () => {
+    Object.assign(process.env, {
+      S3_ENDPOINT: 'https://s3.cloud.ru',
+      S3_REGION: 'ru-central-1',
+      S3_BUCKET: 'logix-files',
+      S3_ACCESS_KEY_ID: 'tenant:key1',
+      S3_SECRET_ACCESS_KEY: 'secret',
+    })
+    Object.assign(process.env, { NODE_ENV: 'production', STORAGE_ALLOW_LOCAL: undefined })
+    resetStorageForTests()
+    expect(getStorage().kind).toBe('s3')
+    resetStorageForTests()
+    for (const k of ENV_KEYS) delete process.env[k]
+    Object.assign(process.env, { NODE_ENV: 'development' })
+  })
 })
 
 describe('buildDocStorageKey (без ПДн, уникален по построению)', () => {

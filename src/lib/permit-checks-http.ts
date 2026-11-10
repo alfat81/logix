@@ -4,7 +4,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { parseJsonBody } from '@/lib/api-request'
 import { type EmployeeActor, type BrokerActor } from '@/lib/activity'
 import { CreatePermitCheckSchema } from '@/lib/permit-checks'
 import { createManualPermitCheck, listPermitChecks, reviewPermitCheck } from '@/lib/permit-checks-db'
@@ -26,10 +25,7 @@ export type PermitChecksScope =
 
 export type PermitChecksSession =
   | { kind: 'staff'; employee: EmployeeActor }
-  // Брокер: actor — человек (userId, снимок компании в событиях);
-  // companyId — идентичность СВЯЗИ (LeadBroker/OrderBroker хранят id
-  // компании — CurrentBroker.id). Смешивать нельзя (урок e2e гейта 2).
-  | { kind: 'broker'; broker: BrokerActor; companyId: string }
+  | { kind: 'broker'; broker: BrokerActor }
 
 export async function permitChecksGet(
   id: string,
@@ -54,12 +50,12 @@ export async function permitChecksGet(
     }
     let deal: Parameters<typeof listPermitChecks>[0] | null
     if (scope.kind === 'broker-order') {
-      if (!(await brokerConnectedToOrder(id, session.companyId))) {
+      if (!(await brokerConnectedToOrder(id, session.broker.id))) {
         return NextResponse.json({ error: 'Заявка не найдена' }, { status: 404 })
       }
       deal = { orderId: id }
     } else {
-      if (!(await brokerConnectedToLead(id, session.companyId))) {
+      if (!(await brokerConnectedToLead(id, session.broker.id))) {
         return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
       }
       deal = await resolveLeadDealTarget(id)
@@ -71,6 +67,28 @@ export async function permitChecksGet(
   }
 }
 
+async function parseBody(req: NextRequest): Promise<
+  { ok: true; data: import('@/lib/permit-checks').CreatePermitCheckInput } | { ok: false; response: NextResponse }
+> {
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return { ok: false, response: NextResponse.json({ error: 'Некорректный JSON в теле запроса' }, { status: 400 }) }
+  }
+  const parsed = CreatePermitCheckSchema.safeParse(body)
+  if (!parsed.success) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: 'Некорректные данные', details: parsed.error.flatten() },
+        { status: 400 },
+      ),
+    }
+  }
+  return { ok: true, data: parsed.data }
+}
+
 export async function permitChecksPost(
   req: NextRequest,
   id: string,
@@ -78,7 +96,7 @@ export async function permitChecksPost(
   session: PermitChecksSession,
 ): Promise<NextResponse> {
   try {
-    const parsed = await parseJsonBody(req, CreatePermitCheckSchema)
+    const parsed = await parseBody(req)
     if (!parsed.ok) return parsed.response
     const input = parsed.data
     if (session.kind === 'staff') {
@@ -97,12 +115,12 @@ export async function permitChecksPost(
     }
     let deal: Parameters<typeof createManualPermitCheck>[0]
     if (scope.kind === 'broker-order') {
-      if (!(await brokerConnectedToOrder(id, session.companyId))) {
+      if (!(await brokerConnectedToOrder(id, session.broker.id))) {
         return NextResponse.json({ error: 'Заявка не найдена' }, { status: 404 })
       }
       deal = { orderId: id } as const
     } else {
-      if (!(await brokerConnectedToLead(id, session.companyId))) {
+      if (!(await brokerConnectedToLead(id, session.broker.id))) {
         return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
       }
       const resolved = await resolveLeadDealTarget(id)
@@ -116,16 +134,27 @@ export async function permitChecksPost(
   }
 }
 
-// ─── POST review: разбор тела через общий parseJsonBody (§11.2) ────
-// (гард IC-14: маршрут остаётся тонким, общих окон нет).
+// ─── POST review: разбор тела (§11.2) — маршрут остаётся тонким ─────
+// (гард IC-14: общий 12-строчный parse-блок с convert/options недопустим).
 export async function parseAndReviewCheck(
   id: string,
   req: NextRequest,
   actor: Extract<import('@/lib/documents').DocActor, { type: 'employee' }>,
 ): Promise<NextResponse> {
   try {
-    const parsed = await parseJsonBody(req, ReviewPermitCheckSchema)
-    if (!parsed.ok) return parsed.response
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Некорректный JSON в теле запроса' }, { status: 400 })
+    }
+    const parsed = ReviewPermitCheckSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Некорректные данные', details: parsed.error.flatten() },
+        { status: 400 },
+      )
+    }
     const check = await reviewPermitCheck(id, parsed.data, actor)
     return NextResponse.json({ check })
   } catch (e) {

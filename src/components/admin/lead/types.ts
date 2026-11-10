@@ -11,6 +11,11 @@ export type LeadFull = {
   lostReason: string | null
   createdAt: string
   source: string
+  // Поток A (BL): активное согласование расчёта — метаданные факта
+  selectedOptionId?: string | null
+  clientConfirmedAt?: string | null
+  clientConfirmedVia?: string | null
+  clientConfirmedByName?: string | null
   // DF-05: вычисляемое ожидание — плашка в шапке карточки запроса
   waitingOnKind?: string | null
   waitingReason?: string | null

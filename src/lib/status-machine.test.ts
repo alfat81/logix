@@ -104,6 +104,21 @@ describe('Матрица переходов запроса (LEAD_TRANSITIONS)', 
   it('new → calculated разрешён матрицей (порог «≥1 вариант» проверяет роут)', () => {
     expect(checkLeadTransition('new', 'calculated').ok).toBe(true)
   })
+
+  it('поток A (BL): client_approved — только отказ; вход — только confirm-API (в таблице его нет)', () => {
+    // переход в client_approved вручную не разрешён ни из какого статуса —
+    // ставит его только confirm-API (симметрия с won)
+    for (const from of LEAD_STATUSES) {
+      expect(LEAD_TRANSITIONS[from]).not.toContain('client_approved')
+    }
+    // из client_approved — только терминальный отказ (К-04/К-09)
+    expect(LEAD_TRANSITIONS.client_approved).toEqual(['lost'])
+    expect(checkLeadTransition('client_approved', 'lost').ok).toBe(true)
+    // сброс («Изменить условия») — выделенный API, не матрица
+    expect(checkLeadTransition('client_approved', 'calculated').ok).toBe(false)
+    // конвертация ставит won напрямую, минуя таблицу (как раньше)
+    expect(LEAD_TRANSITIONS.won).toEqual([])
+  })
 })
 
 describe('Проекции для UI (подписи переходов)', () => {

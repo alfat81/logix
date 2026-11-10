@@ -92,10 +92,13 @@ export async function patchLead(
         )
       }
       if (!isLeadAnketaEditable(existing.status)) {
-        return NextResponse.json(
-          { error: 'Анкета закрытого («Отказ») запроса не правится — верните запрос в работу (мастер)' },
-          { status: 409 }
-        )
+        // Поток A (BL): правка анкеты = «изменение условий» — при активном
+        // согласовании закрыта с подсказкой пути сброса (план §4.1).
+        const err =
+          existing.status === 'client_approved'
+            ? 'Согласование активно — анкета зафиксирована. Изменить условия можно после сброса согласования («Изменить условия»)'
+            : 'Анкета закрытого («Отказ») запроса не правится — верните запрос в работу (мастер)'
+        return NextResponse.json({ error: err }, { status: 409 })
       }
       const diffs = buildLeadEditDiff(existing, { rawContact, cargoInfo, route, incotermCode, incotermPlace })
       if (!diffs.length && status === undefined && assignedToId === undefined) {

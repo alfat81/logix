@@ -129,10 +129,20 @@ export async function verifyTotpSecondStep(
   if (/^\d{6}$/.test(code)) {
     const check = verifyTotp(secret, code, { minStep: employee.totpLastStep ?? undefined })
     if (!check.ok) return { ok: false }
-    await db.employee.update({
-      where: { id: employeeId },
+    // AUD-04 (поток A волна 2, план ред. 3 §5.4): атомарный захват шага —
+    // два параллельных второго шага с ОДНИМ кодом раньше оба проходили
+    // (безусловный update, обе сессии). updateMany с условием
+    // «totpLastStep < step» отзывается count===1 ровно у одного.
+    // OR totpLastStep: null обязателен: NULL не матчится lt в Postgres —
+    // иначе первый вход после включения TOTP был бы отклонён.
+    const claimed = await db.employee.updateMany({
+      where: {
+        id: employeeId,
+        OR: [{ totpLastStep: null }, { totpLastStep: { lt: check.step } }],
+      },
       data: { totpLastStep: check.step },
     })
+    if (claimed.count !== 1) return { ok: false }
     return { ok: true, step: check.step, usedRecovery: false }
   }
 

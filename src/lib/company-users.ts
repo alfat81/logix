@@ -1,10 +1,13 @@
 import { Prisma, type CustomerUser, type BrokerUser, type Customer, type Broker } from '@prisma/client'
+import { createHash, randomInt } from 'node:crypto'
 import type { NextRequest, NextResponse } from 'next/server'
 import { hashPassword, verifyPassword } from './password'
 import { normalizePhone, isEmail } from './phone'
 import { db } from './db'
 import { checkLoginGuard, recordLoginAttempt } from './login-guard'
 import { CLIENT_PASSWORD_MIN } from './client-constants'
+import { emitEvent } from './events'
+import type { EmployeeActor } from './activity'
 
 // ─── DF-02A: пользователи компании — единая точка (D34, P1-07) ────────
 // У клиента и у брокера одна семантика «человек внутри компании»:
@@ -21,10 +24,13 @@ import { CLIENT_PASSWORD_MIN } from './client-constants'
 //  • смена пароля и деактивация рвут сессии (паттерн Ж6в/И1), но
 //    только сессии ЭТОГО пользователя — коллег не задеваем.
 //
-// Отличия уникальности телефона (решение схемы, см. schema.prisma):
-//  • CustomerUser — уникальность ВНУТРИ компании (по образцу
-//    Customer.phone: @unique на живой базе с возможными дублями
-//    справочника не вводим, вход ищет findFirst по самому старому);
+// Отличия уникальности телефона (решение схемы, см. schema.prisma;
+// поток A волна 2, AUD-03 — решение владельца А2, план ред. 3 §5.1):
+//  • CustomerUser — уникальность ГЛОБАЛЬНАЯ: findFirst-проверки дают
+//    человекочитаемый 409, физический уникальный индекс
+//    CustomerUser_phone_key (миграция bl_phone_ops) + backstop P2002
+//    закрывают гонку «findFirst → create» (аудит: 8 параллельных
+//    выдач → 3 строки); вход по телефону детерминирован;
 //  • BrokerUser — уникальность ГЛОБАЛЬНАЯ (наследование @unique
 //    Broker.phone, вход детерминирован findUnique).
 //
@@ -41,6 +47,60 @@ export class CompanyUserError extends Error {
     this.status = status
   }
 }
+
+// ── Backstop AUD-03: гонка «findFirst → create/update» ─────────────
+// findFirst-проверки дают человекочитаемый 409, но под нагрузкой двое
+// успевают пройти проверку до записи обоих. Физический уникальный
+// индекс CustomerUser_phone_key (миграция bl_phone_ops) отзывается
+// ошибкой P2002 — переводим её в тот же понятный 409.
+function isPhoneUniqueViolation(e: unknown): boolean {
+  if (!(e instanceof Prisma.PrismaClientKnownRequestError) || e.code !== 'P2002') return false
+  const target = e.meta?.target ?? e.meta?.constraint ?? ''
+  return JSON.stringify(target).includes('phone')
+}
+
+// ── BL-8: одноразовый код смены телефона (план ред. 3 §5.2) ────────
+// TTL 15 минут, лимит попыток ввода 5 (далее — запрос нового кода),
+// хеш — ДЕТЕРМИНИРОВАННЫЙ sha256 (как коды восстановления DF-09):
+// атомарный одноразовый захват — updateMany WHERE phoneCodeHash = H,
+// поэтому хеш обязан совпадать при каждом вычислении одного и того же
+// кода; солевой scrypt (hashPassword) на это неспособен. Соль не
+// нужна: пространство кода — 10^6, лимит 5 попыток + TTL 15 мин.
+export const PHONE_CODE_TTL_MINUTES = 15
+export const PHONE_CODE_MAX_ATTEMPTS = 5
+
+function hashPhoneCode(code: string): string {
+  return createHash('sha256').update(`logix-phone-code:${code}`).digest('hex')
+}
+
+function generatePhoneCode(): string {
+  return String(randomInt(0, 1_000_000)).padStart(6, '0')
+}
+
+// Режим доставки кода на новый номер. WhatsApp/SMS-шлюза нет (P2-01:
+// интерфейс NotificationTransport зарезервирован, email-канал не умеет
+// в телефон) — код выводится администрирующему менеджеру в ответе API
+// (диалог показывает его с инструкцией «сообщите клиенту по телефону/
+// мессенджеру»), событие помечается delivery: 'manual_by_manager' —
+// честная фиксация, что проверку кода провёл менеджер. Режим —
+// свойство ОТСУТСТВИЯ шлюза: при его появлении функция переключается
+// без изменения кода операций (план ред. 3 §5.2 п. 2).
+export function phoneCodeDelivery(): 'manual_by_manager' {
+  return 'manual_by_manager'
+}
+
+export type PhoneChangeStartResult = {
+  delivery: 'manual_by_manager'
+  // Ручной режим: код виден менеджеру в ответе (в транспорт не уходит).
+  // При появлении шлюза поле исчезнет из ответа — контракт потребителя
+  // (диалог) обязан читать код только при delivery='manual_by_manager'.
+  code?: string
+  expiresAt: Date
+}
+
+export type PhoneChangeConfirmResult =
+  | { ok: true; phone: string }
+  | { ok: false; status: 400; message: string }
 
 export type CreateCompanyUserData = {
   name: string
@@ -161,16 +221,24 @@ export async function createCustomerUser(
     }
   }
 
-  return tx.customerUser.create({
-    data: {
-      customerId,
-      name,
-      phone,
-      email,
-      password: password ?? null,
-      isPrimary: data.isPrimary ?? false,
-    },
-  })
+  try {
+    return await tx.customerUser.create({
+      data: {
+        customerId,
+        name,
+        phone,
+        email,
+        password: password ?? null,
+        isPrimary: data.isPrimary ?? false,
+      },
+    })
+  } catch (e) {
+    // Backstop AUD-03: гонку findFirst→create закрыл уникальный индекс
+    if (isPhoneUniqueViolation(e)) {
+      throw new CompanyUserError(409, 'Этот телефон уже занят другим пользователем')
+    }
+    throw e
+  }
 }
 
 export async function updateCustomerUser(
@@ -217,15 +285,23 @@ export async function updateCustomerUser(
     await tx.clientSession.deleteMany({ where: { userId: id } })
   }
 
-  return tx.customerUser.update({
-    where: { id },
-    data: {
-      name,
-      phone,
-      email,
-      ...(password !== undefined ? { password } : {}),
-    },
-  })
+  try {
+    return await tx.customerUser.update({
+      where: { id },
+      data: {
+        name,
+        phone,
+        email,
+        ...(password !== undefined ? { password } : {}),
+      },
+    })
+  } catch (e) {
+    // Backstop AUD-03: гонку findFirst→update закрыл уникальный индекс
+    if (isPhoneUniqueViolation(e)) {
+      throw new CompanyUserError(409, 'Этот телефон уже занят другим пользователем')
+    }
+    throw e
+  }
 }
 
 // Деактивация закрывает сессии пользователя немедленно (по образцу
@@ -261,6 +337,222 @@ export async function getPrimaryCustomerUser(
   customerId: string
 ): Promise<CustomerUser | null> {
   return tx.customerUser.findFirst({ where: { customerId, isPrimary: true } })
+}
+
+// ── BL-8: смена телефона с проверкой нового номера (ред. 3 §5.2) ────
+// Двухшаговая операция: шаг 1 выдаёт код на НОВЫЙ номер, шаг 2 —
+// атомарное одноразовое подтверждение (паттерн AUD-04: updateMany
+// WHERE hash+TTL+лимита, count===1). Подтверждённый телефон остаётся
+// в phone — вход работает до и после смены без перерыва; повторный
+// шаг 1 перезаписывает код (поля одни на пользователя). Сессии НЕ
+// гасятся: смена логина ≠ компрометация устройства (паттерн гашения —
+// за сменой пароля и перепривязкой). Событие customer_user_phone_changed
+// пишется в транзакции ПОДТВЕРЖДЕНИЯ (кто/старый→новый/режим доставки).
+export async function startPhoneChange(
+  tx: Prisma.TransactionClient,
+  customerId: string,
+  userId: string,
+  newPhoneRaw: string
+): Promise<PhoneChangeStartResult> {
+  const user = await tx.customerUser.findFirst({ where: { id: userId, customerId } })
+  if (!user) {
+    throw new CompanyUserError(404, 'Пользователь не найден')
+  }
+
+  const newPhone = normalizePhone(newPhoneRaw)
+  if (!newPhone) {
+    throw new CompanyUserError(400, 'Телефон должен быть российским номером (+7…) — вход идёт по телефону')
+  }
+  if (newPhone === user.phone) {
+    throw new CompanyUserError(400, 'Новый номер совпадает с текущим — менять нечего')
+  }
+
+  // Глобальная занятость (AUD-03): находка ДО записи — человекочитаемый
+  // 409; уникальный индекс CustomerUser_phone_key + backstop P2002 —
+  // защита гонки «шаг 1 ↔ выдача доступа с тем же номером» (К-12).
+  const dupeSame = await tx.customerUser.findFirst({
+    where: { customerId, phone: newPhone, id: { not: userId } },
+  })
+  if (dupeSame) {
+    throw new CompanyUserError(409, 'Пользователь с таким телефоном уже есть в этой компании')
+  }
+  const dupeCross = await tx.customerUser.findFirst({
+    where: { phone: newPhone, customerId: { not: customerId } },
+  })
+  if (dupeCross) {
+    throw new CompanyUserError(409, 'Этот телефон уже занят пользователем другой компании')
+  }
+
+  const code = generatePhoneCode()
+  const expiresAt = new Date(Date.now() + PHONE_CODE_TTL_MINUTES * 60_000)
+  await tx.customerUser.update({
+    where: { id: userId },
+    data: {
+      pendingPhone: newPhone,
+      phoneCodeHash: hashPhoneCode(code),
+      phoneCodeExpiresAt: expiresAt,
+      phoneCodeAttempts: 0,
+    },
+  })
+  const delivery = phoneCodeDelivery()
+  return { delivery, ...(delivery === 'manual_by_manager' ? { code } : {}), expiresAt }
+}
+
+// Шаг 2 — подтверждение кодом. Захват атомарный: WHERE связывает
+// версию строки хешом кода (параллельный шаг 1 перезаписывает хеш →
+// count 0), одноразовость гарантирует запись phoneCodeHash: null
+// (повтор того же кода count 0). Кривой/истёкший код — инкремент
+// попыток ОТДЕЛЬНЫМ вызовом (план §5.2 п. 3), лимит 5 → новый код.
+export async function confirmPhoneChange(
+  tx: Prisma.TransactionClient,
+  customerId: string,
+  userId: string,
+  code: string,
+  actor: EmployeeActor
+): Promise<PhoneChangeConfirmResult> {
+  const user = await tx.customerUser.findFirst({ where: { id: userId, customerId } })
+  if (!user) {
+    throw new CompanyUserError(404, 'Пользователь не найден')
+  }
+  if (!user.pendingPhone || !user.phoneCodeHash) {
+    return { ok: false, status: 400, message: 'Заявки на смену телефона нет — начните операцию заново' }
+  }
+  if (user.phoneCodeAttempts >= PHONE_CODE_MAX_ATTEMPTS) {
+    return { ok: false, status: 400, message: 'Лимит попыток исчерпан — запросите новый код' }
+  }
+  if (!/^\d{6}$/.test(code.trim())) {
+    await bumpPhoneCodeAttempts(tx, userId)
+    return { ok: false, status: 400, message: 'Код неверен или истёк' }
+  }
+
+  // pendingPhone читается ДО захвата, но запись телефона связана
+  // проверкой ХЕША в WHERE: если параллельный шаг 1 перезаписал
+  // заявку (новый код), наш захват не сработает — устаревший номер
+  // невозможно применить.
+  const targetPhone = user.pendingPhone
+  const claimed = await tx.customerUser.updateMany({
+    where: {
+      id: userId,
+      phoneCodeHash: hashPhoneCode(code.trim()),
+      phoneCodeExpiresAt: { gt: new Date() },
+      phoneCodeAttempts: { lt: PHONE_CODE_MAX_ATTEMPTS },
+    },
+    data: {
+      phone: targetPhone,
+      pendingPhone: null,
+      phoneCodeHash: null,
+      phoneCodeExpiresAt: null,
+      phoneCodeAttempts: 0,
+    },
+  })
+  if (claimed.count !== 1) {
+    await bumpPhoneCodeAttempts(tx, userId)
+    const fresh = await tx.customerUser.findUnique({
+      where: { id: userId },
+      select: { phoneCodeAttempts: true },
+    })
+    if ((fresh?.phoneCodeAttempts ?? 0) >= PHONE_CODE_MAX_ATTEMPTS) {
+      return { ok: false, status: 400, message: 'Лимит попыток исчерпан — запросите новый код' }
+    }
+    return { ok: false, status: 400, message: 'Код неверен или истёк' }
+  }
+
+  // P2002-гонка «подтверждение ↔ выдача доступа с тем же номером»
+  // (К-12): updateMany при нарушении уникального индекса падает —
+  // переводим в понятный 409 (pending-заявка остаётся на месте).
+  // Обёртка транзакции (роут) отдаст ошибку клиенту как есть.
+  await emitEvent(tx, {
+    type: 'customer_user_phone_changed',
+    actor,
+    // Машиночитаемая метка режима доставки (manual_by_manager — ручной
+    // режим: проверку кода провёл менеджер) + человеческая расшифровка
+    description: `Телефон изменён: ${user.phone ?? '—'} → ${targetPhone} · доставка кода: manual_by_manager (вручную, менеджером)`,
+  })
+  return { ok: true, phone: targetPhone }
+}
+
+// Инкремент попыток ввода кода — отдельный updateMany с потолком:
+// лимит защищён условием (а не чтением), гонка попыток не перепрыгнет.
+async function bumpPhoneCodeAttempts(tx: Prisma.TransactionClient, userId: string): Promise<void> {
+  await tx.customerUser.updateMany({
+    where: { id: userId, phoneCodeAttempts: { lt: PHONE_CODE_MAX_ATTEMPTS } },
+    data: { phoneCodeAttempts: { increment: 1 } },
+  })
+}
+
+// ── BL-9: перепривязка пользователя к другой компании (ред. 3 §5.3) ─
+// Отдельная операция (телефон и компания — принципиально разные
+// операции, А5). Предусловия: не-primary; целевая компания существует
+// и активна; целевая ≠ текущая. Транзакция: блокировка строки
+// (SELECT … FOR UPDATE, паттерн AUD-01) → перечитать и перепроверить
+// → смена customerId → гашение ВСЕХ сессий («старый вход больше не
+// доверен», живые вкладки старой компании умирают немедленно) →
+// событие customer_user_rebound. Доступ к данным прежней компании
+// НЕ передаётся по построению: кабинетские роуты скоупятся от
+// customerId (client-auth.ts). История прежней компании сохраняется:
+// события несут actorName-снимок, уведомления — toAddress-снимок,
+// лиды/заявки/документы остаются в старой компании. Телефон (логин)
+// не меняется — глобальный индекс AUD-03 не препятствует; заявка на
+// смену телефона (pending-поля) сохраняется за человеком и
+// подтверждается в карточке НОВОЙ компании.
+export async function rebindCustomerUser(
+  tx: Prisma.TransactionClient,
+  customerId: string,
+  userId: string,
+  targetCustomerId: string,
+  actor: EmployeeActor
+): Promise<CustomerUser> {
+  const user = await tx.customerUser.findFirst({ where: { id: userId, customerId } })
+  if (!user) {
+    throw new CompanyUserError(404, 'Пользователь не найден')
+  }
+  if (user.isPrimary) {
+    throw new CompanyUserError(409, 'Назначьте другого основного пользователя: основной не перепривязывается')
+  }
+  if (targetCustomerId === customerId) {
+    throw new CompanyUserError(409, 'Пользователь уже принадлежит этой компании')
+  }
+  const target = await tx.customer.findUnique({
+    where: { id: targetCustomerId },
+    select: { id: true, name: true, isActive: true },
+  })
+  if (!target) {
+    throw new CompanyUserError(404, 'Целевая компания не найдена')
+  }
+  if (!target.isActive) {
+    throw new CompanyUserError(409, 'Целевая компания деактивирована — доступ закрывается на уровне компании')
+  }
+  const from = await tx.customer.findUnique({
+    where: { id: customerId },
+    select: { name: true },
+  })
+
+  // К-13: блокировка строки пользователя разводит параллельные
+  // операции (смена телефона / правка / выдача доступа / вторая
+  // перепривязка); предусловия перепроверяются ПОД блокировкой.
+  await tx.$queryRaw`SELECT id FROM "CustomerUser" WHERE id = ${userId} FOR UPDATE`
+  const fresh = await tx.customerUser.findUnique({ where: { id: userId } })
+  if (!fresh) {
+    throw new CompanyUserError(404, 'Пользователь не найден')
+  }
+  if (fresh.customerId !== customerId) {
+    throw new CompanyUserError(409, 'Пользователь только что был перепривязан параллельной операцией — обновите карточку')
+  }
+  if (fresh.isPrimary) {
+    throw new CompanyUserError(409, 'Назначьте другого основного пользователя: основной не перепривязывается')
+  }
+
+  const updated = await tx.customerUser.update({
+    where: { id: userId },
+    data: { customerId: targetCustomerId },
+  })
+  await tx.clientSession.deleteMany({ where: { userId } })
+  await emitEvent(tx, {
+    type: 'customer_user_rebound',
+    actor,
+    description: `Перепривязка доступа: «${from?.name ?? '—'}» → «${target.name}» · сессии погашены, история прежней компании сохранена`,
+  })
+  return updated
 }
 
 // ── Брокерская компания: пользователи ЛК брокера ─────────────────────
@@ -400,9 +692,12 @@ export async function authenticateCustomerLogin(
   const guard = await checkLoginGuard(req, phone)
   if (guard) return { kind: 'rate-limited', response: guard }
 
-  // findFirst по самому старому — детерминированность старого входа
-  // (phone у CustomerUser без @unique, решение схемы); только
-  // пользователи с выданным паролем: «дубль без пароля» не перехватывает вход.
+  // findFirst по самому старому — детерминированность входа; с волны 2
+  // (AUD-03, миграция bl_phone_ops) телефон пользователя ГЛОБАЛЬНО
+  // уникален (CustomerUser_phone_key), дублей не существует — findFirst
+  // фактически находка единственного входа; проверка пароля/флагов
+  // остаётся belt-and-suspenders. Только пользователи с выданным
+  // паролем: «контакт без входа» не перехватывает логин.
   const user = await db.customerUser.findFirst({
     where: { phone, password: { not: null } },
     include: { customer: true },

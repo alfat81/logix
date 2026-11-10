@@ -4,7 +4,6 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { parseJsonBody } from '@/lib/api-request'
 import { employeeActor } from '@/lib/activity'
 import { PERMIT_REJECT_REASON_MAX } from '@/lib/permits'
 import { rejectPermit, PermitLinkError } from '@/lib/permits-db'
@@ -30,8 +29,19 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { id } = await params
   try {
-    const parsed = await parseJsonBody(req, RejectSchema)
-    if (!parsed.ok) return parsed.response
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Некорректный JSON в теле запроса' }, { status: 400 })
+    }
+    const parsed = RejectSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Некорректные данные', details: parsed.error.flatten() },
+        { status: 400 },
+      )
+    }
     const permit = await db.$transaction((tx) =>
       rejectPermit(id, employeeActor(auth.employee), parsed.data.reason, tx)
     )

@@ -8,6 +8,7 @@ import { resolveActiveCurrencies } from '@/lib/ref-db'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { employeeActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
+import { lockLeadForOptions } from '../convert/helpers'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -63,20 +64,32 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
     // «won» — терминальный (В2): лид сконвертирован в заявку, варианты
     // расчёта зафиксированы историей сделки. Правка истории — не через API.
+    // client_approved (поток A, уровень 1 защиты): правка вариантов при
+    // активном согласовании запрещена — 409 с подсказкой «Изменить условия».
     if (lead.status === 'won' || lead.order) {
       return NextResponse.json(
         { error: 'Запрос конвертирован в заявку — варианты расчёта зафиксированы' },
         { status: 409 }
       )
     }
-
-    const becomesCalculated = lead.status === 'new'
+    if (lead.status === 'client_approved') {
+      return NextResponse.json(
+        { error: 'Согласование активно — сначала сбросьте его действием «Изменить условия»' },
+        { status: 409 }
+      )
+    }
 
     // Интерактивная транзакция: массивная форма $transaction([...]) с
     // условным spread ломает позиционность результатов (при isSelected
     // первым элементом оказывался счётчик updateMany, а не созданный
     // вариант — поймано smoke-тестом В3).
-    const option = await db.$transaction(async (tx) => {
+    // AUD-01: первым шагом — блокировка строки лида + ре-чек (гонка
+    // «вариант ↔ конвертация» закрыта; статус берётся с заблокированной
+    // строки — рассинхрона с pre-check нет).
+    const txResult = await db.$transaction(async (tx) => {
+      const guard = await lockLeadForOptions(tx, id)
+      if (!guard.ok) return guard
+      const becomesCalculated = guard.lead.status === 'new'
       // Выбор нового снимает отметку с прежнего — до создания, чтобы
       // «ровно один» держался и внутри транзакции.
       if (data.isSelected) {
@@ -127,8 +140,12 @@ export async function POST(req: NextRequest, { params }: Params) {
         description: `Добавлен вариант расчёта: ${data.description} — ${formatMoneyWithVat(data.price, data.currency, data.vatMode)}, ${data.etaDays} дн.` +
           (becomesCalculated ? ` — запрос посчитан: ${LEAD_STATUS_LABELS.calculated}` : ''),
       })
-      return created
+      return { option: created, becomesCalculated }
     })
+    if (!('option' in txResult)) {
+      return NextResponse.json({ error: txResult.error }, { status: txResult.status })
+    }
+    const { option, becomesCalculated } = txResult
 
     // Свежий лид с полным составом вариантов — В5-карточке не нужен
     // повторный GET после добавления.

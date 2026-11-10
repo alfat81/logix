@@ -283,15 +283,41 @@ class LocalStorage implements StorageDriver {
 
 let cached: StorageDriver | null = null
 
+// AUD-06 (поток A волна 1): production без S3_* — fail-fast, а не тихая
+// потеря файлов при редеплое (локальный каталог Vercel эфемерен). Люк
+// STORAGE_ALLOW_LOCAL=1 — осознанный запуск без S3 (задокументирован
+// в DEPLOY.md); dev/тесты — локальный драйвер как раньше + warn.
+export function isProductionRuntime(): boolean {
+  return process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production'
+}
+
 export function getStorage(): StorageDriver {
   if (cached) return cached
   const cfg = readS3Config()
-  const driver: StorageDriver = cfg
-    ? new S3Storage(cfg)
-    : new LocalStorage(process.env.STORAGE_LOCAL_DIR?.trim() || '.storage')
-  cached = driver
-  return driver
+  if (cfg) {
+    cached = new S3Storage(cfg)
+    return cached
+  }
+  const prod = isProductionRuntime()
+  if (prod && process.env.STORAGE_ALLOW_LOCAL !== '1') {
+    throw new StorageError(
+      'Хранилище не настроено: задайте S3_ENDPOINT/S3_REGION/S3_BUCKET/S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY (см. DEPLOY.md)',
+      500
+    )
+  }
+  if (prod) {
+    // Люк открыт явно — предупреждаем, но не падаем.
+    console.warn('[storage] STORAGE_ALLOW_LOCAL=1: локальный драйвер в production — файлы потеряются при редеплое')
+  } else if (!warnedLocal) {
+    warnedLocal = true
+    console.warn('[storage] S3_* не заданы — локальный драйвер .storage (dev/e2e; на проде настройте S3)')
+  }
+  cached = new LocalStorage(process.env.STORAGE_LOCAL_DIR?.trim() || '.storage')
+  return cached
 }
+
+// Однократный warn за процесс (dev/e2e), чтобы не шуметь на каждый вызов
+let warnedLocal = false
 
 // Для тестов: сброс singleton (после смены env в тестовом процессе).
 export function resetStorageForTests(): void {

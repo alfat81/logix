@@ -184,7 +184,7 @@
 | `EmployeeRole` | `src/lib/auth.ts` | Роли — JSON-массив в Employee.roles (не enum БД): новая роль — правка |
 | `EmployeeRoleName` | `src/lib/employees.ts` | — |
 | `EstimateDiffActor` | `src/lib/estimate-diff-db.ts` | — |
-| `EstimateDiffError` | `src/lib/estimate-diff-db.ts` | Ошибка контракта диффа (D35): Error с statusCode 4xx — |
+| `EstimateDiffError` | `src/lib/estimate-diff-db.ts` | Ошибка контракта диффа — роут маппит в 400. */ |
 | `EstimateDiffItem` | `src/lib/estimate-diff-db.ts` | — |
 | `EstimateItemSchema` | `src/lib/brokers.ts` | — |
 | `EventMeta` | `src/lib/event-registry.ts` | Метаданные типа события: подпись (подпись письма/фильтры), аудитория |
@@ -197,21 +197,27 @@
 | `IncotermMeta` | `src/lib/ref.ts` | ─── Инкотермс: meta-флаги (данные, не логика — DF-19 считает) ────── |
 | `KIND_FOR_LEGACY_TYPE` | `src/lib/document-constants.ts` | Обратный маппинг (легаси type → kind) — совместимость старых клиентов |
 | `LEAD_ACTIVE_STATUSES` | `src/lib/leads.ts` | v0.3.1 (BRANDBOOK §4.1): счётчик навигации у «Лидов» — активные, |
-| `LEAD_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Лид: new/calculated — ждём расчёта/выбора (нейтральная пара review, |
+| `LEAD_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Лид: new/calculated/client_approved — ждём расчёта/согласования/заявки |
 | `LEAD_CARGO_LABELS` | `src/lib/leads.ts` | Подписи полей анкеты — общие для диалога создания и карточки лида |
+| `LEAD_CONFIRM_VIA` | `src/lib/leads.ts` | Способ фиксации согласия (BL-2): в кабинете клиентом или менеджером |
+| `LEAD_CONFIRM_VIA_LABELS` | `src/lib/leads.ts` | — |
 | `LEAD_SOURCES` | `src/lib/leads.ts` | Источник лида (И1): 'manual' — создан менеджером (В2, дефолт схемы), |
 | `LEAD_SOURCE_LABELS` | `src/lib/leads.ts` | — |
 | `LEAD_STATUSES` | `src/lib/leads.ts` | Статус лида (роадмап, разделы 2 и 8.1): верхнеуровневый статус воронки |
 | `LEAD_STATUS_LABELS` | `src/lib/leads.ts` | — |
-| `LEAD_TRANSITIONS` | `src/lib/status-machine.ts` | ─── Лид: Новый → Рассчитан → Выигран / Отказ ───────────────── |
+| `LEAD_TRANSITIONS` | `src/lib/status-machine.ts` | ─── Лид: Новый → Рассчитан → Согласован → Выигран / Отказ ───── |
 | `LEGACY_TYPE_FOR_KIND` | `src/lib/document-constants.ts` | Производный легаси-тип для вида: колонка Document.type NOT NULL и |
 | `LOGICAL_DOC_TYPES` | `src/lib/document-phases.ts` | ── Логический тип «Транспортная накладная» (§4.3) ────────────────── |
 | `LOGICAL_DOC_TYPE_LABELS` | `src/lib/document-phases.ts` | — |
 | `LeadCargoData` | `src/lib/leads.ts` | Типизированное чтение cargoInfo в карточке: лиды со старой или |
 | `LeadCargoForm` | `src/lib/leads.ts` | Состояние формы анкеты в UI: все поля — строки (числа парсятся при |
 | `LeadCargoPayload` | `src/lib/leads.ts` | Сборка тела POST/PATCH из формы: маршрут/метрики уходят в route |
+| `LeadConfirmActor` | `src/lib/lead-confirm.ts` | — |
+| `LeadConfirmOutcome` | `src/lib/lead-confirm.ts` | — |
+| `LeadConfirmVia` | `src/lib/leads.ts` | — |
 | `LeadEditInput` | `src/lib/lead-edit.ts` | — |
 | `LeadEditSchema` | `src/lib/lead-edit.ts` | Тело PATCH анкеты — админский роут (контакты + груз; контакты правятся |
+| `LeadResetOutcome` | `src/lib/lead-confirm.ts` | — |
 | `LeadSource` | `src/lib/leads.ts` | — |
 | `LeadStatus` | `src/lib/leads.ts` | — |
 | `LetterDraft` | `src/lib/notifications/templates.ts` | — |
@@ -223,6 +229,7 @@
 | `MAX_QUERY_LENGTH` | `src/lib/list-query.ts` | — |
 | `MIN_QUERY_LENGTH` | `src/lib/search-constants.ts` | Меньше 2 символов роут не ищет (200 с пустыми секциями): одиночная |
 | `MSK_OFFSET_MS` | `src/lib/business-days.ts` | Сдвиг МСК от UTC: якорь ожидания хранится в UTC, а «рабочий день» |
+| `ManualCheckResult` | `src/lib/permit-checks.ts` | — |
 | `MissingDocRow` | `src/lib/stage-doc-requirements-server.ts` | — |
 | `NOTE_MAX_LENGTH` | `src/lib/note-constants.ts` | Потолок текста заметки: лента остаётся читаемой, textarea UI |
 | `NOT_CONFIGURED` | `src/lib/notifications/transport.ts` | Канал не настроен — терминальный статус skipped (не ошибка доставки: |
@@ -253,14 +260,19 @@
 | `PACKAGE_SLOT_STATUS_LABELS` | `src/lib/document-constants.ts` | — |
 | `PACKAGE_ZIP_MAX_TOTAL_BYTES` | `src/lib/document-package.ts` | ── Порог ZIP ─────────────────────────────────────────────────────── |
 | `PERMIT_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Разрешительный (DF-16 + волна 2 §5.4): ожидается — ждёт действия |
+| `PERMIT_BINDING_STATES` | `src/lib/permits.ts` | DF-26 волна 2 (SPEC §5.7 п. 0а): состояние привязки к позиции строки |
+| `PERMIT_BINDING_STATE_LABELS` | `src/lib/permits.ts` | — |
 | `PERMIT_CHECK_BASIS_MAX` | `src/lib/permit-checks.ts` | — |
 | `PERMIT_CHECK_DECISION_ACTIONS` | `src/lib/permit-checks.ts` | Решения по каждому активному требованию позиции (§5.7 п. 3а). |
 | `PERMIT_CHECK_DICTIONARY_VERSION_MAX` | `src/lib/permit-checks.ts` | — |
 | `PERMIT_CHECK_FIELDS` | `src/lib/permit-checks-db.ts` | Проекция строки проверки (staff; брокеру отдаётся тем же составом — |
 | `PERMIT_CHECK_RESULTS` | `src/lib/permit-checks.ts` | — |
-| `PERMIT_CHECK_REVIEW_OUTCOMES` | `src/lib/permit-checks.ts` | — |
+| `PERMIT_CHECK_RESULT_LABELS` | `src/lib/permit-checks.ts` | — |
+| `PERMIT_CHECK_REVIEW_OUTCOMES` | `src/lib/permit-checks.ts` | Исходы пересмотра (§5.7 п. 3/3а). |
 | `PERMIT_CHECK_REVIEW_OUTCOME_LABELS` | `src/lib/permit-checks.ts` | — |
 | `PERMIT_CHECK_REVIEW_REASON_MAX` | `src/lib/permit-checks.ts` | — |
+| `PERMIT_CHECK_REVIEW_STATUSES` | `src/lib/permit-checks.ts` | — |
+| `PERMIT_CHECK_SOURCES` | `src/lib/permit-checks.ts` | — |
 | `PERMIT_EXTERNAL_FIELDS` | `src/lib/permits-db.ts` | Наружная проекция (клиент/брокер): внутренняя заметка, служебные |
 | `PERMIT_FIELDS` | `src/lib/permits-db.ts` | Полная проекция (staff; включает внутреннюю заметку и состояние |
 | `PERMIT_ITEM_ID_MAX` | `src/lib/permits.ts` | — |
@@ -277,6 +289,8 @@
 | `PERMIT_WAIVED_REASON_MAX` | `src/lib/permits.ts` | — |
 | `PHASE_OF_KIND` | `src/lib/document-phases.ts` | Фаза каждого вида: состав фаз — §4.1 спецификации. permit_document — |
 | `PHASE_OF_STAGE` | `src/lib/document-phases.ts` | Соответствие фаз этапам заявки (§4.1 п. 4): фаза — группировка |
+| `PHONE_CODE_MAX_ATTEMPTS` | `src/lib/company-users.ts` | — |
+| `PHONE_CODE_TTL_MINUTES` | `src/lib/company-users.ts` | ── BL-8: одноразовый код смены телефона (план ред. 3 §5.2) ──────── |
 | `PLACE_KIND_LABELS` | `src/lib/ref.ts` | — |
 | `PULSE_CARGO_LIMIT` | `src/lib/pulse.ts` | ─── Объёмы выдачи (срезы лимитом, счётчики — полные, как в Ж5) ────── |
 | `PULSE_EVENTS_LIMIT` | `src/lib/pulse.ts` | — |
@@ -286,7 +300,6 @@
 | `PackageSlot` | `src/lib/document-package.ts` | — |
 | `PackageSlotStatus` | `src/lib/document-constants.ts` | — |
 | `PackageSummaryCounts` | `src/lib/document-summary.ts` | — |
-| `ParsedBody` | `src/lib/api-request.ts` | — |
 | `ParsedListQuery` | `src/lib/list-query.ts` | — |
 | `ParticipantCompany` | `src/lib/participants.ts` | Компания-участник (клиент или брокер): реквизиты + активные |
 | `ParticipantContractor` | `src/lib/participants.ts` | Подрядчик-исполнитель этапа — справочно (не адресат, D31). |
@@ -307,12 +320,17 @@
 | `PatchPermitSchema` | `src/lib/permits.ts` | PATCH /api/admin/permits/[id] — правит ТОЛЬКО сотрудник: поля строки |
 | `PendingUploadView` | `src/lib/document-upload.ts` | — |
 | `PendingVersionForConfirm` | `src/lib/document-confirm.ts` | — |
+| `PermitBindingState` | `src/lib/permits.ts` | — |
+| `PermitCheckDecision` | `src/lib/permit-checks.ts` | — |
 | `PermitCheckDecisionAction` | `src/lib/permit-checks.ts` | — |
 | `PermitCheckDecisionSchema` | `src/lib/permit-checks.ts` | POST /api/admin/permit-checks/[id]/review — пересмотр при изменении |
+| `PermitCheckRequirementDraft` | `src/lib/permit-checks.ts` | — |
 | `PermitCheckRequirementDraftSchema` | `src/lib/permit-checks.ts` | Поля нового требования при result='required' (§5.3): название, |
 | `PermitCheckResult` | `src/lib/permit-checks.ts` | — |
 | `PermitCheckReviewOutcome` | `src/lib/permit-checks.ts` | — |
+| `PermitCheckReviewStatus` | `src/lib/permit-checks.ts` | — |
 | `PermitCheckRow` | `src/lib/permit-checks-db.ts` | — |
+| `PermitCheckSource` | `src/lib/permit-checks.ts` | — |
 | `PermitChecksScope` | `src/lib/permit-checks-http.ts` | — |
 | `PermitChecksSession` | `src/lib/permit-checks-http.ts` | — |
 | `PermitDocumentUploadSchema` | `src/lib/document-upload.ts` | Загрузка документа в строку разрешительных (DF-16 × DF-11): тип всегда |
@@ -323,6 +341,8 @@
 | `PermitSnapshotRow` | `src/lib/waiting.ts` | — |
 | `PermitStatus` | `src/lib/permits.ts` | — |
 | `PermitUrgencyRow` | `src/lib/permits.ts` | Строка в порядке срочности для правила «у кого мяч» (DF-05): первой |
+| `PhoneChangeConfirmResult` | `src/lib/company-users.ts` | — |
+| `PhoneChangeStartResult` | `src/lib/company-users.ts` | — |
 | `PortalRequireResult` | `src/lib/portal-auth.ts` | — |
 | `PulseCargoRow` | `src/lib/pulse.ts` | — |
 | `PulseCore` | `src/lib/pulse-db.ts` | ─── DF-07/DF-08: серверная сборка блоков 1–3 «Пульса» ─────────────── |
@@ -511,6 +531,7 @@
 | `checkLeadTransition` | `src/lib/status-machine.ts` | — |
 | `checkLoginGuard` | `src/lib/login-guard.ts` | — |
 | `checkOrderTransition` | `src/lib/status-machine.ts` | — |
+| `checkResultLabel` | `src/lib/permit-checks-db.ts` | Метка результата для UI/событий (перенос чистой подписи). |
 | `ciContains` | `src/lib/list-query.ts` | Тип — надстройка над Prisma StringFilter: в postgres-генерации клиент |
 | `clearSettingsCache` | `src/lib/settings.ts` | Сброс кэша: тесты и административные операции (после массовых правок). |
 | `clientActor` | `src/lib/activity.ts` | Клиент кабинета (И1). DF-02A (Блок 4): актор — ЧЕЛОВЕК (userId), |
@@ -521,6 +542,8 @@
 | `computeWaitingLead` | `src/lib/waiting.ts` | — |
 | `computeWaitingOrder` | `src/lib/waiting.ts` | — |
 | `confirmDocumentVersion` | `src/lib/document-confirm.ts` | — |
+| `confirmLeadOption` | `src/lib/lead-confirm.ts` | Подтверждение варианта (клиентом в кабинете или менеджером от имени). |
+| `confirmPhoneChange` | `src/lib/company-users.ts` | Шаг 2 — подтверждение кодом. Захват атомарный: WHERE связывает |
 | `contractorActor` | `src/lib/activity.ts` | У подрядчика «имя» — companyName (люди не заведены, Г4). |
 | `contractorPortalEnabled` | `src/lib/flags.ts` | ─── Функциональные флаги (серверные) ─────────────────────────────── |
 | `contractorSessionCookieOptions` | `src/lib/contractor-auth.ts` | — |
@@ -563,7 +586,7 @@
 | `diffEstimateItems` | `src/lib/brokers.ts` | — |
 | `disableTotp` | `src/lib/totp-db.ts` | Выключение TOTP: подтверждение паролем, стирание секрета и кодов. */ |
 | `dispatchNow` | `src/lib/notifications/dispatch.ts` | Полный проход: импорт курсов ЦБ (раз в сутки, идемпотентен) + окна |
-| `dispatchPendingBatch` | `src/lib/notifications/dispatch.ts` | Одна пачка: заявка → отправка вне транзакции → итог. |
+| `dispatchPendingBatch` | `src/lib/notifications/dispatch.ts` | Одна пачка: автовосстановление зависших (AUD-05) → заявка → |
 | `documentEventAudience` | `src/lib/audience.ts` | Аудитория СОБЫТИЯ о документе: внутренний документ не должен даже |
 | `documentVisibleToBroker` | `src/lib/documents.ts` | — |
 | `documentVisibleToClient` | `src/lib/documents.ts` | — |
@@ -642,6 +665,7 @@
 | `isPermitOverdue` | `src/lib/permits.ts` | Просрочка: срок прошёл (независимо от isBlocking — для плашки/письма). |
 | `isPermitRed` | `src/lib/permits.ts` | «Красный» срок (D35): до neededBy осталось меньше permits.red_days_before |
 | `isPhoneNormalized` | `src/lib/phone.ts` | Проверка: это нормализованный телефон? (+7XXXXXXXXXX) |
+| `isProductionRuntime` | `src/lib/storage.ts` | AUD-06 (поток A волна 1): production без S3_* — fail-fast, а не тихая |
 | `isRefDir` | `src/lib/ref.ts` | — |
 | `isSqliteDatabase` | `src/lib/list-query.ts` | — |
 | `isStaffOnlyRow` | `src/lib/activity.ts` | Заметка (и другое staff-only событие) — для UI-пометок. Функция в |
@@ -703,13 +727,12 @@
 | `packageSlotsResponse` | `src/lib/document-package-server.ts` | Готовый ответ слотов: 404 на чужую, проекция авторов одним резолвом. */ |
 | `packageZipFileName` | `src/lib/document-package.ts` | Имя самого архива для Content-Disposition (DF-26: + scope). */ |
 | `packageZipResponse` | `src/lib/document-zip-server.ts` | — |
-| `parseAndReviewCheck` | `src/lib/permit-checks-http.ts` | ─── POST review: разбор тела через общий parseJsonBody (§11.2) ──── |
+| `parseAndReviewCheck` | `src/lib/permit-checks-http.ts` | ─── POST review: разбор тела (§11.2) — маршрут остаётся тонким ───── |
 | `parseBody` | `src/lib/document-upload.ts` | JSON-тело + zod-схема одним шагом: битое тело/схема — готовый 400 (IC-14: одна точка). */ |
 | `parseCbrNumber` | `src/lib/cbr.ts` | Строгое число из формата ЦБ: «79,7653» / «1 234,56» → number; мусор → null. |
 | `parseCbrXml` | `src/lib/cbr.ts` | Разбор XML без зависимостей (нулевая поверхность атаки вместо парсера): |
 | `parseConfirmPermitOpts` | `src/lib/document-confirm.ts` | — |
 | `parseEmployeeRoles` | `src/lib/employees.ts` | Безопасный разбор Employee.roles: битый JSON не должен ронять роуты |
-| `parseJsonBody` | `src/lib/api-request.ts` | — |
 | `parseListQuery` | `src/lib/list-query.ts` | Парсинг параметров списка. Возвращает ошибку (строкой — роут отдаст |
 | `parseMoneyInput` | `src/lib/money.ts` | Разбор ввода менеджера: «1 450,50» / «1450.5» / «1 450» → число; |
 | `parseOwnerWindow` | `src/lib/notifications/owner-digest.ts` | Окно валидно, если обе границы распознаны и end позже start (подсказка |
@@ -730,6 +753,7 @@
 | `permitTargetOf` | `src/lib/permits-db.ts` | Сделка строки: permit → цель-сделка (ровно одна). |
 | `phaseForStage` | `src/lib/document-phases.ts` | Фаза этапа заявки; null — этап без фазы (остаточная группа 07). */ |
 | `phaseOfKind` | `src/lib/document-phases.ts` | Резолв фазы строкой (легаси-строки без kind / чужие значения — «Прочее»). |
+| `phoneCodeDelivery` | `src/lib/company-users.ts` | Режим доставки кода на новый номер. WhatsApp/SMS-шлюза нет (P2-01: |
 | `phoneVariants` | `src/lib/phone.ts` | Телефонные варианты поискового запроса (Ж7, переиспользован Ж6а). |
 | `pickFeeRub` | `src/lib/customs.ts` | — |
 | `pickMostUrgentPermit` | `src/lib/permits.ts` | — |
@@ -755,6 +779,7 @@
 | `readS3Config` | `src/lib/storage.ts` | — |
 | `readTransportChips` | `src/lib/contractors.ts` | Толерантное чтение массива видов транспорта: не массив / не строки — |
 | `readyDateInput` | `src/lib/route-fields.ts` | Готовность к отгрузке: строка yyyy-mm-dd → UTC-полночь (даты бланка — |
+| `rebindCustomerUser` | `src/lib/company-users.ts` | ── BL-9: перепривязка пользователя к другой компании (ред. 3 §5.3) ─ |
 | `recipientsOfBroker` | `src/lib/participants.ts` | Адресаты брокера (DF-03): зеркало recipientsOfCustomer — активные |
 | `recipientsOfCustomer` | `src/lib/participants.ts` | ─── Получатели клиента (единственная точка изменения, DF-03) ──────── |
 | `recomputeActiveOrdersForStage` | `src/lib/stage-doc-requirements-server.ts` | — |
@@ -776,6 +801,7 @@
 | `requirementKindLabel` | `src/lib/stage-doc-requirements.ts` | Подпись вида/логического типа (гард 409, Пульс, правило 8). */ |
 | `requirementSatisfiedBy` | `src/lib/stage-doc-requirements.ts` | Требование вида закрыто финальными документами (логический тип — любым вариантом). */ |
 | `requisitesInn` | `src/lib/requisite-fields.ts` | ИНН — главный реквизит для строки списка (идентифицирует юрлицо |
+| `resetLeadConfirmation` | `src/lib/lead-confirm.ts` | Сброс согласования — «Изменить условия» (уровень 1 защиты, п. 8): |
 | `resetSetting` | `src/lib/settings.ts` | «Сбросить» на экране настроек: строка удаляется, getSetting возвращается |
 | `resetStorageForTests` | `src/lib/storage.ts` | Для тестов: сброс singleton (после смены env в тестовом процессе). |
 | `resolveActiveCurrencies` | `src/lib/ref-db.ts` | Валидация валют схемы (QuoteOption/QuoteSnapshot): коды должны быть |
@@ -805,6 +831,7 @@
 | `setSetting` | `src/lib/settings.ts` | Актёр — тот, кто сохранил (мастер; API Блока 4 передаёт employeeActor). |
 | `stageBlockers` | `src/lib/stage-doc-requirements-server.ts` | — |
 | `stageVisual` | `src/lib/stage-visuals.ts` | — |
+| `startPhoneChange` | `src/lib/company-users.ts` | ── BL-8: смена телефона с проверкой нового номера (ред. 3 §5.2) ──── |
 | `submitDocumentForReview` | `src/lib/document-lifecycle.ts` | ── DF-26: «отправить на проверку» (draft → in_review) ───────────── |
 | `suggestOrderStatus` | `src/lib/status-suggest.ts` | — |
 | `suggestedTransportVariant` | `src/lib/document-phases.ts` | — |
@@ -863,6 +890,8 @@
 | `CustomerCabinetAccess` | `src/components/admin/CustomerCabinetAccess.tsx` |
 | `CustomerCard` | `src/components/admin/CustomerCard.tsx` |
 | `CustomerCreateDialog` | `src/components/admin/CustomerCreateDialog.tsx` |
+| `CustomerPhoneChangeDialog` | `src/components/admin/CustomerPhoneChangeDialog.tsx` |
+| `CustomerRebindDialog` | `src/components/admin/CustomerRebindDialog.tsx` |
 | `CustomerUserDialog` | `src/components/admin/CustomerUserDialog.tsx` |
 | `CustomersList` | `src/components/admin/CustomersList.tsx` |
 | `CustomsAllocationSelects` | `src/components/admin/customs/CustomsAllocationSelects.tsx` |
@@ -883,6 +912,7 @@
 | `InfoField` | `src/components/admin/InfoField.tsx` |
 | `IsMasterProvider` | `src/components/admin/EmployeeRolesProvider.tsx` |
 | `LeadAnketaCard` | `src/components/admin/lead/LeadAnketaCard.tsx` |
+| `LeadApprovalBanner` | `src/components/admin/lead/LeadApprovalDialogs.tsx` |
 | `LeadCard` | `src/components/admin/LeadCard.tsx` |
 | `LeadConvertBlock` | `src/components/admin/lead/LeadConvertBlock.tsx` |
 | `LeadCreateDialog` | `src/components/admin/LeadCreateDialog.tsx` |
@@ -966,11 +996,15 @@
 | Компонент | Файл |
 |---|---|
 | `ClientHome` | `src/components/client/ClientHome.tsx` |
+| `ClientLeadAnketa` | `src/components/client/ClientLeadAnketa.tsx` |
+| `ClientLeadArchive` | `src/components/client/ClientLeadArchive.tsx` |
 | `ClientLeadCard` | `src/components/client/ClientLeadCard.tsx` |
 | `ClientLeadCreateDialog` | `src/components/client/ClientLeadCreateDialog.tsx` |
 | `ClientLogoutButton` | `src/components/client/ClientLogoutButton.tsx` |
 | `ClientOrderCard` | `src/components/client/ClientOrderCard.tsx` |
 | `ClientOrderStatusBadge` | `src/components/client/ClientBadges.tsx` |
+| `ClientQuoteOptions` | `src/components/client/ClientQuoteOptions.tsx` |
+| `clientLeadRouteOf` | `src/components/client/ClientLeadRow.tsx` |
 
 ### src/components/components
 
@@ -1053,6 +1087,9 @@
 | GET, POST | `/api/admin/customers` | admin | employee | write | нет |
 | GET | `/api/admin/customers/{id}` | admin | employee | — | нет |
 | GET, PATCH, POST | `/api/admin/customers/{id}/access` | admin | employee | write | нет |
+| POST | `/api/admin/customers/{id}/access/phone-change` | admin | employee | write | нет |
+| POST | `/api/admin/customers/{id}/access/phone-confirm` | admin | employee | write | нет |
+| POST | `/api/admin/customers/{id}/access/rebind` | admin | employee | write | нет |
 | PUT | `/api/admin/customs-calculations/{id}` | admin | — | — | нет |
 | POST | `/api/admin/document-versions/{id}/confirm` | admin | employee | write | нет |
 | DELETE, PATCH | `/api/admin/documents/{id}` | admin | employee | write | нет |
@@ -1066,6 +1103,7 @@
 | DELETE, GET, PATCH | `/api/admin/leads/{id}` | admin | employee | write | нет |
 | POST | `/api/admin/leads/{id}/brokers` | admin | employee | write | нет |
 | DELETE | `/api/admin/leads/{id}/brokers/{brokerId}` | admin | employee | write | нет |
+| POST | `/api/admin/leads/{id}/confirm` | admin | employee | write | нет |
 | POST | `/api/admin/leads/{id}/convert` | admin | employee | write | нет |
 | GET, POST | `/api/admin/leads/{id}/customs-calculations` | admin | employee | — | нет |
 | GET, POST | `/api/admin/leads/{id}/documents` | admin | employee | write | нет |
@@ -1073,6 +1111,7 @@
 | POST | `/api/admin/leads/{id}/options` | admin | employee | write | нет |
 | GET, POST | `/api/admin/leads/{id}/permit-checks` | admin | employee | write | нет |
 | GET, POST | `/api/admin/leads/{id}/permits` | admin | employee | write | нет |
+| POST | `/api/admin/leads/{id}/reset-confirmation` | admin | employee | write | нет |
 | GET, POST | `/api/admin/legal-entities` | admin | employee | — | нет |
 | PATCH | `/api/admin/legal-entities/{id}` | admin | employee | — | нет |
 | GET | `/api/admin/notifications` | admin | employee | — | нет |
@@ -1144,6 +1183,7 @@
 | GET, POST | `/api/client/leads` | client | client | — | нет |
 | GET, PATCH | `/api/client/leads/{id}` | client | client | — | нет |
 | GET, POST | `/api/client/leads/{id}/documents` | client | client | — | нет |
+| POST | `/api/client/leads/{id}/select-option` | client | client | — | нет |
 | GET | `/api/client/orders` | client | client | — | нет |
 | GET | `/api/client/orders/{id}` | client | client | — | нет |
 | GET, POST | `/api/client/orders/{id}/documents` | client | client | — | нет |
@@ -1177,7 +1217,7 @@
 | `ContractorSession` | 6 | src/lib/contractor-auth.ts |
 | `CurrencyRate` | 6 | src/app/api/admin/references/route.ts, src/lib/cbr.ts, src/lib/customs-server.ts |
 | `Customer` | 12 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/admin/customers/[id]/route.ts, src/app/api/admin/customers/route.ts, src/app/api/admin/leads/route.ts, src/app/api/admin/orders/route.ts |
-| `CustomerUser` | 12 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/auth/client/login/route.ts, src/lib/actor-name.ts, src/lib/company-users.ts |
+| `CustomerUser` | 16 | src/app/api/admin/customers/[id]/access/route.ts, src/app/api/auth/client/login/route.ts, src/lib/actor-name.ts, src/lib/company-users.ts |
 | `CustomsCalculation` | 28 | src/app/admin/orders/[id]/print/page.tsx, src/lib/customs-server.ts |
 | `CustomsCalculationItem` | 17 | — |
 | `CustomsFeeScale` | 5 | scripts/seed.ts, src/lib/customs-server.ts |
@@ -1187,7 +1227,8 @@
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts, src/lib/totp-db.ts |
 | `HsCode` | 9 | scripts/import-hs.ts, scripts/verify-hs-db.ts, scripts/verify-hs-prefix.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/lib/hs-db.ts |
 | `HsImport` | 5 | scripts/import-hs.ts, scripts/verify-hs-db.ts, src/lib/hs-db.ts |
-| `Lead` | 37 | scripts/backfill_waiting.ts, scripts/e2e_backdate_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts (+22) |
+| `Lead` | 43 | scripts/backfill_waiting.ts, scripts/e2e_backdate_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts (+24) |
+| `LeadApprovalSnapshot` | 17 | — |
 | `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts (+1) |
 | `LegalEntity` | 7 | scripts/seed.ts, src/app/api/admin/leads/[id]/convert/route.ts, src/app/api/admin/legal-entities/[id]/route.ts, src/app/api/admin/legal-entities/route.ts |
 | `LoginAttempt` | 7 | scripts/clear-login-attempts.ts, src/lib/login-guard.ts |
@@ -1221,12 +1262,12 @@
 | `CRON_SECRET` | 2 | да | да |
 | `DATABASE_URL` | 5 | да | да |
 | `DISABLE_RATE_LIMIT` | 2 | да | да |
-| `EMAIL_ALLOWLIST` | 2 | да | да |
+| `EMAIL_ALLOWLIST` | 3 | да | да |
 | `EMAIL_FROM` | 1 | да | да |
-| `EMAIL_PROVIDER` | 2 | да | да |
+| `EMAIL_PROVIDER` | 3 | да | да |
 | `MASTER_PASSWORD` | 2 | да | да |
 | `MASTER_PHONE` | 2 | да | да |
-| `NODE_ENV` | 3 | — | да |
+| `NODE_ENV` | 5 | — | да |
 | `RESEND_API_KEY` | 1 | да | да |
 | `S3_ACCESS_KEY_ID` | 1 | да | да |
 | `S3_BUCKET` | 1 | да | да |
@@ -1235,11 +1276,12 @@
 | `S3_REGION` | 1 | да | да |
 | `S3_SECRET_ACCESS_KEY` | 1 | да | да |
 | `SHADOW_URL` | 1 | — | да |
+| `STORAGE_ALLOW_LOCAL` | 2 | да | да |
 | `STORAGE_LOCAL_DIR` | 1 | да | да |
 | `TOTP_ENCRYPTION_KEY` | 3 | да | да |
 | `TRUSTED_PROXY` | 1 | да | да |
 | `VERCEL` | 1 | да | да |
-| `VERCEL_ENV` | 1 | да | да |
+| `VERCEL_ENV` | 3 | да | да |
 | `VERCEL_GIT_COMMIT_SHA` | 1 | да | да |
 | `VITEST` | 1 | да | да |
 

@@ -5,6 +5,14 @@ import { Layers, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { QUOTE_PRIORITY_FIT_LABELS, type QuotePriorityFit } from '@/lib/leads'
@@ -17,6 +25,11 @@ import {
   type VatModeCode,
 } from '@/lib/money'
 import { QuoteOptionDialog } from '@/components/admin/QuoteOptionDialog'
+import {
+  LeadApprovalBanner,
+  LeadConfirmOnBehalfDialog,
+  LeadResetConfirmationDialog,
+} from '@/components/admin/lead/LeadApprovalDialogs'
 
 // ─── Варианты расчёта лида (В3) + деньги P1-04 ─────────────────────
 // Секция карточки лида: список вариантов + диалог добавления/правки
@@ -50,11 +63,21 @@ export function QuoteOptionsSection({
   leadId,
   options,
   disabled,
+  // Поток A (BL): статус лида и метаданные согласования — баннер,
+  // блокировка правки, «Зафиксировать согласие от имени»/«Изменить условия»
+  leadStatus,
+  confirmation,
   onChanged,
 }: {
   leadId: string
   options: QuoteOptionRow[]
   disabled: boolean
+  leadStatus?: string
+  confirmation?: {
+    at: string | null
+    via: string | null
+    byName: string | null
+  } | null
   onChanged: () => void
 }) {
   const { toast } = useToast()
@@ -62,6 +85,13 @@ export function QuoteOptionsSection({
   // Диалог добавления/правки (форма живёт в QuoteOptionDialog)
   const [optionOpen, setOptionOpen] = useState(false)
   const [editingOption, setEditingOption] = useState<QuoteOptionRow | null>(null)
+  // BL-2/BL-3: диалоги вынесены в lead/LeadApprovalDialogs.tsx
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [resetOpen, setResetOpen] = useState(false)
+
+  const approved = leadStatus === 'client_approved'
+  const optionsLocked = disabled || approved
+  const selectedRow = options.find((o) => o.isSelected) ?? null
 
   const selectOption = async (o: QuoteOptionRow) => {
     const res = await fetch(`/api/admin/options/${o.id}`, {
@@ -89,6 +119,8 @@ export function QuoteOptionsSection({
     onChanged()
   }
 
+  // BL-2: «Зафиксировать согласие от имени клиента» — confirm-API;
+  // без optionId сервер возьмёт текущий выбранный вариант
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -96,8 +128,17 @@ export function QuoteOptionsSection({
           <Layers className="size-4 text-muted-foreground" />
           Варианты расчёта
         </CardTitle>
-        {!disabled && (
-          <CardAction>
+        <CardAction className="flex items-center gap-2">
+          {/* BL-2: фиксация согласия от имени — для «Рассчитан» */}
+          {leadStatus === 'calculated' && options.length > 0 && (
+            <Button
+              size="sm"
+              onClick={() => setConfirmOpen(true)}
+            >
+              Зафиксировать согласие от имени клиента
+            </Button>
+          )}
+          {!optionsLocked && (
             <Button
               size="sm"
               variant="outline"
@@ -109,10 +150,17 @@ export function QuoteOptionsSection({
               <Plus className="size-4" />
               Добавить вариант
             </Button>
-          </CardAction>
-        )}
+          )}
+        </CardAction>
       </CardHeader>
       <CardContent className="grid gap-2">
+        {/* BL: баннер активного согласования — lead/LeadApprovalDialogs.tsx */}
+        {approved && (
+          <LeadApprovalBanner
+            confirmation={confirmation ?? null}
+            onChangeConditions={() => setResetOpen(true)}
+          />
+        )}
         {options.length === 0 ? (
           <span className="text-muted-foreground text-sm">
             Вариантов пока нет. Первый добавленный вариант переведёт запрос в «Рассчитан».
@@ -174,7 +222,7 @@ export function QuoteOptionsSection({
                   <div className="font-semibold tabular-nums whitespace-nowrap">
                     {formatMoneyWithVat(o.price, currency, vatMode)}
                   </div>
-                  {!disabled && (
+                  {!optionsLocked && (
                     <div className="flex items-center gap-1">
                       {!o.isSelected && (
                         <Button variant="outline" size="sm" onClick={() => selectOption(o)}>
@@ -217,6 +265,22 @@ export function QuoteOptionsSection({
         leadId={leadId}
         editing={editingOption}
         onSaved={onChanged}
+      />
+
+      {/* BL-2/BL-3: диалоги согласования — lead/LeadApprovalDialogs.tsx */}
+      <LeadConfirmOnBehalfDialog
+        leadId={leadId}
+        options={options}
+        selectedRow={selectedRow}
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        onConfirmed={onChanged}
+      />
+      <LeadResetConfirmationDialog
+        leadId={leadId}
+        open={resetOpen}
+        onOpenChange={setResetOpen}
+        onReset={onChanged}
       />
     </Card>
   )

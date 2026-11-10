@@ -55,6 +55,12 @@ export const EVENT_TYPES: Record<ActivityType, EventMeta> = {
   lead_assignee_changed: { label: 'Ответственный изменён', audience: ['staff', 'client'], notify: ['new-assignee'] },
   lead_edited: { label: 'Запрос отредактирован', audience: ['staff', 'client'], notify: [] },
   lead_converted: { label: 'Запрос сконвертирован в заявку', audience: ['staff', 'client'], notify: [] },
+  // Поток A волна 1 (BL-3/BL-2): согласование расчёта. Письмо —
+  // ответственному, если действовал клиент (сам факт сотрудник видит
+  // в ленте); сброс — письмо клиенту (ему предстоит повторное
+  // согласование — плана ред. 3 §2.3).
+  lead_client_confirmed: { label: 'Вариант согласован клиентом', audience: ['staff', 'client'], notify: ['responsible-if-external-actor'] },
+  lead_confirmation_reset: { label: 'Согласование сброшено — условия изменены', audience: ['staff', 'client'], notify: ['client'] },
   option_added: { label: 'Добавлен вариант расчёта', audience: ['staff', 'client'], notify: [] },
   option_updated: { label: 'Вариант расчёта обновлён', audience: ['staff', 'client'], notify: [] },
   option_selected: { label: 'Выбран вариант расчёта', audience: ['staff', 'client'], notify: [] },
@@ -181,4 +187,14 @@ export const EVENT_TYPES: Record<ActivityType, EventMeta> = {
   // безопасности не предусмотрены). Секреты в описание не попадают.
   totp_enabled: { label: 'Включена двухфакторная аутентификация', audience: ['staff'], notify: [] },
   totp_disabled: { label: 'Выключена двухфакторная аутентификация', audience: ['staff'], notify: [] },
+
+  // Поток A волна 2 (DF-25, BL-8/BL-9 — план ред. 3 §5.2/§5.3):
+  // операции доступа без сделки-цели (у Customer нет ответственного
+  // для правила уведомлений). Письма не предусмотрены (§8: как
+  // totp_*), факт виден staff в ленте; «уведомление ответственным»
+  // плана недостижимо механически (событие не belongs сделке) —
+  // компенсация: описание события несёт полный снимок (кто, старый →
+  // новый номер, режим доставки / из какой компании в какую).
+  customer_user_phone_changed: { label: 'Телефон пользователя компании изменён', audience: ['staff'], notify: [] },
+  customer_user_rebound: { label: 'Пользователь перепривязан к другой компании', audience: ['staff'], notify: [] },
 }

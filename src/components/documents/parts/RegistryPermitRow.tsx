@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { FileUp, ShieldCheck, ShieldX } from 'lucide-react'
-import { useToast } from '@/hooks/use-toast'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { useToast } from '@/hooks/use-toast'
 import {
   PERMIT_PROVIDER_LABELS,
   PERMIT_REJECT_REASON_MAX,

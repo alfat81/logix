@@ -6,12 +6,20 @@ import { db } from '@/lib/db'
 // retry.test.ts гоняет её против реальной БД без HTTP-слоя), роут
 // только оборачивает её в права и статусы.
 //
-// Семантика повтора:
+// Семантика повтора (расширение AUD-05, поток A волна 2 — план ред. 3
+// §5.5 п. 4):
 //   • failed   — терминальный статус после пяти попыток диспетчера
-//     (backoff 1/5/30 мин/2 ч/12 ч): повтор начинает цикл заново;
+//     (backoff 1/5/30 мин/2 ч/12 ч) ИЛИ зависшая 'sending' с
+//     attempts ≥ 4 (stuck_sending): повтор начинает цикл заново;
 //   • skipped  — канал не был настроен (not_configured) или адрес не
 //     прошёл allowlist в непроизводственном окружении: повтор честная
 //     вторая попытка — владелец включил провайдер, окружение сменилось;
+//   • sending  — зависшая аренда (сбой процесса после лиза): мастер из
+//     журнала DF-04 возвращает строку НЕМЕДЛЕННО, не дожидаясь
+//     автовосстановления ≤15 мин. Безопасно при живом отправителе:
+//     строка уходит в pending, условный итог «зомби»-отправителя
+//     (updateMany WHERE status='sending') отбрасывается — двойная
+//     отправка исключена ценой возможной задержки;
 //   • pending/sent — повтор запрещён (not_retryable): pending ещё не
 //     отправлялся, sent — уже у получателю, дублирование недопустимо
 //     (письмо не idempotent-операция).
@@ -31,7 +39,8 @@ export async function retryNotification(id: string): Promise<RetryOutcome> {
     select: { status: true },
   })
   if (!row) return { ok: false, code: 'not_found' }
-  if (row.status !== 'failed' && row.status !== 'skipped') {
+  // AUD-05: sending повторяем — ручной возврат зависшей аренды в очередь
+  if (row.status !== 'failed' && row.status !== 'skipped' && row.status !== 'sending') {
     return { ok: false, code: 'not_retryable' }
   }
   await db.notification.update({

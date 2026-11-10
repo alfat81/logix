@@ -22,13 +22,10 @@ import { PermitsSection } from '@/components/permits/PermitsSection'
 import type { PermitRowUi } from '@/components/permits/types'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
 import { ClientLeadStatusBadge } from '@/components/client/ClientBadges'
-import {
-  EMPTY_LEAD_CARGO_FORM,
-  buildLeadPayload,
-  cargoFormFromData,
-  type LeadCargoForm,
-  type LeadStatus,
-} from '@/lib/leads'
+import type { LeadStatus } from '@/lib/leads'
+import { ClientQuoteOptions } from './ClientQuoteOptions'
+import { ClientLeadAnketa } from './ClientLeadAnketa'
+import type { ClientApprovalSnapshot, ClientOptionRow } from './client-lead-types'
 
 // ─── Карточка запроса на расчёт в кабинете клиента (Е) ────────────
 // Анкета, которую клиент отправлял (P1-02: правится, пока по запросу
@@ -53,6 +50,15 @@ type ClientLeadDetail = {
   volumeM3?: string | number | null
   placesCount?: number | null
   order: { id: string; number: string } | null
+  // BL-1/BL-7: варианты с продажными ценами, метаданные согласования,
+  // активный снимок, право подтвердить
+  options?: ClientOptionRow[]
+  selectedOptionId?: string | null
+  clientConfirmedAt?: string | null
+  clientConfirmedVia?: string | null
+  clientConfirmedByName?: string | null
+  approvalSnapshot?: ClientApprovalSnapshot | null
+  canConfirm?: boolean
   // P1-02: правка открыта до первого варианта расчёта
   canEdit?: boolean
   // DF-21: журнал запроса — события с аудиторией 'client', без меток
@@ -75,17 +81,9 @@ export function ClientLeadCard() {
   const [lead, setLead] = useState<ClientLeadDetail | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // P1-02: правка анкеты запроса (до первого варианта расчёта)
-  const [editOpen, setEditOpen] = useState(false)
-  const [cargo, setCargo] = useState<LeadCargoForm>({ ...EMPTY_LEAD_CARGO_FORM })
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    if (editOpen && lead) {
-      // P1-03: форма — из колонок маршрута + cargoInfo-rest
-      setCargo(cargoFormFromData(lead))
-    }
-  }, [editOpen, lead])
+  // BL-1: согласование варианта — диалог подтверждения + отправка
+  const [confirmOption, setConfirmOption] = useState<ClientOptionRow | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -113,18 +111,20 @@ export function ClientLeadCard() {
     load()
   }, [load])
 
-  const saveAnketa = async () => {
-    setSaving(true)
+  // BL-1: согласовать вариант — POST select-option; после успеха карточка
+  // перезагружается (статус «Согласован клиентом», условия — из снимка)
+  const approveOption = async (option: ClientOptionRow) => {
+    setConfirming(true)
     try {
-      const res = await fetch(`/api/client/leads/${id}`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/client/leads/${id}/select-option`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildLeadPayload(cargo)),
+        body: JSON.stringify({ optionId: option.id }),
       })
       const data = await readApiResponse<{ message?: string; error?: string }>(res)
-      if (!res.ok) throw new Error(data.error || 'Не удалось сохранить запрос')
-      toast({ title: data.message || 'Запрос обновлён' })
-      setEditOpen(false)
+      if (!res.ok) throw new Error(data.error || 'Не удалось согласовать вариант')
+      toast({ title: data.message || 'Вариант согласован' })
+      setConfirmOption(null)
       load()
     } catch (e) {
       toast({
@@ -133,7 +133,7 @@ export function ClientLeadCard() {
         variant: 'destructive',
       })
     } finally {
-      setSaving(false)
+      setConfirming(false)
     }
   }
 
@@ -195,56 +195,13 @@ export function ClientLeadCard() {
         </p>
       )}
 
-      {/* Анкета, которую клиент отправлял (P1-02: правится до начала расчёта) */}
-      <Card className="p-0">
-        <CardContent className="p-4 grid gap-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-base font-semibold">Анкета запроса</h2>
-            {lead.canEdit && (
-              <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
-                <Pencil className="size-4" />
-                Править запрос
-              </Button>
-            )}
-          </div>
-          {lead.canEdit && (
-            <p className="text-xs text-muted-foreground">
-              Пока менеджер не начал расчёт, вы можете уточнить данные запроса —
-              изменения увидит ваш менеджер.
-            </p>
-          )}
-          <CargoGroups
-            route={lead}
-            cargoInfo={lead.cargoInfo}
-            emptyText="Анкета не заполнялась — запрос зарегистрирован без подробностей"
-          />
-        </CardContent>
-      </Card>
-
-      {/* P1-02: диалог правки анкеты груза (общий бланк с админкой) */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Правка запроса</DialogTitle>
-            <DialogDescription>
-              Уточните детали груза и маршрута — менеджер получит обновлённые
-              данные и увидит, что именно изменилось.
-            </DialogDescription>
-          </DialogHeader>
-          <CargoFormFields form={cargo} onChange={setCargo} />
-          <DialogFooter>
-            <Button onClick={saveAnketa} disabled={saving}>
-              {saving && <Loader2 className="size-4 animate-spin" />}
-              Сохранить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Документы запроса: обмен с менеджером и брокером внутри
           сервиса (Е). После конвертации — пусто и читать нечего:
           файлы переехали в заявку (В4), раздел остаётся для истории
           до перехода. */}
+      {/* Анкета запроса + правка (P1-02) — ClientLeadAnketa.tsx (RULES 2.14) */}
+      <ClientLeadAnketa lead={lead} reload={load} />
+
       {/* DF-21: журнал запроса — заметки менеджера «видна клиенту» и
           события статусов; без служебных меток и внутренних событий */}
       <ActivityFeed

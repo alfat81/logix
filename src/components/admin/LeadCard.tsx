@@ -96,6 +96,9 @@ export function LeadCard() {
 
   const isWon = lead.status === 'won'
   const selectedOption = lead.options.find((o) => o.isSelected) ?? null
+  // Поток A (BL-5): конвертация — только из «Согласован клиентом»;
+  // при «Рассчитан» — подсказка зафиксировать согласие
+  const canConvert = lead.status === 'client_approved' && !!selectedOption
   // P1-02: правка анкеты — new/calculated (won/lost закрывают правку;
   // у lost возврат в работу — мастер, у won правка через заявку)
   const anketaEditable = lead.status === 'new' || lead.status === 'calculated'
@@ -228,6 +231,12 @@ export function LeadCard() {
           leadId={String(id)}
           options={lead.options}
           disabled={isWon}
+          leadStatus={lead.status}
+          confirmation={{
+            at: lead.clientConfirmedAt ?? null,
+            via: lead.clientConfirmedVia ?? null,
+            byName: lead.clientConfirmedByName ?? null,
+          }}
           onChanged={load}
         />
         {/* ── Конвертация / заявка (В4; компонент lead/, P1-19) ──── */}
@@ -250,7 +259,8 @@ export function LeadCard() {
           <LeadConvertBlock
             leadId={lead.id}
             cargoInfo={lead.cargoInfo}
-            canConvert={!!selectedOption}
+            canConvert={canConvert}
+            leadStatus={lead.status}
             // DF-17: условие поставки из запроса клиента — предзаполняется
             initialIncotermCode={lead.incotermCode}
           />

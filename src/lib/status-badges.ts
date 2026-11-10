@@ -20,12 +20,15 @@ export type StatusBadgeVariant =
   | 'critical' // ТРЕБУЕТ РЕШЕНИЯ/ПРОСРОЧЕНО — единственный сплошной красный (v1.3; DF-05/DF-16)
   | 'version' // V x.y — нейтральное состояние (пара V-бейджа §3.2)
 
-// Лид: new/calculated — ждём расчёта/выбора (нейтральная пара review,
-// v1.3), won — сделка состоялась, lost — не состоялась (отказ — норма
-// воронки, нейтрально; Brick-«ошибку» в визе не рисуем — это не сбой).
+// Лид: new/calculated/client_approved — ждём расчёта/согласования/заявки
+// (нейтральная пара review, v1.3; согласование — тоже нейтральное
+// «промежуточное» состояние воронки), won — сделка состоялась, lost —
+// не состоялась (отказ — норма воронки, нейтрально; Brick-«ошибку»
+// в визе не рисуем — это не сбой).
 export const LEAD_BADGE_VARIANTS: Record<LeadStatus, StatusBadgeVariant> = {
   new: 'review',
   calculated: 'review',
+  client_approved: 'review',
   won: 'delivered',
   lost: 'version',
 }

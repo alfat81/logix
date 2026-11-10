@@ -10,9 +10,10 @@ import { TotpNotConfiguredError } from '@/lib/totp-crypto'
 // ─── Профиль: двухфакторная аутентификация (DF-09) ───────────────────
 // GET    — статус TOTP текущего сотрудника (мастер и менеджер: карточка
 //          DF-09 — manager включает по желанию).
-// POST   — включение: { secret, code } (секрет из GET setup, код из
-//          приложения) → одноразовые коды восстановления (наружу один
-//          раз, в БД — хеши). Событие totp_enabled в той же транзакции.
+// POST   — включение: { secret, code, password } (секрет из GET setup,
+//          код из приложения, пароль — AUD-08, поток A волна 2) →
+//          одноразовые коды восстановления (наружу один раз, в БД —
+//          хеши). Событие totp_enabled в той же транзакции.
 // DELETE — выключение с подтверждением паролем. Событие totp_disabled.
 // Доступ к чужому TOTP через эти роуты невозможен по построению:
 // операции работают только с учёткой из сессии (employee.id), а не с id
@@ -21,6 +22,10 @@ import { TotpNotConfiguredError } from '@/lib/totp-crypto'
 const EnableSchema = z.object({
   secret: z.string().min(32).max(64),
   code: z.string().min(6).max(16),
+  // AUD-08 (план ред. 3 §5.6): включение второго фактора — как
+  // выключение, с реаутентификацией паролем (раньше пароль был только
+  // на выключении — асимметрия превращала угон сессии в захват аккаунта)
+  password: z.string().min(1),
 })
 
 const DisableSchema = z.object({
@@ -54,9 +59,18 @@ export async function POST(req: NextRequest) {
     const parsed = EnableSchema.safeParse(await req.json().catch(() => null))
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Некорректный запрос', details: parsed.error.flatten().fieldErrors },
+        { error: 'Некорректный запрос — введите пароль, секрет и код приложения', details: parsed.error.flatten().fieldErrors },
         { status: 400 }
       )
+    }
+    // AUD-08: реаутентификация паролем перед включением TOTP — та же
+    // сверка, что на выключении (DELETE)
+    const row = await db.employee.findUnique({
+      where: { id: auth.employee.id },
+      select: { password: true },
+    })
+    if (!row || !verifyPassword(parsed.data.password, row.password)) {
+      return NextResponse.json({ error: 'Неверный пароль' }, { status: 400 })
     }
     const recoveryCodes = await enableTotp(auth.employee, parsed.data.secret, parsed.data.code)
     return NextResponse.json({ recoveryCodes })

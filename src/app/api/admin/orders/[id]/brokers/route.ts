@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { parseJsonBody } from '@/lib/api-request'
 import { employeeActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
 import { BROKER_PUBLIC_FIELDS } from '@/lib/brokers'
@@ -30,8 +29,19 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { id } = await params
   try {
-    const parsed = await parseJsonBody(req, AttachOrderBrokerSchema)
-    if (!parsed.ok) return parsed.response
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Некорректный JSON в теле запроса' }, { status: 400 })
+    }
+    const parsed = AttachOrderBrokerSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Некорректные данные', details: parsed.error.flatten() },
+        { status: 400 }
+      )
+    }
 
     const order = await db.order.findUnique({
       where: { id },

@@ -32,11 +32,21 @@ export function apiErrorResponse(
   // Бизнес-ошибки домена (D35): модули ядра бросают Error с statusCode
   // 4xx (permits-db.ts: PATCH received без файла, waived без причины) —
   // честный код вместо 500 (IC: контракт ошибки = код смыслового слоя).
-  const statusCode = (e as { statusCode?: unknown }).statusCode
-  if (typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500) {
+  // Нахождение волны 1 (прогон e2e): EstimateDiffError (DF-26 волна 2,
+  // estimate-diff-db.ts) несёт `status`, а не `statusCode` — 400-ые
+  // инварианты диффа (дубль/чужой id строки) уходили в 500. Читаем
+  // оба имени, контракт — число 400..499.
+  const err = e as { statusCode?: unknown; status?: unknown }
+  const code =
+    typeof err.statusCode === 'number'
+      ? err.statusCode
+      : typeof err.status === 'number'
+        ? err.status
+        : undefined
+  if (typeof code === 'number' && code >= 400 && code < 500) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : fallbackMessage },
-      { status: statusCode }
+      { status: code }
     )
   }
   console.error(`[${context}] error:`, e)

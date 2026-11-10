@@ -17,13 +17,19 @@ import { importCbrRates } from '@/lib/cbr'
 // (nextAttemptAt = NULL) пачкой не отправляются — их собирает
 // processRegularDigests() в окнах.
 //
-// Гонки двух диспетчеров: короткая транзакция ЗАЯВКИ (ids, SKIP LOCKED,
-// commit) + оптимистичная маркировка (updateMany WHERE status='pending'
-// AND attempts=<снимок>): двойная отправка возможна только при
-// пересечении двух вызовов в миллисекундах окна отправки — приемлемая
-// цена за короткие транзакции на пулере Neon (§9: «Interactive-
-// транзакции на Neon — явные timeout/maxWait»; держать сеть провайдера
-// внутри транзакции с блокировками нельзя).
+// Гонки двух диспетчеров (AUD-05, поток A волна 2 — план ред. 3 §5.5):
+// короткая транзакция ЗАЯВКИ (ids, SKIP LOCKED, commit) + ЛИЗ-ЗАХВАТ
+// перед отправкой: updateMany pending→'sending' с nextAttemptAt =
+// сейчас + 15 мин (срок аренды). count!==1 — строку забрал параллельный
+// диспетчер → skipped. ВСЕ итоговые записи — условно от статуса
+// 'sending' (updateMany WHERE status='sending'): если строку оживил
+// recovery-проход, итог «зомби»-отправителя отбрасывается (дубль
+// исключён ценой возможной задержки). Зависшая 'sending' (сбой
+// процесса после лиза) восстанавливается в начале пачки: ≤15 мин
+// возврат в очередь (attempts+1) либо failed при attempts≥4; мастер
+// может вернуть строку немедленно через журнал DF-04 (retry.ts).
+// Держать сеть провайдера внутри транзакции с блокировками нельзя
+// (§9: «Interactive-транзакции на Neon — явные timeout/maxWait»).
 //
 // Тестовые окружения (карточка DF-03): вне production (VERCEL_ENV /
 // NODE_ENV) письма уходят только адресам из EMAIL_ALLOWLIST, остальные
@@ -38,6 +44,16 @@ const MAX_BATCHES = 10
 // каждого write-роута свой вызов scheduleDispatch — без троттлинга
 // пачка диспетчера запускается на каждый чих).
 const SCHEDULE_THROTTLE_MS = 15_000
+// AUD-05: срок аренды 'sending'. Зависшая строка (сбой процесса после
+// лиза) видна recovery-проходу не раньше истечения срока — за это
+// время честная отправка успевает завершиться; у истёкшей аренды
+// зомби-итог отбрасывается условной записью.
+const LEASE_MINUTES = 15
+// Потолок попыток recovery (план §5.5 п. 3): зависшая sending с
+// attempts ≥ 4 терминально failed (лестница повторов исчерпана,
+// мастер возвращает строку журналом DF-04), ниже — возврат в очередь
+// с честным attempts+1.
+const STUCK_FAILED_ATTEMPTS = 4
 
 export type DispatchRun = {
   sent: number
@@ -78,70 +94,117 @@ async function claimBatch(): Promise<string[]> {
   return rows.map((r) => r.id)
 }
 
+// AUD-05: автовосстановление зависших 'sending' — начало каждой пачки.
+// Восстановленная строка честно считается попыткой (attempts+1).
+async function recoverStuckSending(): Promise<void> {
+  const now = new Date()
+  await db.notification.updateMany({
+    where: { status: 'sending', nextAttemptAt: { lte: now }, attempts: { gte: STUCK_FAILED_ATTEMPTS } },
+    data: { status: 'failed', lastError: 'stuck_sending' },
+  })
+  await db.notification.updateMany({
+    where: { status: 'sending', nextAttemptAt: { lte: now }, attempts: { lt: STUCK_FAILED_ATTEMPTS } },
+    data: { status: 'pending', attempts: { increment: 1 }, lastError: 'stuck_sending_recovered' },
+  })
+}
+
 async function sendOne(
   id: string,
   sender: { fromName: string; replyTo: string | null }
 ): Promise<'sent' | 'failed' | 'skipped'> {
   const row = await db.notification.findUnique({ where: { id } })
-  // Строка исчезла/уже обработана параллельным вызовом — нейтрально.
+  // Строка исчезла/уже в лизе параллельного вызова — нейтрально.
   if (!row || row.status !== 'pending') return 'skipped'
+
+  // Лиз-захват (AUD-05): pending→sending ДО сетевой отправки.
+  // count!==1 — строку забрал параллельный диспетчер.
+  const leased = await db.notification.updateMany({
+    where: { id, status: 'pending' },
+    data: { status: 'sending', nextAttemptAt: new Date(Date.now() + LEASE_MINUTES * 60_000) },
+  })
+  if (leased.count !== 1) return 'skipped'
+
+  // Все итоговые записи — условно от 'sending': если строку оживил
+  // recovery (истёкшая аренда), итог «зомби»-отправителя отбрасывается
+  // (count 0) — дубль исключён, строку уводит заново восстановленный
+  // проход.
+  const finalize = async (
+    data: {
+      status: string
+      attempts?: number
+      nextAttemptAt?: Date | null
+      sentAt?: Date
+      providerId?: string | null
+      lastError?: string | null
+    }
+  ): Promise<boolean> => {
+    const done = await db.notification.updateMany({ where: { id, status: 'sending' }, data })
+    return done.count === 1
+  }
 
   const production = isProduction()
   if (!production && !allowlisted(row.toAddress)) {
-    await db.notification.update({
-      where: { id: row.id },
-      data: { status: 'skipped', lastError: 'not_allowlisted' },
-    })
+    await finalize({ status: 'skipped', lastError: 'not_allowlisted' })
     return 'skipped'
   }
 
-  const transport = getTransport(row.channel)
-  const res = await transport.send({
-    to: row.toAddress,
-    subject: row.subject,
-    body: row.body,
-    fromName: sender.fromName,
-    replyTo: sender.replyTo,
-  })
+  let res: { ok: boolean; providerId?: string; error?: string }
+  try {
+    const transport = getTransport(row.channel)
+    res = await transport.send({
+      to: row.toAddress,
+      subject: row.subject,
+      body: row.body,
+      fromName: sender.fromName,
+      replyTo: sender.replyTo,
+    })
+  } catch (e) {
+    // Исключение транспорта (сеть и пр.) — как отказ провайдера:
+    // условная запись backoff; строку, оживлённую recovery, не трогаем.
+    console.error('[dispatch] исключение транспорта', id, e)
+    res = { ok: false, error: e instanceof Error ? e.message : 'transport_exception' }
+  }
 
   if (res.ok) {
-    await db.notification.update({
-      where: { id: row.id },
-      data: { status: 'sent', sentAt: new Date(), providerId: res.providerId ?? null, lastError: null },
+    const ours = await finalize({
+      status: 'sent',
+      sentAt: new Date(),
+      providerId: res.providerId ?? null,
+      lastError: null,
+      nextAttemptAt: null,
     })
-    return 'sent'
+    return ours ? 'sent' : 'skipped'
   }
   if (res.error === NOT_CONFIGURED) {
     // Канал не настроен — терминально: повтор бессмыслен, пока владелец
     // не включит провайдера (журнал DF-04 даст кнопку «Повторить»).
-    await db.notification.update({
-      where: { id: row.id },
-      data: { status: 'skipped', lastError: NOT_CONFIGURED },
-    })
+    await finalize({ status: 'skipped', lastError: NOT_CONFIGURED })
     return 'skipped'
   }
   const attempts = row.attempts + 1
   if (attempts >= BACKOFF_MINUTES.length) {
-    await db.notification.update({
-      where: { id: row.id },
-      data: { status: 'failed', attempts, lastError: res.error ?? 'unknown' },
+    const ours = await finalize({
+      status: 'failed',
+      attempts,
+      nextAttemptAt: null,
+      lastError: res.error ?? 'unknown',
     })
-    return 'failed'
+    return ours ? 'failed' : 'skipped'
   }
   const pauseMin = BACKOFF_MINUTES[attempts - 1]
-  await db.notification.update({
-    where: { id: row.id },
-    data: {
-      attempts,
-      nextAttemptAt: new Date(Date.now() + pauseMin * 60_000),
-      lastError: res.error ?? 'unknown',
-    },
+  const ours = await finalize({
+    status: 'pending',
+    attempts,
+    nextAttemptAt: new Date(Date.now() + pauseMin * 60_000),
+    lastError: res.error ?? 'unknown',
   })
-  return 'failed'
+  return ours ? 'failed' : 'skipped'
 }
 
-// Одна пачка: заявка → отправка вне транзакции → итог.
+// Одна пачка: автовосстановление зависших (AUD-05) → заявка →
+// отправка вне транзакции → условный итог.
 export async function dispatchPendingBatch(): Promise<DispatchRun> {
+  await recoverStuckSending()
   const ids = await claimBatch()
   const result: DispatchRun = { sent: 0, failed: 0, skipped: 0 }
   if (ids.length === 0) return result

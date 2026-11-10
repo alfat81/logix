@@ -31,6 +31,11 @@ export const ACTIVITY_TYPES = [
   // актёр — сотрудник (админка) или клиент (кабинет, до первого варианта)
   'lead_edited',
   'lead_converted',
+  // Поток A волна 1 (BL): согласование расчёта клиентом — фиксация
+  // согласия (кабинет или менеджер от имени клиента) и его сброс
+  // («Изменить условия»). Пишут confirm-API в транзакции подтверждения.
+  'lead_client_confirmed',
+  'lead_confirmation_reset',
   'option_added',
   'option_updated',
   'option_selected',
@@ -146,6 +151,15 @@ export const ACTIVITY_TYPES = [
   // сам сотрудник; аудиторию видит staff (факт аудита безопасности).
   'totp_enabled',
   'totp_disabled',
+  // Поток A волна 2 (DF-25, BL-8/BL-9, план ред. 3 §5.2/§5.3):
+  // операции доступа — смена телефона пользователя компании (после
+  // подтверждения кодом) и перепривязка к другой компании. Цель — нет
+  // (операция над доступом, не belongs сделке; у Customer нет
+  // ответственного-цели для правила уведомлений) — факт виден всем
+  // сотрудникам в ленте (как totp_*); description несёт старое→новое
+  // и режим доставки кода (manual_by_manager).
+  'customer_user_phone_changed',
+  'customer_user_rebound',
 ] as const
 export type ActivityType = (typeof ACTIVITY_TYPES)[number]
 

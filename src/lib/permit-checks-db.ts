@@ -5,6 +5,7 @@ import type { DocActor, DocumentDealTarget } from '@/lib/documents'
 import {
   CreatePermitCheckInput,
   ReviewPermitCheckInput,
+  PERMIT_CHECK_RESULT_LABELS,
   PERMIT_CHECK_REVIEW_OUTCOME_LABELS,
   manualDictionaryVersion,
   outcomeFromDecisions,
@@ -789,6 +790,11 @@ export async function listPermitChecks(
     orderBy: { createdAt: 'desc' },
   })
   return rows.map((r) => ({ ...r, items: r.items.map((i) => i.itemId) }))
+}
+
+// Метка результата для UI/событий (перенос чистой подписи).
+export function checkResultLabel(result: string): string {
+  return PERMIT_CHECK_RESULT_LABELS[result as keyof typeof PERMIT_CHECK_RESULT_LABELS] ?? result
 }
 
 // ─── Появление/изменение кода на заявке (§5.2, триггер «поле hsCode») ──

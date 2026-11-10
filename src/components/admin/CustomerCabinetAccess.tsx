@@ -1,13 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Pencil, ShieldCheck, ShieldOff, Users, UserPlus } from 'lucide-react'
+import { ArrowLeftRight, Loader2, Pencil, Phone, ShieldCheck, ShieldOff, Users, UserPlus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { CustomerUserDialog, type CustomerUserRow } from './CustomerUserDialog'
+import { CustomerPhoneChangeDialog } from './CustomerPhoneChangeDialog'
+import { CustomerRebindDialog } from './CustomerRebindDialog'
 
 // ─── Сотрудники клиента (И1 → DF-02A Блок 5) ────────────────────────
 // Прежний диалог «один пароль на компанию» стал списком людей: менеджер
@@ -17,6 +19,12 @@ import { CustomerUserDialog, type CustomerUserRow } from './CustomerUserDialog'
 // — перенос старого входа компании: деактивации не подлежит (доступ
 // компании целиком закрывается деактивацией компании в справочнике).
 // Хеши наружу не отдаются никогда — только hasPassword.
+//
+// Поток A волна 2 (DF-25, BL-8/BL-9): телефон меняется ТОЛЬКО проверяемой
+// операцией «Изменить телефон» (код на новый номер, ручная доставка);
+// перепривязка к другой компании — отдельная операция с подтверждающим
+// текстом (история прежней компании сохраняется). Pending-заявка смены
+// — бейдж «Ожидает подтверждения кода до HH:MM».
 
 export function CustomerCabinetAccess({
   customerId,
@@ -30,6 +38,9 @@ export function CustomerCabinetAccess({
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<CustomerUserRow | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  // BL-8/BL-9: раздельные операции с раздельными диалогами (А5)
+  const [phoneTarget, setPhoneTarget] = useState<CustomerUserRow | null>(null)
+  const [rebindTarget, setRebindTarget] = useState<CustomerUserRow | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -123,7 +134,7 @@ export function CustomerCabinetAccess({
                 className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border p-3"
               >
                 <div className="min-w-40 flex-1">
-                  <div className="text-sm font-medium flex items-center gap-2">
+                  <div className="text-sm font-medium flex items-center gap-2 flex-wrap">
                     <span className="truncate">{u.name}</span>
                     {u.isPrimary && <Badge variant="delivered">Основной</Badge>}
                     {!u.isActive && (
@@ -135,6 +146,16 @@ export function CustomerCabinetAccess({
                       </Badge>
                     )}
                     {u.isActive && !u.hasPassword && <Badge variant="version">Без входа</Badge>}
+                    {/* BL-8: pending-заявка смены телефона — только номер и срок,
+                        хеш кода наружу не отдаётся */}
+                    {u.pendingPhone && (
+                      <Badge variant="outline" className="text-xs">
+                        Меняет телефон на {u.pendingPhone}
+                        {u.phoneCodeExpiresAt
+                          ? ` — ждёт код до ${new Date(u.phoneCodeExpiresAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+                          : ''}
+                      </Badge>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground font-mono">
                     {u.phone ?? 'телефон не указан'}
@@ -154,6 +175,26 @@ export function CustomerCabinetAccess({
                   >
                     <Pencil className="size-4" />
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    onClick={() => setPhoneTarget(u)}
+                    title="Изменить телефон (код на новый номер)"
+                  >
+                    <Phone className="size-4" />
+                  </Button>
+                  {!u.isPrimary && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      onClick={() => setRebindTarget(u)}
+                      title="Перепривязать к другой компании"
+                    >
+                      <ArrowLeftRight className="size-4" />
+                    </Button>
+                  )}
                   {!u.isPrimary && (
                     <Button
                       variant="ghost"
@@ -187,6 +228,22 @@ export function CustomerCabinetAccess({
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onSaved={reloadAll}
+      />
+
+      <CustomerPhoneChangeDialog
+        customerId={customerId}
+        target={phoneTarget}
+        open={phoneTarget !== null}
+        onClose={() => setPhoneTarget(null)}
+        onChanged={reloadAll}
+      />
+
+      <CustomerRebindDialog
+        customerId={customerId}
+        target={rebindTarget}
+        open={rebindTarget !== null}
+        onClose={() => setRebindTarget(null)}
+        onChanged={reloadAll}
       />
     </Card>
   )

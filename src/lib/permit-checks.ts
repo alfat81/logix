@@ -16,13 +16,28 @@ import { z } from 'zod'
 export const PERMIT_CHECK_RESULTS = ['required', 'not_required', 'unclear', 'failed'] as const
 export type PermitCheckResult = (typeof PERMIT_CHECK_RESULTS)[number]
 
+export const PERMIT_CHECK_RESULT_LABELS: Record<PermitCheckResult, string> = {
+  required: 'Требуется',
+  not_required: 'Не требуется',
+  unclear: 'Требует уточнения',
+  failed: 'Проверка не выполнена',
+}
+
 // Ручная проверка фиксирует required/not_required/failed; unclear —
 // состояние auto-записи (человек «требует уточнения» не ставит: это
 // «данных недостаточно», а не решение).
 export const MANUAL_CHECK_RESULTS = ['required', 'not_required', 'failed'] as const
+export type ManualCheckResult = (typeof MANUAL_CHECK_RESULTS)[number]
 
-// ─── Исходы пересмотра (§5.7 п. 3/3а; словари источников и статусов — в CHECK/индексах БД) ──
+// ─── Источники и статусы пересмотра ──────────────────────────────────
 
+export const PERMIT_CHECK_SOURCES = ['auto', 'manual'] as const
+export type PermitCheckSource = (typeof PERMIT_CHECK_SOURCES)[number]
+
+export const PERMIT_CHECK_REVIEW_STATUSES = ['none', 'needs_review', 'reviewed'] as const
+export type PermitCheckReviewStatus = (typeof PERMIT_CHECK_REVIEW_STATUSES)[number]
+
+// Исходы пересмотра (§5.7 п. 3/3а).
 export const PERMIT_CHECK_REVIEW_OUTCOMES = [
   'requirement_kept',
   'requirement_waived',
@@ -78,6 +93,7 @@ export const PermitCheckRequirementDraftSchema = z.object({
     .optional(),
   stageCode: z.string().trim().max(40).nullable().optional(),
 })
+export type PermitCheckRequirementDraft = z.infer<typeof PermitCheckRequirementDraftSchema>
 
 // POST /api/{admin|broker}/{orders|leads}/[id]/permit-checks — фиксация
 // результата. Параметра itemId НЕТ (§11.2): охват определяется кодом
@@ -122,6 +138,7 @@ export const PermitCheckDecisionSchema = z.object({
   reason: z.string().trim().max(PERMIT_CHECK_REVIEW_REASON_MAX).nullable().optional(),
   replacement: PermitCheckRequirementDraftSchema.optional(),
 })
+export type PermitCheckDecision = z.infer<typeof PermitCheckDecisionSchema>
 
 export const ReviewPermitCheckSchema = z
   .object({

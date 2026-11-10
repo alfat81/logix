@@ -131,6 +131,12 @@ export type CreateOrderInput = {
       }
     | null
   assignedToId?: string | null
+  // Поток A волна 1 (BL-5): стартовый статус заявки. Ручное создание
+  // (POST /api/admin/orders) сохраняет дефолт «Расчёт»; конвертация
+  // согласованному лиду передаёт 'in_progress' (переход
+  // calculating→in_progress разрешён статусной машиной — семантика
+  // та же, без лишнего ручного шага; план ред. 3 §4.3 п. 2).
+  status?: OrderStatus
 }
 
 export async function createOrderWithStages(
@@ -173,7 +179,7 @@ export async function createOrderWithStages(
         incotermPlace: input.incotermPlace ?? null,
         hsCode: input.hsCode ?? null,
         cargoProfile: input.cargoProfile ?? 'standard',
-        status: 'calculating',
+        status: input.status ?? 'calculating',
         ...(input.leadId ? { leadId: input.leadId } : {}),
         ...(input.cargoInfo != null ? { cargoInfo: input.cargoInfo } : {}),
         ...(input.quoteSnapshot != null ? { quoteSnapshot: input.quoteSnapshot } : {}),

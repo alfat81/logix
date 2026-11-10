@@ -24,8 +24,10 @@ function fmtDateTime(d: Date): string {
 // Мастер и менеджер (у менеджера — по желанию, карточка DF-09).
 // Состояния: загрузка / выключено (кнопка «Включить») / включено
 // (дата + «Выключить» с паролем). Включение: QR otpauth:// (SVG с
-// сервера) + секрет текстом для ручного ввода + код из приложения;
-// после включения один раз показываются коды восстановления.
+// сервера) + секрет текстом для ручного ввода + код из приложения +
+// ПАРОЛЬ (AUD-08, поток A волна 2 — реаутентификация на включении,
+// симметрия с выключением); после включения один раз показываются
+// коды восстановления.
 
 type TotpStatus = { enabled: boolean; enabledAt: string | null }
 type TotpSetup = { secret: string; otpauthUri: string; qrSvg: string }
@@ -38,6 +40,7 @@ export function ProfileTotpSection() {
   const [code, setCode] = useState('')
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null)
   const [password, setPassword] = useState('')
+  const [enablePassword, setEnablePassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -79,12 +82,17 @@ export function ProfileTotpSection() {
       const res = await fetch('/api/admin/profile/totp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: setup.secret, code: code.replace(/\D/g, '') }),
+        body: JSON.stringify({
+          secret: setup.secret,
+          code: code.replace(/\D/g, ''),
+          password: enablePassword,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Код не принят')
       setSetup(null)
       setCode('')
+      setEnablePassword('')
       setRecoveryCodes(data.recoveryCodes ?? [])
       await loadStatus()
       router.refresh()
@@ -195,9 +203,25 @@ export function ProfileTotpSection() {
                 onChange={(e) => setCode(e.target.value)}
               />
             </div>
+            <div className="grid gap-1 max-w-64">
+              {/* AUD-08: включение второго фактора подтверждается паролем
+                  (симметрия с выключением) */}
+              <Label htmlFor="totp-enable-password">Пароль для подтверждения</Label>
+              <Input
+                id="totp-enable-password"
+                type="password"
+                autoComplete="current-password"
+                value={enablePassword}
+                onChange={(e) => setEnablePassword(e.target.value)}
+              />
+            </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex gap-2">
-              <Button size="sm" onClick={confirmEnable} disabled={busy || code.replace(/\D/g, '').length !== 6}>
+              <Button
+                size="sm"
+                onClick={confirmEnable}
+                disabled={busy || code.replace(/\D/g, '').length !== 6 || !enablePassword}
+              >
                 {busy && <Loader2 className="size-4 animate-spin" />}
                 Подтвердить
               </Button>

@@ -173,6 +173,12 @@ s,d=up2(a,f'/api/admin/leads/{lid}/documents','x.html',b'<script>alert(1)</scrip
 s,d=up2(a,f'/api/admin/leads/{lid}/documents','x.pdf',b'<html><script>alert(1)</script></html>',"application/pdf",extra={'type':'other','title':'html as pdf'}); chk('E0-07 HTML под видом PDF отклонён (проверка сигнатуры файла)',s==400,s)
 s,d=up2(a,f'/api/admin/leads/{lid}/documents','act.docx',b'PK\x03\x04'+b'\x00'*64,'application/octet-stream',extra={'type':'other','title':'docx без MIME'}); chk('E0-07 DOCX без MIME от браузера принимается по сигнатуре',s in(200,201),(s,d))
 s,d=up2(a,f'/api/admin/leads/{lid}/documents','big.pdf',b'%PDF',"application/pdf",extra={'type':'other','title':'big','size':26*1024*1024}); chk('файл >25МБ отклонён (лимит files.max_mb, DF-11)',s in(400,413),s)
+# поток A (BL-4): конвертация — только после согласования (confirm-API,
+# фиксация менеджером от имени клиента — без optionId берёт isSelected)
+s,d=a.r('POST',f'/api/admin/leads/{lid}/confirm',{}); chk('поток A: согласие зафиксировано (manager_on_behalf)',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid}'); LA=d.get('lead',d)
+chk('поток A: статус client_approved, метаданные кто/как',LA.get('status')=='client_approved' and LA.get('clientConfirmedVia')=='manager_on_behalf',(LA.get('status'),LA.get('clientConfirmedVia')))
+s,d=a.r('POST',f'/api/admin/leads/{lid}/confirm',{}); chk('поток A: повторное подтверждение → 409 (К-02/К-10)',s==409,s)
 # parallel convert
 res=[]
 def cv(): res.append(a.r('POST',f'/api/admin/leads/{lid}/convert',{'legalEntityId':leid,'incoterm':'FOB'}))
@@ -187,7 +193,8 @@ conv_phone='+7999%07d'%(base+5)
 chk('параллельная конвертация: один клиент на телефон (без дублей)',sum(1 for x in cl if x.get('phone')==conv_phone)==1,[x.get('phone') for x in cl if x.get('phone')==conv_phone])
 s,d=a.r('GET',f'/api/admin/orders/{oid}'); O=d.get('order',d)
 chk('обязательные этапы подставлены',len(O.get('stages',[]))>=6,len(O.get('stages',[])))
-chk('DF-05: заявка в расчёте — мяч у менеджера (calculating)',(O.get('waitingOnKind'),O.get('waitingReason'))==('manager','calculating'),(O.get('waitingOnKind'),O.get('waitingReason')))
+chk('BL-5: заявка из конвертации сразу «В работе»',O.get('status')=='in_progress',O.get('status'))
+chk('DF-05: заявка в работе — подключённый брокер без оценки — мяч у брокера (awaiting_broker_estimate)',(O.get('waitingOnKind'),O.get('waitingReason'))==('broker','awaiting_broker_estimate'),(O.get('waitingOnKind'),O.get('waitingReason')))
 chk('снимок цены перенесён',(O.get('quoteSnapshot') or {}).get('price')==1200000,O.get('quoteSnapshot'))
 chk('P1-04: снимок несёт валюту и НДС',(O.get('quoteSnapshot') or {}).get('currency')=='RUB' and (O.get('quoteSnapshot') or {}).get('vatMode')=='WITH_VAT' and 'costEstimate' not in (O.get('quoteSnapshot') or {}),O.get('quoteSnapshot'))
 # --- P1-01: ответственный на заявке ---
@@ -224,7 +231,7 @@ s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{mand["id"]}',{'status':'flying
 s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{mand["id"]}',{'plannedDate':'2026-11-01T00:00:00.000Z','actualDate':'2026-10-01T00:00:00.000Z','status':'done'}); chk('этап: смена статуса и дат',s==200,(s,d))
 s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{mand["id"]}',{'actualDate':'2030-01-01T00:00:00.000Z'}); chk('[ЦЕЛЬ P1-06] фактическая дата в будущем отклоняется',s==400,s)
 s,d=a.r('PATCH',f'/api/admin/orders/{oid}',{'status':'completed'}); chk('[ЦЕЛЬ P1-05] «Завершена» при незавершённых этапах отклоняется',s in(400,409),s)
-s,d=a.r('PATCH',f'/api/admin/orders/{oid}',{'status':'in_progress'}); chk('возврат из completed в in_progress',s==200,(s,d))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid}',{'status':'in_progress'}); chk('BL-5: заявка из конвертации уже в работе — повтор → 400',s==400,s)
 # --- v0.3.1 (BRANDBOOK §4.2–4.3): группы-табы списка, ETA, просрочка с именем этапа ---
 s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{st[1]["id"]}',{'plannedDate':'2027-01-10T00:00:00.000Z'}); chk('v0.3.1: план этапа 2 → 200',s==200,(s,d))
 s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{st[2]["id"]}',{'plannedDate':'2026-10-01T00:00:00.000Z'}); chk('v0.3.1: план этапа 3 в прошлом → 200 (предупреждение, не ошибка)',s==200,(s,d))
@@ -247,7 +254,7 @@ chk('v0.4.0: одиночный статус in_progress содержит зая
 chk('v0.4.0: по-статусный фильтр — только in_progress',all(x['status']=='in_progress' for x in d.get('orders',[])),[x['status'] for x in d.get('orders',[])][:8])
 s,d=a.r('GET','/api/admin/leads'); lcounts=d.get('counts') or {}
 chk('v0.4.0: counts запросов в ответе',s==200 and set(lcounts)>={'all','new','calculated','won','lost'},lcounts)
-chk('v0.4.0: counts.all = сумма по статусам',lcounts.get('all')==sum(lcounts.get(k,0) for k in ('new','calculated','won','lost')),lcounts)
+chk('v0.4.0: counts.all = сумма по статусам',lcounts.get('all')==sum(lcounts.get(k,0) for k in ('new','calculated','client_approved','won','lost')),lcounts)
 uq=u[:8]
 s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'Грузчик '+uq,'phone':'+86 130 '+str(base)},'route':{'originCity':'Сургут','destinationCity':'Тюмень'},'cargoInfo':{'cargoName':'Стекло закалённое '+uq}})
 chk('v0.4.0: запрос для поиска создан',s in(200,201),(s,d)); qlid=(d.get('lead') or d)['id']
@@ -268,9 +275,14 @@ chk('DF-05: брокер заявки без оценки — мяч у брок
 chk('DF-05: waitingOnId = id брокера заявки',O5a.get('waitingOnId')==bid,O5a.get('waitingOnId'))
 chk('DF-05: waitingSince проставлен',bool(O5a.get('waitingSince')),O5a.get('waitingSince'))
 # --- DF-01: события как ось — заметка staff-only, аудитория событий ---
+# BL-5: сконвертированная заявка стартует in_progress и статус-событие
+# order_status_changed создаётся переходом РУЧНОЙ заявки (расчёт→согласование)
+_ocust=O['customer']['id'] if isinstance(O,dict) and O.get('customer') else O.get('customerId')
+s,d=a.r('POST','/api/admin/orders',{'customerId':_ocust,'legalEntityId':leid}); _oid01=(d.get('order') or d)['id']
+s,d=a.r('PATCH',f'/api/admin/orders/{_oid01}',{'status':'confirmed'}); chk('BL-5: ручная заявка calculating→confirmed → 200',s==200,(s,d))
 note='Внутренняя заметка DF-01 '+u
 s,d=a.r('POST',f'/api/admin/orders/{oid}/notes',{'text':note}); chk('DF-01: внутренняя заметка создана',s in(200,201),(s,d))
-s,d=a.r('GET',f'/api/admin/orders/{oid}'); Oa=d.get('order',d); oacts=Oa.get('activities',[])
+s,d=a.r('GET',f'/api/admin/orders/{_oid01}'); Oa=d.get('order',d); oacts=Oa.get('activities',[])
 chk('DF-01: заметка в ленте сотрудника (staff видит всё; df_03_contract: приватность = audience)',any(x['type']=='note_added' and x.get('audience')==['staff'] and x['description']==note for x in oacts),[x['type'] for x in oacts[:6]])
 chk('DF-01: статус-событие заявки адресовано клиенту',any(x['type']=='order_status_changed' and 'client' in (x.get('audience') or []) for x in oacts),[x['type'] for x in oacts[:6]])
 # --- DF-21: заметка «видна клиенту» — аудитория staff+client; SSR админки: меню, бейдж ---
@@ -351,20 +363,25 @@ s,d=a.r('GET',f'/api/admin/leads/{lid5}'); L5=d.get('lead',d)
 chk('D45: выбор варианта снимает ожидание — мяча нет',L5.get('waitingOnKind')=='none',(L5.get('waitingOnKind'),L5.get('waitingReason')))
 s,d=a.r('GET','/api/admin/attention'); AT45b=d
 chk('D45: после выбора строка ушла из «Ждут дольше N часов»',all(r.get('dealId')!=lid5 for r in AT45b.get('waitingLong',[])),[r.get('dealId') for r in AT45b.get('waitingLong',[])])
+# поток A (BL-4): lid5 конвертируется после согласования (confirm-API)
+s,d=a.r('POST',f'/api/admin/leads/{lid5}/confirm',{}); chk('поток A: согласие на lid5 зафиксировано',s==200,(s,d))
 s,d=a.r('POST',f'/api/admin/leads/{lid5}/convert',{'legalEntityId':leid}); chk('DF-05: конвертация → заявка',s in(200,201),(s,d)); oid5=(d.get('order') or d)['id']
 s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5=d.get('order',d)
-chk('DF-05: заявка в расчёте — мяч у менеджера',(O5.get('waitingOnKind'),O5.get('waitingReason'))==('manager','calculating'),(O5.get('waitingOnKind'),O5.get('waitingReason')))
-since1=O5.get('waitingSince')
-s,d=a.r('PATCH',f'/api/admin/orders/{oid5}',{'status':'confirmed'}); chk('DF-05: статус → Согласование',s==200,(s,d))
-s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5=d.get('order',d)
-chk('DF-05: согласование — мяч у клиента',(O5.get('waitingOnKind'),O5.get('waitingReason'))==('client','awaiting_client_approval'),(O5.get('waitingOnKind'),O5.get('waitingReason')))
-chk('DF-05: waitingSince сдвинулся при смене kind',bool(O5.get('waitingSince')) and O5.get('waitingSince')!=since1,(since1,O5.get('waitingSince')))
-s,d=c.r('GET',f'/api/client/orders/{oid5}'); C5=(d.get('order') or {})
+chk('BL-5: заявка из конвертации сразу «В работе»',O5.get('status')=='in_progress',O5.get('status'))
+chk('DF-05: мяч у менеджера (stage_unassigned)',(O5.get('waitingOnKind'),O5.get('waitingReason'))==('manager','stage_unassigned'),(O5.get('waitingOnKind'),O5.get('waitingReason')))
+# awaiting_client_approval живёт на ручной заявке (BL-5: конвертация
+# стартует в работе; «Расчёт → Согласование» — путь ручной заявки)
+s,d=a.r('POST','/api/admin/orders',{'customerId':cust,'legalEntityId':leid}); oid5m=(d.get('order') or d)['id']
+s,d=a.r('PATCH',f'/api/admin/orders/{oid5m}',{'status':'confirmed'}); chk('BL-5: ручная заявка → Согласование (calculating→confirmed)',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid5m}'); O5m=d.get('order',d)
+chk('DF-05: согласование — мяч у клиента',(O5m.get('waitingOnKind'),O5m.get('waitingReason'))==('client','awaiting_client_approval'),(O5m.get('waitingOnKind'),O5m.get('waitingReason')))
+since1=O5m.get('waitingSince')
+s,d=c.r('GET',f'/api/client/orders/{oid5m}'); C5=(d.get('order') or {})
 chk('DF-05: клиент видит нейтральное ожидание своего мяча',(C5.get('waiting') or {}).get('reason')=='awaiting_client_approval' and bool((C5.get('waiting') or {}).get('since')),C5.get('waiting'))
 s,d=a.r('PATCH',f'/api/admin/orders/{oid5}',{'route':{'weightKg':800}}); chk('DF-05: правка маршрута → 200',s==200,(s,d))
 s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5b=d.get('order',d)
 chk('DF-05: waitingSince не сдвигается без смены kind/reason',O5b.get('waitingSince')==O5.get('waitingSince'),(O5.get('waitingSince'),O5b.get('waitingSince')))
-s,d=a.r('PATCH',f'/api/admin/orders/{oid5}',{'status':'in_progress'}); chk('DF-05: статус → В работе',s==200,(s,d))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid5m}',{'status':'in_progress'}); chk('DF-05: ручная заявка — статус → В работе',s==200,(s,d))
 s,d=a.r('GET',f'/api/admin/orders/{oid5}'); O5=d.get('order',d)
 chk('DF-05: ближайший этап без исполнителя — мяч у менеджера (stage_unassigned)',(O5.get('waitingOnKind'),O5.get('waitingReason'))==('manager','stage_unassigned'),(O5.get('waitingOnKind'),O5.get('waitingReason')))
 st5=O5['stages']
@@ -637,6 +654,7 @@ s,d=bb.r('GET','/api/admin/notifications'); chk('DF-03: менеджер не ч
 s,d=a.r('POST','/api/admin/employees',{'name':'DF03 менеджер '+u,'phone':ph(base+41),'password':'df03-pass-1','roles':['manager'],'email':'df03-staff-'+u+'@test.example'}); chk('DF-03: сотрудник с email создан',s==201,(s,d)); staff3=(d.get('employee') or {}).get('id')
 s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'DF03 сделка '+u,'phone':ph(base+46)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':100}}); lid3=(d.get('lead') or d)['id']
 s,d=a.r('POST',f'/api/admin/leads/{lid3}/options',{'description':'Море','transportModes':['Море'],'price':100000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':30,'priorityFit':'cost','isSelected':True})
+a.r('POST',f'/api/admin/leads/{lid3}/confirm',{})
 s,d=a.r('POST',f'/api/admin/leads/{lid3}/convert',{'legalEntityId':leid,'incoterm':'FOB'}); o3=(d.get('order') or d); oid3=o3['id']
 s,d=a.r('GET',f'/api/admin/orders/{oid3}'); cust3=((d.get('order') or d).get('customer') or {}).get('id'); chk('DF-03: клиент сделки определён',bool(cust3),cust3)
 s,d=a.r('POST',f'/api/admin/customers/{cust3}/access',{'name':'DF03 Иван','phone':ph(base+43),'password':'df03-pass-1','email':'df03-client-'+u+'@test.example'}); chk('DF-03: доступ клиенту сделки выдан (человек с email)',s in(200,201),(s,d))
@@ -644,7 +662,10 @@ s,d=a.r('PATCH',f'/api/admin/orders/{oid3}',{'assignedToId':staff3}); chk('DF-03
 s,d=a.r('POST','/api/admin/brokers',{'companyName':'DF03 брокер '+u,'phone':ph(base+44),'password':'df03-pass-1','email':'df03-broker-'+u+'@test.example'}); brk3=(d.get('broker') or d)['id']
 s,d=a.r('POST',f'/api/admin/brokers/{brk3}/users',{'name':'DF03 брокер-человек','phone':ph(base+45),'password':'df03-pass-1','email':'df03-buser-'+u+'@test.example'}); chk('DF-03: человек брокера создан с email',s in(200,201),(s,d))
 # согласование: статус → клиенту immediate; брокер подключён → письмо ему
-s,d=a.r('PATCH',f'/api/admin/orders/{oid3}',{'status':'confirmed'}); chk('DF-03: заявка переведена в согласование',s==200,(s,d))
+# BL-5: сконвертированный oid3 уже in_progress — переход для письма
+# отрабатываем на ручной заявке этого же клиента (расчёт→согласование)
+s,d=a.r('POST','/api/admin/orders',{'customerId':cust3,'legalEntityId':leid}); _oid3m=(d.get('order') or d)['id']
+s,d=a.r('PATCH',f'/api/admin/orders/{_oid3m}',{'status':'confirmed'}); chk('DF-03: ручная заявка → Согласование (письмо клиенту сразу)',s==200,(s,d))
 s,d=a.r('POST',f'/api/admin/orders/{oid3}/brokers',{'brokerId':brk3}); chk('DF-03: брокер подключён к заявке',s in(200,201),(s,d))
 s,d=disp(); chk('DF-03: диспетчер (с токеном) отработал',s==200 and isinstance(d,dict) and 'sent' in d,(s,d))
 s,d=a.r('GET','/api/admin/notifications?recipientKind=client&status=sent&take=200'); sent=d.get('notifications',[])
@@ -674,7 +695,7 @@ nowmsk=datetime.now(ZoneInfo('Europe/Moscow'))
 future=(nowmsk+timedelta(hours=2)).strftime('%H:%M')
 cur=nowmsk.strftime('%H:%M')
 s,d=a.r('PATCH','/api/admin/settings',{'key':'notifications.client_digest_times','value':[future]}); chk('DF-03: окно уведомлений сдвинуто в будущее',s==200,(s,d))
-s,d=a.r('PATCH',f'/api/admin/orders/{oid3}',{'status':'in_progress'}); chk('DF-03: заявка в работе (перевозка — обычные письма в окнах)',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid3}'); chk('BL-5: сконвертированный oid3 уже в работе (без ручного старта)',(d.get('order') or d).get('status')=='in_progress',(d.get('order') or d).get('status'))
 for stg in st3[1:4]:
     s,d=a.r('PATCH',f'/api/admin/orders/{oid3}/stages/{stg["id"]}',{'status':'done'})
 s,d=disp()
@@ -953,6 +974,7 @@ s,d=up2(bx16,f'/api/broker/permits/{target16["id"]}/document','x.pdf',b'%PDF-1.4
 s,_=bx16.r('GET',f'/api/broker/leads/{lid16}'); chk('DF-16: чужой брокер не читает строки запроса',s in(403,404),s)
 # конвертация: строки переносятся в заявку; ответственный с email
 s,d=a.r('POST',f'/api/admin/leads/{lid16}/options',{'description':'Море DF16','price':300000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':35,'priorityFit':'cost','isSelected':True}); chk('DF-16: вариант расчёта создан',s in(200,201),(s,d))
+a.r('POST',f'/api/admin/leads/{lid16}/confirm',{})
 s,d=a.r('POST',f'/api/admin/leads/{lid16}/convert',{'legalEntityId':leid}); chk('DF-16: запрос конвертирован в заявку',s in(200,201),(s,d)); oid16=(d.get('order') or d)['id']
 s,d=a.r('PATCH',f'/api/admin/orders/{oid16}',{'assignedToId':staff3}); chk('DF-16: назначен ответственный с email',s==200,(s,d))
 s,d=a.r('GET',f'/api/admin/orders/{oid16}'); OM16=(d.get('order') or d).get('permitRequirements',[])
@@ -969,13 +991,10 @@ pr=[]
 for _ in range(6):  # поллинг: after()-диспетчер PATCH может опередить disp()
     s,d=disp()
     s,d=a.r('GET','/api/admin/notifications?status=sent&take=200'); sent=d.get('notifications',[])
-    # DF-26 волна 2 (§5.4: загрузка ≠ принятие): письмо ответственному при
-    # загрузке клиентом — permit_submitted; permit_received уходит при
-    # принятии/финализации (проверяется в блоке DF-26 w2).
-    pr=[x for x in sent if x.get('toAddress')=='df03-staff-'+u+'@test.example' and x.get('type')=='permit_submitted']
+    pr=[x for x in sent if x.get('toAddress')=='df03-staff-'+u+'@test.example' and x.get('type')=='permit_received']
     if pr: break
     _tp.sleep(0.5)
-chk('DF-16: ответственному письмо о загруженном разрешительном (permit_submitted, §5.4)',len(pr)>=1,len(pr))
+chk('DF-16: ответственному письмо о полученном разрешительном',len(pr)>=1,len(pr))
 # «не требуется» с причиной
 s,d=a.r('PATCH',f'/api/admin/permits/{pid16b}',{'status':'waived','waivedReason':'товар не подлежит сертификации DF16'}); chk('DF-16: сотрудник отметил «не требуется» с причиной',s==200,(s,d))
 # красный скан: блокирующая с прошедшим сроком → permit_overdue клиенту и ответственному
@@ -1000,7 +1019,7 @@ s,d=a.r('PATCH','/api/admin/settings',{'key':'notifications.client_digest_times'
 s,d=c3.r('GET',f'/api/client/orders/{oid16}'); chk('DF-16: клиент видит строки pending в карточке заявки (наружу)',s==200 and any(x['status']=='pending' for x in ((d.get('order') or d).get('permitRequirements') or [])),(s,))
 # regular-событие заявки16 в окне — иначе сделка без событий в дайджест
 # не попадает и «Ждём от вас» не с чем привязать
-s,d=a.r('PATCH',f'/api/admin/orders/{oid16}',{'status':'in_progress'}); chk('DF-16: заявка16 в работе (перевозка — обычный режим)',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/orders/{oid16}'); chk('BL-5: заявка16 уже в работе (без ручного старта)',(d.get('order') or d).get('status')=='in_progress',(d.get('order') or d).get('status'))
 s,d=a.r('GET',f'/api/admin/orders/{oid16}'); st16=(d.get('order') or d).get('stages',[])
 s,d=a.r('PATCH',f'/api/admin/orders/{oid16}/stages/{st16[0]["id"]}',{'status':'done'}); chk('DF-16: этап16 завершён (регулярное событие клиенту)',s==200,(s,d))
 s,d=disp()
@@ -1023,6 +1042,7 @@ s,d=a.r('POST',f'/api/admin/leads/{lid23}/brokers',{'brokerId':brk3}); chk('DF-2
 s,d=b17.r('GET',f'/api/broker/leads/{lid23}'); BL23=(d.get('lead') or d)
 chk('DF-23: брокер видит маршрут запроса (пункты/вес/объём/места)',BL23.get('originCity')=='Гуанчжоу' and float(BL23.get('weightKg'))==2500 and float(BL23.get('volumeM3'))==12.5 and BL23.get('placesCount')==40,(BL23.get('originCity'),BL23.get('weightKg'),BL23.get('volumeM3'),BL23.get('placesCount')))
 s,d=a.r('POST',f'/api/admin/leads/{lid23}/options',{'description':'Море DF23','price':900000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':40,'priorityFit':'cost','isSelected':True}); chk('DF-23: вариант расчёта создан',s in(200,201),(s,d))
+a.r('POST',f'/api/admin/leads/{lid23}/confirm',{})
 s,d=a.r('POST',f'/api/admin/leads/{lid23}/convert',{'legalEntityId':leid}); chk('DF-23: запрос конвертирован (в теле нет incotermCode)',s in(200,201),(s,d)); oid23=(d.get('order') or d)['id']
 s,d=a.r('GET',f'/api/admin/orders/{oid23}'); O23=d.get('order',d); CI23=(O23.get('cargoInfo') or {})
 chk('DF-23: incotermCode перенесён с запроса (тело пусто)',O23.get('incotermCode')=='CIF' and O23.get('incoterm')=='CIF',(O23.get('incotermCode'),O23.get('incoterm')))
@@ -1070,8 +1090,13 @@ chk('DF-09: setup отдаёт секрет, otpauth:// и QR-SVG',s==200 and 's
 sec9=d.get('secret','')
 s,d=e9.r('POST','/api/admin/profile/totp',{'secret':sec9,'code':'000000'})
 chk('DF-09: неверный код включения — 400, состояние не менялось',s==400,(s,d))
+# AUD-08 (поток A волна 2): включение TOTP требует пароль (симметрия с выключением)
 s,d=e9.r('POST','/api/admin/profile/totp',{'secret':sec9,'code':_totp(sec9)})
-chk('DF-09: TOTP включён, выдано 10 кодов восстановления',s==200 and len(d.get('recoveryCodes') or [])==10,(s,list(d)[:3]))
+chk('AUD-08: включение TOTP без пароля — 400',s==400,(s,d))
+s,d=e9.r('POST','/api/admin/profile/totp',{'secret':sec9,'code':_totp(sec9),'password':'df09-wrong-pass'})
+chk('AUD-08: включение TOTP с неверным паролем — 400',s==400,(s,d))
+s,d=e9.r('POST','/api/admin/profile/totp',{'secret':sec9,'code':_totp(sec9),'password':'df09-pass-1'})
+chk('DF-09: TOTP включён (с паролем AUD-08), выдано 10 кодов восстановления',s==200 and len(d.get('recoveryCodes') or [])==10,(s,list(d)[:3]))
 rec9=(d.get('recoveryCodes') or [''])[0]
 s,d=e9.r('GET','/api/admin/profile/totp'); chk('DF-09: статус включён',s==200 and d.get('enabled')==True,(s,d))
 e9.r('POST','/api/auth/employee/logout')
@@ -1258,6 +1283,7 @@ chk('DF-13: клиентский ZIP без внутренних (contractor_rat
 s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'ООО Пусто '+u,'phone':'8 (999) '+str(base)[:3]+'-'+str(base)[3:5]+'-'+str(base)[5:7]},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':100}})
 _lid13=(d.get('lead') or d)['id']
 s,d=a.r('POST',f'/api/admin/leads/{_lid13}/options',{'description':'Вариант DF-13','price':100000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':30,'priorityFit':'cost','isSelected':True}); chk('DF-13: вариант расчёта для конвертации',s in(200,201),(s,d))
+a.r('POST',f'/api/admin/leads/{_lid13}/confirm',{})
 s,d=a.r('POST',f'/api/admin/leads/{_lid13}/convert',{'legalEntityId':leid}); _oid13=(d.get('order') or d)['id']
 s,d=a.r('GET',f'/api/admin/orders/{_oid13}/package')
 chk('DF-13: пустая заявка — все слоты «нет»',s==200 and len(d.get('slots',[]))==19 and all(x['status']=='none' for x in d.get('slots',[])),(s,[x['status'] for x in d.get('slots',[])][:5]))
@@ -1433,9 +1459,10 @@ chk('DF-14: срез по этапу содержит требование (bloc
 # изолированная сделка: запрос → вариант → конвертация (без брокера)
 s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'DF14 сделка '+u,'phone':ph(base+61)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':900}}); lid14=(d.get('lead') or d)['id']
 s,d=a.r('POST',f'/api/admin/leads/{lid14}/options',{'description':'Море DF14','transportModes':['Море'],'price':90000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':40,'priorityFit':'cost','isSelected':True}); chk('DF-14: вариант расчёта',s in(200,201),(s,d))
+a.r('POST',f'/api/admin/leads/{lid14}/confirm',{})
 s,d=a.r('POST',f'/api/admin/leads/{lid14}/convert',{'legalEntityId':leid}); chk('DF-14: конвертация → заявка',s in(200,201),(s,d)); o14=(d.get('order') or d); oid14=o14['id']
-s,d=a.r('PATCH',f'/api/admin/orders/{oid14}',{'status':'confirmed'}); chk('DF-14: статус → согласование',s==200,(s,d))
-s,d=a.r('PATCH',f'/api/admin/orders/{oid14}',{'status':'in_progress'}); chk('DF-14: статус → в работе',s==200,(s,d))
+s,d=a.r('PATCH',f'/api/admin/orders/{oid14}',{'status':'confirmed'}); chk('BL-5: из «В работе» нельзя в «Согласование» → 409',s==409,s)
+s,d=a.r('PATCH',f'/api/admin/orders/{oid14}',{'status':'in_progress'}); chk('BL-5: заявка уже в работе — повтор → 400',s==400,s)
 s,d=a.r('GET',f'/api/admin/orders/{oid14}'); st14=(d.get('order') or d).get('stages',[]); ep14=[x for x in st14 if x.get('stageCode')=='export_pickup'][0]
 s,d=a.r('PATCH',f'/api/admin/orders/{oid14}/stages/{ep14["id"]}',{'contractorId':cid,'plannedDate':'2027-06-01T00:00:00.000Z'}); chk('DF-14: исполнитель и план ближайшего этапа',s==200,(s,d))
 s,d=a.r('GET',f'/api/admin/orders/{oid14}'); O14=d.get('order',d)
@@ -1595,6 +1622,7 @@ s,d=a.r('PATCH',f'/api/admin/permits/{_pid8471}',{'itemId':None})
 chk('DF-26 w2: «ко всей сделке» — itemId NULL, bindingState bound, permit_relinked',s==200 and (d.get('permit') or d).get('bindingState')=='bound' and (d.get('permit') or d).get('itemId') is None,(s,d))
 # ── блокировка этапа разрешительным требованием со stageCode (§9) ──
 s,d=a.r('POST',f'/api/admin/leads/{_lw2}/options',{'description':'DF26w2 море','transportModes':['Море'],'price':50000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':30,'priorityFit':'cost','isSelected':True})
+a.r('POST',f'/api/admin/leads/{_lw2}/confirm',{})
 s,d=a.r('POST',f'/api/admin/leads/{_lw2}/convert',{'legalEntityId':leid}); _ow2=(d.get('order') or d); oidw2=_ow2['id']
 chk('DF-26 w2: лид с требованиями конвертирован',s in(200,201),(s,d))
 s,d=a.r('GET',f'/api/admin/orders/{oidw2}'); _stw2=[x for x in (d.get('order',d)).get('stages',[]) if x.get('stageCode')=='import_customs'][0]
@@ -1609,6 +1637,116 @@ s,d=a.r('PATCH',f'/api/admin/orders/{oidw2}/stages/{_stw2["id"]}',{'status':'don
 chk('DF-26 w2: мастер перекрывает блокировку требования → 200',s==200,(s,d))
 # Submitted не сканируется просрочкой и уходит из «ждём от вас»: строка pending
 # после reject снова в контроле — covered unit-набором (скан читает только pending).
+
+# ═══ Поток A волна 1 (BL): сценарии согласования (план ред. 3 §7) ═══
+# К-01 (порядок «конвертация первой»), К-03 (гард вариантов),
+# К-04 (отказ после согласования), К-05 (сброс+повторное согласование,
+# два снимка), К-07 (регресс 6.1), К-09 (отказ терминален для сброса),
+# BL-7 (клиентская проекция: варианты/цены без себестоимости; архив).
+print('\n--- Поток A: сценарии согласования ---')
+# лид сразу на существующего клиента (cust): доступ клиента рождает
+# CustomerUser ДО конвертации (до неё клиент у лида из rawContact не связан)
+s,d=a.r('POST','/api/admin/leads',{'customerId':cust,'rawContact':{'name':'Поток A клиент '+u,'phone':ph(base+71)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':700}}); _lw1=(d.get('lead') or d)['id']
+s,d=a.r('POST',f'/api/admin/leads/{_lw1}/options',{'description':'PA авто','transportModes':['Авто'],'price':210000,'currency':'RUB','vatMode':'WITHOUT_VAT','costEstimate':130000,'etaDays':20,'priorityFit':'cost','isSelected':True}); _pa_a=(d.get('option') or d)['id']
+s,d=a.r('POST',f'/api/admin/leads/{_lw1}/options',{'description':'PA море','transportModes':['Море'],'price':180000,'currency':'RUB','vatMode':'WITH_VAT','etaDays':30,'priorityFit':'speed'}); _pa_b=(d.get('option') or d)['id']
+# К-01: конвертация первой — 409 «сначала зафиксируйте согласие»
+s,d=a.r('POST',f'/api/admin/leads/{_lw1}/convert',{'legalEntityId':leid}); chk('К-01: конвертация несогласованного → 409',s==409,s)
+# клиентская сессия владельца сделки: выдаём доступ и входим
+a.r('POST',f'/api/admin/customers/{cust}/access',{'name':'Поток A юзер '+u,'phone':ph(base+72),'password':'pa-pass-1'})
+c1=C(); s,d=c1.r('POST','/api/auth/client/login',{'phone':ph(base+72),'password':'pa-pass-1'}); chk('поток A: вход клиента сделки',s==200,(s,d))
+# BL-7: клиент видит варианты и цены, НЕ видит себестоимость
+s,d=c1.r('GET',f'/api/client/leads/{_lw1}'); _cl=(d.get('lead') or {})
+_opts=_cl.get('options') or []
+chk('BL-7: клиент видит оба варианта',len(_opts)==2,len(_opts))
+_txt1=json.dumps(_opts,ensure_ascii=False)
+chk('BL-7: клиент видит продажную цену и НДС-метку',('180000' in _txt1 and 'WITH_VAT' in _txt1),_txt1[:160])
+chk('BL-7: клиенту не отдаётся себестоимость',('costEstimate' not in _txt1 and '130000' not in _txt1),'cost leaked: '+_txt1[:120])
+chk('BL-7: canConfirm=true при calculated',_cl.get('canConfirm') is True,_cl.get('canConfirm'))
+# чужой вариант → 400; чужой запрос → 404
+s,d=c1.r('POST',f'/api/client/leads/{_lw1}/select-option',{'optionId':_lid13}); chk('поток A: чужой optionId → 400',s==400,s)
+s,d=c1.r('POST','/api/client/leads/nonexistent/select-option',{'optionId':_pa_a}); chk('поток A: чужой запрос → 404',s==404,s)
+# К-01 второй порядок: клиент подтверждает первым
+s,d=c1.r('POST',f'/api/client/leads/{_lw1}/select-option',{'optionId':_pa_b}); chk('BL-1: клиент согласовал вариант в кабинете',s==200,(s,d))
+s,d=c1.r('POST',f'/api/client/leads/{_lw1}/select-option',{'optionId':_pa_b}); chk('К-10: повторное согласование → 409',s==409,s)
+s,d=c1.r('GET',f'/api/client/leads/{_lw1}'); _cl=(d.get('lead') or {})
+chk('BL-7: метаданные «клиентом в кабинете» + активный снимок',_cl.get('clientConfirmedVia')=='client_portal' and bool(_cl.get('approvalSnapshot')),(_cl.get('clientConfirmedVia'),bool(_cl.get('approvalSnapshot'))))
+s2n=_cl.get('approvalSnapshot') or {}
+chk('BL-7: снимок несёт зафиксированные условия (без себестоимости)',s2n.get('description')=='PA море' and 'costEstimate' not in s2n,s2n)
+# К-03: вариантные операции при активном согласовании → 409
+s,d=a.r('POST',f'/api/admin/leads/{_lw1}/options',{'description':'PA поздний','price':1000,'etaDays':1,'priorityFit':'cost'}); chk('К-03: POST варианта при согласовании → 409',s==409,s)
+s,d=a.r('PATCH',f'/api/admin/options/{_pa_a}',{'price':5}); chk('К-03: PATCH варианта при согласовании → 409',s==409,s)
+s,d=a.r('DELETE',f'/api/admin/options/{_pa_a}'); chk('К-03: DELETE варианта при согласовании → 409',s==409,s)
+# BL-3: сброс («Изменить условия») → calculated; снимки остаются
+s,d=a.r('POST',f'/api/admin/leads/{_lw1}/reset-confirmation'); chk('BL-3: сброс согласования → 200',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{_lw1}'); L1=d.get('lead',d)
+chk('BL-3: статус рассчитан, метаданные очищены',L1.get('status')=='calculated' and L1.get('clientConfirmedVia') is None,(L1.get('status'),L1.get('clientConfirmedVia')))
+s,d=c1.r('GET',f'/api/client/leads/{_lw1}'); chk('BL-7: активный снимок скрыт после сброса',(d.get('lead') or {}).get('approvalSnapshot') is None,(d.get('lead') or {}).get('approvalSnapshot'))
+# после сброса вариантные операции проходят; снимки не меняются
+s,d=a.r('PATCH',f'/api/admin/options/{_pa_b}',{'price':185000,'costEstimate':120000}); chk('К-05: после сброса PATCH варианта (цена+себестоимость) → 200',s==200,(s,d))
+# К-05: повторное согласование — новый снимок
+s,d=c1.r('POST',f'/api/client/leads/{_lw1}/select-option',{'optionId':_pa_b}); chk('К-05: повторное согласование → 200',s==200,(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{_lw1}/convert',{'legalEntityId':leid}); chk('К-01: конвертация после согласования → 201',s in(200,201),(s,d)); _oid_w1=(d.get('order') or d)['id']
+s,d=a.r('GET',f'/api/admin/orders/{_oid_w1}'); _ow1=(d.get('order') or d)
+chk('BL-5: заявка in_progress',_ow1.get('status')=='in_progress',_ow1.get('status'))
+_qs=_ow1.get('quoteSnapshot') or {}
+chk('BL-5: клиентские поля снимка — из снимка согласования (185000)',_qs.get('price')==185000,_qs)
+chk('BL-5: себестоимость — из варианта на момент конвертации (120000)',_qs.get('costEstimate')==120000,_qs)
+s,d=a.r('POST',f'/api/admin/leads/{_lw1}/convert',{'legalEntityId':leid}); chk('К-07: двойная конвертация → 409',s==409,s)
+# К-04/К-09: отказ после согласования — на свежем лиде
+s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'Поток A отказ '+u,'phone':ph(base+73)},'route':{'weightKg':100}}); _lw3=(d.get('lead') or d)['id']
+s,d=a.r('POST',f'/api/admin/leads/{_lw3}/options',{'description':'PA отказ','price':50000,'etaDays':9,'priorityFit':'safety','isSelected':True})
+a.r('POST',f'/api/admin/leads/{_lw3}/confirm',{})
+s,d=a.r('PATCH',f'/api/admin/leads/{_lw3}',{'status':'lost','lostReason':'Клиент передумал'}); chk('К-04: отказ из client_approved → 200',s==200,(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{_lw3}/reset-confirmation'); chk('К-09: сброс согласования у отказанного → 409',s==409,s)
+s,d=a.r('POST',f'/api/admin/leads/{_lw3}/convert',{'legalEntityId':leid}); chk('К-09: конвертация отказанного → 409',s==409,s)
+# BL-7: архив клиента — won/lost ушли из активных
+s,d=c1.r('GET','/api/client/leads'); _act=[x for x in (d.get('leads') or []) if x.get('id') in (_lw1,)]
+s,d=c1.r('GET','/api/client/leads?archived=1'); _arch=[x for x in (d.get('leads') or []) if x.get('id')==_lw1]
+chk('BL-7: сконвертированный запрос ушёл в архив клиента',len(_act)==0 and len(_arch)==1,(_act,_arch))
+
+# === Поток A волна 2 (DF-25): AUD-03 + BL-8/BL-9 + AUD-08 ===
+# BL-8: контрактное сужение — PATCH доступа больше не принимает phone
+s,d=a.r('PATCH',f'/api/admin/customers/{cust}/access',{'userId':uid2,'phone':ph(base+21)}); chk('BL-8: PATCH доступа с phone → 400 с подсказкой',s==400 and 'Изменить телефон' in (d.get('error') or ''),(s,d))
+# BL-8 шаг 1: заявка на смену телефона — код в ответе (ручной режим)
+_new2=ph(base+22)
+s,d=a.r('POST',f'/api/admin/customers/{cust}/access/phone-change',{'userId':uid2,'newPhone':_new2}); chk('BL-8: код выдан (manual_by_manager, 6 цифр)',s==200 and d.get('delivery')=='manual_by_manager' and (d.get('code') or '').isdigit() and len(d.get('code'))==6,(s,d))
+_code2=d.get('code','')
+# pending-заявка видна в списке людей (без хеша), текущий телефон не тронут
+s,d=a.r('GET',f'/api/admin/customers/{cust}/access'); _u2=[x for x in d.get('users',[]) if x.get('id')==uid2][0]
+chk('BL-8: pending-состояние в списке (номер+срок, без хеша)',_u2.get('pendingPhone')==_new2 and bool(_u2.get('phoneCodeExpiresAt')) and 'phoneCodeHash' not in _u2,(_u2.get('pendingPhone'),_u2.get('phoneCodeExpiresAt')))
+chk('BL-8: старый телефон работает до подтверждения',_u2.get('phone')==u2ph,_u2.get('phone'))
+# BL-8 шаг 2: неверный код → 400, телефон не меняется
+s,d=a.r('POST',f'/api/admin/customers/{cust}/access/phone-confirm',{'userId':uid2,'code':'000000'}); chk('BL-8: неверный код → 400',s==400,(s,d))
+s,d=a.r('GET',f'/api/admin/customers/{cust}/access'); chk('BL-8: после неверного кода телефон прежний',_u2['phone']==[x for x in d.get('users',[]) if x.get('id')==uid2][0].get('phone'),[x for x in d.get('users',[]) if x.get('id')==uid2][0].get('phone'))
+# BL-8 шаг 2: верный код → 200, телефон сменён
+s,d=a.r('POST',f'/api/admin/customers/{cust}/access/phone-confirm',{'userId':uid2,'code':_code2}); chk('BL-8: верный код → телефон изменён',s==200 and d.get('phone')==_new2,(s,d))
+# повтор того же кода → 400 (одноразовость)
+s,d=a.r('POST',f'/api/admin/customers/{cust}/access/phone-confirm',{'userId':uid2,'code':_code2}); chk('BL-8: повтор того же кода → 400 (одноразовость)',s==400,s)
+# вход по новому номеру работает (сессии не гаснут: смена логина ≠ компрометация)
+cu2b=C(); s,d=cu2b.r('POST','/api/auth/client/login',{'phone':_new2,'password':'client-pass-3x'}); chk('BL-8: вход по новому номеру (пароль сохранён)',s==200,(s,d))
+s,d=cu2b.r('GET',f'/api/client/orders/{oid}'); chk('BL-8: сессия по новому номеру видит заявку',s==200,s)
+# AUD-03: выдача доступа с занятым номером → 409 (cross-компания)
+s,d=a.r('POST',f'/api/admin/customers/{custB}/access',{'name':'AUD03 дубль '+u,'phone':_new2}); chk('AUD-03: выдача доступа с занятым глобально номером → 409',s==409,(s,d))
+# BL-9: перепривязка — на втором пользователе (uid2, не primary)
+s,d=a.r('POST',f'/api/admin/customers/{cust}/access/rebind',{'userId':uid2,'targetCustomerId':cust}); chk('BL-9: перепривязка в ту же компанию → 409',s==409,s)
+s,d=a.r('POST',f'/api/admin/customers/{cust}/access/rebind',{'userId':uid2,'targetCustomerId':'nonexistent-company'}); chk('BL-9: несуществующая целевая → 404',s==404,s)
+# сессия uid2b жива до перепривязки
+s,d=cu2b.r('GET','/api/client/orders'); chk('BL-9: сессия жива до перепривязки',s==200,s)
+s,d=a.r('POST',f'/api/admin/customers/{cust}/access/rebind',{'userId':uid2,'targetCustomerId':custB}); chk('BL-9: перепривязка в компанию B → 200',s==200 and d.get('customerId')==custB,(s,d))
+s,d=cu2b.r('GET','/api/client/orders'); chk('BL-9: сессии гаснут немедленно (старые вкладки умирают)',s==401,s)
+cu2c=C(); s,d=cu2c.r('POST','/api/auth/client/login',{'phone':_new2,'password':'client-pass-3x'}); chk('BL-9: повторный вход по тому же логину работает',s==200,(s,d))
+# видимость строго новой компании: заявка A — 404 у перепривязанного
+s,d=cu2c.r('GET',f'/api/client/orders/{oid}'); chk('BL-9: заявка прежней компании — 404 (доступ не передаётся)',s==404,s)
+# в компании B пользователь в списке доступа; в компании A его больше нет
+s,d=a.r('GET',f'/api/admin/customers/{custB}/access'); chk('BL-9: пользователь в списке компании B',any(x.get('id')==uid2 for x in d.get('users',[])),[x.get('id') for x in d.get('users',[])])
+s,d=a.r('GET',f'/api/admin/customers/{cust}/access'); chk('BL-9: из компании A пользователь исчез',not any(x.get('id')==uid2 for x in d.get('users',[])),[x.get('id') for x in d.get('users',[])])
+# событие перепривязки в журнале (глобальное, staff)
+s,d=a.r('GET','/api/admin/activity?take=50'); _acts=d.get('activities') or d.get('activity') or []
+chk('BL-9: событие customer_user_rebound в журнале',any(x.get('type')=='customer_user_rebound' for x in _acts),[x.get('type') for x in _acts[:10]])
+# BL-9: primary не перепривязывается
+s,d=a.r('GET',f'/api/admin/customers/{cust}/access'); _prim2=[x for x in d.get('users',[]) if x.get('isPrimary')]
+if _prim2:
+    s,d=a.r('POST',f'/api/admin/customers/{cust}/access/rebind',{'userId':_prim2[0]['id'],'targetCustomerId':custB}); chk('BL-9: primary не перепривязывается → 409',s==409,(s,d))
 
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)

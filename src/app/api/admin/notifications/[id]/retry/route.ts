@@ -8,9 +8,11 @@ import { scheduleDispatch } from '@/lib/notifications/dispatch'
 // Карточка DF-04: «кнопка "Повторить" для failed/skipped», e2e:
 // «повтор переводит в pending». Только мастер (как и весь журнал —
 // очередь писем содержит переписку со всеми сторонами сделки).
+// AUD-05 (поток A волна 2): sending тоже повторяем — ручной возврат
+// зависшей аренды в очередь.
 //
 // Семантика — в lib/notifications/retry.ts (интеграционные тесты там):
-// failed/skipped → pending с чистым attempts; pending/sent → 409
+// failed/skipped/sending → pending с чистым attempts; pending/sent → 409
 // (повтор бессмысленен/опасен дублем); неизвестный id → 404.
 //
 // После постановки в pending — scheduleDispatch(): немедленная попытка
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         return NextResponse.json({ error: 'Письмо не найдено' }, { status: 404 })
       }
       return NextResponse.json(
-        { error: 'Повторить можно только письмо в статусе failed или skipped' },
+        { error: 'Повторить можно только письмо в статусе failed, skipped или sending (зависшее)' },
         { status: 409 }
       )
     }

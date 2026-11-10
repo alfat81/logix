@@ -110,5 +110,37 @@
   },
   {
     "key": "types:src/lib/orders.ts|StageViewRow"
+  },
+  {
+    "key": "exports:src/lib/permit-checks-db.ts|checkResultLabel",
+    "note": "DF-26 волна 2 — вне объёма волны 2 потока A; закрытие — гейт 2 DF-26, D61"
+  },
+  {
+    "key": "exports:src/lib/permits-db.ts|carryPermitChecksToOrder",
+    "note": "DF-26 волна 2 — вне объёма волны 2 потока A; закрытие — гейт 2 DF-26, D61"
+  },
+  {
+    "key": "exports:src/lib/permits.ts|PERMIT_BINDING_STATE_LABELS",
+    "note": "DF-26 волна 2 — вне объёма волны 2 потока A; закрытие — гейт 2 DF-26, D61"
+  },
+  {
+    "key": "types:src/lib/permit-checks.ts|ManualCheckResult",
+    "note": "DF-26 волна 2 — вне объёма волны 2 потока A; закрытие — гейт 2 DF-26, D61"
+  },
+  {
+    "key": "types:src/lib/permit-checks.ts|PermitCheckDecision",
+    "note": "DF-26 волна 2 — вне объёма волны 2 потока A; закрытие — гейт 2 DF-26, D61"
+  },
+  {
+    "key": "types:src/lib/permit-checks.ts|PermitCheckRequirementDraft",
+    "note": "DF-26 волна 2 — вне объёма волны 2 потока A; закрытие — гейт 2 DF-26, D61"
+  },
+  {
+    "key": "types:src/lib/permit-checks.ts|PermitCheckReviewStatus",
+    "note": "DF-26 волна 2 — вне объёма волны 2 потока A; закрытие — гейт 2 DF-26, D61"
+  },
+  {
+    "key": "types:src/lib/permit-checks.ts|PermitCheckSource",
+    "note": "DF-26 волна 2 — вне объёма волны 2 потока A; закрытие — гейт 2 DF-26, D61"
   }
 ]

@@ -16,27 +16,51 @@ import { currencyCodeSchema } from '@/lib/ref'
 // (конвертация, инварианты вариантов) — в роутах и lib/orders.ts.
 
 // Статус лида (роадмап, разделы 2 и 8.1): верхнеуровневый статус воронки
-// менеджер переводит вручную. Исключение — «won»: он терминальный и
-// проставляется ТОЛЬКО конвертацией в заявку (В4), API В2 его отвергает.
-// Побочный автомат один и осознанный (В3): первый добавленный вариант
-// расчёта переводит new → calculated — статус буквально означает
-// «посчитан»; удаление вариантов статус НЕ откатывает (симметрия с 8.1:
-// статус меняет человек, не триггер).
-export const LEAD_STATUSES = ['new', 'calculated', 'won', 'lost'] as const
+// менеджер переводит вручную. Исключения (поток A волна 1, BL):
+// «won» — терминальный, проставляется ТОЛЬКО конвертацией в заявку (В4);
+// «client_approved» — ставится ТОЛЬКО confirm-API (select-option /
+// confirm): согласие клиента на условия — фиксируемый факт, ручной
+// PATCH его не принимает (симметрия с won). Побочный автомат один и
+// осознанный (В3): первый добавленный вариант расчёта переводит
+// new → calculated — статус буквально означает «посчитан»; удаление
+// вариантов статус НЕ откатывает (симметрия с 8.1: статус меняет
+// человек, не триггер).
+export const LEAD_STATUSES = [
+  'new',
+  'calculated',
+  'client_approved',
+  'won',
+  'lost',
+] as const
 export type LeadStatus = (typeof LEAD_STATUSES)[number]
 
 export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
   new: 'Новый',
   calculated: 'Рассчитан',
+  client_approved: 'Согласован клиентом',
   won: 'Выигран',
   lost: 'Отказ',
 }
 
 // v0.3.1 (BRANDBOOK §4.1): счётчик навигации у «Лидов» — активные,
 // т.е. ещё не вышедшие из воронки: won уезжает в заявку, lost закрыт.
+// Поток A: client_approved — тоже активный (ожидает конвертации).
 // Группа едина с ORDER_ACTIVE_STATUSES (lib/order-constants) по духу:
 // одно место знания о том, что считается «активным».
-export const LEAD_ACTIVE_STATUSES: readonly LeadStatus[] = ['new', 'calculated']
+export const LEAD_ACTIVE_STATUSES: readonly LeadStatus[] = [
+  'new',
+  'calculated',
+  'client_approved',
+]
+
+// Способ фиксации согласия (BL-2): в кабинете клиентом или менеджером
+// от имени клиента — метаданные на лиде и в снимке согласования.
+export const LEAD_CONFIRM_VIA = ['client_portal', 'manager_on_behalf'] as const
+export type LeadConfirmVia = (typeof LEAD_CONFIRM_VIA)[number]
+export const LEAD_CONFIRM_VIA_LABELS: Record<LeadConfirmVia, string> = {
+  client_portal: 'клиентом в кабинете',
+  manager_on_behalf: 'менеджером от имени клиента',
+}
 
 // Источник лида (И1): 'manual' — создан менеджером (В2, дефолт схемы),
 // 'cabinet' — запрос из клиентского кабинета. Поле читают список и

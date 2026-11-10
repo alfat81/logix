@@ -471,6 +471,26 @@ model Lead {
   // конвертации НЕ переносятся — лид остаётся источником истории,
   // заявка считает свои расчёты с фрахтом от выбранного варианта)
   customsCalculations CustomsCalculation[]
+  // Поток A волна 1 (BL): история согласований расчёта клиентом.
+  // Активный снимок = чьи confirmedAt-метаданные совпадают с полями
+  // лида ниже; остальные — история (сброшенные/предшествующие),
+  // не удаляются и не правятся никогда. Себестоимость в снимок
+  // не входит по определению — см. модель.
+  approvalSnapshots   LeadApprovalSnapshot[]
+
+  // ─── Поток A волна 1 (BL-3): активное согласование расчёта ──────
+  // Заполняет ТОЛЬКО confirm-API (select-option / confirm), не ручной
+  // PATCH: статус client_approved — как won, ставится выделенным
+  // действием. selectedOptionId — дубль-гард к isSelected на варианте.
+  selectedOptionId     String?
+  clientConfirmedAt    DateTime?
+  // client_portal (клиент в кабинете) | manager_on_behalf (менеджер)
+  clientConfirmedVia   String?
+  // id подтвердившего (CustomerUser или Employee) — без FK:
+  // деактивация пользователя не должна «стирать» исторический факт
+  // (паттерн finalizedByName из DF-12)
+  clientConfirmedById   String?
+  clientConfirmedByName String?
 
   @@index([status])
   @@index([customerId])
@@ -508,6 +528,43 @@ model QuoteOption {
   priorityFit    String
   isSelected     Boolean  @default(false)
   createdAt      DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+}
+
+// ─── Поток A волна 1 (BL): исторический снимок согласования ───────
+// Создаётся в той же транзакции, что подтверждение (select-option /
+// confirm): копия ВСЕХ коммерческих полей варианта на момент блокировки
+// строки лида. Уровень 2 защиты условий (план ред. 3 §2.5): правки или
+// удаление исходного QuoteOption (после сброса согласования, после
+// отказа) НЕ меняют зафиксированные условия — повторное согласование
+// создаёт НОВЫЙ снимок, старые остаются историей навсегда.
+// Себестоимость в снимок НЕ входит: она существует исключительно во
+// внутренней части заявки (quoteSnapshot на конвертации) — снимок
+// согласования по определению клиентская сторона сделки.
+// Ссылка на вариант БЕЗ FK (паттерн actorId): удаление варианта не
+// каскадит и не портит историю согласования.
+model LeadApprovalSnapshot {
+  id              String   @id @default(cuid())
+  leadId          String
+  optionId        String
+  optionCreatedAt DateTime
+  // Копия коммерческих полей QuoteOption на момент подтверждения
+  description     String
+  transportModes  Json?
+  price           Decimal  @db.Decimal(14, 2)
+  currency        String
+  vatMode         VatMode  @default(WITHOUT_VAT)
+  etaDays         Int
+  priorityFit     String
+  // Метаданные подтверждения (дубль к полям лида — на каждый факт)
+  confirmedAt     DateTime
+  confirmedVia    String
+  confirmedById   String?
+  confirmedByName String?
+  createdAt       DateTime @default(now())
 
   lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
@@ -641,15 +698,18 @@ model ClientSession {
 // src/lib/password.ts; при выдаче/смене пароля хеш переносится в
 // CustomerUser (lib/company-users.ts), старое поле Customer.password
 // остаётся до contract-релиза (docs/DEPRECATIONS.md).
-// phone — БЕЗ @unique (по образцу Customer.phone): уникальность защищает
-// lib/company-users.ts (409 внутри компании, 409 против пользователей
-// других компаний — второй вход с тем же телефоном не сработал бы), а
-// вход ищет findFirst по самому старому (детерминированность сохранена).
+// phone — @unique ГЛОБАЛЬНО (поток A волна 2, AUD-03 — решение
+// владельца А2, план ред. 3 §5.1): вход ищет пользователя по телефону —
+// дубль делал findFirst недетерминированным; cross-409 в
+// lib/company-users.ts дополнен физическим уникальным индексом
+// CustomerUser_phone_key (миграция bl_phone_ops) + backstop P2002.
+// Postgres допускает любое число NULL в уникальном индексе — контакт
+// без входа (phone null) не ограничен.
 model CustomerUser {
   id          String    @id @default(cuid())
   customerId  String
   name        String
-  phone       String?
+  phone       String?   @unique
   email       String?
   password    String?
   // Основной пользователь компании — перенос старого входа компании
@@ -665,11 +725,22 @@ model CustomerUser {
   createdAt   DateTime  @default(now())
   lastLoginAt DateTime?
 
+  // BL-8 (план ред. 3 §2.6, миграция bl_phone_ops): заявка на смену
+  // телефона, ожидающая подтверждения кодом. Подтверждённый телефон
+  // остаётся в phone — вход работает до и после смены без перерыва;
+  // поля одни на пользователя: повторный запрос кода перезаписывает
+  // старый. phoneCodeHash — ДЕТЕРМИНИРОВАННЫЙ sha256 кода (как коды
+  // восстановления DF-09): солевой scrypt несовместим с WHERE
+  // атомарного одноразового захвата (updateMany по hash+TTL+лимиту).
+  pendingPhone       String?
+  phoneCodeHash      String?
+  phoneCodeExpiresAt DateTime?
+  phoneCodeAttempts  Int       @default(0)
+
   customer Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
   sessions ClientSession[]
 
   @@index([customerId])
-  @@index([phone])
 }
 
 // ─── Дорожка Д: брокеры (роадмап 5а) ────────────────────────────────

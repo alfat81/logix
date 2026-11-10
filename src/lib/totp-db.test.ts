@@ -146,6 +146,29 @@ describe('df-09: второй шаг входа', () => {
     expect(short.ok).toBe(false)
   })
 
+  it('AUD-04: два параллельных второго шага с ОДНИМ кодом → ровно один ok, одна сессия', async () => {
+    // Заново включаем (replay-тест выше мог поглотить шаг) и берём код
+    // ТЕКУЩЕГО шага: раньше оба параллельных запроса проходили
+    // (безусловный update) — аудит 6.6: два 200 и две сессии.
+    const secret = generateTotpSecret()
+    await enableTotp({ id: empId, name: 'DF09 тест', roles: ['manager'] }, secret, currentCode(secret))
+    const row = await db.employee.findUnique({ where: { id: empId } })
+    const dec = decryptTotpSecret(row!.totpSecret!, empId)
+
+    const code = currentCode(dec)
+    const [a, b] = await Promise.all([
+      verifyTotpSecondStep(empId, code),
+      verifyTotpSecondStep(empId, code),
+    ])
+    const winners = [a, b].filter((r) => r.ok)
+    expect(winners).toHaveLength(1)
+    // Захват шага оставил totpLastStep = step победителя; проигравший
+    // не перезаписал шаг (иначе повтор кода стал бы возможен)
+    const after = await db.employee.findUniqueOrThrow({ where: { id: empId } })
+    expect(after.totpLastStep).not.toBeNull()
+    if (winners[0].ok) expect(after.totpLastStep).toBe(winners[0].step)
+  })
+
   it('выключение стирает секрет и коды, пишет событие totp_disabled', async () => {
     await disableTotp({ id: empId, name: 'DF09 тест', roles: ['manager'] })
     const row = await db.employee.findUnique({ where: { id: empId } })

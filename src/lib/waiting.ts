@@ -57,6 +57,9 @@ export const WAITING_REASONS = [
   'awaiting_proforma',
   'no_quote',
   'awaiting_client_choice',
+  // Поток A (BL/DF-05): согласование активно — мяч у менеджера
+  // («Согласован клиентом — создайте заявку», план ред. 3 §2.3)
+  'client_approved',
   // DF-16: есть незакрытая строка разрешительного документа (pending) —
   // мяч у того, кто должен предоставить (providedBy: client|broker →
   // клиент/брокер, staff → менеджер).
@@ -80,6 +83,7 @@ export const WAITING_REASON_LABELS: Record<WaitingReason, string> = {
   awaiting_proforma: 'Ждём проформу/описание товара',
   no_quote: 'Вариант расчёта не готов',
   awaiting_client_choice: 'Ждём выбор варианта расчёта',
+  client_approved: 'Согласован клиентом — создайте заявку',
   awaiting_permit: 'Ждём разрешительный документ',
   awaiting_document: 'Ждём обязательный документ этапа',
 }
@@ -320,6 +324,13 @@ export function computeWaitingOrder(
 export function computeWaitingLead(snap: WaitingLeadSnapshot): WaitingOutcome {
   // won/lost — терминальные (won ставит только конвертация В4).
   if (snap.status === 'won' || snap.status === 'lost') return WAITING_NONE
+  // 0. Поток A (BL/DF-05): согласование активно — мяч у ответственного
+  //    менеджера: клиент своё слово сказал, следующий шаг — конвертация.
+  //    Правило стоит ПЕРЕД прочими: после согласования ожидания
+  //    «проформы/оценки брокера» уже не определяют мяч.
+  if (snap.status === 'client_approved') {
+    return { kind: 'manager', reason: 'client_approved', onId: null }
+  }
   // 1. Ни проформы-инвойса (Document.type='invoice'), ни описания
   //    товара (cargoInfo.cargoName) — ждём материалы от клиента.
   if (!snap.cargoName && !snap.hasInvoiceDoc) {

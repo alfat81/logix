@@ -1,0 +1,42 @@
+{
+  "task": "0.9.1 — поток A волна 2 (DF-25): AUD-03 + BL-8/BL-9 + AUD-04/05/08/12 (основание: команда владельца 08.11.2026 «волна один принята, давай вторую волну и по правилами выдавай архив для деплоя и инструкции» — D67; исполнение и передача пакета — D68). Миграция 20261108120000_bl_phone_ops — additive (уникальный индекс CustomerUser_phone_key — AUD-03, глобальная уникальность телефона пользователя компании по решению владельца А2: вход по findFirst становится детерминированным; +pendingPhone/phoneCodeHash/phoneCodeExpiresAt/phoneCodeAttempts для BL-8; обязательная предпроверка дублей scripts/precheck_phone_dupes.sql перед применением). BL-8: startPhoneChange/confirmPhoneChange в company-users.ts (код 6 цифр, детерминированный sha256 в БД, TTL 15 мин, лимит 5 попыток, атомарный одноразовый захват паттерном AUD-04; ручной режим доставки manual_by_manager до шлюза P2-01, код в ответе API + DEPLOY.md §4.4; события customer_user_phone_changed), роуты phone-change/phone-confirm, контрактное сужение PATCH доступа (phone → 400 с подсказкой), UI CustomerPhoneChangeDialog + pending-состояние. BL-9: rebindCustomerUser (не-primary, целевая активна, блокировка строки → перепроверка → смена customerId → гашение всех clientSession → событие customer_user_rebound), роут rebind, UI CustomerRebindDialog. AUD-04: атомарный захват шага TOTP (updateMany WHERE totpLastStep < step OR null, count===1 — два параллельных входа с одним кодом дают одну сессию). AUD-05: диспетчер уведомлений — лиз-захват pending→sending (аренда 15 мин) до сетевой отправки, итоговые записи условно от sending (зомби-итог отбрасывается), автовосстановление зависших в начале пачки (≤15 мин → pending attempts+1 stuck_sending_recovered; attempts≥4 → failed stuck_sending), retry расширен на sending, комментарий шапки приведён к реализации. AUD-08: password обязателен в EnableSchema TOTP (verifyPassword, симметрия с DELETE), поле в ProfileTotpSection. AUD-12: StageRequirementsDialog 290 ≤300 строк, INVENTORY регенерирована. Слияние журналов: DECISIONS единая линия D29–D68 (записи владельца D62 гейт 2 DF-26 / D63 пакет v0.9.0 сохранены; D64 CI-фикс+production deployment восстановлен из подготовленного DOCS-SYNC патча — пакет поглощён, применять не нужно; локальные записи песочницы перенумерованы D65 домен / D66 возобновление / D67 приёмка волны 1 / D68 волна 2), ROADMAP-DEALFLOW 1.23, ROADMAP.md статус v0.9.1, CHANGELOG 0.9.1. Охрана: vitest 629/629 (43 файла, +66: customer-user-ops, dispatch-lease, totp-db), e2e 744 PASS / 3 FAIL (блок волны 22/22; все 3 вне объёма и детерминированы: DF-01 лента, DF-16 письмо, DF-26 w2 брокер-проверки), tsc 0, ESLint 0 ошибок, build OK (GvbPIY4ZbwA7KtpqChU9V), integrity 0/0 (no-event комментарии трёх роутов, baseline +39 IC-14 пар −11 устаревших, +1 историческая IC-08 ссылки v0.9.0-комплекта), knip 45=45 (+8 находок DF-26 волны 2 — вне объёма потока A, закрытие — её гейт 2). Гигиена для клона владельца: удалить 3 файла линии v0.9.0 (api-request.ts, gate2_final.sh, ic14_window.py) — шаг 3 инструкции.",
+  "areas": [
+    "миграция: prisma/migrations/20261108120000_bl_phone_ops/migration.sql (DROP CustomerUser_phone_idx, ADD 4 колонки, CREATE UNIQUE INDEX CustomerUser_phone_key), prisma/schema.prisma (CustomerUser.phone @unique + 4 поля, BrokerUser/Broker комментарии AUD-03)",
+    "ядро доступа: src/lib/company-users.ts (+347: startPhoneChange, confirmPhoneChange с атомарным захватом и P2002-гардом К-12, rebindCustomerUser с блокировкой строки и гашением сессий, generatePhoneCode/hashPhoneCode, исправленная шапка про глобальную уникальность)",
+    "роуты: src/app/api/admin/customers/[id]/access/phone-change/route.ts (новый), phone-confirm/route.ts (новый), rebind/route.ts (новый), access/route.ts (PATCH без phone — 400 с подсказкой), src/app/api/admin/profile/totp/route.ts (password в POST, verifyPassword), src/app/api/admin/notifications/[id]/retry/route.ts (sending retryable)",
+    "TOTP: src/lib/totp-db.ts (атомарный захват шага AUD-04, комментарии RFC 6238 §5.2), src/lib/totp-db.test.ts (гонка шага)",
+    "диспетчер: src/lib/notifications/dispatch.ts (лиз LEASE_MINUTES=15, STUCK_FAILED_ATTEMPTS=4, восстановление stuck_sending/stuck_sending_recovered, условные записи от sending, шапка = реализации), retry.ts (sending), dispatch-lease.test.ts (3 параллельных диспетчера, лиз, recovery, retry)",
+    "события: src/lib/event-registry.ts (customer_user_phone_changed, customer_user_rebound), src/lib/activity.ts (актёры операций доступа)",
+    "UI: src/components/admin/CustomerPhoneChangeDialog.tsx (новый), CustomerRebindDialog.tsx (новый), CustomerCabinetAccess.tsx (+61: кнопки операций, pending-состояние), CustomerUserDialog.tsx (контракт без phone), NotificationsJournal.tsx (sending-бейдж), src/components/admin/profile/ProfileTotpSection.tsx (обязательное поле пароля)",
+    "охрана: src/lib/customer-user-ops.test.ts (новый, 405 строк: 8 параллельных выдач, смена/перепривязка, P2002, гард primary), scripts/e2e_api_test.py (блок волны 22 проверки: сужение PATCH, код manual_by_manager, неверный/повторный код, вход по новому номеру, занятый номер 409, перепривязка 409/404/сессии/видимость, AUD-08 без/неверный/верный пароль)",
+    "предпроверка: scripts/precheck_phone_dupes.sql (дубли CustomerUser.phone + контроль pending — NEON SQL Editor, шаг 7 инструкции)",
+    "доки: DEPLOY.md §4.4 (ручной режим доставки кода), docs/INVENTORY.md (регенерация), docs/ROADMAP-DEALFLOW.md (1.23 — единая линия: 1.18 гейт 2 DF-26, 1.19 пакет v0.9.0, 1.20 CI-фикс+деплой, 1.21 домен, 1.22 возобновление потока A, 1.23 волны 1–2), docs/ROADMAP.md (статус v0.9.1), docs/DECISIONS.md (единая линия D62–D68, записи владельца сохранены, локальные перенумерованы, DOCS-SYNC патч поглощён), docs/archive/worklog.md",
+    "релиз: docs/releases/RELEASE-NOTES-v0.9.1.md, RELEASE-INSTRUCTIONS-v0.9.1.md, SCOPE-v0.9.1.json; возвращён комплект v0.9.0 из origin/main (RELEASE-NOTES/INSTRUCTIONS/SCOPE-v0.9.0 — исторические файлы, отсутствовали в дереве потока A); package.json (0.8.6 → 0.9.1); CHANGELOG.md ([0.9.1]); scripts/integrity-baseline.json (+39 IC-14 пар, −11 устаревших, +1 IC-08), scripts/knip-baseline.json (+8 находок DF-26 w2), scripts/tmp_* утилиты слияния журнала удалены",
+    "контекст песочницы (в архив не входит): .env — локальный PostgreSQL (IC-01)"
+  ],
+  "globs": [
+    "package.json",
+    "CHANGELOG.md",
+    "DEPLOY.md",
+    "prisma/schema.prisma",
+    "prisma/migrations/20261108120000_bl_phone_ops/migration.sql",
+    "scripts/precheck_phone_dupes.sql",
+    "scripts/e2e_api_test.py",
+    "scripts/integrity-baseline.json",
+    "scripts/knip-baseline.json",
+    "src/lib/company-users.ts",
+    "src/lib/totp-db.ts",
+    "src/lib/notifications/dispatch.ts",
+    "src/lib/customer-user-ops.test.ts",
+    "src/lib/notifications/dispatch-lease.test.ts",
+    "src/app/api/admin/customers/[id]/access/phone-change/route.ts",
+    "src/app/api/admin/customers/[id]/access/phone-confirm/route.ts",
+    "src/app/api/admin/customers/[id]/access/rebind/route.ts",
+    "src/components/admin/CustomerPhoneChangeDialog.tsx",
+    "src/components/admin/CustomerRebindDialog.tsx",
+    "docs/releases/RELEASE-NOTES-v0.9.1.md",
+    "docs/releases/RELEASE-INSTRUCTIONS-v0.9.1.md",
+    "docs/ROADMAP-DEALFLOW.md",
+    "docs/DECISIONS.md"
+  ]
+}

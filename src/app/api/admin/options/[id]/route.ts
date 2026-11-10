@@ -7,6 +7,7 @@ import { resolveActiveCurrencies } from '@/lib/ref-db'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { employeeActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
+import { lockLeadForOptions } from '../../leads/[id]/convert/helpers'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -64,9 +65,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
     // «won» — терминальный (В2): правка вариантов после конвертации —
     // правка истории, не через API.
+    // client_approved (поток A, уровень 1 защиты): при активном
+    // согласовании варианты заморожены — 409 с подсказкой.
     if (lead && (lead.status === 'won' || lead.order)) {
       return NextResponse.json(
         { error: 'Запрос конвертирован в заявку — варианты расчёта зафиксированы' },
+        { status: 409 }
+      )
+    }
+    if (lead && lead.status === 'client_approved') {
+      return NextResponse.json(
+        { error: 'Согласование активно — сначала сбросьте его действием «Изменить условия»' },
         { status: 409 }
       )
     }
@@ -74,7 +83,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Интерактивная транзакция (не массивная — урок В3 про позиционность
     // условных spread-элементов): сначала снять отметку с прежнего, затем
     // править сам вариант — «ровно один» держится и внутри транзакции.
-    const option = await db.$transaction(async (tx) => {
+    // AUD-01: первым шагом — блокировка строки лида + ре-чек (гонка
+    // «вариант ↔ конвертация» закрыта).
+    const txResult = await db.$transaction(async (tx) => {
+      const guard = await lockLeadForOptions(tx, existing.leadId)
+      if (!guard.ok) return guard
       if (data.isSelected) {
         await tx.quoteOption.updateMany({
           where: { leadId: existing.leadId, isSelected: true, id: { not: id } },
@@ -134,8 +147,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           description: `Обновлён вариант расчёта: ${data.description ?? existing.description}`,
         })
       }
-      return updated
+      return { option: updated }
     })
+    if (!('option' in txResult)) {
+      return NextResponse.json({ error: txResult.error }, { status: txResult.status })
+    }
+    const option = txResult.option
 
     // Свежий лид с полным составом вариантов — В5-карточке не нужен
     // повторный GET после правки.
@@ -181,19 +198,36 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         { status: 409 }
       )
     }
+    if (lead && lead.status === 'client_approved') {
+      return NextResponse.json(
+        { error: 'Согласование активно — сначала сбросьте его действием «Изменить условия»' },
+        { status: 409 }
+      )
+    }
 
-    await db.quoteOption.delete({ where: { id } })
+    // AUD-01: удаление — та же транзакция с блокировкой строки лида
+    // и ре-чеком, что POST/PATCH (гонка «вариант ↔ конвертация» и гард
+    // согласования едины для всех трёх операций).
+    const txResult = await db.$transaction(async (tx) => {
+      const guard = await lockLeadForOptions(tx, existing.leadId)
+      if (!guard.ok) return guard
+      await tx.quoteOption.delete({ where: { id } })
 
-    // Ж5: удаление варианта — тоже движение по лиду.
-    await db.lead.update({ where: { id: existing.leadId }, data: { updatedAt: new Date() } })
+      // Ж5: удаление варианта — тоже движение по лиду.
+      await tx.lead.update({ where: { id: existing.leadId }, data: { updatedAt: new Date() } })
 
-    // Ж2: журнал — удаление варианта (описание — до удаления).
-    await emitEvent(db, {
-      target: { leadId: existing.leadId },
-      actor: employeeActor(auth.employee),
-      type: 'option_removed',
-      description: `Удалён вариант расчёта: ${existing.description}`,
+      // Ж2: журнал — удаление варианта (описание — до удаления).
+      await emitEvent(tx, {
+        target: { leadId: existing.leadId },
+        actor: employeeActor(auth.employee),
+        type: 'option_removed',
+        description: `Удалён вариант расчёта: ${existing.description}`,
+      })
+      return { ok: true as const }
     })
+    if (!txResult.ok) {
+      return NextResponse.json({ error: txResult.error }, { status: txResult.status })
+    }
 
     const updatedLead = await db.lead.findUnique({
       where: { id: existing.leadId },

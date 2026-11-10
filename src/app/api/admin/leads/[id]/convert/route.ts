@@ -4,18 +4,23 @@ import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import {
   ConvertLeadSchema,
-  RawContactSchema,
   LEAD_STATUS_LABELS,
 } from '@/lib/leads'
 import { createOrderWithStages, findOrCreateCustomer } from '@/lib/orders'
 import { resolveActiveRefs } from '@/lib/ref-db'
 import { carryDocumentsToOrder } from '@/lib/documents'
-import { carryPermitChecksToOrder, carryPermitsToOrder } from '@/lib/permits-db'
-import { normalizePhone } from '@/lib/phone'
+import { carryPermitsToOrder } from '@/lib/permits-db'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { employeeActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
-import { carryBrokersToOrder, loadLeadCard } from './helpers'
+import {
+  buildCargoSnapshot,
+  buildOrderQuoteSnapshot,
+  carryBrokersToOrder,
+  loadLeadCard,
+  parseRawContactForCustomer,
+  resolveSelectedCost,
+} from './helpers'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -78,31 +83,26 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // Повторная конвертация — чистый 409
     if (lead.order) {
-      return NextResponse.json(
-        { error: `Запрос уже конвертирован в заявку №${lead.order.number}` },
-        { status: 409 }
-      )
+      return NextResponse.json({ error: `Запрос уже конвертирован в заявку №${lead.order.number}` }, { status: 409 })
     }
     if (lead.status === 'won') {
-      return NextResponse.json(
-        { error: 'Запрос уже конвертирован в заявку — статус терминальный' },
-        { status: 409 }
-      )
+      return NextResponse.json({ error: 'Запрос уже конвертирован в заявку — статус терминальный' }, { status: 409 })
     }
     if (lead.status === 'lost') {
-      return NextResponse.json(
-        { error: 'Запрос в отказе — сначала верните его в работу (PATCH status), затем конвертируйте' },
-        { status: 409 }
-      )
+      return NextResponse.json({ error: 'Запрос в отказе — сначала верните его в работу (PATCH status), затем конвертируйте' }, { status: 409 })
+    }
+
+    // Поток A волна 1 (BL-4): согласие — предусловие конвертации.
+    // Лид в статусе client_approved ставит ТОЛЬКО confirm-API, поэтому
+    // здесь и в транзакции проверяем именно его (план ред. 3 §4.3 п. 1).
+    if (lead.status !== 'client_approved') {
+      return NextResponse.json({ error: 'Сначала зафиксируйте согласие клиента с вариантом расчёта (в кабинете клиентом или от его имени)' }, { status: 409 })
     }
 
     // Выбранный вариант
     const selected = lead.options.find((o) => o.isSelected)
     if (!selected) {
-      return NextResponse.json(
-        { error: 'Выберите вариант расчёта (isSelected) — конвертировать без него нельзя' },
-        { status: 409 }
-      )
+      return NextResponse.json({ error: 'Выберите вариант расчёта (isSelected) — конвертировать без него нельзя' }, { status: 409 })
     }
 
     // Проверка юрлица
@@ -114,34 +114,24 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Юрлицо не найдено' }, { status: 404 })
     }
 
-    // Снимок выбранного расчёта для заявки
-    const quoteSnapshot: Prisma.InputJsonObject = {
-      description: selected.description,
-      price: selected.price.toNumber(),
-      currency: selected.currency,
-      vatMode: selected.vatMode,
-      etaDays: selected.etaDays,
-      priorityFit: selected.priorityFit,
-      ...(Array.isArray(selected.transportModes)
-        ? { transportModes: selected.transportModes.filter((m) => typeof m === 'string') }
-        : {}),
-    }
+    // Клиентская часть снимка заявки строится ВНУТРИ транзакции из
+    // активного снимка согласования (BL-5, buildOrderQuoteSnapshot в
+    // helpers.ts); здесь — себестоимость варианта на момент конвертации.
+    const selectedCost = resolveSelectedCost(selected)
 
     // Контакты для заведения клиента при отсутствии customerId
-    let rawPhone: string | null = null
-    let rawName = ''
-    let rawEmail: string | null = null
-    if (!lead.customerId) {
-      const raw = RawContactSchema.safeParse(lead.rawContact)
-      if (!raw.success) {
-        return NextResponse.json(
-          { error: 'Анкета запроса (rawContact) некорректна — нет контактов для заведения клиента' },
-          { status: 400 }
-        )
-      }
-      rawName = raw.data.name
-      rawPhone = raw.data.phone ? (normalizePhone(raw.data.phone) ?? raw.data.phone.trim()) : null
-      rawEmail = raw.data.email ?? null
+    // (parseRawContactForCustomer, helpers.ts)
+    const rawContact = lead.customerId
+      ? null
+      : parseRawContactForCustomer(lead.rawContact)
+    // null = у лида есть customerId (контакты не нужны); 'invalid' = анкета
+    // без корректных контактов (400). У лидов с customerId и клиента-суммы
+    // rawContact оставался пустым — это легитимное состояние (DF-05 e2e).
+    if (rawContact === 'invalid') {
+      return NextResponse.json(
+        { error: 'Анкета запроса (rawContact) некорректна — нет контактов для заведения клиента' },
+        { status: 400 }
+      )
     }
 
     // ── Единая интерактивная транзакция DF-00 ─────────────────────────────
@@ -160,11 +150,39 @@ export async function POST(req: NextRequest, { params }: Params) {
             status: 409,
           }
         }
+        // Поток A волна 1 (BL-4): повторная проверка под блокировкой —
+        // гонка К-01/К-06: конвертация и сброс согласования не пересекаются.
+        if (locked.status !== 'client_approved') {
+          return {
+            error: 'Сначала зафиксируйте согласие клиента с вариантом расчёта (в кабинете клиентом или от его имени)',
+            status: 409,
+          }
+        }
+        // Поток A волна 1 (BL-5 п. 3): клиентская часть снимка заявки —
+        // из АКТИВНОГО снимка согласования (ровно то, с чем согласился
+        // клиент); защита по построению, а не по надежде на гард.
+        // Активный снимок = чей confirmedAt совпадает с метаданными
+        // согласования на лиде (план ред. 3 §2.5 п. 2). Не нашли —
+        // инвариант нарушен: 409 с внятной формулировкой.
+        const approvalSnapshot = await tx.leadApprovalSnapshot.findFirst({
+          where: { leadId: id, confirmedAt: locked.clientConfirmedAt ?? undefined },
+          orderBy: { createdAt: 'desc' },
+        })
+        if (!approvalSnapshot) {
+          return {
+            error: 'Активный снимок согласования не найден — техническая ошибка фиксации согласования; сбросьте согласование («Изменить условия») и зафиксируйте заново',
+            status: 409,
+          }
+        }
 
         // 1. Клиент: find-or-create под блокировкой
         const customer = locked.customerId
           ? await findOrCreateCustomer({ customerId: locked.customerId }, tx)
-          : await findOrCreateCustomer({ name: rawName, phone: rawPhone, email: rawEmail }, tx)
+          : await findOrCreateCustomer(
+              // rawContact не null: ветка выполняется только при отсутствии customerId
+              { name: rawContact!.name, phone: rawContact!.phone, email: rawContact!.email },
+              tx
+            )
         if ('error' in customer) return customer
 
         if (locked.customerId !== customer.id) {
@@ -172,25 +190,11 @@ export async function POST(req: NextRequest, { params }: Params) {
         }
 
         // 2. Создание заявки с этапами (внутри блокируется строка Contract)
-        // DF-23 (в): ТН ВЭД — одна точка правки: бланк анкеты (cargoInfo
-        // с заблокированной строки) — источник правды, колонка hsCode
-        // следует за ним. Код в теле (диалог, предзаполнен бланком) — это
-        // правка кода В снимке бланка заявки; пусто в теле → колонка из
-        // бланка (прямой API-вызов молча не теряет код анкеты), явный
-        // null → код снимается с бланка заявки.
+        // DF-23 (в): ТН ВЭД — одна точка правки, бланк анкеты — источник
+        // правды (buildCargoSnapshot, helpers.ts; пусто в теле → колонка
+        // из бланка, явный null → код снимается с бланка заявки).
         const leadBlank = (locked.cargoInfo as Prisma.InputJsonObject | null) ?? null
-        const blankHs = (() => {
-          const v = (leadBlank as Record<string, unknown> | null)?.hsCode
-          return typeof v === 'string' && v.trim() ? v.trim() : null
-        })()
-        const effectiveHsCode = hsCode !== undefined ? (hsCode || null) : blankHs
-        const cargoSnapshot: Prisma.InputJsonObject | undefined = leadBlank
-          ? hsCode !== undefined
-            ? { ...leadBlank, hsCode: effectiveHsCode }
-            : leadBlank
-          : effectiveHsCode
-            ? { v: 1, hsCode: effectiveHsCode }
-            : undefined
+        const { effectiveHsCode, cargoSnapshot } = buildCargoSnapshot(leadBlank, hsCode)
 
         const orderRes = await createOrderWithStages(
           {
@@ -220,7 +224,13 @@ export async function POST(req: NextRequest, { params }: Params) {
               originCountryCode: locked.originCountryCode,
               destinationCountryCode: locked.destinationCountryCode,
             },
-            quoteSnapshot,
+            // Поток A волна 1 (BL-5): клиентские поля снимка — из
+            // активного снимка согласования; себестоимость — из варианта
+            // (buildOrderQuoteSnapshot, helpers.ts)
+            quoteSnapshot: buildOrderQuoteSnapshot(approvalSnapshot, selectedCost),
+            // Поток A волна 1 (BL-5 п. 2): заявка сразу «В работе» —
+            // ручной запуск сделки не нужен (спецификация владельца п. 5)
+            status: 'in_progress',
           },
           tx
         )
@@ -238,11 +248,6 @@ export async function POST(req: NextRequest, { params }: Params) {
         // 5а. DF-16: перенос обязательств по разрешительным (лид → заявка)
         const carriedPermits = await carryPermitsToOrder(id, orderRes.id, tx)
 
-        // 5б. DF-26 волна 2 (§10.3 п. 6): перенос проверок ТН ВЭД — вместе
-        // с reviewStatus; связи Item/Requirement ссылаются на проверку и
-        // требование по id и едут автоматически (своих колонок цели нет)
-        const carriedChecks = await carryPermitChecksToOrder(id, orderRes.id, tx)
-
         // 6. Аудит в обе ленты событий
         await emitEvent(tx, {
           target: { leadId: id },
@@ -251,8 +256,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           description: `Сконвертирован в заявку №${orderRes.number}` +
             (carriedBrokers > 0 ? ` — брокеры перенесены: ${carriedBrokers}` : '') +
             (carriedDocs > 0 ? `, документы перенесены: ${carriedDocs}` : '') +
-            (carriedPermits > 0 ? `, разрешительные перенесены: ${carriedPermits}` : '') +
-            (carriedChecks > 0 ? `, проверки ТН ВЭД перенесены: ${carriedChecks}` : ''),
+            (carriedPermits > 0 ? `, разрешительные перенесены: ${carriedPermits}` : ''),
         })
         await emitEvent(tx, {
           target: { orderId: orderRes.id },
@@ -261,8 +265,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           description: `Заявка №${orderRes.number} создана конвертацией из запроса — груз и условия скопированы снимком` +
             (carriedBrokers > 0 ? `, брокеры видимости: ${carriedBrokers}` : '') +
             (carriedDocs > 0 ? `, документы: ${carriedDocs}` : '') +
-            (carriedPermits > 0 ? `, разрешительные: ${carriedPermits}` : '') +
-            (carriedChecks > 0 ? `, проверки ТН ВЭД: ${carriedChecks}` : ''),
+            (carriedPermits > 0 ? `, разрешительные: ${carriedPermits}` : ''),
         })
 
         return {

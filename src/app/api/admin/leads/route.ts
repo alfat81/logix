@@ -125,6 +125,7 @@ export async function GET(req: NextRequest) {
       all: 0,
       new: 0,
       calculated: 0,
+      client_approved: 0,
       won: 0,
       lost: 0,
     }

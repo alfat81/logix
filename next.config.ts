@@ -35,11 +35,16 @@ const csp = [
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
-  "frame-ancestors *",
+  // AUD-02 (поток A волна 1): кабинеты и API встраивания не требуют
+  // (<iframe> в src/ — 0 вхождений): 'none' + X-Frame-Options DENY
+  // страховкой для клиентов без CSP2 — запрет кликджекинга.
+  "frame-ancestors 'none'",
 ].join("; ");
 
 const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
+  // AUD-02: страховка для браузеров без CSP2 (frame-ancestors)
+  { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },

@@ -13,7 +13,9 @@ import { maskPII } from '@/lib/notifications/mask'
 // ─── Журнал отправок (DF-04) ─────────────────────────────────────────
 // Экран очереди писем для мастера: табы статусов (ListTabs — эталон
 // BRANDBOOK §4.2), фильтр по получателю, поле ошибки доставки и кнопка
-// «Повторить» для failed/skipped. Тела писем в списке маскируются
+// «Повторить» для failed/skipped/sending (sending — AUD-05, поток A
+// волна 2: ручной возврат зависшей аренды). Тела писем в списке
+// маскируются
 // (RULES 2.4 — телефоны/email, maskPII), полный текст — по клику:
 // API отдаёт мастеру тело целиком, маска — чисто отображенческая.
 //
@@ -54,6 +56,9 @@ const STATUS_TABS = [
 // version — нейтральная пара) вместо до-DF-20 сплошных заливок.
 const STATUS_BADGE: Record<string, { label: string; variant: 'delivered' | 'critical' | 'version' }> = {
   pending: { label: 'Ждёт', variant: 'version' },
+  // AUD-05: лиз отправки — строка между pending и sent (≤15 мин,
+  // зависшая восстанавливается автовосстановлением/повтором)
+  sending: { label: 'Отправляется', variant: 'version' },
   sent: { label: 'Отправлено', variant: 'delivered' },
   failed: { label: 'Ошибка', variant: 'critical' },
   skipped: { label: 'Пропущено', variant: 'version' },
@@ -196,7 +201,8 @@ export function NotificationsJournal() {
               label: n.status,
               variant: 'version' as const,
             }
-            const canRetry = n.status === 'failed' || n.status === 'skipped'
+            // AUD-05: sending повторяем — ручной возврат зависшей аренды
+            const canRetry = n.status === 'failed' || n.status === 'skipped' || n.status === 'sending'
             const isOpen = expanded[n.id] ?? false
             return (
               <Card key={n.id} className="p-4 grid gap-2">

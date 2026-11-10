@@ -57,8 +57,13 @@ export const PERMIT_STATUS_LABELS: Record<PermitStatus, string> = {
 // pending_manual — «требует ручной привязки» (строка оценки удалена
 // при дифф-сохранении; itemId хранит замороженную ссылку). CHECK
 // chk_permitreq_binding_state — в БД (миграция df_26_docs_center).
-// Значения домена: 'bound' | 'pending_manual' — словарь закреплён
-// CHECK-ом в БД; подписи для UI — в parts/RegistryPermitRow (макет 10).
+export const PERMIT_BINDING_STATES = ['bound', 'pending_manual'] as const
+export type PermitBindingState = (typeof PERMIT_BINDING_STATES)[number]
+
+export const PERMIT_BINDING_STATE_LABELS: Record<PermitBindingState, string> = {
+  bound: 'Привязано',
+  pending_manual: 'Связь с позицией требует подтверждения',
+}
 
 // ─── Лимиты полей (потолки схем zod + maxLength UI) ──────────────────
 

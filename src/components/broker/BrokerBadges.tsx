@@ -45,6 +45,8 @@ export function BrokerLeadStatusBadge({ status }: { status: LeadStatus }) {
   const map: Record<LeadStatus, string> = {
     new: 'bg-info text-info-foreground',
     calculated: 'bg-warning text-warning-foreground',
+    // Поток A: согласован — нейтрально-спокойная пара (не «проблема»)
+    client_approved: 'bg-info text-info-foreground',
     won: 'bg-success text-success-foreground',
     lost: 'bg-destructive text-destructive-foreground',
   }

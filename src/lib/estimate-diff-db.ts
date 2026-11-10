@@ -30,15 +30,14 @@ export type EstimateDiffItem = {
 
 export type EstimateDiffActor = ReturnType<typeof brokerActor> | { type: 'system' }
 
-/** Ошибка контракта диффа (D35): Error с statusCode 4xx —
- * apiErrorResponse роута маппит её в честный код и сообщение. */
+/** Ошибка контракта диффа — роут маппит в 400. */
 export class EstimateDiffError extends Error {
   constructor(
-    public statusCode: number,
+    public status: number,
     message: string,
   ) {
     super(message)
-    this.statusCode = statusCode
+    this.status = status
   }
 }
 

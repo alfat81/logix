@@ -44,17 +44,25 @@ const CreateUserSchema = z.object({
   ...UserFieldsSchema,
 })
 
+// Телефон — НЕ поле правки (BL-8, поток A волна 2): телефон меняется
+// только проверяемой операцией «Изменить телефон» (код на новый номер,
+// phone-change/phone-confirm). Третье намеренное сужение контракта
+// (план ред. 3 §8): PATCH с phone → 400 с подсказкой.
+const UpdateUserFieldsSchema = {
+  email: z.string().trim().max(120).nullable().optional(),
+  password: z.string().max(CLIENT_PASSWORD_MAX).nullable().optional(),
+}
+
 const UpdateUserSchema = z
   .object({
     userId: z.string().min(1),
     name: z.string().trim().min(1, 'Укажите имя пользователя').max(100).optional(),
     isActive: z.boolean().optional(),
-    ...UserFieldsSchema,
+    ...UpdateUserFieldsSchema,
   })
   .refine(
     (v) =>
       v.name !== undefined ||
-      v.phone !== undefined ||
       v.email !== undefined ||
       v.password !== undefined ||
       v.isActive !== undefined,
@@ -62,7 +70,8 @@ const UpdateUserSchema = z
   )
 
 // GET — список людей компании: id, контакты, статусы. Хеш пароля
-// наружу не отдаётся никогда — только булев hasPassword.
+// наружу не отдаётся никогда — только булев hasPassword. Pending-заявка
+// смены телефона (BL-8) отдаётся БЕЗ хеша кода: только номер и срок.
 export async function GET(req: NextRequest, { params }: Params) {
   const auth = await requireEmployee(req)
   if (!auth.ok) return auth.response
@@ -86,6 +95,8 @@ export async function GET(req: NextRequest, { params }: Params) {
         password: true,
         lastLoginAt: true,
         createdAt: true,
+        pendingPhone: true,
+        phoneCodeExpiresAt: true,
       },
     })
     return NextResponse.json({
@@ -144,9 +155,9 @@ export async function POST(req: NextRequest, { params }: Params) {
 }
 
 // PATCH — правка человека (контакты, пароль, «снять пароль» = null)
-// и деактивация/возврат (isActive). Пароль меняется через
-// updateCustomerUser (рвёт сессии пользователя); primary — с зеркалом
-// в Customer.password.
+// и деактивация/возврат (isActive). ТЕЛЕФОНА ЗДЕСЬ НЕТ: телефон меняется
+// только операцией с кодом (BL-8 — POST phone-change/phone-confirm).
+// Пароль меняется через updateCustomerUser (рвёт сессии пользователя).
 export async function PATCH(req: NextRequest, { params }: Params) {
   const auth = await requireEmployee(req, { write: true })
   if (!auth.ok) return auth.response
@@ -158,6 +169,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       body = await req.json()
     } catch {
       return NextResponse.json({ error: 'Некорректный JSON в теле запроса' }, { status: 400 })
+    }
+    if (body && typeof body === 'object' && 'phone' in body) {
+      return NextResponse.json(
+        { error: 'Телефон через общую правку не меняется — используйте операцию «Изменить телефон» (с кодом на новый номер)' },
+        { status: 400 }
+      )
     }
     const parsed = UpdateUserSchema.safeParse(body)
     if (!parsed.success) {
@@ -176,7 +193,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     await db.$transaction(async (tx) => {
       const { isActive, ...fields } = changes
-      if (fields.name !== undefined || fields.phone !== undefined || fields.email !== undefined || fields.password !== undefined) {
+      if (fields.name !== undefined || fields.email !== undefined || fields.password !== undefined) {
         await updateCustomerUser(tx, userId, fields)
       }
       if (isActive !== undefined) {
