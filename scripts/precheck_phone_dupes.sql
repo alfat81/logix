@@ -14,8 +14,11 @@
 
 -- 1) Дубли телефона пользователя компании (глобальная область, AUD-03):
 --    применить миграцию можно только при 0 строк.
+-- ВНИМАНИЕ (урок запуска на живой базе 2026-11-10): имена колонок в БД —
+-- camelCase В КАВЫЧКАХ (Prisma без @map): "customerId", "pendingPhone".
+-- snake_case (company_id) не существует — SQLSTATE 42703.
 SELECT phone, count(*)::int AS cnt,
-       string_agg(id || ' (' || coalesce(name, 'без имени') || ', companyId=' || company_id || ')', '; ') AS entries
+       string_agg(id || ' (' || coalesce(name, 'без имени') || ', customerId=' || "customerId" || ')', '; ') AS entries
 FROM "CustomerUser"
 WHERE phone IS NOT NULL
 GROUP BY phone

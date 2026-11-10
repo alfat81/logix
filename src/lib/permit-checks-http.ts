@@ -25,7 +25,12 @@ export type PermitChecksScope =
 
 export type PermitChecksSession =
   | { kind: 'staff'; employee: EmployeeActor }
-  | { kind: 'broker'; broker: BrokerActor }
+  // Брокер: actor — человек (userId, снимок компании в событиях);
+  // companyId — идентичность СВЯЗИ (LeadBroker/OrderBroker хранят id
+  // компании — CurrentBroker.id). Смешивать нельзя (урок e2e гейта 2,
+  // D62; волна 2 DF-25 при рефакторинге случайно сняла поле — CI
+  // 10.11.2026 вернул 404 на свою сделку, восстановлено).
+  | { kind: 'broker'; broker: BrokerActor; companyId: string }
 
 export async function permitChecksGet(
   id: string,
@@ -50,12 +55,12 @@ export async function permitChecksGet(
     }
     let deal: Parameters<typeof listPermitChecks>[0] | null
     if (scope.kind === 'broker-order') {
-      if (!(await brokerConnectedToOrder(id, session.broker.id))) {
+      if (!(await brokerConnectedToOrder(id, session.companyId))) {
         return NextResponse.json({ error: 'Заявка не найдена' }, { status: 404 })
       }
       deal = { orderId: id }
     } else {
-      if (!(await brokerConnectedToLead(id, session.broker.id))) {
+      if (!(await brokerConnectedToLead(id, session.companyId))) {
         return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
       }
       deal = await resolveLeadDealTarget(id)
@@ -115,12 +120,12 @@ export async function permitChecksPost(
     }
     let deal: Parameters<typeof createManualPermitCheck>[0]
     if (scope.kind === 'broker-order') {
-      if (!(await brokerConnectedToOrder(id, session.broker.id))) {
+      if (!(await brokerConnectedToOrder(id, session.companyId))) {
         return NextResponse.json({ error: 'Заявка не найдена' }, { status: 404 })
       }
       deal = { orderId: id } as const
     } else {
-      if (!(await brokerConnectedToLead(id, session.broker.id))) {
+      if (!(await brokerConnectedToLead(id, session.companyId))) {
         return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
       }
       const resolved = await resolveLeadDealTarget(id)

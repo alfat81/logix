@@ -118,6 +118,11 @@ s, d = a.r('POST', f'/api/admin/leads/{lid}/options',
            {'description': 'Море', 'price': 300000, 'currency': 'RUB', 'vatMode': 'WITHOUT_VAT',
             'etaDays': 30, 'priorityFit': 'cost', 'isSelected': True})
 chk('вариант расчёта создаётся', s in (200, 201), (s, d))
+# поток A (BL-4): конвертация — только после согласования (confirm-API).
+# Волна 1 добавила требование в ядро, но этот скрипт не адаптировала:
+# без confirm конвертация 409, oid=None, все последующие проверки 404
+# (CI 10.11.2026).
+a.r('POST', f'/api/admin/leads/{lid}/confirm', {})
 s, d = a.r('POST', f'/api/admin/leads/{lid}/convert', {'legalEntityId': leid, 'incoterm': 'FOB'})
 chk('конвертация в заявку работает', s == 201, (s, d))
 order = d.get('order') if isinstance(d, dict) else None

@@ -13,12 +13,12 @@ export async function GET(req: NextRequest, { params }: Params) {
   const auth = await requireBroker(req)
   if (!auth.ok) return auth.response
   const { id } = await params
-  return permitChecksGet(id, { kind: 'broker-lead' }, { kind: 'broker', broker: brokerActor(auth.broker) })
+  return permitChecksGet(id, { kind: 'broker-lead' }, { kind: 'broker', broker: brokerActor(auth.broker), companyId: auth.broker.id })
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
   const auth = await requireBroker(req)
   if (!auth.ok) return auth.response
   const { id } = await params
-  return permitChecksPost(req, id, { kind: 'broker-lead' }, { kind: 'broker', broker: brokerActor(auth.broker) })
+  return permitChecksPost(req, id, { kind: 'broker-lead' }, { kind: 'broker', broker: brokerActor(auth.broker), companyId: auth.broker.id })
 }

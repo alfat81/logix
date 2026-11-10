@@ -282,9 +282,15 @@ s,d=a.r('POST','/api/admin/orders',{'customerId':_ocust,'legalEntityId':leid}); 
 s,d=a.r('PATCH',f'/api/admin/orders/{_oid01}',{'status':'confirmed'}); chk('BL-5: ручная заявка calculating→confirmed → 200',s==200,(s,d))
 note='Внутренняя заметка DF-01 '+u
 s,d=a.r('POST',f'/api/admin/orders/{oid}/notes',{'text':note}); chk('DF-01: внутренняя заметка создана',s in(200,201),(s,d))
-s,d=a.r('GET',f'/api/admin/orders/{_oid01}'); Oa=d.get('order',d); oacts=Oa.get('activities',[])
+# BL-5: лента РУЧНОЙ заявки _oid01 — источник статус-события (расчёт→
+# согласование, волна 1); заметка же читается в ленте сконвертированной
+# заявки oid (семантика v0.9.0: DF-21 ниже ждёт ОБЕ заметки в ленте oid,
+# а клиент oid не видит staff-заметку). Волна 1 перенесла чтение ленты
+# на _oid01 целиком — заметка осталась на oid (CI 10.11.2026: FAIL).
+s,d=a.r('GET',f'/api/admin/orders/{oid}'); Oa=d.get('order',d); oacts=Oa.get('activities',[])
 chk('DF-01: заметка в ленте сотрудника (staff видит всё; df_03_contract: приватность = audience)',any(x['type']=='note_added' and x.get('audience')==['staff'] and x['description']==note for x in oacts),[x['type'] for x in oacts[:6]])
-chk('DF-01: статус-событие заявки адресовано клиенту',any(x['type']=='order_status_changed' and 'client' in (x.get('audience') or []) for x in oacts),[x['type'] for x in oacts[:6]])
+s,d=a.r('GET',f'/api/admin/orders/{_oid01}'); Oa01=d.get('order',d); oacts01=Oa01.get('activities',[])
+chk('DF-01: статус-событие заявки адресовано клиенту',any(x['type']=='order_status_changed' and 'client' in (x.get('audience') or []) for x in oacts01),[x['type'] for x in oacts01[:6]])
 # --- DF-21: заметка «видна клиенту» — аудитория staff+client; SSR админки: меню, бейдж ---
 cnote='Комментарий для клиента DF-21 '+u
 s,d=a.r('POST',f'/api/admin/orders/{oid}/notes',{'text':cnote,'visibleToClient':True}); chk('DF-21: заметка «видна клиенту» создана',s in(200,201),(s,d))
@@ -991,10 +997,15 @@ pr=[]
 for _ in range(6):  # поллинг: after()-диспетчер PATCH может опередить disp()
     s,d=disp()
     s,d=a.r('GET','/api/admin/notifications?status=sent&take=200'); sent=d.get('notifications',[])
-    pr=[x for x in sent if x.get('toAddress')=='df03-staff-'+u+'@test.example' and x.get('type')=='permit_received']
+    # письмо ответственному — permit_submitted: здесь только ЗАГРУЗКА
+    # клиента (§5.4: загрузка ≠ принятие); permit_received уходит при
+    # принятии/финализации (проверяется в блоке DF-26 w2 — «авто-закрытие
+    # в ленте»). Волна 2 ошибочно ждала здесь permit_received — письмо
+    # в этой точке потока не существует (CI 10.11.2026, FAIL :: 0).
+    pr=[x for x in sent if x.get('toAddress')=='df03-staff-'+u+'@test.example' and x.get('type')=='permit_submitted']
     if pr: break
     _tp.sleep(0.5)
-chk('DF-16: ответственному письмо о полученном разрешительном',len(pr)>=1,len(pr))
+chk('DF-16: ответственному письмо о загруженном разрешительном (permit_submitted, §5.4)',len(pr)>=1,len(pr))
 # «не требуется» с причиной
 s,d=a.r('PATCH',f'/api/admin/permits/{pid16b}',{'status':'waived','waivedReason':'товар не подлежит сертификации DF16'}); chk('DF-16: сотрудник отметил «не требуется» с причиной',s==200,(s,d))
 # красный скан: блокирующая с прошедшим сроком → permit_overdue клиенту и ответственному
@@ -1093,7 +1104,7 @@ chk('DF-09: неверный код включения — 400, состояни
 # AUD-08 (поток A волна 2): включение TOTP требует пароль (симметрия с выключением)
 s,d=e9.r('POST','/api/admin/profile/totp',{'secret':sec9,'code':_totp(sec9)})
 chk('AUD-08: включение TOTP без пароля — 400',s==400,(s,d))
-s,d=e9.r('POST','/api/admin/profile/totp',{'secret':sec9,'code':_totp(sec9),'password':'df09-wrong-pass'})
+s,d=e9.r('POST','/api/admin/profile/totp',{'secret':sec9,'code':_totp(sec9),'password':'df09-bad-pass'})
 chk('AUD-08: включение TOTP с неверным паролем — 400',s==400,(s,d))
 s,d=e9.r('POST','/api/admin/profile/totp',{'secret':sec9,'code':_totp(sec9),'password':'df09-pass-1'})
 chk('DF-09: TOTP включён (с паролем AUD-08), выдано 10 кодов восстановления',s==200 and len(d.get('recoveryCodes') or [])==10,(s,list(d)[:3]))
@@ -1740,9 +1751,15 @@ s,d=cu2c.r('GET',f'/api/client/orders/{oid}'); chk('BL-9: заявка преж�
 # в компании B пользователь в списке доступа; в компании A его больше нет
 s,d=a.r('GET',f'/api/admin/customers/{custB}/access'); chk('BL-9: пользователь в списке компании B',any(x.get('id')==uid2 for x in d.get('users',[])),[x.get('id') for x in d.get('users',[])])
 s,d=a.r('GET',f'/api/admin/customers/{cust}/access'); chk('BL-9: из компании A пользователь исчез',not any(x.get('id')==uid2 for x in d.get('users',[])),[x.get('id') for x in d.get('users',[])])
-# событие перепривязки в журнале (глобальное, staff)
-s,d=a.r('GET','/api/admin/activity?take=50'); _acts=d.get('activities') or d.get('activity') or []
-chk('BL-9: событие customer_user_rebound в журнале',any(x.get('type')=='customer_user_rebound' for x in _acts),[x.get('type') for x in _acts[:10]])
+# событие перепривязки в журнале (глобальное, staff). Журнал Ж2 — это
+# SSR-лента «/admin»: глобального REST-эндпоинта activity в продукте НЕТ
+# (волна 2 вызывала несуществующий /api/admin/activity — 404 text/html,
+# AttributeError в каждом прогоне волны; CI 10.11.2026). Описание события
+# пишет company-users.ts: «Перепривязка доступа: «A» → «B» · сессии
+# погашены, история прежней компании сохранена» — оно первое в ленте
+# (событие только что записано, take=30, orderBy desc).
+s,h=a.r('GET','/admin'); _page=h.decode('utf-8','ignore') if isinstance(h,(bytes,bytearray)) else str(h)
+chk('BL-9: событие customer_user_rebound в журнале (лента /admin)','Перепривязка доступа' in _page and 'сессии погашены' in _page,(s,_page[:150]))
 # BL-9: primary не перепривязывается
 s,d=a.r('GET',f'/api/admin/customers/{cust}/access'); _prim2=[x for x in d.get('users',[]) if x.get('isPrimary')]
 if _prim2:

@@ -93,8 +93,10 @@ Deployments → дождаться **Ready**. Env-переменных в рел
 **Neon → SQL Editor** (или psql к прод-строке), read-only:
 
 ```sql
+-- Имена колонок в БД — camelCase В КАВЫЧКАХ (Prisma без @map):
+-- "customerId"; snake_case (company_id) не существует — SQLSTATE 42703.
 SELECT phone, count(*)::int AS cnt,
-       string_agg(id || ' (' || coalesce(name, 'без имени') || ', companyId=' || company_id || ')', '; ') AS entries
+       string_agg(id || ' (' || coalesce(name, 'без имени') || ', customerId=' || "customerId" || ')', '; ') AS entries
 FROM "CustomerUser"
 WHERE phone IS NOT NULL
 GROUP BY phone

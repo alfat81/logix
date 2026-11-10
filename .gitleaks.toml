@@ -11,13 +11,21 @@
 #    'logix-totp-challenge-v1' are static scrypt salt / domain-
 #    separation strings — KDF parameters are public by design; the key
 #    material itself comes from TOTP_ENCRYPTION_KEY env.
+# 3. Transfer artifacts (D70, 10.11.2026): download/*.patch are textual
+#    git diffs handed to the owner (precedent ci-hotfix4). A diff
+#    reproduces the LINES IT CHANGES — including e2e fixture strings
+#    like a deliberately wrong test password ('df09-*') — without the
+#    diff semantics (+/-) that a commit scan sees. The secrets these
+#    patches touch live (or not) in the source files, which are scanned
+#    normally; the patch copies themselves are not a secret channel.
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Known non-secrets: hs-source research artifacts; DF-09 TOTP unit-test fallback key and static scrypt salt literals"
+description = "Known non-secrets: hs-source research artifacts; DF-09 TOTP unit-test fallback key and static scrypt salt literals; download/ transfer patches"
 paths = [
   "^scripts/hs-source/",
+  "^download/.*\\.patch$",
 ]
 regexes = [
   "vitest-df09-totp-encryption-key",
