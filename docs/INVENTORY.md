@@ -1289,7 +1289,7 @@
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts, src/lib/totp-db.ts |
 | `HsCode` | 9 | scripts/import-hs.ts, scripts/verify-hs-db.ts, scripts/verify-hs-prefix.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/lib/hs-db.ts |
 | `HsImport` | 5 | scripts/import-hs.ts, scripts/verify-hs-db.ts, src/lib/hs-db.ts |
-| `Lead` | 44 | scripts/backfill_waiting.ts, scripts/df27_lead_with_lines.ts, scripts/e2e_backdate_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts (+25) |
+| `Lead` | 44 | scripts/backfill_waiting.ts, scripts/e2e_backdate_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts (+24) |
 | `LeadApprovalSnapshot` | 17 | — |
 | `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts, src/lib/broker-links.ts (+1) |
 | `LegalEntity` | 7 | scripts/seed.ts, src/app/api/admin/leads/[id]/convert/route.ts, src/app/api/admin/legal-entities/[id]/route.ts, src/app/api/admin/legal-entities/route.ts |
@@ -1316,14 +1316,14 @@
 
 | Переменная | Файлов с использованием | .env.example | DEPLOY.md |
 |---|---|---|---|
-| `ADMIN_PASSWORD` | 3 | да | да |
-| `ADMIN_PHONE` | 3 | да | да |
+| `ADMIN_PASSWORD` | 2 | да | да |
+| `ADMIN_PHONE` | 2 | да | да |
 | `APP_BASE_URL` | 1 | да | да |
-| `BASE_URL` | 4 | да | да |
+| `BASE_URL` | 3 | да | да |
 | `CBR_IMPORT` | 2 | да | да |
 | `CBR_RATE_URL` | 1 | да | да |
 | `CONTRACTOR_PORTAL_ENABLED` | 1 | да | да |
-| `CRON_SECRET` | 3 | да | да |
+| `CRON_SECRET` | 2 | да | да |
 | `DATABASE_URL` | 5 | да | да |
 | `DISABLE_RATE_LIMIT` | 2 | да | да |
 | `EMAIL_ALLOWLIST` | 3 | да | да |
