@@ -3,7 +3,8 @@
 import type { ActivityRow } from '@/components/admin/ActivityFeed'
 import type { BrokerLinkRow } from '@/components/admin/BrokerLinksSection'
 import type { QuoteOptionRow } from '@/components/admin/QuoteOptionsSection'
-import type { LeadStatus } from '@/lib/leads'
+import type { LeadBlankView } from '@/components/admin/QuoteOptionRouteBlocks'
+import { readLeadCargo, type LeadStatus } from '@/lib/leads'
 
 export type LeadFull = {
   id: string
@@ -42,6 +43,10 @@ export type LeadFull = {
   // P1-01: ответственный менеджер (null = не назначен — кабинетный запрос)
   assignee: { id: string; name: string } | null
   options: QuoteOptionRow[]
+  // DF-27: пожелания к перевозке (колонка с волны 1; формы — волна 2)
+  wishes?: string | null
+  // DF-27: вычисляемая готовность анкеты (staff-проекция GET карточки)
+  completeness?: { ready: boolean; missing: string[] } | null
   order: { id: string; number: string; status: string } | null
   // Д: брокеры расчёта с оценками таможенных платежей (оценка — на
   // связи LeadBroker, 1:1)
@@ -53,3 +58,24 @@ export type LeadFull = {
 export type LegalEntityRow = { id: string; name: string }
 
 export const fmtDate = (iso: string): string => new Date(iso).toLocaleDateString('ru-RU')
+
+// ─── DF-27 волна 1: бланк запроса для блока 1 диалога варианта ──────
+// Вынесено из LeadCard.tsx (RULES 2.14): одна точка сборки вида
+// «как в запросе» из строки лида — карточка и другие потребители
+// показывают блок 1 одинаково.
+export function leadBlankView(lead: LeadFull): LeadBlankView {
+  const cargo = readLeadCargo(lead.cargoInfo)
+  return {
+    origin: [lead.originCity, lead.originCountry].filter(Boolean).join(', '),
+    destination: [lead.destinationCity, lead.destinationCountry].filter(Boolean).join(', '),
+    transportType: lead.transportType ?? '',
+    readyDate: lead.readyDate ? fmtDate(lead.readyDate) : '',
+    incoterm: lead.incotermCode ?? '',
+    cargoName: cargo.cargoName != null ? String(cargo.cargoName) : '',
+    hsCode: cargo.hsCode != null ? String(cargo.hsCode) : '',
+    weight: lead.weightKg != null ? String(lead.weightKg) : '',
+    volume: lead.volumeM3 != null ? String(lead.volumeM3) : '',
+    places: lead.placesCount != null ? String(lead.placesCount) : '',
+    value: cargo.cargoValue != null ? String(cargo.cargoValue) : '',
+  }
+}

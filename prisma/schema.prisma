@@ -446,6 +446,10 @@ model Lead {
   // DF-19: место условия поставки (свободный текст рядом с кодом —
   // справочника мест DF-17B ещё нет; стартовое значение формы расчёта)
   incotermPlace          String?
+  // DF-27: «Пожелания к перевозке» — свободный текст запроса.
+  // Колонка добавлена волной 1 (additive), заполняется клиентом и
+  // менеджером с волны 2 (окно правки клиента — Р-1, решение владельца).
+  wishes                 String?
 
   customer            Customer?            @relation(fields: [customerId], references: [id])
   assignee            Employee?            @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
@@ -529,9 +533,89 @@ model QuoteOption {
   isSelected     Boolean  @default(false)
   createdAt      DateTime @default(now())
 
+  // ─── DF-27 волна 1: вариант — самостоятельный расчёт ─────────────
+  // Снимки бланка запроса на момент создания (buildOptionSnapshots,
+  // lib/option-snapshots.ts): маршрут и грузовой бланк ЦЕЛИКОМ (включая
+  // произвольные ключи cargoInfo) + пожелания. null = легаси-вариант
+  // («данные — как в запросе»; заполнение постфактум — fill-from-lead).
+  routeSnapshot    Json?
+  cargoSnapshot    Json?
+  // Промежуточные точки маршрута варианта (ТЗ §4)
+  routeStops       Json?
+  // Provenance (ТЗ §4): sourceFields — ключи, скопированные из запроса;
+  // editedFields — переопределённые менеджером
+  sourceFields     Json?
+  editedFields     Json?
+  // ТЗ §5: предварительный расчёт при незакрытых критичных параметрах
+  // + фактический перечень недостающего на момент сохранения
+  isPreliminary    Boolean  @default(false)
+  missingData      Json?
+  // ТЗ §5.5: «данные запроса изменились — пересмотрите цену» (ставит
+  // сервер при ценозначимой правке запроса; снимает правка варианта)
+  priceReviewRequired Boolean @default(false)
+  // Кто последним правил (имя — снимком в ревизии/событии)
+  updatedAt        DateTime @default(now()) @updatedAt
+  updatedById      String?
+  updatedByName    String?
+
   lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  calcLines QuoteOptionCalcLine[]
+  revisions QuoteOptionRevision[]
 
   @@index([leadId])
+}
+
+// ─── DF-27 волна 1: строка транспортного расчёта варианта (ТЗ §5) ──
+// Статьи стоимости из реестра OPTION_CALC_ARTICLES (lib/option-calc.ts):
+// freight/terminal/handling/customs/broker/insurance/lastMile/other.
+// fxRateToOffer — снимок курса к валюте предложения на момент
+// сохранения; amountOffer (в валюте предложения) считает сервер.
+// Строка customs может ссылаться на версию таможенного расчёта —
+// это снимок значений, автообновлений нет (D73: пересчёт курса
+// связанной версии строку варианта не меняет).
+model QuoteOptionCalcLine {
+  id                   String   @id @default(cuid())
+  optionId             String
+  sortOrder            Int
+  article              String
+  title                String?
+  amount               Decimal  @db.Decimal(14, 2)
+  currency             String
+  fxRateToOffer        Decimal? @db.Decimal(14, 6)
+  amountOffer          Decimal? @db.Decimal(14, 2)
+  source               String   @default("manual")
+  customsCalculationId String?
+  comment              String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @default(now()) @updatedAt
+
+  option QuoteOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  customsCalculation CustomsCalculation? @relation(fields: [customsCalculationId], references: [id], onDelete: SetNull)
+
+  @@index([optionId, sortOrder])
+}
+
+// ─── DF-27 волна 1: история изменений варианта (ТЗ §4) ─────────────
+// Структурная история «кем/когда/что изменено» по каждому варианту
+// (диффы Activity — текст в description: порядок правок и поле-за-поле
+// по ним не восстановить). kind: created | updated | filled_from_lead |
+// price_review_reset. Не редактируются и не удаляются; удаление —
+// только каскадом с вариантом/запросом (существующая схема).
+model QuoteOptionRevision {
+  id            String   @id @default(cuid())
+  optionId      String
+  seq           Int
+  kind          String
+  actorType     String
+  actorId       String?
+  actorName     String
+  changedFields Json?
+  createdAt     DateTime @default(now())
+
+  option QuoteOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@unique([optionId, seq])
+  @@index([optionId, createdAt])
 }
 
 // ─── Поток A волна 1 (BL): исторический снимок согласования ───────
@@ -1636,6 +1720,9 @@ model CustomsCalculation {
   order Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   items CustomsCalculationItem[]
+  // DF-27: строки расчёта вариантов, ссылающиеся на версию (статья
+  // customs) — снимок значений на момент расчёта варианта
+  calcLines QuoteOptionCalcLine[]
 
   @@index([leadId, createdAt])
   @@index([orderId, createdAt])

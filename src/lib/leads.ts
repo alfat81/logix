@@ -9,6 +9,7 @@ import {
 } from '@/lib/route-fields'
 import { VAT_MODES, moneyAmount } from '@/lib/money'
 import { currencyCodeSchema } from '@/lib/ref'
+import { OPTION_CALC_ARTICLES, OPTION_CALC_SOURCES } from '@/lib/option-calc'
 
 // Константы статусов и zod-схемы лидов — файл БЕЗ серверных зависимостей
 // (db и т.п.): его импортируют и API-роуты, и будущий UI воронки (В5).
@@ -498,6 +499,57 @@ export const TransportModesSchema = z
   .array(z.string().trim().min(1, 'Пустой вид транспорта'))
   .min(1, 'Укажите хотя бы один вид транспорта')
 
+// Overrides маршрутных полей варианта — те же ключи, что в снимке
+// (RouteSnapshot), все опциональны, пустой объект допустим
+export const OptionRouteOverrideSchema = z.object({
+  originCity: z.string().trim().max(120).nullable().optional(),
+  originCountry: z.string().trim().max(120).nullable().optional(),
+  originCountryCode: z.string().trim().max(10).nullable().optional(),
+  destinationCity: z.string().trim().max(120).nullable().optional(),
+  destinationCountry: z.string().trim().max(120).nullable().optional(),
+  destinationCountryCode: z.string().trim().max(10).nullable().optional(),
+  transportType: z.string().trim().max(20).nullable().optional(),
+  readyDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата — в формате ГГГГ-ММ-ДД')
+    .nullable()
+    .optional(),
+  incotermCode: z.string().trim().max(10).nullable().optional(),
+  incotermPlace: z.string().trim().max(200).nullable().optional(),
+})
+
+// Промежуточная точка маршрута варианта (ТЗ §4)
+export const RouteStopSchema = z.object({
+  city: z.string().trim().min(1, 'Укажите пункт').max(120),
+  country: z.string().trim().max(120).nullable().optional(),
+  note: z.string().trim().max(200, 'Примечание — до 200 символов').nullable().optional(),
+})
+export type RouteStop = z.infer<typeof RouteStopSchema>
+
+// Строка транспортного расчёта варианта (ТЗ §5; план §5.1)
+export const OptionCalcLineSchema = z.object({
+  article: z.enum(OPTION_CALC_ARTICLES, {
+    errorMap: () => ({ message: 'Неизвестная статья расчёта' }),
+  }),
+  title: z.string().trim().max(200, 'Наименование — до 200 символов').nullable().optional(),
+  amount: moneyAmount('Сумма', { allowZero: true }),
+  currency: currencyCodeSchema,
+  // Курс к валюте предложения — снимок на момент сохранения; null,
+  // если валюта строки = валюте предложения (сумму считает сервер)
+  fxRateToOffer: z
+    .number({ errorMap: () => ({ message: 'Курс — число' }) })
+    .positive('Курс — число больше нуля')
+    .max(1_000_000, 'Курс — слишком большое значение')
+    .nullable()
+    .optional(),
+  source: z.enum(OPTION_CALC_SOURCES).default('manual'),
+  // Строка customs может ссылаться на версию таможенного расчёта —
+  // снимок значений (автообновлений нет; D73)
+  customsCalculationId: z.string().min(1).nullable().optional(),
+  comment: z.string().trim().max(500, 'Комментарий — до 500 символов').nullable().optional(),
+})
+export type OptionCalcLineInput = z.infer<typeof OptionCalcLineSchema>
+
 const QuoteOptionFieldsSchema = z.object({
   description: z.string().trim().min(1, 'Опишите вариант расчёта'),
   transportModes: TransportModesSchema.optional(),
@@ -514,6 +566,22 @@ const QuoteOptionFieldsSchema = z.object({
     errorMap: () => ({ message: 'Неизвестный ориентир варианта (speed | cost | safety)' }),
   }),
   isSelected: z.boolean().optional(),
+
+  // ─── DF-27 волна 1: вариант — самостоятельный расчёт ─────────────
+  // Overrides бланка запроса (план §4.2): маршрутные поля, грузовые
+  // ключи, промежуточные точки, пожелания варианта. null = очистить.
+  route: OptionRouteOverrideSchema.optional(),
+  cargo: z.record(z.unknown()).nullable().optional(),
+  routeStops: z
+    .array(RouteStopSchema)
+    .max(20, 'Промежуточных точек — не больше 20')
+    .nullable()
+    .optional(),
+  wishes: z.string().trim().max(2000, 'Пожелания — до 2000 символов').nullable().optional(),
+  // ТЗ §5: предварительный расчёт при незакрытых критичных параметрах
+  isPreliminary: z.boolean().optional(),
+  // Строки транспортного расчёта (полная замена при PATCH)
+  calcLines: z.array(OptionCalcLineSchema).max(50, 'Строк расчёта — не больше 50').optional(),
 })
 
 export const CreateQuoteOptionSchema = QuoteOptionFieldsSchema
@@ -522,7 +590,11 @@ export type CreateQuoteOptionInput = z.infer<typeof CreateQuoteOptionSchema>
 // PATCH варианта: любое подмножество полей, но не пустое. Инвариант
 // «isSelected ровно один на лид» — не в схеме, а в роуте В3: снятие
 // отметки с прежнего варианта — кросс-записная операция, zod её не видит.
+// DF-27: priceReviewRequired вручную ставится быть не может (сервер
+// ставит его при ценозначимой правке запроса) — явное true отвергает
+// роут; явное false = осознанный сброс (ревизия price_review_reset).
 export const UpdateQuoteOptionSchema = QuoteOptionFieldsSchema.partial()
+  .extend({ priceReviewRequired: z.boolean().optional() })
   .refine((d) => Object.values(d).some((v) => v !== undefined), {
     message: 'Пустое обновление: укажите хотя бы одно поле варианта',
   })

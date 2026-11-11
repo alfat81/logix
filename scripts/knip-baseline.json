@@ -88,9 +88,6 @@
     "key": "types:src/lib/leads.ts|CreateLeadInput"
   },
   {
-    "key": "types:src/lib/leads.ts|CreateQuoteOptionInput"
-  },
-  {
     "key": "types:src/lib/leads.ts|PatchLeadInput"
   },
   {
@@ -98,9 +95,6 @@
   },
   {
     "key": "types:src/lib/leads.ts|TransportType"
-  },
-  {
-    "key": "types:src/lib/leads.ts|UpdateQuoteOptionInput"
   },
   {
     "key": "types:src/lib/orders.ts|OrderStagesSummary"

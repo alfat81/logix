@@ -125,6 +125,17 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
+// Единый хвост сохранения диалоговых форм (DF-27 волна 1, IC-14):
+// «ошибка → destructive-toast» — один формат сообщения во всех
+// диалогах, вместо копий одного и того же catch-блока.
+function toastSaveError(e: unknown, toast: (props: Toast) => void): void {
+  toast({
+    title: "Ошибка",
+    description: e instanceof Error ? e.message : "",
+    variant: "destructive",
+  })
+}
+
 function toast({ ...props }: Toast) {
   const id = genId()
 
@@ -174,4 +185,4 @@ function useToast() {
   }
 }
 
-export { useToast, toast }
+export { useToast, toast, toastSaveError }

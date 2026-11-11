@@ -108,9 +108,16 @@ chk('админ видит базу подрядчиков', s == 200 and any(c[
 s, d = a.r('GET', '/api/admin/legal-entities')
 le = (d.get('legalEntities') or d.get('items') or d) if isinstance(d, dict) else d
 leid = le[0]['id'] if isinstance(le, list) else None
+# DF-27 волна 1: POST варианта на неполный запрос → 422 (гард полноты,
+# план §6). Скрипт адаптирован — анкета лида заполняется до полного
+# состава (как в основном e2e, блок DF-27 сц.4), вариант — обычный,
+# не preliminary (заморозка проверяет штатный путь без пометок).
 s, d = a.r('POST', '/api/admin/leads', {
     'rawContact': {'name': 'ЗАО Лёд ' + u, 'phone': '8 (999) ' + base[:3] + '-' + base[3:5] + '-' + base[5:7]},
-    'route': {'originCity': 'Шанхай', 'destinationCity': 'Москва', 'weightKg': 900},
+    'route': {'originCity': 'Шанхай', 'destinationCity': 'Москва', 'weightKg': 900,
+              'readyDate': '2026-12-25', 'placesCount': 10},
+    'cargoInfo': {'cargoName': 'Лёд', 'hsCode': '8413700008', 'cargoValue': 9000},
+    'incotermCode': 'FOB',
 })
 chk('запрос создаётся', s in (200, 201), (s, d))
 lid = (d.get('lead') or d)['id']

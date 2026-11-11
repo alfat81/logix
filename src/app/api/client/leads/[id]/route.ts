@@ -16,6 +16,7 @@ import { ACTIVITY_FEED_TAKE, ACTIVITY_PUBLIC_FIELDS } from '@/lib/activity'
 import { eventWhereFor } from '@/lib/audience'
 import { projectActors } from '@/lib/actor-name'
 import { PERMIT_EXTERNAL_FIELDS } from '@/lib/permits-db'
+import { detectPriceSignificantChanges } from '@/lib/option-snapshots'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -50,6 +51,10 @@ const CLIENT_OPTION_FIELDS = {
   priorityFit: true,
   isSelected: true,
   createdAt: true,
+  // DF-27 (план §11.2): в клиентскую проекцию варианта добавляется
+  // ТОЛЬКО пометка предварительного расчёта (строки расчёта, итоги,
+  // provenance и флаг пересмотра цены — не покидают сервер)
+  isPreliminary: true,
 } as const
 
 const CLIENT_LEAD_DETAIL_SELECT = {
@@ -197,7 +202,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: routeResolved.error }, { status: 400 })
     }
 
-    await db.lead.update({
+    // DF-27 (ТЗ §5.5): клиентская правка с ценозначимыми ключами —
+    // тот же автомат, что в админском PATCH (флаг — всем вариантам,
+    // та же транзакция с сохранением).
+    const priceKeys = detectPriceSignificantChanges(lead, { route, mergedCargo: merged })
+    const clientUpdate = db.lead.update({
       where: { id },
       data: {
         // Json-колонка: каст как в админском PATCH (паттерн заявки Ж1);
@@ -210,11 +219,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         ...routeResolved.columns,
       },
     })
+    await db.$transaction([
+      clientUpdate,
+      ...(priceKeys.length > 0
+        ? [
+            db.quoteOption.updateMany({
+              where: { leadId: id, priceReviewRequired: false },
+              data: { priceReviewRequired: true },
+            }),
+          ]
+        : []),
+    ])
     await emitEvent(db, {
       target: { leadId: id },
       actor: clientActor(auth.client),
       type: 'lead_edited',
-      description,
+      description:
+        description +
+        (priceKeys.length > 0
+          ? ` — ценозначимые данные изменились (${priceKeys.join(', ')}): варианты требуют пересмотра цены`
+          : ''),
     })
 
     return NextResponse.json({ ok: true, message: 'Запрос обновлён' })

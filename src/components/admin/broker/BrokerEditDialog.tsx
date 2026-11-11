@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { useToast } from '@/hooks/use-toast'
+import { useToast, toastSaveError } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { BrokerFormFields } from './BrokerFormFields'
 import { EMPTY_BROKER_FORM, type BrokerForm, type BrokerRow } from './types'
@@ -81,11 +81,7 @@ export function BrokerEditDialog({
       toast({ title: data.message || 'Брокер обновлён' })
       onSaved()
     } catch (e) {
-      toast({
-        title: 'Ошибка',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
-      })
+      toastSaveError(e, toast)
     } finally {
       setSaving(false)
     }

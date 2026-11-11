@@ -88,10 +88,6 @@
    "reason": "первичный baseline DF-00B"
   },
   {
-   "key": "block:src/app/api/admin/brokers/[id]/route.ts~src/app/api/admin/options/[id]/route.ts",
-   "reason": "первичный baseline DF-00B"
-  },
-  {
    "key": "block:src/app/api/admin/brokers/route.ts~src/app/api/admin/contractor-leads/route.ts",
    "reason": "первичный baseline DF-00B"
   },
@@ -248,23 +244,11 @@
    "reason": "первичный baseline DF-00B"
   },
   {
-   "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/employee/EmployeeEditDialog.tsx",
-   "reason": "первичный baseline DF-00B"
-  },
-  {
    "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/employee/EmployeeResetPasswordDialog.tsx",
    "reason": "первичный baseline DF-00B"
   },
   {
    "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
-   "reason": "первичный baseline DF-00B"
-  },
-  {
-   "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/legalentity/LegalEntityEditDialog.tsx",
-   "reason": "первичный baseline DF-00B"
-  },
-  {
-   "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/admin/stagecatalog/StageEditDialog.tsx",
    "reason": "первичный baseline DF-00B"
   },
   {
@@ -305,10 +289,6 @@
   },
   {
    "key": "block:src/components/admin/broker/BrokerEditDialog.tsx~src/components/admin/contractorlead/ContractorLeadContractDialog.tsx",
-   "reason": "первичный baseline DF-00B"
-  },
-  {
-   "key": "block:src/components/admin/broker/BrokerEditDialog.tsx~src/components/admin/contractorpool/ContractorPoolToggleDialog.tsx",
    "reason": "первичный baseline DF-00B"
   },
   {
@@ -456,10 +436,6 @@
    "reason": "DF-02A Блок 5: зеркальные формы сотрудника (клиент/брокер) — поля name/phone/email/password и генератор пароля; разнос контекстов"
   },
   {
-   "key": "block:src/components/admin/CustomerUserDialog.tsx~src/components/admin/LeadEditDialog.tsx",
-   "reason": "шаблон диалог-формы (grid Label+Input) — стандартные строки шадсн-диалогов, дубликат каркаса, не логики"
-  },
-  {
    "key": "block:src/components/admin/CustomerUserDialog.tsx~src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx",
    "reason": "шаблон диалог-формы (grid Label+Input) — стандартные строки шадсн-диалогов"
   },
@@ -516,10 +492,6 @@
    "reason": "единый паттерн роута permits (авторизация + zod-валидация + цель lead/order); события пишет ядро permits-db — три кабинета одним шаблоном (DF-16)"
   },
   {
-   "key": "block:src/app/api/admin/options/[id]/route.ts~src/app/api/admin/permits/[id]/route.ts",
-   "reason": "единый паттерн роута permits (авторизация + zod-валидация + цель lead/order); события пишет ядро permits-db — три кабинета одним шаблоном (DF-16)"
-  },
-  {
    "key": "block:src/app/api/admin/orders/[id]/permits/route.ts~src/app/api/broker/leads/[id]/permits/route.ts",
    "reason": "единый паттерн роута permits (авторизация + zod-валидация + цель lead/order); события пишет ядро permits-db — три кабинета одним шаблоном (DF-16)"
   },
@@ -537,10 +509,6 @@
   },
   {
    "key": "block:src/components/admin/CustomerUserDialog.tsx~src/components/permits/PermitUploadButton.tsx",
-   "reason": "единый диалоговый паттерн проекта (state + форма + footer по брендбуку); реюз дженерика диалогов — отдельная карточка (DF-16)"
-  },
-  {
-   "key": "block:src/components/admin/LeadEditDialog.tsx~src/components/permits/PermitUploadButton.tsx",
    "reason": "единый диалоговый паттерн проекта (state + форма + footer по брендбуку); реюз дженерика диалогов — отдельная карточка (DF-16)"
   },
   {
@@ -582,10 +550,6 @@
   {
    "key": "block:src/components/admin/contractorlead/ContractorLeadActionsDialog.tsx~src/components/documents/parts/RegistryPermitRow.tsx",
    "reason": "дубликат кода v0.9.0 (каркас shadcn-диалога/строки) — вне объёма волны 1"
-  },
-  {
-   "key": "block:src/components/admin/broker/BrokerEditDialog.tsx~src/components/admin/lead/LeadApprovalDialogs.tsx",
-   "reason": "шаблонный каркас shadcn-диалога (Header/Description/Footer) — совпадение каркаса, не логики; базлайн волны 1"
   },
   {
    "key": "block:src/components/admin/contractorlead/ContractorLeadCreateDialog.tsx~src/components/admin/lead/LeadApprovalDialogs.tsx",

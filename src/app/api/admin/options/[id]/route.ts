@@ -1,48 +1,98 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { UpdateQuoteOptionSchema } from '@/lib/leads'
 import { resolveActiveCurrencies } from '@/lib/ref-db'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { employeeActor } from '@/lib/activity'
+import { parseBody } from '@/lib/document-upload'
+import { updateOption } from '@/lib/option-edit'
 import { emitEvent } from '@/lib/events'
+import { employeeActor } from '@/lib/activity'
 import { lockLeadForOptions } from '../../leads/[id]/convert/helpers'
+import { sumOptionCalc, calcMismatch } from '@/lib/option-calc'
+import { diffOptionVsLead } from '@/lib/option-snapshots'
 
 type Params = { params: Promise<{ id: string }> }
 
-// ─── PATCH /api/admin/options/[id] — правка варианта (В3) ──────
-// Любое подмножество полей. Инвариант «isSelected ровно один на лид»:
-// выбор этого варианта (isSelected:true) снимает отметку с прежнего в
-// одной транзакции; явное isSelected:false допустимо (осознанное снятие
-// выбора до нуля) — выбирать новый вариант не обязательно.
-// won-лид — 409: варианты зафиксированы историей сделки.
+// ─── GET /api/admin/options/[id] — вариант целиком (DF-27, план §9) ──
+// Staff-проекция: вариант + строки расчёта + итоги + расхождение с
+// запросом + ревизии («История варианта»). Строки, итоги и ревизии —
+// только сотрудникам (D3 / RULES 2.15): клиентский кабинет читает
+// собственную проекцию (CLIENT_OPTION_FIELDS) и этот роут не проходит.
+export async function GET(req: NextRequest, { params }: Params) {
+  const auth = await requireEmployee(req)
+  if (!auth.ok) return auth.response
+
+  const { id } = await params
+  try {
+    const option = await db.quoteOption.findUnique({
+      where: { id },
+      include: {
+        lead: {
+          select: {
+            id: true,
+            status: true,
+            cargoInfo: true,
+            wishes: true,
+            originCity: true,
+            originCountry: true,
+            originCountryCode: true,
+            destinationCity: true,
+            destinationCountry: true,
+            destinationCountryCode: true,
+            transportType: true,
+            readyDate: true,
+            incotermCode: true,
+            incotermPlace: true,
+          },
+        },
+        calcLines: { orderBy: { sortOrder: 'asc' } },
+        revisions: { orderBy: { seq: 'desc' } },
+      },
+    })
+    if (!option) {
+      return NextResponse.json({ error: 'Вариант расчёта не найден' }, { status: 404 })
+    }
+
+    const { lead, calcLines, revisions, ...optionFields } = option
+    const totals = calcLines.length > 0 ? sumOptionCalc(calcLines, option.currency) : null
+    return NextResponse.json({
+      option: optionFields,
+      calcLines,
+      calcTotals: totals,
+      calcMismatch: calcMismatch(totals, option.costEstimate),
+      diffFromLead: diffOptionVsLead(lead, option),
+      revisions,
+    })
+  } catch (e) {
+    return apiErrorResponse(e, 'option GET', 'Не удалось загрузить вариант расчёта')
+  }
+}
+
+// ─── PATCH /api/admin/options/[id] — правка варианта (В3 + DF-27) ──
+// DF-27 волна 1: правятся снимки, строки расчёта и коммерческие поля;
+// изменённые ключи дописываются в editedFields; в той же транзакции —
+// ревизия updated с диффом и (при наличии) ревизия price_review_reset.
+// Инвариант «isSelected ровно один на лид» сохранён. won-лид — 409.
+// Ответ содержит calcMismatch — предупреждение расхождения суммы строк
+// и себестоимости (не ошибка, ТЗ §5).
 export async function PATCH(req: NextRequest, { params }: Params) {
   const auth = await requireEmployee(req, { write: true })
   if (!auth.ok) return auth.response
 
   const { id } = await params
   try {
-    // Пустое/битое тело — 400, а не 500: req.json() кидает до safeParse.
-    let body: unknown
-    try {
-      body = await req.json()
-    } catch {
-      return NextResponse.json({ error: 'Некорректный JSON в теле запроса' }, { status: 400 })
-    }
-    const parsed = UpdateQuoteOptionSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Некорректные данные', details: parsed.error.flatten() },
-        { status: 400 }
-      )
-    }
+    // Пустое/битое тело — 400, а не 500: разбор+схема — общий parseBody
+    // (IC-14: одна точка, DF-27 волна 1).
+    const parsed = await parseBody(req, UpdateQuoteOptionSchema)
+    if (!parsed.ok) return parsed.response
     const data = parsed.data
 
     // DF-17: валюты правки — из справочника (активные); null/undefined
     // в проверку не попадает (семантика PATCH «не трогать»)
-    if (data.currency !== undefined || data.costCurrency !== undefined) {
-      const currencies = await resolveActiveCurrencies([data.currency, data.costCurrency])
+    const lineCurrencies = (data.calcLines ?? []).map((l) => l.currency)
+    if (data.currency !== undefined || data.costCurrency !== undefined || lineCurrencies.length > 0) {
+      const currencies = await resolveActiveCurrencies([data.currency, data.costCurrency, ...lineCurrencies])
       if (currencies.invalid.length > 0) {
         return NextResponse.json(
           { error: `Валюта не найдена в справочнике или отключена: ${currencies.invalid.join(', ')}` },
@@ -51,6 +101,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     }
 
+    // Пред-гарды (те же — повторно внутри транзакции с блокировкой)
     const existing = await db.quoteOption.findUnique({
       where: { id },
       include: { lead: { select: { id: true, status: true } } },
@@ -58,15 +109,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!existing) {
       return NextResponse.json({ error: 'Вариант расчёта не найден' }, { status: 404 })
     }
-
     const lead = await db.lead.findUnique({
       where: { id: existing.leadId },
       include: { order: { select: { id: true } } },
     })
-    // «won» — терминальный (В2): правка вариантов после конвертации —
-    // правка истории, не через API.
-    // client_approved (поток A, уровень 1 защиты): при активном
-    // согласовании варианты заморожены — 409 с подсказкой.
     if (lead && (lead.status === 'won' || lead.order)) {
       return NextResponse.json(
         { error: 'Запрос конвертирован в заявку — варианты расчёта зафиксированы' },
@@ -80,82 +126,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       )
     }
 
-    // Интерактивная транзакция (не массивная — урок В3 про позиционность
-    // условных spread-элементов): сначала снять отметку с прежнего, затем
-    // править сам вариант — «ровно один» держится и внутри транзакции.
-    // AUD-01: первым шагом — блокировка строки лида + ре-чек (гонка
-    // «вариант ↔ конвертация» закрыта).
-    const txResult = await db.$transaction(async (tx) => {
-      const guard = await lockLeadForOptions(tx, existing.leadId)
-      if (!guard.ok) return guard
-      if (data.isSelected) {
-        await tx.quoteOption.updateMany({
-          where: { leadId: existing.leadId, isSelected: true, id: { not: id } },
-          data: { isSelected: false },
-        })
-      }
-      const updated = await tx.quoteOption.update({
-        where: { id },
-        data: {
-          ...(data.description !== undefined ? { description: data.description } : {}),
-          ...(data.transportModes !== undefined
-            ? {
-                transportModes:
-                  data.transportModes as unknown as Prisma.InputJsonArray,
-              }
-            : {}),
-          // P1-04: цена/валюта/НДС; costEstimate: null — очистить
-          // себестоимость (не передан — не трогаем)
-          ...(data.price !== undefined ? { price: data.price } : {}),
-          ...(data.currency !== undefined ? { currency: data.currency } : {}),
-          ...(data.vatMode !== undefined ? { vatMode: data.vatMode } : {}),
-          ...(data.costEstimate !== undefined ? { costEstimate: data.costEstimate } : {}),
-          ...(data.costCurrency !== undefined ? { costCurrency: data.costCurrency } : {}),
-          ...(data.etaDays !== undefined ? { etaDays: data.etaDays } : {}),
-          ...(data.priorityFit !== undefined ? { priorityFit: data.priorityFit } : {}),
-          ...(data.isSelected !== undefined ? { isSelected: data.isSelected } : {}),
-        },
-      })
-      // Ж5: правка варианта — движение по лиду (сброс маркера «без
-      // движения»): сам вариант таблицу лида не трогает.
-      await tx.lead.update({ where: { id: existing.leadId }, data: { updatedAt: new Date() } })
-      // Ж2: журнал — выбор и правка отдельными записями (выбор — это
-      // решение, правка — уточнение данных), в той же транзакции.
-      if (data.isSelected === true) {
-        await emitEvent(tx, {
-          target: { leadId: existing.leadId },
-          actor: employeeActor(auth.employee),
-          type: 'option_selected',
-          description: `Выбран вариант расчёта: ${data.description ?? existing.description}`,
-        })
-      }
-      const fieldsTouched =
-        data.description !== undefined ||
-        data.transportModes !== undefined ||
-        data.price !== undefined ||
-        data.currency !== undefined ||
-        data.vatMode !== undefined ||
-        data.costEstimate !== undefined ||
-        data.costCurrency !== undefined ||
-        data.etaDays !== undefined ||
-        data.priorityFit !== undefined
-      if (fieldsTouched) {
-        await emitEvent(tx, {
-          target: { leadId: existing.leadId },
-          actor: employeeActor(auth.employee),
-          type: 'option_updated',
-          description: `Обновлён вариант расчёта: ${data.description ?? existing.description}`,
-        })
-      }
-      return { option: updated }
-    })
-    if (!('option' in txResult)) {
-      return NextResponse.json({ error: txResult.error }, { status: txResult.status })
+    const result = await updateOption(id, data, auth.employee)
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.error, ...(result.missing ? { missing: result.missing } : {}) },
+        { status: result.status }
+      )
     }
-    const option = txResult.option
 
-    // Свежий лид с полным составом вариантов — В5-карточке не нужен
-    // повторный GET после правки.
     const updatedLead = await db.lead.findUnique({
       where: { id: existing.leadId },
       include: {
@@ -165,7 +143,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
     })
 
-    return NextResponse.json({ option, lead: updatedLead, message: 'Вариант расчёта обновлён' })
+    return NextResponse.json({
+      option: result.option,
+      calcTotals: result.calcTotals,
+      calcMismatch: result.calcMismatchAmount,
+      priceReviewReset: result.priceReviewReset,
+      lead: updatedLead,
+      message: 'Вариант расчёта обновлён',
+    })
   } catch (e) {
     return apiErrorResponse(e, 'option PATCH', 'Не удалось обновить вариант расчёта')
   }
@@ -174,6 +159,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 // ─── DELETE /api/admin/options/[id] — удалить вариант (В3) ─────
 // Удаление НЕ откатывает статус лида (calculated остаётся — статус
 // меняет человек через В2 PATCH, не триггер). won-лид — 409.
+// Ревизии и строки расчёта уходят каскадом с вариантом (схема DF-27).
 export async function DELETE(req: NextRequest, { params }: Params) {
   const auth = await requireEmployee(req, { write: true })
   if (!auth.ok) return auth.response
@@ -206,8 +192,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     }
 
     // AUD-01: удаление — та же транзакция с блокировкой строки лида
-    // и ре-чеком, что POST/PATCH (гонка «вариант ↔ конвертация» и гард
-    // согласования едины для всех трёх операций).
+    // и ре-чеком (прецедент lockLeadForOptions), что POST/PATCH
+    // (гонка «вариант ↔ конвертация» и гард согласования едины).
     const txResult = await db.$transaction(async (tx) => {
       const guard = await lockLeadForOptions(tx, existing.leadId)
       if (!guard.ok) return guard

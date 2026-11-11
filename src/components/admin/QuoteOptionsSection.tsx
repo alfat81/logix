@@ -1,30 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { Layers, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Layers, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
-import { QUOTE_PRIORITY_FIT_LABELS, type QuotePriorityFit } from '@/lib/leads'
-import {
-  CURRENCIES,
-  VAT_MODES,
-  formatMoneyWithVat,
-  formatMoney,
-  type CurrencyCode,
-  type VatModeCode,
-} from '@/lib/money'
 import { QuoteOptionDialog } from '@/components/admin/QuoteOptionDialog'
+import {
+  QuoteOptionCard,
+  type QuoteOptionRow as QuoteOptionCardRow,
+} from '@/components/admin/QuoteOptionCard'
+import type { LeadBlankView } from '@/components/admin/QuoteOptionRouteBlocks'
 import {
   LeadApprovalBanner,
   LeadConfirmOnBehalfDialog,
@@ -44,20 +31,7 @@ import {
 // брокеров) вместо голого h2 text-lg; пустое состояние — строка muted
 // в CardContent, как у секции брокеров.
 
-export type QuoteOptionRow = {
-  id: string
-  description: string
-  transportModes: string[] | null
-  // Decimal из API приходит строкой (toJSON Decimal.js)
-  price: string
-  currency: string
-  vatMode: string
-  costEstimate: string | null
-  costCurrency: string
-  etaDays: number
-  priorityFit: string
-  isSelected: boolean
-}
+export type QuoteOptionRow = QuoteOptionCardRow
 
 export function QuoteOptionsSection({
   leadId,
@@ -67,6 +41,10 @@ export function QuoteOptionsSection({
   // блокировка правки, «Зафиксировать согласие от имени»/«Изменить условия»
   leadStatus,
   confirmation,
+  // DF-27: бланк запроса (блок 1 диалога) и готовность (вычисляемая,
+  // из staff-проекции GET карточки — ТЗ §2.3)
+  leadBlank,
+  leadCompleteness,
   onChanged,
 }: {
   leadId: string
@@ -78,6 +56,8 @@ export function QuoteOptionsSection({
     via: string | null
     byName: string | null
   } | null
+  leadBlank: LeadBlankView
+  leadCompleteness?: { ready: boolean; missing: string[] } | null
   onChanged: () => void
 }) {
   const { toast } = useToast()
@@ -166,96 +146,20 @@ export function QuoteOptionsSection({
             Вариантов пока нет. Первый добавленный вариант переведёт запрос в «Рассчитан».
           </span>
         ) : (
-          options.map((o) => {
-            const modes = Array.isArray(o.transportModes)
-              ? o.transportModes.filter((m): m is string => typeof m === 'string')
-              : []
-            const currency: CurrencyCode = (CURRENCIES as readonly string[]).includes(o.currency)
-              ? (o.currency as CurrencyCode)
-              : 'RUB'
-            const vatMode: VatModeCode = (VAT_MODES as readonly string[]).includes(o.vatMode)
-              ? (o.vatMode as VatModeCode)
-              : 'WITHOUT_VAT'
-            const costCurrency: CurrencyCode = (CURRENCIES as readonly string[]).includes(
-              o.costCurrency,
-            )
-              ? (o.costCurrency as CurrencyCode)
-              : 'RUB'
-            return (
-              <Card
-                key={o.id}
-                className={
-                  o.isSelected ? 'p-4 border-action-icon border-2' : 'p-4 border-l-4 border-l-transparent'
-                }
-              >
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <div className="min-w-52 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium">{o.description}</span>
-                      {o.isSelected && (
-                        <Badge className="bg-primary text-primary-foreground border-transparent">
-                          Выбран
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-2 mt-1">
-                      {modes.length > 0 && (
-                        <span className="flex gap-1">
-                          {modes.map((m) => (
-                            <Badge key={m} variant="outline" className="text-xs">
-                              {m}
-                            </Badge>
-                          ))}
-                        </span>
-                      )}
-                      <span>срок: {o.etaDays} дн.</span>
-                      <span>· ориентир: {QUOTE_PRIORITY_FIT_LABELS[o.priorityFit as QuotePriorityFit] ?? o.priorityFit}</span>
-                      {/* Себестоимость — только сотрудникам (сервер наружу
-                          её не отдаёт, D3); справа от ориентиров не мешает */}
-                      {o.costEstimate !== null && (
-                        <span>
-                          · себестоимость: {formatMoney(o.costEstimate, costCurrency)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="font-semibold tabular-nums whitespace-nowrap">
-                    {formatMoneyWithVat(o.price, currency, vatMode)}
-                  </div>
-                  {!optionsLocked && (
-                    <div className="flex items-center gap-1">
-                      {!o.isSelected && (
-                        <Button variant="outline" size="sm" onClick={() => selectOption(o)}>
-                          Выбрать
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8"
-                        onClick={() => {
-                          setEditingOption(o)
-                          setOptionOpen(true)
-                        }}
-                        title="Править вариант"
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 text-destructive hover:text-destructive"
-                        onClick={() => deleteOption(o)}
-                        title="Удалить вариант"
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )
-          })
+          options.map((o) => (
+            <QuoteOptionCard
+              key={o.id}
+              option={o}
+              locked={optionsLocked}
+              onSelect={() => selectOption(o)}
+              onEdit={() => {
+                setEditingOption(o)
+                setOptionOpen(true)
+              }}
+              onDelete={() => deleteOption(o)}
+              onFillFromLead={onChanged}
+            />
+          ))
         )}
       </CardContent>
 
@@ -264,6 +168,8 @@ export function QuoteOptionsSection({
         onOpenChange={setOptionOpen}
         leadId={leadId}
         editing={editingOption}
+        leadBlank={leadBlank}
+        leadCompleteness={leadCompleteness}
         onSaved={onChanged}
       />
 

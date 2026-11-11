@@ -8,12 +8,13 @@ import {
   mergeLeadCargo,
   isLeadAnketaEditable,
   validateAssigneeChange,
+  validateStatusChange,
 } from '@/lib/lead-edit'
 import { resolveDealCodes } from '@/lib/ref-db'
-import { checkLeadTransition } from '@/lib/status-machine'
 import { apiErrorResponse } from '@/lib/api-errors'
 import { employeeActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
+import { detectPriceSignificantChanges } from '@/lib/option-snapshots'
 
 // v0.5.0 (P1-22): PATCH /api/admin/leads/[id] — выезд из route.ts
 // (резка под лимит 300, RULES 2.14). Логика 1:1.
@@ -134,54 +135,18 @@ export async function patchLead(
       }
     }
 
-    // ── Смена статуса (В2) ──
+    // ── Смена статуса (В2): матрица переходов и пороги — lib/lead-edit.ts
+    // (DF-27 волна 1 — вынос за лимит 300, RULES 2.14; контракты ошибок те же)
     if (status !== undefined) {
-      if (status === existing.status) {
-        return NextResponse.json(
-          { error: `Статус запроса уже: ${LEAD_STATUS_LABELS[status]}` },
-          { status: 400 }
-        )
-      }
-      if (status === 'won') {
-        return NextResponse.json(
-          { error: 'Статус «Выигран» проставляется только конвертацией в заявку' },
-          { status: 409 }
-        )
-      }
-      if (status === 'lost' && !lostReason) {
-        return NextResponse.json(
-          { error: 'Укажите причину отказа (lostReason)' },
-          { status: 400 }
-        )
-      }
-
-      // ── Матрица переходов лида (P1-05, lib/status-machine.ts) ──
-      const transition = checkLeadTransition(existing.status as LeadStatus, status as LeadStatus)
-      if (!transition.ok) {
-        return NextResponse.json({ error: transition.error }, { status: transition.status })
-      }
-
-      // Ручной перевод new→calculated — только при ≥1 варианте расчёта
-      // (порог воронки из В3; находка аудита №7: «Рассчитан» без вариантов
-      // обесценивал статус и ломал фильтры). Автомат из В3 — POST вариантов
-      // — этот порог выполняет всегда, здесь защита от ручного обхода.
-      if (existing.status === 'new' && status === 'calculated') {
-        const optionsCount = await db.quoteOption.count({ where: { leadId: id } })
-        if (optionsCount === 0) {
-          return NextResponse.json(
-            { error: 'Нельзя перевести в «Рассчитан» без варианта расчёта — сначала добавьте вариант' },
-            { status: 409 }
-          )
-        }
-      }
-
-      // lost→new — возврат из терминального: только мастер (как у заявки).
-      // Причина отказа сохраняется в журнале — поле чистится при возврате.
-      if (existing.status === 'lost' && !auth.employee.roles.includes('master')) {
-        return NextResponse.json(
-          { error: 'Возврат из «Отказа» доступен только мастеру' },
-          { status: 403 }
-        )
+      const statusError = await validateStatusChange(
+        id,
+        existing.status as LeadStatus,
+        status as LeadStatus,
+        lostReason,
+        auth.employee.roles.includes('master')
+      )
+      if (statusError) {
+        return NextResponse.json({ error: statusError.error }, { status: statusError.statusCode })
       }
     }
 
@@ -193,7 +158,14 @@ export async function patchLead(
       return NextResponse.json({ error: deal.error }, { status: 400 })
     }
 
-    const lead = await db.lead.update({
+    // DF-27 (ТЗ §5.5): ценозначимые изменения запроса — флаг
+    // «данные изменились — пересмотрите цену» ВСЕМ вариантам, в той же
+    // транзакции с сохранением (план §6.5). Перечень ключей — в событии.
+    const priceKeys = editDescription
+      ? detectPriceSignificantChanges(existing, { route, mergedCargo, incotermCode })
+      : []
+
+    const leadUpdate = db.lead.update({
       where: { id },
       data: {
         // Статус: lostReason пишется только вместе со статусом lost; при
@@ -239,6 +211,17 @@ export async function patchLead(
         order: { select: { id: true, number: true } },
       },
     })
+    const [lead] = await db.$transaction([
+      leadUpdate,
+      ...(priceKeys.length > 0
+        ? [
+            db.quoteOption.updateMany({
+              where: { leadId: id, priceReviewRequired: false },
+              data: { priceReviewRequired: true },
+            }),
+          ]
+        : []),
+    ])
 
     // Ж2: журнал — по смысловым частям PATCH, отдельная запись на каждую
     // (лента — хроника решений, а не «что-то обновили»).
@@ -280,7 +263,11 @@ export async function patchLead(
         target: { leadId: id },
         actor: employeeActor(auth.employee),
         type: 'lead_edited',
-        description: editDescription,
+        description:
+          editDescription +
+          (priceKeys.length > 0
+            ? ` — ценозначимые данные изменились (${priceKeys.join(', ')}): варианты требуют пересмотра цены`
+            : ''),
       })
     }
 

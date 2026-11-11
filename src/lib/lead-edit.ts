@@ -2,11 +2,14 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import {
   LEAD_CARGO_LABELS,
+  LEAD_STATUS_LABELS,
   RawContactSchema,
   CargoInfoSchema,
   readLeadCargo,
+  type LeadStatus,
   type RawContact,
 } from '@/lib/leads'
+import { checkLeadTransition } from '@/lib/status-machine'
 import {
   RouteFieldsSchema,
   TRANSPORT_TYPE_LABELS,
@@ -378,4 +381,56 @@ export function hsCodePatch(
   }
   if (hsCode !== undefined) return { hsCode: hsCode || null }
   return undefined
+}
+
+// ─── Смена статуса запроса (В2) — валидация перехода ────────────────
+// Вынесено из PATCH запроса (DF-27 волна 1, лимит 300 — RULES 2.14):
+// та же матрица, те же контракты ошибок. Смена статуса доступна
+// только человеку; «won» вручную не ставится (только конвертацией);
+// lost требует причину; повторная установка — 400; ручной
+// new→calculated — только при ≥1 варианте (порог воронки В3);
+// lost→new — возврат из терминального, только мастер.
+export async function validateStatusChange(
+  leadId: string,
+  existingStatus: LeadStatus,
+  status: LeadStatus,
+  lostReason: string | undefined,
+  isMaster: boolean
+): Promise<{ error: string; statusCode: number } | null> {
+  if (status === existingStatus) {
+    return { error: `Статус запроса уже: ${LEAD_STATUS_LABELS[status]}`, statusCode: 400 }
+  }
+  if (status === 'won') {
+    return { error: 'Статус «Выигран» проставляется только конвертацией в заявку', statusCode: 409 }
+  }
+  if (status === 'lost' && !lostReason) {
+    return { error: 'Укажите причину отказа (lostReason)', statusCode: 400 }
+  }
+
+  // Матрица переходов лида (P1-05, lib/status-machine.ts)
+  const transition = checkLeadTransition(existingStatus, status)
+  if (!transition.ok) {
+    return { error: transition.error, statusCode: transition.status }
+  }
+
+  // Ручной перевод new→calculated — только при ≥1 варианте расчёта
+  // (порог воронки из В3; находка аудита №7: «Рассчитан» без вариантов
+  // обесценивал статус и ломал фильтры). Автомат из В3 — POST вариантов
+  // — этот порог выполняет всегда, здесь защита от ручного обхода.
+  if (existingStatus === 'new' && status === 'calculated') {
+    const optionsCount = await db.quoteOption.count({ where: { leadId } })
+    if (optionsCount === 0) {
+      return {
+        error: 'Нельзя перевести в «Рассчитан» без варианта расчёта — сначала добавьте вариант',
+        statusCode: 409,
+      }
+    }
+  }
+
+  // lost→new — возврат из терминального: только мастер (как у заявки).
+  // Причина отказа сохраняется в журнале — поле чистится при возврате.
+  if (existingStatus === 'lost' && !isMaster) {
+    return { error: 'Возврат из «Отказа» доступен только мастеру', statusCode: 403 }
+  }
+  return null
 }

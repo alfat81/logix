@@ -48,6 +48,9 @@ export const EMPTY_OPTION_FORM: OptionForm = {
   modes: [],
 }
 
+// Форма принимает частичный патч коммерческих полей; диалог передаёт
+// расширенную форму (OptionDialogForm) — Partial<OptionForm>
+// совместим с её все-опциональными полями блоков 2–3.
 export function QuoteOptionFormFields({
   form,
   onChange,

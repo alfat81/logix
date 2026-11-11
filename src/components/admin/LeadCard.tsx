@@ -6,9 +6,7 @@
 // рабочая область 1fr + правая панель «Детали/Журнал» 320px.
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { ArrowRight, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Loader2 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
@@ -30,7 +28,9 @@ import type { LeadStatus } from '@/lib/leads'
 import { fmtDate, type LeadFull } from '@/components/admin/lead/types'
 import { LeadAnketaCard } from '@/components/admin/lead/LeadAnketaCard'
 import { LeadConvertBlock } from '@/components/admin/lead/LeadConvertBlock'
+import { LeadConvertedBanner } from '@/components/admin/lead/LeadConvertedBanner'
 import { LeadStatusControls } from '@/components/admin/lead/LeadStatusControls'
+import { leadBlankView } from '@/components/admin/lead/types'
 
 export function LeadCard() {
   const { id } = useParams<{ id: string }>()
@@ -103,8 +103,10 @@ export function LeadCard() {
   // у lost возврат в работу — мастер, у won правка через заявку)
   const anketaEditable = lead.status === 'new' || lead.status === 'calculated'
 
-  // ── DF-19: предзаполнение — проценты из ответов брокера (DF-18),
-  // фрахт — из выбранного варианта расчёта (себестоимость, иначе цена)
+  // ── DF-19/DF-27 волна 1: бланк запроса и готовность анкеты — сборка
+  // вида «как в запросе» — общая leadBlankView (lead/types.ts) ──
+  const leadBlank = leadBlankView(lead)
+  const leadCompleteness = lead.completeness ?? null
   const estimates = toEstimatePrefill(lead.brokers)
   const freightSuggest = selectedOption
     ? {
@@ -232,6 +234,8 @@ export function LeadCard() {
           options={lead.options}
           disabled={isWon}
           leadStatus={lead.status}
+          leadBlank={leadBlank}
+          leadCompleteness={leadCompleteness}
           confirmation={{
             at: lead.clientConfirmedAt ?? null,
             via: lead.clientConfirmedVia ?? null,
@@ -241,20 +245,7 @@ export function LeadCard() {
         />
         {/* ── Конвертация / заявка (В4; компонент lead/, P1-19) ──── */}
         {lead.order ? (
-          <Card className="p-4 flex flex-wrap items-center gap-4 border-success/50 bg-success/5">
-            <div className="flex-1">
-              <div className="font-medium">Конвертирован в заявку</div>
-              <div className="text-sm text-muted-foreground">
-                Воронка завершена — история запроса зафиксирована
-              </div>
-            </div>
-            <Button asChild>
-              <Link href={`/admin/orders/${lead.order.id}`}>
-                Заявка {lead.order.number}
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-          </Card>
+          <LeadConvertedBanner order={lead.order} />
         ) : lead.status !== 'lost' ? (
           <LeadConvertBlock
             leadId={lead.id}

@@ -1,28 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireEmployee } from '@/lib/auth'
 import { CreateQuoteOptionSchema, LEAD_STATUS_LABELS } from '@/lib/leads'
-import { formatMoneyWithVat } from '@/lib/money'
 import { resolveActiveCurrencies } from '@/lib/ref-db'
 import { apiErrorResponse } from '@/lib/api-errors'
-import { employeeActor } from '@/lib/activity'
-import { emitEvent } from '@/lib/events'
-import { lockLeadForOptions } from '../convert/helpers'
+import { createOption } from '@/lib/option-write'
 
 type Params = { params: Promise<{ id: string }> }
 
-// ─── POST /api/admin/leads/[id]/options — добавить вариант (В3) ──
-// Один вариант = один способ доставки (описание + виды транспорта +
-// цена + срок + ориентир speed|cost|safety). Инвариант выбора — ровно
-// один выбранный на лид: вариант, созданный сразу с isSelected:true,
-// снимает отметку с прежнего (в одной транзакции).
-//
-// Единственный побочный автомат воронки (роадмап 8.1 + очередь В3):
-// добавление варианта лиду в статусе «new» переводит его в
-// «calculated» — статус буквально означает «посчитан». Откат при
-// удалении варианта НЕ предусмотрен: статус меняет человек (В2 PATCH),
-// не триггер.
+// ─── POST /api/admin/leads/[id]/options — добавить вариант (В3 + DF-27) ──
+// no-event: события пишет ядро lib/option-write.ts (option_added — с пометкой
+// предварительного расчёта и перечнем missing — в той же транзакции сохранения).
+// DF-27 волна 1: вариант — самостоятельный расчёт. Снимки бланка
+// запроса строятся автоматически (buildOptionSnapshots), overrides
+// уходят в editedFields (provenance), строки расчёта и ревизия created
+// — в той же транзакции (логика — lib/option-write.ts). Единственный
+// побочный автомат воронки сохранён: первый вариант переводит
+// new → calculated. При незакрытых критичных параметрах — 422 с
+// перечнем недостающего либо isPreliminary=true (ТЗ §5.1–5.3).
 export async function POST(req: NextRequest, { params }: Params) {
   const auth = await requireEmployee(req, { write: true })
   if (!auth.ok) return auth.response
@@ -45,9 +40,14 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
     const data = parsed.data
 
-    // DF-17: валюты варианта — из справочника (активные); пустая таблица
-    // (свежий деплой без сидажа) — запасной список money.ts
-    const currencies = await resolveActiveCurrencies([data.currency, data.costCurrency])
+    // DF-17: валюты варианта и строк расчёта — из справочника (активные);
+    // пустая таблица (свежий деплой без сида) — запасной список money.ts
+    const lineCurrencies = (data.calcLines ?? []).map((l) => l.currency)
+    const currencies = await resolveActiveCurrencies([
+      data.currency,
+      data.costCurrency,
+      ...lineCurrencies,
+    ])
     if (currencies.invalid.length > 0) {
       return NextResponse.json(
         { error: `Валюта не найдена в справочнике или отключена: ${currencies.invalid.join(', ')}` },
@@ -55,6 +55,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       )
     }
 
+    // Пред-гарды (понятные 404/409 до транзакции); те же гарды —
+    // повторно внутри с блокировкой строки (AUD-01)
     const lead = await db.lead.findUnique({
       where: { id },
       include: { order: { select: { id: true, number: true } } },
@@ -62,10 +64,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!lead) {
       return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
-    // «won» — терминальный (В2): лид сконвертирован в заявку, варианты
-    // расчёта зафиксированы историей сделки. Правка истории — не через API.
-    // client_approved (поток A, уровень 1 защиты): правка вариантов при
-    // активном согласовании запрещена — 409 с подсказкой «Изменить условия».
     if (lead.status === 'won' || lead.order) {
       return NextResponse.json(
         { error: 'Запрос конвертирован в заявку — варианты расчёта зафиксированы' },
@@ -79,76 +77,19 @@ export async function POST(req: NextRequest, { params }: Params) {
       )
     }
 
-    // Интерактивная транзакция: массивная форма $transaction([...]) с
-    // условным spread ломает позиционность результатов (при isSelected
-    // первым элементом оказывался счётчик updateMany, а не созданный
-    // вариант — поймано smoke-тестом В3).
-    // AUD-01: первым шагом — блокировка строки лида + ре-чек (гонка
-    // «вариант ↔ конвертация» закрыта; статус берётся с заблокированной
-    // строки — рассинхрона с pre-check нет).
-    const txResult = await db.$transaction(async (tx) => {
-      const guard = await lockLeadForOptions(tx, id)
-      if (!guard.ok) return guard
-      const becomesCalculated = guard.lead.status === 'new'
-      // Выбор нового снимает отметку с прежнего — до создания, чтобы
-      // «ровно один» держался и внутри транзакции.
-      if (data.isSelected) {
-        await tx.quoteOption.updateMany({
-          where: { leadId: id, isSelected: true },
-          data: { isSelected: false },
-        })
-      }
-      const created = await tx.quoteOption.create({
-        data: {
-          leadId: id,
-          description: data.description,
-          // zod-массив шире Prisma.InputJson — явный каст на границе
-          // (тот же приём, что и rawContact/cargoInfo в В2); без поля
-          // колонка остаётся SQL NULL.
-          ...(data.transportModes
-            ? {
-                transportModes:
-                  data.transportModes as unknown as Prisma.InputJsonArray,
-              }
-            : {}),
-          // P1-04: цена + валюта + НДС-метка; себестоимость — раздельно
-          // (D19), в ленту не пишется (RULES 2.15).
-          price: data.price,
-          currency: data.currency,
-          vatMode: data.vatMode,
-          ...(data.costEstimate !== undefined ? { costEstimate: data.costEstimate } : {}),
-          costCurrency: data.costCurrency,
-          etaDays: data.etaDays,
-          priorityFit: data.priorityFit,
-          isSelected: data.isSelected ?? false,
+    const result = await createOption(id, data, auth.employee)
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          error: result.error,
+          ...(result.missing ? { missing: result.missing } : {}),
         },
-      })
-      if (becomesCalculated) {
-        await tx.lead.update({ where: { id }, data: { status: 'calculated' } })
-      } else {
-        // Ж5: работа с вариантами — тоже движение по лиду (update и так
-        // тронет @updatedAt, но явная запись читается яснее намерения).
-        await tx.lead.update({ where: { id }, data: { updatedAt: new Date() } })
-      }
-      // Ж2: журнал — в той же транзакции (откат создания откатывает
-      // и запись). Автомат new→calculated дописывается в описание —
-      // единственный автомат воронки заслуживает строки в ленте.
-      await emitEvent(tx, {
-        target: { leadId: id },
-        actor: employeeActor(auth.employee),
-        type: 'option_added',
-        description: `Добавлен вариант расчёта: ${data.description} — ${formatMoneyWithVat(data.price, data.currency, data.vatMode)}, ${data.etaDays} дн.` +
-          (becomesCalculated ? ` — запрос посчитан: ${LEAD_STATUS_LABELS.calculated}` : ''),
-      })
-      return { option: created, becomesCalculated }
-    })
-    if (!('option' in txResult)) {
-      return NextResponse.json({ error: txResult.error }, { status: txResult.status })
+        { status: result.status }
+      )
     }
-    const { option, becomesCalculated } = txResult
 
-    // Свежий лид с полным составом вариантов — В5-карточке не нужен
-    // повторный GET после добавления.
+    // Свежий лид с полным составом вариантов — карточке не нужен
+    // повторный GET после добавления
     const updatedLead = await db.lead.findUnique({
       where: { id },
       include: {
@@ -160,9 +101,11 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     return NextResponse.json(
       {
-        option,
+        option: result.option,
+        calcTotals: result.calcTotals,
+        missing: result.missing,
         lead: updatedLead,
-        ...(becomesCalculated
+        ...(result.becomesCalculated
           ? {
               message: `Добавлен вариант расчёта — статус запроса: ${LEAD_STATUS_LABELS.calculated}`,
             }

@@ -89,7 +89,7 @@ chk('выход гасит только свою сессию (E0-06/E0-08)',s==
 s,d=a.r('GET','/api/admin/legal-entities'); le=(d.get('legalEntities') or d.get('items') or d) if isinstance(d,dict) else d
 leid=(le[0]['id'] if isinstance(le,list) else None); chk('юрлицо из сида',leid,d)
 # lead with raw contact
-s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'ООО Ромб '+u,'phone':'8 (999) '+str(base)[:3]+'-'+str(base)[3:5]+'-'+str(base)[5:7]},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':1200},'cargoInfo':{'note':'заметка'}}); chk('создание запроса',s in(200,201),(s,d))
+s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'ООО Ромб '+u,'phone':'8 (999) '+str(base)[:3]+'-'+str(base)[3:5]+'-'+str(base)[5:7]},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':1200,'placesCount':12},'cargoInfo':{'note':'заметка','hsCode':'8471300000','cargoValue':9000},'incotermCode':'FOB'}); chk('создание запроса',s in(200,201),(s,d))
 lead=(d.get('lead') or d); lid=lead['id']
 # --- P1-01: ответственный менеджер ---
 s,d=a.r('GET','/api/auth/employee/me'); aid=(d.get('employee') or {}).get('id'); chk('P1-01: id текущего сотрудника (me)',bool(aid),(s,d))
@@ -216,7 +216,7 @@ s,d=a.r('GET','/api/admin/orders?transport=rail'); oids2=[x['id'] for x in d.get
 chk('P1-03: фильтр заявок «ЖД» пуст',oid not in oids2,len(oids2))
 s,d=a.r('PATCH',f'/api/admin/orders/{oid}',{'route':{'placesCount':4,'volumeM3':2.5}}); chk('P1-03: правка маршрута заявки → 200',s==200,(s,d))
 s,d=a.r('GET',f'/api/admin/orders/{oid}'); O=d.get('order',d); oacts=O.get('activities',[])
-chk('P1-03: diff маршрута заявки в журнале',bool(oacts) and oacts[0]['type']=='order_cargo_changed' and 'Мест: — → 4' in oacts[0]['description'] and 'Объём: — → 2,5' in oacts[0]['description'],(oacts[0] if oacts else None))
+chk('P1-03: diff маршрута заявки в журнале',bool(oacts) and oacts[0]['type']=='order_cargo_changed' and 'Мест: 12 → 4' in oacts[0]['description'] and 'Объём: — → 2,5' in oacts[0]['description'],(oacts[0] if oacts else None))
 s,d=a.r('GET',f'/admin/orders/{oid}/print')
 html=d.decode('utf-8','ignore') if isinstance(d,(bytes,bytearray)) else str(d)
 chk('P1-03: печатная форма п.3 «Море»',s==200 and 'Море' in html,(s,len(html)))
@@ -334,7 +334,7 @@ s,d=c.r('GET',f'/api/client/orders/{oid}/documents'); txt=json.dumps(d,ensure_as
 chk('клиент НЕ видит внутренний документ',('Тариф подрядчика' not in txt),txt[:200])
 s,d=c.r('GET','/api/admin/orders'); chk('клиент не попадает в админ-API',s==401,s)
 # --- DF-05: жизненный цикл ожидания на новом запросе/заявке (v0.7.2) ---
-s,d=a.r('POST','/api/admin/leads',{'customerId':cust,'rawContact':{'name':'Иван Клиентов '+u},'cargoInfo':{'cargoName':'Станок ЧПУ '+u},'route':{'originCity':'Шанхай','destinationCity':'Москва'}})
+s,d=a.r('POST','/api/admin/leads',{'customerId':cust,'rawContact':{'name':'Иван Клиентов '+u},'cargoInfo':{'cargoName':'Станок ЧПУ '+u,'hsCode':'8466933000','cargoValue':15000},'route':{'originCity':'Шанхай','destinationCity':'Москва','readyDate':'2026-12-01','weightKg':800,'placesCount':6},'incotermCode':'FOB'})
 chk('DF-05: запрос с описанием создан',s in(200,201),(s,d)); lid5=(d.get('lead') or d)['id']
 s,d=a.r('GET',f'/api/admin/leads/{lid5}'); L5=d.get('lead',d)
 chk('DF-05: описание есть, брокеров нет, вариантов нет — мяч у менеджера (no_quote)',(L5.get('waitingOnKind'),L5.get('waitingReason'))==('manager','no_quote'),(L5.get('waitingOnKind'),L5.get('waitingReason')))
@@ -483,7 +483,9 @@ s,d=a.r('GET',f'/api/admin/leads/{lid}'); lrow=next((l.get('estimate') for l in 
 chk('DF-18: менеджер видит две строки и статус sent',lrow and len(lrow.get('items') or [])==2 and lrow.get('status')=='sent',lrow)
 # клиент ответ не видит (D38: клиент видит только цену варианта)
 s,d=c.r('GET',f'/api/client/orders/{oid}'); txt=json.dumps(d,ensure_ascii=False)
-chk('DF-18: клиент не видит строки ответа брокера',('dutyPercent' not in txt and 'isManualCode' not in txt and 'hsCode' not in txt),txt[:150])
+# DF-27 волна 1: hsCode — легитимное поле анкеты груза клиента (cargoInfo);
+# утечкой были бы только ключи ответа брокера (dutyPercent/isManualCode)
+chk('DF-18: клиент не видит строки ответа брокера',('dutyPercent' not in txt and 'isManualCode' not in txt and 'customsDutyEstimate' not in txt),txt[:150])
 # правка после отправки — событие estimate_updated с разницей строк
 s,d=b.r('PUT',f'/api/broker/leads/{lid}/estimate',{'customsDutyEstimate':160000,'items':[{'hsCode':'0101210000','dutyPercent':10,'vatPercent':20}],'send':True})
 chk('DF-18: правка после отправки сохранена (статус остаётся sent)',s in(200,201) and (d.get('estimate') or {}).get('status')=='sent',(s,d))
@@ -658,7 +660,7 @@ s,d=bb.r('GET','/api/admin/notifications'); chk('DF-03: менеджер не ч
 # ПОСЛЕ конвертации (клиент сделки рождается из rawContact, ответственный
 # по умолчанию — мастер без email: выдаём человеку email и назначаем менеджера)
 s,d=a.r('POST','/api/admin/employees',{'name':'DF03 менеджер '+u,'phone':ph(base+41),'password':'df03-pass-1','roles':['manager'],'email':'df03-staff-'+u+'@test.example'}); chk('DF-03: сотрудник с email создан',s==201,(s,d)); staff3=(d.get('employee') or {}).get('id')
-s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'DF03 сделка '+u,'phone':ph(base+46)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':100}}); lid3=(d.get('lead') or d)['id']
+s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'DF03 сделка '+u,'phone':ph(base+46)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':100,'placesCount':3,'readyDate':'2026-12-05'},'cargoInfo':{'hsCode':'8507600090','cargoValue':5000},'incotermCode':'FOB'}); lid3=(d.get('lead') or d)['id']
 s,d=a.r('POST',f'/api/admin/leads/{lid3}/options',{'description':'Море','transportModes':['Море'],'price':100000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':30,'priorityFit':'cost','isSelected':True})
 a.r('POST',f'/api/admin/leads/{lid3}/confirm',{})
 s,d=a.r('POST',f'/api/admin/leads/{lid3}/convert',{'legalEntityId':leid,'incoterm':'FOB'}); o3=(d.get('order') or d); oid3=o3['id']
@@ -868,7 +870,7 @@ s,d=c3.r('GET','/api/ref/currency'); zz=[x['code'] for x in d.get('items',[]) if
 chk('DF-17: отключённая валюта исчезла из форм клиента',s==200 and len(zz)==0,(s,zz))
 s,d=bb.r('PATCH',f"/api/admin/references/{zitem.get('id')}",{'code':'XYZ'}); chk('DF-17: код записи менять нельзя → 400 (сделки ссылаются)',s==400,s)
 # запрос с кодами: клиент шлёт только коды — сервер денормализует имена
-s,d=c3.r('POST','/api/client/leads',{'route':{'originCountryCode':'CN','destinationCountryCode':'RU','weightKg':55},'incotermCode':'fob'}); lid4=(d.get('lead') or d or {}).get('id')
+s,d=c3.r('POST','/api/client/leads',{'route':{'originCountryCode':'CN','destinationCountryCode':'RU','weightKg':55,'placesCount':2,'readyDate':'2026-12-25'},'cargoInfo':{'hsCode':'6109100012','cargoValue':2000},'incotermCode':'fob'}); lid4=(d.get('lead') or d or {}).get('id')
 chk('DF-17: запрос клиента с кодами страны и FOB создан',s in(200,201),(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid4}'); L4=d.get('lead',d)
 chk('DF-17: коды сохранены, имена денормализованы (Китай/Россия)',L4.get('originCountryCode')=='CN' and L4.get('originCountry')=='Китай' and L4.get('destinationCountryCode')=='RU' and L4.get('destinationCountry')=='Россия',(L4.get('originCountryCode'),L4.get('originCountry'),L4.get('destinationCountryCode'),L4.get('destinationCountry')))
@@ -951,7 +953,7 @@ s,d=a.r('PATCH',f'/api/admin/leads/{lid4}',{'incotermPlace':'Ningbo, CN'}); chk(
 # близким/прошедшим сроком даёт красное permit_overdue (скан диспетчера,
 # идемпотентно по lastRemindedAt); конвертация переносит строки.
 CL16EM='df03-client-'+u+'@test.example'  # человек клиента c3 (email от DF-03)
-s,d=c3.r('POST','/api/client/leads',{'route':{'originCountryCode':'CN','destinationCountryCode':'RU','weightKg':120}}); chk('DF-16: запрос создан клиентом',s in(200,201),(s,d)); lid16=(d.get('lead') or d)['id']
+s,d=c3.r('POST','/api/client/leads',{'route':{'originCountryCode':'CN','destinationCountryCode':'RU','weightKg':120,'placesCount':4,'readyDate':'2026-12-20'},'cargoInfo':{'hsCode':'0601100000','cargoValue':3000},'incotermCode':'FOB'}); chk('DF-16: запрос создан клиентом',s in(200,201),(s,d)); lid16=(d.get('lead') or d)['id']
 s,d=a.r('POST',f'/api/admin/leads/{lid16}/brokers',{'brokerId':brk3}); chk('DF-16: брокер подключён к запросу',s in(200,201),(s,d))
 s,d=b17.r('PUT',f'/api/broker/leads/{lid16}/estimate',{'items':[{'hsCode':'0101210000','dutyPercent':5,'vatPercent':22}],'requiredPermits':['Фитосанитарный сертификат DF16','Разрешение СИТЕС DF16'],'send':True}); chk('DF-16: оценка брокера с перечнем разрешительных отправлена',s in(200,201),(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid16}'); L16=d.get('lead',d); pm16=L16.get('permitRequirements',[])
@@ -1047,7 +1049,7 @@ s,d=a.r('DELETE','/api/admin/settings',{'key':'notifications.client_digest_times
 # (карточка и список, потеря 3), брокер (запрос и заявка, потеря 4). Правка
 # бланка заявки — единственная точка правки ТН ВЭД: колонка следует за бланком
 # (дубль 1). Секции ДО DF-09: дальше guard-бакет логина.
-s,d=c3.r('POST','/api/client/leads',{'route':{'originCountryCode':'CN','destinationCountryCode':'RU','originCity':'Гуанчжоу','destinationCity':'Санкт-Петербург','transportType':'sea','readyDate':'2026-12-05','weightKg':2500,'volumeM3':12.5,'placesCount':40},'cargoInfo':{'cargoName':'Двигатели DF23','hsCode':'8483402309','packaging':'Деревянная обрешётка','cargoValue':'45000 USD','dangerous':False,'stackable':True,'tiltable':False,'specialRequirements':'Не кантовать DF23','shipperName':'Guangzhou Motors DF23','shipperInn':'CN-91440101','shipperAddress':'№5 Port Ave, Guangzhou','consigneeName':'ООО Приёмка DF23','consigneeInn':'7801234567','consigneeAddress':'СПб, склад 12'},'incotermCode':'CIF'}); chk('DF-23: полностью заполненный запрос создан клиентом',s in(200,201),(s,d)); lid23=(d.get('lead') or d)['id']
+s,d=c3.r('POST','/api/client/leads',{'route':{'originCountryCode':'CN','destinationCountryCode':'RU','originCity':'Гуанчжоу','destinationCity':'Санкт-Петербург','transportType':'sea','readyDate':'2026-12-05','weightKg':2500,'volumeM3':12.5,'placesCount':40},'cargoInfo':{'cargoName':'Двигатели DF23','hsCode':'8483402309','packaging':'Деревянная обрешётка','cargoValue':45000,'dangerous':False,'stackable':True,'tiltable':False,'specialRequirements':'Не кантовать DF23','shipperName':'Guangzhou Motors DF23','shipperInn':'CN-91440101','shipperAddress':'№5 Port Ave, Guangzhou','consigneeName':'ООО Приёмка DF23','consigneeInn':'7801234567','consigneeAddress':'СПб, склад 12'},'incotermCode':'CIF'}); chk('DF-23: полностью заполненный запрос создан клиентом',s in(200,201),(s,d)); lid23=(d.get('lead') or d)['id']
 s,d=a.r('PATCH',f'/api/admin/leads/{lid23}',{'incotermPlace':'Истанбул, TR'}); chk('DF-23: место поставки задано на запросе',s==200,(s,d))
 s,d=a.r('POST',f'/api/admin/leads/{lid23}/brokers',{'brokerId':brk3}); chk('DF-23: брокер подключён к запросу',s in(200,201),(s,d))
 s,d=b17.r('GET',f'/api/broker/leads/{lid23}'); BL23=(d.get('lead') or d)
@@ -1291,7 +1293,7 @@ cz=_zf.ZipFile(_io.BytesIO(cbody)); _cnames=cz.namelist()
 chk('DF-13: клиентский ZIP без внутренних (contractor_rates отсутствует)',s==200 and any('bill-of-lading' in n for n in _cnames) and not any('contractor-rates' in n for n in _cnames),(s,_cnames))
 
 # — пустой пакет: свежая заявка без документов — внятный ответ —
-s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'ООО Пусто '+u,'phone':'8 (999) '+str(base)[:3]+'-'+str(base)[3:5]+'-'+str(base)[5:7]},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':100}})
+s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'ООО Пусто '+u,'phone':'8 (999) '+str(base)[:3]+'-'+str(base)[3:5]+'-'+str(base)[5:7]},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':100,'placesCount':5,'readyDate':'2026-12-10'},'cargoInfo':{'hsCode':'8471300000','cargoValue':7000},'incotermCode':'FOB'})
 _lid13=(d.get('lead') or d)['id']
 s,d=a.r('POST',f'/api/admin/leads/{_lid13}/options',{'description':'Вариант DF-13','price':100000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':30,'priorityFit':'cost','isSelected':True}); chk('DF-13: вариант расчёта для конвертации',s in(200,201),(s,d))
 a.r('POST',f'/api/admin/leads/{_lid13}/confirm',{})
@@ -1468,7 +1470,7 @@ s,d=a.r('POST','/api/admin/stage-catalog/requirements',{'stageCode':'export_pick
 s,d=a.r('GET','/api/admin/stage-catalog/requirements?stageCode=export_pickup'); _rq=(d.get('requirements') or [])
 chk('DF-14: срез по этапу содержит требование (blocking)',s==200 and any(x.get('kind')=='client_request' and x.get('isBlocking') and x.get('stageName') for x in _rq),(s,_rq[:1]))
 # изолированная сделка: запрос → вариант → конвертация (без брокера)
-s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'DF14 сделка '+u,'phone':ph(base+61)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':900}}); lid14=(d.get('lead') or d)['id']
+s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'DF14 сделка '+u,'phone':ph(base+61)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':900,'placesCount':15,'readyDate':'2026-12-08'},'cargoInfo':{'hsCode':'7006000000','cargoValue':21000},'incotermCode':'FOB'}); lid14=(d.get('lead') or d)['id']
 s,d=a.r('POST',f'/api/admin/leads/{lid14}/options',{'description':'Море DF14','transportModes':['Море'],'price':90000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':40,'priorityFit':'cost','isSelected':True}); chk('DF-14: вариант расчёта',s in(200,201),(s,d))
 a.r('POST',f'/api/admin/leads/{lid14}/confirm',{})
 s,d=a.r('POST',f'/api/admin/leads/{lid14}/convert',{'legalEntityId':leid}); chk('DF-14: конвертация → заявка',s in(200,201),(s,d)); o14=(d.get('order') or d); oid14=o14['id']
@@ -1568,7 +1570,7 @@ s,d=a.r('GET',f'/api/admin/orders/{oid16}'); _acts_w2=(d.get('order',d)).get('ac
 chk('DF-26 w2: авто-закрытие в ленте (permit_received «принят автоматически»)',any(x.get('type')=='permit_received' and 'автоматически' in (x.get('description') or '') for x in _acts_w2),[x.get('description') for x in _acts_w2 if x.get('type')=='permit_received'][:2])
 
 # ── Проверки ТН ВЭД и дифф-сохранение оценки (изолированная сделка с брокером b17) ──
-s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'DF26w2 проверка '+u,'phone':ph(base+77)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':300}})
+s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'DF26w2 проверка '+u,'phone':ph(base+77)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':300,'placesCount':6,'readyDate':'2026-12-18'},'cargoInfo':{'hsCode':'8708299009','cargoValue':9500},'incotermCode':'FOB'})
 _lw2=(d.get('lead') or d)['id']
 # Выделенный брокер сделки (создание → подключение → вход портала).
 s,d=a.r('POST','/api/admin/brokers',{'companyName':'Брокер w2 '+u,'phone':ph(base+78),'password':'broker-w2-1'}); _bw2id=(d.get('broker') or d)['id']
@@ -1657,7 +1659,7 @@ chk('DF-26 w2: мастер перекрывает блокировку треб
 print('\n--- Поток A: сценарии согласования ---')
 # лид сразу на существующего клиента (cust): доступ клиента рождает
 # CustomerUser ДО конвертации (до неё клиент у лида из rawContact не связан)
-s,d=a.r('POST','/api/admin/leads',{'customerId':cust,'rawContact':{'name':'Поток A клиент '+u,'phone':ph(base+71)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':700}}); _lw1=(d.get('lead') or d)['id']
+s,d=a.r('POST','/api/admin/leads',{'customerId':cust,'rawContact':{'name':'Поток A клиент '+u,'phone':ph(base+71)},'route':{'originCity':'Шанхай','destinationCity':'Москва','weightKg':700,'placesCount':8,'readyDate':'2026-12-15'},'cargoInfo':{'hsCode':'8708999709','cargoValue':12000},'incotermCode':'FOB'}); _lw1=(d.get('lead') or d)['id']
 s,d=a.r('POST',f'/api/admin/leads/{_lw1}/options',{'description':'PA авто','transportModes':['Авто'],'price':210000,'currency':'RUB','vatMode':'WITHOUT_VAT','costEstimate':130000,'etaDays':20,'priorityFit':'cost','isSelected':True}); _pa_a=(d.get('option') or d)['id']
 s,d=a.r('POST',f'/api/admin/leads/{_lw1}/options',{'description':'PA море','transportModes':['Море'],'price':180000,'currency':'RUB','vatMode':'WITH_VAT','etaDays':30,'priorityFit':'speed'}); _pa_b=(d.get('option') or d)['id']
 # К-01: конвертация первой — 409 «сначала зафиксируйте согласие»
@@ -1764,6 +1766,118 @@ chk('BL-9: событие customer_user_rebound в журнале (лента /a
 s,d=a.r('GET',f'/api/admin/customers/{cust}/access'); _prim2=[x for x in d.get('users',[]) if x.get('isPrimary')]
 if _prim2:
     s,d=a.r('POST',f'/api/admin/customers/{cust}/access/rebind',{'userId':_prim2[0]['id'],'targetCustomerId':custB}); chk('BL-9: primary не перепривязывается → 409',s==409,(s,d))
+
+# ═══ DF-27, волна 1: снимки, расчёт, полнота, ревизии, независимость (сценарии 1–7) ═══
+# Изолированная сделка: клиент c27, запросы — неполный (сценарий 1),
+# дозаполненный (сценарий 2) и полный (сценарии 3–7).
+s,d=a.r('POST','/api/admin/customers',{'name':'Клиент DF-27 '+u,'phone':ph(base+30)}); cust27=(d.get('customer') or d)['id']
+s,d=a.r('POST',f'/api/admin/customers/{cust27}/access',{'name':'Клиент DF-27 '+u,'phone':ph(base+31),'password':'client-pass-27'}); chk('DF-27: доступ клиента выдан',s in(200,201),(s,d))
+c27=C(); s,_=c27.r('POST','/api/auth/client/login',{'phone':ph(base+31),'password':'client-pass-27'})
+chk('DF-27: клиент вошёл в кабинет',s==200,s)
+
+# ── Сценарий 1: неполный запрос клиентом; missing виден менеджеру, не клиенту ──
+s,d=c27.r('POST','/api/client/leads',{'route':{'originCity':'Гуанчжоу','destinationCity':'Москва'},'cargoInfo':{'cargoName':'Текстиль 27','metaCustom27':'произвольный ключ'}})
+chk('DF-27 сц.1: клиент сохранил неполный запрос (статус new)',s in(200,201) and (d.get('lead') or d).get('status')=='new',(s,d))
+lid27p=(d.get('lead') or d)['id']
+s,d=a.r('GET',f'/api/admin/leads/{lid27p}'); _L27=(d.get('lead') or d)
+chk('DF-27 сц.1: менеджеру виден перечень недостающего (completeness)',bool(_L27.get('completeness')) and _L27['completeness']['ready'] is False and len(_L27['completeness']['missing'])>0,_L27.get('completeness'))
+s,d=c27.r('GET',f'/api/client/leads/{lid27p}')
+chk('DF-27 сц.1: клиенту перечень недостающего не отдаётся (D3)',isinstance(d,dict) and 'completeness' not in d and 'missing' not in json.dumps(d.get('lead',d),ensure_ascii=False),(s,list(d.keys()) if isinstance(d,dict) else type(d).__name__))
+
+# POST варианта на неполный запрос: без пометки → 422 с перечнем; с isPreliminary → 201
+s,d=a.r('POST',f'/api/admin/leads/{lid27p}/options',{'description':'Предварительный 27','price':90000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':40,'priorityFit':'cost'})
+chk('DF-27 сц.1: POST варианта на неполный запрос без пометки → 422 с перечнем',s==422 and isinstance(d.get('missing'),list) and len(d['missing'])>0,(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{lid27p}/options',{'description':'Предварительный 27','price':90000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':40,'priorityFit':'cost','isPreliminary':True})
+chk('DF-27 сц.1: с isPreliminary=true → 201, вариант предварительный',s==201 and (d.get('option') or {}).get('isPreliminary') is True,(s,d))
+optP27=(d.get('option') or {})
+chk('DF-27 сц.1: missingData сохранён на варианте',isinstance(optP27.get('missingData'),dict) and len(optP27['missingData'].get('missing',[]))>0,optP27.get('missingData'))
+s,d=a.r('GET',f'/api/admin/leads/{lid27p}')
+chk('DF-27: событие option_added помечает предварительный расчёт',any(x.get('type')=='option_added' and 'предварительный расчёт' in (x.get('description') or '') for x in (d.get('lead') or d).get('activities',[])),None)
+s,d=a.r('PATCH',f'/api/admin/options/{optP27["id"]}',{'isPreliminary':False})
+chk('DF-27 сц.2: снятие пометки на незакрытых данных → 422 с перечнем',s==422 and isinstance(d.get('missing'),list),(s,d))
+
+# ── Сценарий 2: дополнение анкеты → missing пустеет, ready=true ──
+# Исполнитель — МЕНЕДЖЕР: Р-1 (§13 техплана) не решён, окно клиента = «до первого
+# варианта» (гард 409), а на запросе уже есть предварительный вариант сц.1 —
+# правка клиентом корректно отклоняется 409 (проверено); дополнение — менеджером.
+s,d=c27.r('PATCH',f'/api/client/leads/{lid27p}',{'cargoInfo':{'cargoName':'проба окна клиента'}})
+chk('DF-27 сц.2: клиент правит анкету при существующем варианте → 409 (окно до первого варианта, Р-1)',s==409,(s,d))
+s,d=a.r('PATCH',f'/api/admin/leads/{lid27p}',{'route':{'originCountryCode':'CN','destinationCountryCode':'RU','readyDate':'2026-12-20','weightKg':1500,'volumeM3':9,'placesCount':12},'cargoInfo':{'cargoName':'Текстиль 27','hsCode':'8413700008','cargoValue':'120000','metaCustom27':'произвольный ключ'},'incotermCode':'FOB'})
+chk('DF-27 сц.2: менеджер дополнил анкету → 200',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid27p}'); _L27b=(d.get('lead') or d)
+chk('DF-27 сц.2: missing пустеет, ready=true',(_L27b.get('completeness') or {}).get('ready') is True and _L27b['completeness']['missing']==[],_L27b.get('completeness'))
+chk('DF-27 сц.2: событие lead_edited в журнале (актёр — менеджер)',any(x.get('type')=='lead_edited' for x in _L27b.get('activities',[])),[x.get('type') for x in _L27b.get('activities',[])[:3]])
+
+# ── Сценарий 4: автозаполнение варианта из запроса — сверка ПОЛЕЙ ──
+s,d=c27.r('POST','/api/client/leads',{'route':{'originCity':'Шанхай','originCountryCode':'CN','destinationCity':'Москва','destinationCountryCode':'RU','readyDate':'2026-12-25','weightKg':1200,'volumeM3':8,'placesCount':10},'cargoInfo':{'cargoName':'Станки 27','hsCode':'8413700008','cargoValue':'85000','dangerous':False,'vendorNote27':'заметка клиента'},'incotermCode':'FOB'})
+chk('DF-27: полный запрос создан',s in(200,201),(s,d))
+lid27=(d.get('lead') or d)['id']
+s,d=a.r('GET',f'/api/admin/leads/{lid27}'); _L27c=(d.get('lead') or d)
+lead_cargo27=_L27c['cargoInfo']
+s,d=a.r('POST',f'/api/admin/leads/{lid27}/options',{'description':'Вариант А 27','price':150000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':35,'priorityFit':'cost'})
+chk('DF-27 сц.4: вариант создан на полном запросе (не предварительный)',s==201 and (d.get('option') or {}).get('isPreliminary') is False,(s,d))
+optA27=(d.get('option') or {})
+_rs27,_cs27=optA27['routeSnapshot'],optA27['cargoSnapshot']
+chk('DF-27 сц.4: routeSnapshot = маршрутным колонкам запроса (значение-в-значение)',_rs27['originCity']=='Шанхай' and _rs27['destinationCity']=='Москва' and _rs27['originCountryCode']=='CN' and _rs27['readyDate']=='2026-12-25' and _rs27['incotermCode']=='FOB',_rs27)
+chk('DF-27 сц.4: cargoSnapshot verbatim — все ключи анкеты, включая произвольные',_cs27.get('cargo')==lead_cargo27 and 'vendorNote27' in _cs27.get('cargo',{}),_cs27)
+chk('DF-27 сц.4: sourceFields полон (route.* + cargo.*)','route.originCity' in optA27['sourceFields'] and 'cargo.vendorNote27' in optA27['sourceFields'],optA27.get('sourceFields'))
+
+# ── Сценарии 3+5: второй вариант с overrides — свой маршрут/транспорт/точки/пожелания ──
+s,d=a.r('POST',f'/api/admin/leads/{lid27}/options',{'description':'Вариант Б 27 (авиа)','price':420000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':12,'priorityFit':'speed','route':{'destinationCity':'Санкт-Петербург','transportType':'Авиа'},'cargo':{'cargoValue':'135000'},'routeStops':[{'city':'Ижевск','country':None,'note':'догруз'}],'wishes':'Только авиа, со страховкой'})
+chk('DF-27 сц.3: второй вариант создан',s==201,(s,d))
+optB27=(d.get('option') or {})
+chk('DF-27 сц.5: editedFields отражает переопределения',{'route.destinationCity','route.transportType','cargo.cargoValue','routeStops','wishes'}<=set(optB27.get('editedFields') or []),optB27.get('editedFields'))
+chk('DF-27 сц.5: нетронутое осталось в sourceFields («из запроса»)','route.originCity' in (optB27.get('sourceFields') or []) and 'route.destinationCity' not in (optB27.get('sourceFields') or []),optB27.get('sourceFields'))
+chk('DF-27 сц.5: снимок маршрута переопределён, остальное — как в запросе',optB27['routeSnapshot']['destinationCity']=='Санкт-Петербург' and optB27['routeSnapshot']['originCity']=='Шанхай',optB27.get('routeSnapshot'))
+chk('DF-27 сц.5: промежуточные точки варианта сохранены',optB27.get('routeStops')==[{'city':'Ижевск','country':None,'note':'догруз'}],optB27.get('routeStops'))
+
+# ── Сценарий 6: правка одного варианта не меняет другие и запрос (байт-в-байт) ──
+s,d=a.r('GET',f'/api/admin/options/{optB27["id"]}'); _B27_before=d
+s,d=a.r('PATCH',f'/api/admin/options/{optA27["id"]}',{'description':'Вариант А 27 (обновлён)','price':155000,'calcLines':[{'article':'freight','amount':150000,'currency':'RUB'},{'article':'customs','amount':900,'currency':'USD','fxRateToOffer':90}]})
+chk('DF-27 сц.6: правка варианта А → 200',s==200,(s,d))
+chk('DF-27 сц.6: итоги на сервере — amountOffer строки в USD = 81000, всего 231000',(d.get('calcTotals') or {}).get('total')==231000,d.get('calcTotals'))
+s,d=a.r('GET',f'/api/admin/options/{optB27["id"]}'); _B27_after=d
+chk('DF-27 сц.6: вариант Б байт-в-байт прежний (снимки, строки, provenance)',_B27_before['option']['routeSnapshot']==_B27_after['option']['routeSnapshot'] and _B27_before['option']['cargoSnapshot']==_B27_after['option']['cargoSnapshot'] and _B27_before['calcLines']==_B27_after['calcLines'] and _B27_before['option']['sourceFields']==_B27_after['option']['sourceFields'],'состав варианта Б изменился')
+chk('DF-27 сц.6: у варианта Б ревизий не прибавилось (только created)',len(_B27_after.get('revisions') or [])==1,[(r.get('kind'),) for r in _B27_after.get('revisions',[])])
+s,d=a.r('GET',f'/api/admin/options/{optA27["id"]}')
+_revA27=d.get('revisions') or []
+chk('DF-27 сц.6: у варианта А ревизия updated с диффом {price:{from,to}}',len(_revA27)>=2 and _revA27[0]['kind']=='updated' and 'price' in (_revA27[0].get('changedFields') or {}),[(r.get('kind'),list((r.get('changedFields') or {}).keys())) for r in _revA27[:2]])
+s,d=a.r('GET',f'/api/admin/leads/{lid27}'); _L27d=(d.get('lead') or d)
+chk('DF-27 сц.6: запрос не изменился (анкета байт-в-байт)',_L27d['cargoInfo']==lead_cargo27 and _L27d['originCity']=='Шанхай',None)
+# предупреждение расхождения расчёта с себестоимостью (не ошибка)
+s,d=a.r('PATCH',f'/api/admin/options/{optA27["id"]}',{'costEstimate':200000})
+chk('DF-27 сц.6: calcMismatch = итог строк − себестоимость (31000)',s==200 and d.get('calcMismatch')==31000,(s,d.get('calcMismatch')))
+
+# ── Сценарий 7: правка запроса — priceReviewRequired, снимки прежние ──
+s,d=a.r('GET',f'/api/admin/options/{optA27["id"]}'); _snapA=d
+s,d=a.r('PATCH',f'/api/admin/leads/{lid27}',{'route':{'weightKg':1600}})
+chk('DF-27 сц.7: ценозначимая правка запроса → 200',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid27}'); _L27e=(d.get('lead') or d)
+chk('DF-27 сц.7: priceReviewRequired=true у ВСЕХ вариантов запроса',all(o.get('priceReviewRequired') is True for o in _L27e.get('options',[])),[(o['description'],o.get('priceReviewRequired')) for o in _L27e.get('options',[])])
+chk('DF-27 сц.7: событие с перечнем ценозначимых ключей (Вес)',any('ценозначимые' in (x.get('description') or '') and 'Вес' in (x.get('description') or '') for x in _L27e.get('activities',[])),[x.get('description') for x in _L27e.get('activities',[])[:2]])
+s,d=a.r('GET',f'/api/admin/options/{optA27["id"]}')
+chk('DF-27 сц.7: снимки варианта А прежние (незаметного изменения нет)',d['option']['routeSnapshot']==_snapA['option']['routeSnapshot'] and d['option']['cargoSnapshot']==_snapA['option']['cargoSnapshot'],None)
+s,d=a.r('PATCH',f'/api/admin/options/{optA27["id"]}',{'etaDays':35})
+chk('DF-27 сц.7: пересохранение варианта снимает флаг (priceReviewReset)',s==200 and d.get('priceReviewReset') is True,(s,d.get('priceReviewReset')))
+s,d=a.r('GET',f'/api/admin/options/{optA27["id"]}')
+chk('DF-27 сц.7: флаг снят, ревизия price_review_reset записана',d['option']['priceReviewRequired'] is False and any(r.get('kind')=='price_review_reset' for r in d.get('revisions',[])),[(r.get('kind'),) for r in d.get('revisions',[])])
+chk('DF-27 сц.7: у варианта Б флаг остался (независимость вариантов)',[o.get('priceReviewRequired') for o in _L27e.get('options',[]) if o['id']==optB27['id']]==[True],None)
+s,d=a.r('PATCH',f'/api/admin/options/{optB27["id"]}',{'priceReviewRequired':True})
+chk('DF-27 сц.7: ручная установка флага → 400 (сервер ставит сам)',s==400,(s,d))
+
+# ── Границы: клиентская проекция (сценарий 11, волновая часть) и доступ к новым эндпоинтам ──
+s,d=c27.r('GET',f'/api/client/leads/{lid27}')
+_co27=[o for o in ((d.get('lead') or d).get('options') or []) if o['id']==optA27['id']][0]
+chk('DF-27: клиентская проекция без себестоимости/строк/итогов/расхождений/ревизий/provenance',all(k not in _co27 for k in ('costEstimate','costCurrency','calcLines','calcTotals','diffFromLead','revisions','missingData','sourceFields','editedFields')),sorted(_co27.keys()))
+chk('DF-27: клиентская проекция содержит isPreliminary (пометка предварительных)','isPreliminary' in _co27,_co27.get('isPreliminary'))
+s,d=c27.r('GET',f'/api/admin/options/{optA27["id"]}')
+chk('DF-27: GET варианта — клиенту 401 (staff-only)',s==401,(s,d))
+s,d=c27.r('POST',f'/api/admin/options/{optA27["id"]}/fill-from-lead')
+chk('DF-27: fill-from-lead — клиенту 401',s==401,(s,d))
+s,d=b17.r('GET',f'/api/admin/options/{optA27["id"]}')
+chk('DF-27: GET варианта — брокеру 401',s==401,(s,d))
+s,d=a.r('POST',f'/api/admin/options/{optA27["id"]}/fill-from-lead')
+chk('DF-27: fill-from-lead на варианте со снимками → 409',s==409,(s,d))
 
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)

@@ -10,6 +10,8 @@ import { eventWhereFor } from '@/lib/audience'
 import { projectActors, STAFF_READER } from '@/lib/actor-name'
 import { PERMIT_FIELDS } from '@/lib/permits-db'
 import { patchLead } from './patch'
+import { completeness, diffOptionVsLead } from '@/lib/option-snapshots'
+import { sumOptionCalc } from '@/lib/option-calc'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -28,7 +30,10 @@ export async function GET(req: NextRequest, { params }: Params) {
       include: {
         customer: { select: { id: true, name: true, phone: true, email: true } },
         assignee: { select: { id: true, name: true } },
-        options: { orderBy: { createdAt: 'asc' } },
+        options: {
+          orderBy: { createdAt: 'asc' },
+          include: { calcLines: { orderBy: { sortOrder: 'asc' } } },
+        },
         order: { select: { id: true, number: true, status: true } },
         // Д: брокеры расчёта с оценками (таможенные платежи +
         // разрешительные документы) — оценка на связи, 1:1
@@ -63,7 +68,42 @@ export async function GET(req: NextRequest, { params }: Params) {
     // DF-02A (Блок 4): актёр-человек собирается при чтении — сотруднику
     // «Имя (Компания)» (устаревшие строки — компания, как было).
     const activities = await projectActors(lead.activities, STAFF_READER)
-    return NextResponse.json({ lead: { ...lead, activities } })
+    // DF-27 волна 1 (план §9): staff-проекция вариантов — итоги расчёта
+    // и расхождение с запросом по каждому варианту; индикатор готовности
+    // запроса к расчёту (ТЗ §2.3 — вычисляемый, не хранимое поле).
+    const leadBlank = {
+      cargoInfo: lead.cargoInfo,
+      wishes: lead.wishes,
+      originCity: lead.originCity,
+      originCountry: lead.originCountry,
+      originCountryCode: lead.originCountryCode,
+      destinationCity: lead.destinationCity,
+      destinationCountry: lead.destinationCountry,
+      destinationCountryCode: lead.destinationCountryCode,
+      transportType: lead.transportType,
+      readyDate: lead.readyDate,
+      // Метрики маршрута — completeness читает вес/объём/места с колонок
+      // (e2e DF-27 сц.2: пропуск давал вечное «Вес или объём»/«Количество
+      // мест» в карточке при полном наборе данных).
+      weightKg: lead.weightKg,
+      volumeM3: lead.volumeM3,
+      placesCount: lead.placesCount,
+      incotermCode: lead.incotermCode,
+      incotermPlace: lead.incotermPlace,
+    }
+    const options = lead.options.map((o) => ({
+      ...o,
+      calcTotals: o.calcLines.length > 0 ? sumOptionCalc(o.calcLines, o.currency) : null,
+      diffFromLead: diffOptionVsLead(leadBlank, o),
+    }))
+    return NextResponse.json({
+      lead: {
+        ...lead,
+        options,
+        completeness: completeness(leadBlank),
+        activities,
+      },
+    })
   } catch (e) {
     return apiErrorResponse(e, 'lead GET', 'Не удалось загрузить запрос')
   }

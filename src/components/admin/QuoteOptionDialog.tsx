@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
@@ -10,145 +12,252 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { useToast } from '@/hooks/use-toast'
+import { useToast, toastSaveError } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { parseMoneyInput } from '@/lib/money'
 import type { QuoteOptionRow } from '@/components/admin/QuoteOptionsSection'
 import {
-  EMPTY_OPTION_FORM,
   QuoteOptionFormFields,
-  type OptionForm,
+  EMPTY_OPTION_FORM,
 } from '@/components/admin/QuoteOptionFormFields'
+import {
+  LeadSourceBlock,
+  OptionRouteBlock,
+  type LeadBlankView,
+  type ProvenanceInfo,
+} from '@/components/admin/QuoteOptionRouteBlocks'
+import { OptionCargoBlock } from '@/components/admin/QuoteOptionCargoBlock'
+import { QuoteOptionCalcLines } from '@/components/admin/QuoteOptionCalcLines'
+import {
+  EMPTY_ROUTE,
+  EMPTY_CARGO,
+  optionFormFromApi,
+  provenanceFromApi,
+  buildOptionSaveBody,
+  type OptionDialogForm,
+} from '@/components/admin/option-dialog-model'
 
-// ─── Диалог добавления/правки варианта расчёта (В3, деньги P1-04) ──
-// Состояние формы и сохранение; поля — QuoteOptionFormFields
-// (RULES 2.14: файлы ≤ 300 строк). Деньги (RULES 2.15, D19): цена
-// клиенту + валюта + метка НДС и себестоимость — раздельные поля;
-// себестоимость остаётся внутри (наружу не выходит), маржа не
-// вычисляется. Разбор ввода — только parseMoneyInput, до 2 знаков
-// после запятой.
+// ─── DF-27 волна 1: диалог варианта блоками 1–6 (ТЗ §8; план §10) ──
+// (1) исходные данные запроса — только чтение; (2) маршрут/транспорт +
+// промежуточные точки + пожелания; (3) груз; (4) коммерческие условия и
+// строки расчёта; (5) внутренняя экономика (D3); (6) предупреждения.
+// Сборка формы и тела запроса — в option-dialog-model.ts (RULES 2.14).
+// Overrides уходят в запрос ТОЛЬКО по тронутым полям (dirty-tracking):
+// нетронутое поле = «как в запросе».
+
+// Готовность запроса (вычисляемая, не хранимая) — приходит из GET
+// карточки (staff-проекция completeness, ТЗ §2.3)
+type CompletenessView = { ready: boolean; missing: string[] }
+
+const emptyForm = (): OptionDialogForm => ({
+  ...EMPTY_OPTION_FORM,
+  route: { ...EMPTY_ROUTE },
+  cargo: { ...EMPTY_CARGO },
+  stops: [],
+  lines: [],
+  isPreliminary: false,
+})
 
 export function QuoteOptionDialog({
   open,
   onOpenChange,
   leadId,
   editing,
+  leadBlank,
+  leadCompleteness,
   onSaved,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   leadId: string
   editing: QuoteOptionRow | null
+  leadBlank: LeadBlankView
+  leadCompleteness?: CompletenessView | null
   onSaved: () => void
 }) {
   const { toast } = useToast()
-  const [optionForm, setOptionForm] = useState<OptionForm>({ ...EMPTY_OPTION_FORM })
-  const [savingOption, setSavingOption] = useState(false)
+  const [form, setForm] = useState<OptionDialogForm>(emptyForm())
+  const [provenance, setProvenance] = useState<ProvenanceInfo | null>(null)
+  const [routeDirty, setRouteDirty] = useState<Set<string>>(new Set())
+  const [cargoDirty, setCargoDirty] = useState<Set<string>>(new Set())
+  const [stopsTouched, setStopsTouched] = useState(false)
+  const [wishesTouched, setWishesTouched] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [missing, setMissing] = useState<string[]>([])
 
-  // Предзаполнение: editing (правка) или пустая форма (добавление)
+  const patchForm = (p: Partial<OptionDialogForm>) => setForm((f) => ({ ...f, ...p }))
+
+  // Инициализация: правка — GET /api/admin/options/[id] (снимки, строки,
+  // provenance); создание — пустая форма поверх бланка запроса
   useEffect(() => {
     if (!open) return
+    setMissing([])
+    setRouteDirty(new Set())
+    setCargoDirty(new Set())
+    setStopsTouched(false)
+    setWishesTouched(false)
     if (!editing) {
-      setOptionForm({ ...EMPTY_OPTION_FORM })
+      setProvenance(null)
+      setForm(emptyForm())
       return
     }
-    setOptionForm({
-      description: editing.description,
-      price: String(editing.price),
-      currency: editing.currency,
-      vatMode: editing.vatMode,
-      cost: editing.costEstimate === null ? '' : String(editing.costEstimate),
-      costCurrency: editing.costCurrency,
-      etaDays: String(editing.etaDays),
-      priorityFit: editing.priorityFit,
-      modes: Array.isArray(editing.transportModes)
-        ? editing.transportModes.filter((m): m is string => typeof m === 'string')
-        : [],
-    })
+    let alive = true
+    fetch(`/api/admin/options/${editing.id}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('Не удалось загрузить вариант'))))
+      .then((d) => {
+        if (!alive) return
+        setProvenance(provenanceFromApi(d))
+        setForm((f) => optionFormFromApi(d, f))
+      })
+      .catch((e: unknown) => {
+        if (alive) {
+          toast({
+            title: e instanceof Error ? e.message : 'Ошибка загрузки варианта',
+            variant: 'destructive',
+          })
+          onOpenChange(false)
+        }
+      })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing])
 
-  const saveOption = async () => {
-    const description = optionForm.description.trim()
-    const price = parseMoneyInput(optionForm.price)
-    const cost = optionForm.cost.trim() ? parseMoneyInput(optionForm.cost) : null
-    const eta = Number(optionForm.etaDays.replace(',', '.'))
-    if (!description) {
-      toast({ title: 'Опишите вариант расчёта', variant: 'destructive' })
+  const markRoute = (key: string, patch: Partial<OptionDialogForm['route']>) => {
+    patchForm({ route: { ...form.route, ...patch } })
+    if (key === 'wishes') {
+      setWishesTouched(true)
       return
     }
-    if (price === null) {
-      toast({
-        title: 'Цена — число, больше нуля, до 2 знаков после запятой',
-        variant: 'destructive',
-      })
+    setRouteDirty((d) => new Set(d).add(key))
+  }
+  const markCargo = (key: string, patch: Partial<OptionDialogForm['cargo']>) => {
+    patchForm({ cargo: { ...form.cargo, ...patch } })
+    setCargoDirty((d) => new Set(d).add(key))
+  }
+
+  const totals =
+    form.lines.length > 0
+      ? { total: form.lines.reduce((acc, l) => acc + (parseMoneyInput(l.amount) ?? 0), 0) }
+      : null
+  const cost = form.cost.trim() ? parseMoneyInput(form.cost) : null
+  const mismatch = totals && cost !== null ? Math.round((totals.total - cost) * 100) / 100 : null
+  const eff = leadCompleteness ?? { ready: false, missing: [] }
+
+  const save = async () => {
+    const built = buildOptionSaveBody(form, Boolean(editing), routeDirty, cargoDirty, stopsTouched, wishesTouched)
+    if (built.error || !built.body) {
+      toast({ title: built.error ?? 'Не удалось собрать вариант', variant: 'destructive' })
       return
     }
-    if (optionForm.cost.trim() && cost === null) {
-      toast({
-        title: 'Себестоимость — число, до 2 знаков после запятой',
-        variant: 'destructive',
-      })
-      return
-    }
-    if (!Number.isInteger(eta) || eta <= 0) {
-      toast({ title: 'Срок — целое число дней, больше нуля', variant: 'destructive' })
-      return
-    }
-    setSavingOption(true)
+    setSaving(true)
     try {
-      const body = {
-        description,
-        price,
-        currency: optionForm.currency,
-        vatMode: optionForm.vatMode,
-        // правка: пустое поле себестоимости = очистить (null);
-        // создание: не передаём — колонка останется NULL
-        ...(editing ? { costEstimate: cost } : cost !== null ? { costEstimate: cost } : {}),
-        costCurrency: optionForm.costCurrency,
-        etaDays: eta,
-        priorityFit: optionForm.priorityFit,
-        ...(optionForm.modes.length ? { transportModes: optionForm.modes } : {}),
-      }
       const res = editing
         ? await fetch(`/api/admin/options/${editing.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+            body: JSON.stringify(built.body),
           })
         : await fetch(`/api/admin/leads/${leadId}/options`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+            body: JSON.stringify(built.body),
           })
-      const data = await readApiResponse<{ message?: string; error?: string }>(res)
-      if (!res.ok) throw new Error(data.error || 'Не удалось сохранить вариант')
+      const data = await readApiResponse<{ message?: string; error?: string; missing?: string[] }>(res)
+      if (!res.ok) {
+        if (res.status === 422 && Array.isArray(data.missing)) setMissing(data.missing)
+        throw new Error(data.error || 'Не удалось сохранить вариант')
+      }
       toast({ title: data.message || 'Вариант расчёта сохранён' })
       onOpenChange(false)
       onSaved()
     } catch (e) {
-      toast({
-        title: 'Ошибка',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
-      })
+      toastSaveError(e, toast)
     } finally {
-      setSavingOption(false)
+      setSaving(false)
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? 'Править вариант' : 'Добавить вариант'}</DialogTitle>
         </DialogHeader>
-        <QuoteOptionFormFields
-          form={optionForm}
-          onChange={(patch) => setOptionForm((f) => ({ ...f, ...patch }))}
-        />
+        <div className="grid gap-5">
+          <LeadSourceBlock lead={leadBlank} />
+          <OptionRouteBlock
+            form={form.route}
+            onChange={(p) => markRoute(Object.keys(p)[0], p)}
+            provenance={provenance}
+            stops={form.stops}
+            onStopsChange={(stops) => {
+              patchForm({ stops })
+              setStopsTouched(true)
+            }}
+          />
+          <OptionCargoBlock form={form.cargo} onChange={(p) => markCargo(Object.keys(p)[0], p)} provenance={provenance} />
+          <div className="grid gap-4">
+            <div className="text-xs font-medium text-muted-foreground">
+              4. Коммерческие условия и расчёт
+            </div>
+            <QuoteOptionFormFields form={form} onChange={(p) => patchForm(p)} />
+            <QuoteOptionCalcLines
+              lines={form.lines}
+              onChange={(lines) => patchForm({ lines })}
+              offerCurrency={form.currency}
+              totals={totals}
+            />
+            {mismatch !== null && mismatch !== 0 && (
+              <div className="text-xs text-amber-600">
+                5. Внутренняя экономика: сумма строк расчёта отличается от себестоимости на {mismatch}
+              </div>
+            )}
+          </div>
+          <div className="grid gap-1.5 rounded-md border bg-muted/30 p-3">
+            <div className="text-xs font-medium text-muted-foreground">
+              6. Недостающие сведения и предупреждения
+            </div>
+            {missing.length > 0 && (
+              <div className="text-sm text-destructive">
+                Недостающие данные: {missing.join(', ')}
+              </div>
+            )}
+            {!editing && !eff.ready && eff.missing.length > 0 && (
+              <div className="text-sm text-muted-foreground">
+                По запросу не хватает: {eff.missing.join(', ')} — вариант сохранится как
+                предварительный расчёт.
+              </div>
+            )}
+            {editing && editing.priceReviewRequired && (
+              <div className="text-sm text-amber-600">
+                Данные запроса изменились — пересмотрите цену варианта.
+              </div>
+            )}
+            {editing && editing.diffFromLead && editing.diffFromLead.length > 0 && (
+              <div className="text-xs text-muted-foreground">
+                Отличается от запроса: {editing.diffFromLead.map((d) => d.label).join(', ')}
+              </div>
+            )}
+            {missing.length === 0 && (editing || eff.ready) && !editing?.priceReviewRequired && (
+              <div className="text-sm text-muted-foreground">Критичных пробелов нет</div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="opt-preliminary"
+              checked={form.isPreliminary}
+              onCheckedChange={(v) => patchForm({ isPreliminary: v === true })}
+            />
+            <Label htmlFor="opt-preliminary" className="text-sm font-normal">
+              Предварительный расчёт — не окончательная стоимость
+            </Label>
+          </div>
+        </div>
         <DialogFooter>
-          <Button onClick={saveOption} disabled={savingOption}>
-            {savingOption && <Loader2 className="size-4 animate-spin" />}
+          <Button onClick={save} disabled={saving}>
+            {saving && <Loader2 className="size-4 animate-spin" />}
             {editing ? 'Сохранить' : 'Добавить'}
           </Button>
         </DialogFooter>

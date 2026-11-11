@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useToast } from '@/hooks/use-toast'
+import { useToast, toastSaveError } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { CargoFormFields } from '@/components/admin/CargoGroups'
 import {
@@ -102,11 +102,7 @@ export function LeadEditDialog({
       onOpenChange(false)
       onSaved()
     } catch (e) {
-      toast({
-        title: 'Ошибка',
-        description: e instanceof Error ? e.message : '',
-        variant: 'destructive',
-      })
+      toastSaveError(e, toast)
     } finally {
       setSaving(false)
     }
