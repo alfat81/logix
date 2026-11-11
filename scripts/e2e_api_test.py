@@ -266,11 +266,19 @@ chk('v0.4.0: поиск ?q= по rawContact.name (Json) находит запр�
 s,d=a.r('GET',f"/api/admin/leads?q={urlquote('Стекло закалённое '+uq)}"); qids2=[x['id'] for x in d.get('leads',[])]
 chk('v0.4.0: поиск ?q= по cargoInfo.cargoName (Json) находит запрос',s==200 and qlid in qids2,(s,len(qids2)))
 s,d=a.r('GET',f"/api/admin/leads?q={urlquote('такого-нет-никогда')}"); chk('v0.4.0: поиск без результатов — пустой список и нули',s==200 and d.get('leads')==[] and (d.get('counts') or {}).get('all')==0,(s,d.get('counts')))
-# contractor
-s,d=a.r('POST','/api/admin/contractor-leads',{'companyName':'Перевозчик '+u}); chk('кандидат-подрядчик',s in(200,201),(s,d)); clid=(d.get('contractorLead') or d.get('lead') or d)['id']
-cph=ph(base+2); s,d=a.r('PATCH',f'/api/admin/contractor-leads/{clid}',{'status':'contracted','phone':cph,'password':'contr-pass-1'}); chk('подрядчик рождён',s in(200,201),(s,d))
+# Фикстура исполнителя (D31/D78): подрядчик создаётся как ДАННЫЕ для
+# менеджерских проверок ниже — назначение исполнителя на этап и правило 7
+# ожиданий (docs/FROZEN.md «Не заморожено»: база подрядчиков и назначение —
+# менеджерский контур). Сам подрядческий контур из тестирования исключён
+# решением владельца (D78): рождение подрядчика — безымянная фикстура без
+# отдельных проверок-сценариев (ломается фикстура — прогон падает здесь).
+s,d=a.r('POST','/api/admin/contractor-leads',{'companyName':'Перевозчик '+u})
+if s not in (200,201): print('FIXTURE FAIL: кандидат-исполнитель не создан',s,d); sys.exit(1)
+clid=(d.get('contractorLead') or d.get('lead') or d)['id']
+cph=ph(base+2); s,d=a.r('PATCH',f'/api/admin/contractor-leads/{clid}',{'status':'contracted','phone':cph,'password':'contr-pass-1'})
+if s not in (200,201): print('FIXTURE FAIL: исполнитель не заведён в базе',s,d); sys.exit(1)
 s,d=a.r('GET','/api/admin/contractors'); cs=d.get('contractors',d); cid=[c for c in cs if c['phone']==cph][0]['id']
-st2=st[1]; s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{st2["id"]}',{'contractorId':cid}); chk('подрядчик назначен на этап',s==200,(s,d))
+st2=st[1]; s,d=a.r('PATCH',f'/api/admin/orders/{oid}/stages/{st2["id"]}',{'contractorId':cid}); chk('DF-05: исполнитель назначен на этап (менеджерский контур)',s==200,(s,d))
 # --- DF-05: «У кого мяч» — правило 5 на заявке: брокеры переносятся с лида
 # при конвертации, оценка ещё не дана (PUT оценки — ниже по скрипту) ---
 s,d=a.r('GET',f'/api/admin/orders/{oid}'); O5a=d.get('order',d)
@@ -2014,6 +2022,85 @@ chk('DF-27 в2 Р-5: на запросе после переноса клиен�
 # Р-1: после конвертации (won) правка запроса запрещена
 s,d=c27.r('PATCH',f'/api/client/leads/{lid27}',{'cargoInfo':{'cargoName':'поздняя правка'}})
 chk('DF-27 в2 Р-1: после конвертации правка клиента → 409 (запрос won)',s==409,(s,d))
+
+# ═══ К-11/К-12 (приёмка Gate 2, замечание по конкурентности Р-1):
+# правка анкеты ↔ конвертация в заявку ═══
+# Обе операции держат SELECT … FOR UPDATE строки лида внутри своей
+# транзакции (convert/route.ts, lib/lead-patch.ts, lib/client-lead-patch.ts)
+# и перепроверяют состояние под блокировкой: операции сериализуются,
+# проигравшая видит состояние-после победителя и отвечает 409.
+# Инвариант каждого круга: ровно одна из двух операций успешна, на
+# сконвертированном запросе правок нет, 5xx нет. Ответы собираются
+# в именованные слоты (порядок завершения потоков недетерминирован).
+def _race_wkg(v):
+    # Decimal-колонка в JSON приходит строкой или числом — сравниваем float
+    try: return float(v)
+    except (TypeError, ValueError): return None
+
+_r_fail=[]
+def _race_fixture(n, who):
+    # круг: полный запрос клиента c27 + вариант (isSelected) + согласие
+    s,d=c27.r('POST','/api/client/leads',{'route':{'originCity':'Гуанчжоу','originCountryCode':'CN','destinationCity':'Москва','destinationCountryCode':'RU','readyDate':'2026-12-25','weightKg':1200,'volumeM3':8,'placesCount':10},'cargoInfo':{'cargoName':'Груз гонки '+who+'-'+str(n),'hsCode':'8413700008','cargoValue':'85000'},'incotermCode':'FOB'})
+    if s not in (200,201): _r_fail.append(('фикстура: запрос',s,d)); return None
+    _rl=(d.get('lead') or d)['id']
+    s,d=a.r('POST',f'/api/admin/leads/{_rl}/options',{'description':'Вариант гонки '+who+'-'+str(n),'price':150000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':30,'priorityFit':'cost','isSelected':True})
+    if s != 201: _r_fail.append(('фикстура: вариант',s,d)); return None
+    s,d=a.r('POST',f'/api/admin/leads/{_rl}/confirm',{})
+    if s != 200: _r_fail.append(('фикстура: согласие',s,d)); return None
+    return _rl
+
+# К-11: клиентский PATCH (Р-1) ↔ конвертация — 3 круга
+for _n in range(3):
+    _rl=_race_fixture(_n,'К-11')
+    if _rl is None: break
+    _res={}
+    _t1=threading.Thread(target=lambda _rl=_rl: _res.update(patch=c27.r('PATCH',f'/api/client/leads/{_rl}',{'cargoInfo':{'cargoName':'Груз гонки К-11-'+str(_n)+' (уточнение)','hsCode':'8413700008','cargoValue':'85000'},'route':{'weightKg':1300}})))
+    _t2=threading.Thread(target=lambda _rl=_rl: _res.update(conv=a.r('POST',f'/api/admin/leads/{_rl}/convert',{'legalEntityId':leid})))
+    _t1.start(); _t2.start(); _t1.join(); _t2.join()
+    (_pc,_pd),(_cc,_cd)=_res.get('patch',(0,{})),_res.get('conv',(0,{}))
+    chk(f'К-11 круг {_n}: нет 5xx (PATCH {_pc}, convert {_cc})',_pc<500 and _cc<500,((_pc,str(_pd)[:200]),(_cc,str(_cd)[:200])))
+    s,d=a.r('GET',f'/api/admin/leads/{_rl}'); _LG=(d.get('lead') or d)
+    if _cc in (200,201):
+        chk(f'К-11 круг {_n}: конвертация выиграла — клиентский PATCH → 409',_pc==409,(_pc,str(_pd)[:200]))
+        chk(f'К-11 круг {_n}: правка НЕ применена к сконвертированному (вес 1200)',_race_wkg(_LG.get('weightKg'))==1200,_LG.get('weightKg'))
+        chk(f'К-11 круг {_n}: won без следов правки (флаги вариантов не выставлены)',_LG.get('status')=='won' and all(o.get('priceReviewRequired') is False for o in _LG.get('options',[])),(_LG.get('status'),[(o.get('priceReviewRequired'),) for o in _LG.get('options',[])]))
+    else:
+        chk(f'К-11 круг {_n}: правка выиграла — конвертация → 409 (согласие сброшено)',_cc==409,(_cc,str(_cd)[:200]))
+        chk(f'К-11 круг {_n}: правка применена (вес 1300), заявки нет',_race_wkg(_LG.get('weightKg'))==1300 and _LG.get('order') is None,(_LG.get('weightKg'),_LG.get('order')))
+        chk(f'К-11 круг {_n}: сброс согласования + флаг актуализации + calculated',_LG.get('status')=='calculated' and _LG.get('clientConfirmedAt') is None and all(o.get('priceReviewRequired') is True for o in _LG.get('options',[])),(_LG.get('status'),_LG.get('clientConfirmedAt'),[(o.get('priceReviewRequired'),) for o in _LG.get('options',[])]))
+chk('К-11: фикстуры кругов без ошибок',not _r_fail,_r_fail)
+
+# К-12: менеджерский PATCH ↔ конвертация — 3 круга
+_r_fail12=[]
+def _race_fixture12(n):
+    s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'Гонка К-12 '+u+'-'+str(n),'phone':ph(base+60+n)},'route':{'originCity':'Гуанчжоу','originCountryCode':'CN','destinationCity':'Москва','destinationCountryCode':'RU','readyDate':'2026-12-25','weightKg':1200,'volumeM3':8,'placesCount':10},'cargoInfo':{'cargoName':'Груз гонки К-12-'+str(n),'hsCode':'8413700008','cargoValue':'85000'},'incotermCode':'FOB','customerId':cust27})
+    if s not in (200,201): _r_fail12.append(('фикстура: запрос',s,d)); return None
+    _rl=(d.get('lead') or d)['id']
+    s,d=a.r('POST',f'/api/admin/leads/{_rl}/options',{'description':'Вариант К-12-'+str(n),'price':150000,'currency':'RUB','vatMode':'WITHOUT_VAT','etaDays':30,'priorityFit':'cost','isSelected':True})
+    if s != 201: _r_fail12.append(('фикстура: вариант',s,d)); return None
+    s,d=a.r('POST',f'/api/admin/leads/{_rl}/confirm',{})
+    if s != 200: _r_fail12.append(('фикстура: согласие',s,d)); return None
+    return _rl
+
+for _n in range(3):
+    _rl=_race_fixture12(_n)
+    if _rl is None: break
+    _res={}
+    _t1=threading.Thread(target=lambda _rl=_rl: _res.update(patch=a.r('PATCH',f'/api/admin/leads/{_rl}',{'route':{'weightKg':1400}})))
+    _t2=threading.Thread(target=lambda _rl=_rl: _res.update(conv=a.r('POST',f'/api/admin/leads/{_rl}/convert',{'legalEntityId':leid})))
+    _t1.start(); _t2.start(); _t1.join(); _t2.join()
+    (_pc,_pd),(_cc,_cd)=_res.get('patch',(0,{})),_res.get('conv',(0,{}))
+    chk(f'К-12 круг {_n}: нет 5xx (PATCH {_pc}, convert {_cc})',_pc<500 and _cc<500,((_pc,str(_pd)[:200]),(_cc,str(_cd)[:200])))
+    s,d=a.r('GET',f'/api/admin/leads/{_rl}'); _LG=(d.get('lead') or d)
+    if _cc in (200,201):
+        chk(f'К-12 круг {_n}: конвертация выиграла — менеджерский PATCH → 409',_pc==409,(_pc,str(_pd)[:200]))
+        chk(f'К-12 круг {_n}: правка НЕ применена к сконвертированному (вес 1200)',_race_wkg(_LG.get('weightKg'))==1200,_LG.get('weightKg'))
+        chk(f'К-12 круг {_n}: won без следов правки (флаги вариантов не выставлены)',_LG.get('status')=='won' and all(o.get('priceReviewRequired') is False for o in _LG.get('options',[])),(_LG.get('status'),[(o.get('priceReviewRequired'),) for o in _LG.get('options',[])]))
+    else:
+        chk(f'К-12 круг {_n}: правка выиграла — конвертация → 409 (согласие сброшено)',_cc==409,(_cc,str(_cd)[:200]))
+        chk(f'К-12 круг {_n}: правка применена (вес 1400), заявки нет',_race_wkg(_LG.get('weightKg'))==1400 and _LG.get('order') is None,(_LG.get('weightKg'),_LG.get('order')))
+        chk(f'К-12 круг {_n}: сброс согласования + флаг актуализации + calculated',_LG.get('status')=='calculated' and _LG.get('clientConfirmedAt') is None and all(o.get('priceReviewRequired') is True for o in _LG.get('options',[])),(_LG.get('status'),_LG.get('clientConfirmedAt'),[(o.get('priceReviewRequired'),) for o in _LG.get('options',[])]))
+chk('К-12: фикстуры кругов без ошибок',not _r_fail12,_r_fail12)
 
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)

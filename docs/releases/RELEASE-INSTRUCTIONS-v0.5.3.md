@@ -74,7 +74,7 @@ git status
   `src/components/admin/contractorlead/ContractorLeadContractDialog.tsx`
 - добавленные: `src/lib/flags.ts`,
   `src/app/admin/(dashboard)/contractors/ContractorsClient.tsx`,
-  `scripts/e2e_contractor_frozen.py`, `scripts/df00c_browser.sh`,
+  `e2e_contractor_frozen.py`, `scripts/df00c_browser.sh`,
   `docs/releases/SCOPE-v0.5.3.json`, `docs/releases/RELEASE-NOTES-v0.5.3.md`,
   `docs/releases/RELEASE-INSTRUCTIONS-v0.5.3.md`
 

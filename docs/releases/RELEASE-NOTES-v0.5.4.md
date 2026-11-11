@@ -59,7 +59,7 @@ Health-проверка «БД доступна» шла в тот же мок �
 - Локальный репро CI-сценария на чистой БД (миграции → сид → сервер → e2e):
   **149/149** при `CONTRACTOR_PORTAL_ENABLED=true`; сервер в логах чист
   от мок-маркера.
-- Заморозка: `scripts/e2e_contractor_frozen.py` — **16/16**
+- Заморозка: `e2e_contractor_frozen.py` — **16/16**
   (`CONTRACTOR_PORTAL_ENABLED=false`, `DISABLE_RATE_LIMIT=true`).
 - Негативный контроль: фиктивный `DATABASE_URL` → `/api/health` отвечает
   503 `{"db":"error"}` — тихой подмены больше нет, деградация видна.

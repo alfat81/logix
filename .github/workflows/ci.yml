@@ -115,11 +115,13 @@ jobs:
       ADMIN_PHONE: '+79000000000'
       ADMIN_PASSWORD: ci-e2e-master-password
       BASE_URL: http://localhost:3000
-      # D31 + DF-27 волна 2 (решение владельца 11.11.2026): кабинет
-      # подрядчика ПОЛНОСТЬЮ исключён из тестирования — флаг=false в
-      # основном e2e (его сценарии удалены из e2e_api_test.py);
-      # заморозка проверяется отдельным шагом «Сквозной тест заморозки»
-      # (e2e_contractor_frozen.py: 404 кабинета + база подрядчиков)
+      # D31 + D78 (решение владельца 11.11.2026, приёмка Gate 2 DF-27):
+      # подрядческий контур ПОЛНОСТЬЮ исключён из тестирования — флаг=false
+      # (гард заморозки на проде), кабинетных сценариев нет в e2e_api_test.py,
+      # отдельный шаг заморозки (e2e_contractor_frozen.py) удалён: он
+      # проверял кабинет и процессы подрядчика — недопустимое косвенное
+      # тестирование. Заморозка фиксируется только кодом (src/proxy.ts)
+      # и IC-02/IC-03, без прогонов по подрядческим сущностям
       CONTRACTOR_PORTAL_ENABLED: 'false'
       # DF-03: диспетчер уведомлений — Bearer CRON_SECRET. Значение общее
       # для сервера и скрипта, одноразовое (раннер), не прод-секрет —
@@ -177,25 +179,10 @@ jobs:
           cat next.log; exit 1
       - name: Сквозной API-тест
         run: python3 scripts/e2e_api_test.py
-      - name: 'Сквозной тест заморозки D31 — кабинет подрядчика отвечает 404'
-        run: |
-          pkill -f next-server || pkill -f "next start" || true; sleep 2
-          # Флаг=false перекрывает job- env только для этого шага;
-          # DISABLE_RATE_LIMIT=true: основной e2e намеренно заблокировал вход
-          CONTRACTOR_PORTAL_ENABLED=false DISABLE_RATE_LIMIT=true \
-            nohup bun run start > next_frozen.log 2>&1 &
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:3000/ > /dev/null && exit 0
-            sleep 1
-          done
-          cat next_frozen.log; exit 1
-      - name: Проверки заморозки (кабинет 404, база подрядчиков живёт)
-        run: python3 scripts/e2e_contractor_frozen.py
       - name: Лог приложения при падении
         if: failure()
         run: |
           tail -200 next.log
-          tail -200 next_frozen.log || true
 
   secrets:
     name: gitleaks

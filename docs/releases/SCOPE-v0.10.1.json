@@ -1,0 +1,41 @@
+{
+  "version": "0.10.1",
+  "date": "2026-11-11",
+  "base": "v0.10.0 (DF-27 волна 2, D77)",
+  "decision": "D78 — приёмка Gate 2 DF-27: закрытие четырёх замечаний владельца",
+  "plan": "Замечания приёмки Gate 2 (сообщение владельца 11.11.2026): (1) подрядчик — полное исключение из тестирования CI; (2) конкурентность Р-1 — блокировка строки + конкурентный e2e; (3) миграция — анализ каскадов + read-only контрольный запрос, миграцию не применять; (4) обновить отчёт приёмки. Итоговое заключение Gate 2 — в DF27-WAVE2-GATE2-REPORT-v1.1.md",
+  "migration": null,
+  "migration_kind": "none",
+  "scope": [
+    ".github/workflows/ci.yml — удалены шаги «Сквозной тест заморозки D31» и «Проверки заморозки» (косвенное тестирование подрядческого контура); CONTRACTOR_PORTAL_ENABLED=false сохранён",
+    "scripts/e2e_contractor_frozen.py — удалён из репозитория (16 проверок заморозки прекращены)",
+    "scripts/e2e_api_test.py — рождение подрядчика демотировано в безымянную фикстуру менеджерских проверок (−2 подрядческие проверки-сценария); кабинетных обращений нет",
+    "scripts/e2e_api_test.py — конкурентные тесты К-11 (клиентский PATCH ↔ convert, 3 круга) и К-12 (менеджерский PATCH ↔ convert, 3 круга): ровно одна операция успешна, на won правок нет, 5xx нет",
+    "src/lib/lead-patch.ts — интерактивная транзакция: SELECT … FOR UPDATE + повторные проверки состояния под блокировкой (won/окно Р-1/матрица статуса/автомат §6.4), события по заблокированному состоянию",
+    "src/lib/client-lead-patch.ts — блокировка строки + повторная проверка окна и пересчёт diff/слияния/автомата по свежей строке внутри интерактивной транзакции",
+    "docs/FROZEN.md — синхронизация: e2e подрядческого контура нет вовсе (D78), фикстура исполнителя — «Не заморожено»",
+    "docs/DECISIONS.md — запись D78",
+    "CHANGELOG.md / docs/ROADMAP.md / docs/ROADMAP-DEALFLOW.md (1.30) — синхронизация v0.10.1",
+    "docs/releases/RELEASE-NOTES-v0.10.1.md, RELEASE-INSTRUCTIONS-v0.10.1.md, SCOPE-v0.10.1.json",
+    "package.json — 0.10.1 (IC-07)"
+  ],
+  "unfreeze": [],
+  "gate": {
+    "tsc": "0 ошибок",
+    "eslint": "0 ошибок / 36 предупреждений (базлайн)",
+    "vitest": "685/685",
+    "build": "OK",
+    "e2e": "868/868 (844 базлайн − 2 подрядческие + 26 конкурентных К-11/К-12)",
+    "integrity": "новых 0",
+    "knip": "43=43",
+    "inventory": "актуален (IC-12)",
+    "notes": "Полный e2e с конкурентными тестами — в CI (PostgreSQL); локальная песочница без БД. Gitleaks — job владельца (урок D70)."
+  },
+  "delivery": {
+    "archive": "download/logix-v0.10.1-GATE2-FIX/logix-v0.10.1.zip_",
+    "sha256": "download/logix-v0.10.1-GATE2-FIX/logix-v0.10.1.sha256",
+    "report": "download/logix-v0.10.1-GATE2-FIX/DF27-WAVE2-GATE2-REPORT-v1.1.md",
+    "control_query": "download/logix-v0.10.1-GATE2-FIX/CONTROL-QUERY-DF27-MIGRATION-READONLY.sql",
+    "restrictions": "Миграций нет; изменений общей БД нет; production deployment — отдельная команда владельца (§6.1 п. 5, RULES 2.11); push из песочницы не выполнялся"
+  }
+}

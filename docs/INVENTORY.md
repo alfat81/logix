@@ -1371,10 +1371,10 @@
 
 | Переменная | Файлов с использованием | .env.example | DEPLOY.md |
 |---|---|---|---|
-| `ADMIN_PASSWORD` | 2 | да | да |
-| `ADMIN_PHONE` | 2 | да | да |
+| `ADMIN_PASSWORD` | 1 | да | да |
+| `ADMIN_PHONE` | 1 | да | да |
 | `APP_BASE_URL` | 1 | да | да |
-| `BASE_URL` | 3 | да | да |
+| `BASE_URL` | 2 | да | да |
 | `CBR_IMPORT` | 2 | да | да |
 | `CBR_RATE_URL` | 1 | да | да |
 | `CONTRACTOR_PORTAL_ENABLED` | 1 | да | да |
