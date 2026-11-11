@@ -48,17 +48,55 @@ export const TERMINAL_ORDER_STATUSES: readonly OrderStatus[] = ['completed', 'ca
 //   ставится только конвертацией. Ручной PATCH его не принимает.
 //   Сброс согласования («Изменить условия») тоже выделенный API —
 //   он уходит из статуса напрямую, без строки в таблице.
+//   DF-27 волна 2 (Р-1, D75): правка анкеты при активном согласовании
+//   атомарно сбрасывает его в той же транзакции сохранения (снимок
+//   остаётся в истории) — новый статус считает expectedLeadStatus
+//   (needs_data либо calculated); это тоже выделенный переход мимо
+//   матрицы — как у ручного сброса.
 // • lost — терминальный с одной веткой: lost→new — только мастеру,
 //   с записью причины отказа в журнал (роут В2).
 // • calculated→new нет: расчёт сделан — лид уже двигается; возврат
 //   из отказа проходит путь lost→new→calculated (варианты при отказе
 //   не удаляются, порог «≥1 вариант» на этом пути выполняется).
+//   Удаление вариантов статус тоже не откатывает — expectedLeadStatus
+//   предложил бы new, но автомата пропускать переходы, которых нет
+//   в матрице (см. lead-auto-status.ts).
+// • needs_data (DF-27 волна 2, §6.4/D75) — автоматический статус
+//   неполной анкеты: назначает и снимает ТОЛЬКО сервер в транзакциях
+//   сохранения анкеты и операций с вариантами (expectedLeadStatus);
+//   вручную — только закрытие lost (из needs_data) и никакой ручной
+//   переход ВНУТРЬ (validateStatusChange).
 export const LEAD_TRANSITIONS: Record<LeadStatus, readonly LeadStatus[]> = {
-  new: ['calculated', 'lost'],
-  calculated: ['lost'],
+  new: ['needs_data', 'calculated', 'lost'],
+  needs_data: ['new', 'calculated', 'lost'],
+  calculated: ['needs_data', 'lost'],
   client_approved: ['lost'],
   won: [],
   lost: ['new'],
+}
+
+// ─── DF-27 волна 2 (§6.4, D75): единственный автомат статуса ──────
+// Детерминированная функция целевого статуса по полноте анкеты:
+//   • won/lost — автоматикой не трогаются (терминальные);
+//   • client_approved не меняется фоновым пересчётом — его снятие
+//     делает только явная правка анкеты (Р-1) или ручной сброс;
+//   • анкета неполна → needs_data;
+//   • иначе есть варианты → calculated;
+//   • иначе → new.
+// Вызов ОБЯЗАН получать optionsCount и missingCount ПОСЛЕ применения
+// правки (состояние-после), а не до. Применение перехода —
+// lead-auto-status.ts (проверка матрицы + запись в той же транзакции).
+export function expectedLeadStatus(
+  current: LeadStatus,
+  optionsCount: number,
+  missingCount: number
+): LeadStatus {
+  if (current === 'won' || current === 'lost' || current === 'client_approved') {
+    return current
+  }
+  if (missingCount > 0) return 'needs_data'
+  if (optionsCount > 0) return 'calculated'
+  return 'new'
 }
 
 export type TransitionResult = { ok: true } | { ok: false; status: number; error: string }

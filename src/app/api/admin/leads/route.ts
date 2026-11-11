@@ -12,6 +12,7 @@ import { apiErrorResponse } from '@/lib/api-errors'
 import { employeeActor } from '@/lib/activity'
 import { emitEvent } from '@/lib/events'
 import { ciContains } from '@/lib/list-query'
+import { completeness } from '@/lib/option-snapshots'
 
 // ─── GET /api/admin/leads — список лидов (В2) ─────────────────
 // Query:
@@ -124,6 +125,7 @@ export async function GET(req: NextRequest) {
     const counts: Record<'all' | LeadStatus, number> = {
       all: 0,
       new: 0,
+      needs_data: 0,
       calculated: 0,
       client_approved: 0,
       won: 0,
@@ -203,9 +205,18 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // DF-27 волна 2 (§6.4/D75): неполная анкета при создании — статус
+    // needs_data, а не new (сценарий 1 техплана). Полнота — по бланку
+    // запроса в состоянии-после создания (те же данные, что уйдут в БД).
+    const initialMissing = completeness({
+      ...(data.cargoInfo ? { cargoInfo: { ...(data.cargoInfo as Record<string, unknown>), v: 1 } } : {}),
+      ...routeResolved.columns,
+      incotermCode: data.incotermCode ?? null,
+    }).missing.length
+
     const lead = await db.lead.create({
       data: {
-        status: 'new',
+        status: initialMissing > 0 ? 'needs_data' : 'new',
         // P1-01: при создании ответственный — текущий сотрудник (кто
         // принял запрос, тот и ведёт). Запрос из кабинета (И1) создаётся
         // другим роутом без сотрудника — рождается «Без ответственного».

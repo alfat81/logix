@@ -44,6 +44,8 @@ export function BrokerStageStatusBadge({ status }: { status: StageStatus }) {
 export function BrokerLeadStatusBadge({ status }: { status: LeadStatus }) {
   const map: Record<LeadStatus, string> = {
     new: 'bg-info text-info-foreground',
+    // DF-27 волна 2 (§6.4): требует данных — пара ожидания (не «проблема»)
+    needs_data: 'bg-warning text-warning-foreground',
     calculated: 'bg-warning text-warning-foreground',
     // Поток A: согласован — нейтрально-спокойная пара (не «проблема»)
     client_approved: 'bg-info text-info-foreground',

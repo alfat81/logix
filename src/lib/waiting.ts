@@ -56,6 +56,9 @@ export const WAITING_REASONS = [
   'stage_not_started',
   'awaiting_proforma',
   'no_quote',
+  // DF-27 волна 2 (§6.4, D75): анкета неполна — мяч у менеджера
+  // (дополнить анкету или запросить у клиента; статус needs_data)
+  'no_data',
   'awaiting_client_choice',
   // Поток A (BL/DF-05): согласование активно — мяч у менеджера
   // («Согласован клиентом — создайте заявку», план ред. 3 §2.3)
@@ -82,6 +85,8 @@ export const WAITING_REASON_LABELS: Record<WaitingReason, string> = {
   stage_not_started: 'Этап ещё не начат',
   awaiting_proforma: 'Ждём проформу/описание товара',
   no_quote: 'Вариант расчёта не готов',
+  // DF-27 волна 2 (§6.4, D75) — формулировка из техплана
+  no_data: 'Требует дополнительных данных — дополните анкету или запросите у клиента',
   awaiting_client_choice: 'Ждём выбор варианта расчёта',
   client_approved: 'Согласован клиентом — создайте заявку',
   awaiting_permit: 'Ждём разрешительный документ',
@@ -324,6 +329,13 @@ export function computeWaitingOrder(
 export function computeWaitingLead(snap: WaitingLeadSnapshot): WaitingOutcome {
   // won/lost — терминальные (won ставит только конвертация В4).
   if (snap.status === 'won' || snap.status === 'lost') return WAITING_NONE
+  // 0а. DF-27 волна 2 (§6.4, D75): анкета неполна (needs_data) — мяч
+  //     у менеджера: дополнить анкету или запросить данные у клиента.
+  //     Правило сразу после терминальных: неполная анкета важнее
+  //     прочих ожиданий (без данных сделка не считается).
+  if (snap.status === 'needs_data') {
+    return { kind: 'manager', reason: 'no_data', onId: null }
+  }
   // 0. Поток A (BL/DF-05): согласование активно — мяч у ответственного
   //    менеджера: клиент своё слово сказал, следующий шаг — конвертация.
   //    Правило стоит ПЕРЕД прочими: после согласования ожидания

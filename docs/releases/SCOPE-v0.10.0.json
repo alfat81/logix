@@ -1,0 +1,30 @@
+{
+  "version": "0.10.0",
+  "date": "2026-11-11",
+  "base": "b599bf1",
+  "decision": "D77",
+  "plan": "docs/DF27-QUOTE-VARIANTS-PLAN-v1.3.md",
+  "migration": "20261112100000_df_27_approval_and_customs",
+  "migration_kind": "additive",
+  "scope": [
+    "DF-27 §6.4 needs_data: expectedLeadStatus/applyAutoLeadStatus, LEAD_TRANSITIONS+needs_data, validateStatusChange (409), мяч no_data, бейдж/таб",
+    "DF-27 Р-1: окно правки клиента/менеджера до won|lost, priceReviewRequired всем вариантам при любой правке, атомарный сброс client_approved, уведомление lead_edited",
+    "DF-27 Р-3: LeadPrintRevision/Confirmation, POST print-revisions + confirm x2, снимок согласования v2 (+isPreliminary/missingData/printRevisionId), предварительное согласование (confirm из needs_data)",
+    "DF-27 Р-5: перенос истории таможенных версий при конвертации (origin=carried_from_lead), broker GET customs-calculations (x2), client GET customs-calculation (x2, белый список + ДТ-блок на заявке)",
+    "CI/D31: CONTRACTOR_PORTAL_ENABLED=false, блок подрядчика удалён из e2e_api_test.py, заморозка — отдельный шаг",
+    "docs: техплан v1.3 в docs/, D75-синхронизация, D77, ROADMAP-DEALFLOW 1.29, ROADMAP, CHANGELOG 0.10.0, INVENTORY регенерирован"
+  ],
+  "gate": {
+    "tsc": 0,
+    "lint_errors": 0,
+    "lint_warnings": 36,
+    "vitest": "685/685",
+    "build": "OK",
+    "e2e": "844/844",
+    "freeze": "16/16",
+    "integrity": "новых 0",
+    "knip": "43=43",
+    "gitleaks": "CI владельца"
+  },
+  "delivery": "download/logix-v0.10.0-DF27-WAVE2/"
+}

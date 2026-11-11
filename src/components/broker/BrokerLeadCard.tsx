@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast'
 import { readApiResponse } from '@/lib/api-client'
 import { CargoGroups } from '@/components/admin/CargoGroups'
 import { BrokerLeadStatusBadge } from '@/components/broker/BrokerBadges'
+import { BrokerCustomsHistory } from './BrokerCustomsHistory'
 import { BrokerEstimateForm, type BrokerEstimate } from '@/components/broker/BrokerEstimateForm'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
 import { PermitsSection } from '@/components/permits/PermitsSection'
@@ -136,6 +137,10 @@ export function BrokerLeadCard() {
       </Card>
 
       <BrokerEstimateForm leadId={lead.id} estimate={lead.estimate} onSaved={load} />
+
+      {/* ── DF-27 волна 2 (Р-5, D75): полная история таможенных расчётов
+          запроса — менеджер и брокер (в рамках прав); чужие сделки — 404 ── */}
+      <BrokerCustomsHistory leadId={lead.id} />
 
       {/* ── DF-16: разрешительные документы — перечень из оценки и
           добавленные брокером строки; закрываются загрузкой файла в

@@ -11,7 +11,7 @@ import { readLeadCargo } from '@/lib/leads'
 
 export type ClientLeadRowData = {
   id: string
-  status: 'new' | 'calculated' | 'client_approved' | 'won' | 'lost'
+  status: 'new' | 'needs_data' | 'calculated' | 'client_approved' | 'won' | 'lost'
   createdAt: string
   cargoInfo: Record<string, unknown> | null
   originCity?: string | null

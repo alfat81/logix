@@ -55,6 +55,11 @@ export const EVENT_TYPES: Record<ActivityType, EventMeta> = {
   lead_assignee_changed: { label: 'Ответственный изменён', audience: ['staff', 'client'], notify: ['new-assignee'] },
   lead_edited: { label: 'Запрос отредактирован', audience: ['staff', 'client'], notify: [] },
   lead_converted: { label: 'Запрос сконвертирован в заявку', audience: ['staff', 'client'], notify: [] },
+  // DF-27 волна 2 (Р-3, D75): печатные редакции заявки. staff-аудитория
+  // (риски §15: событийный шум клиенту — без писем; клиент видит
+  // редакции и статусы подтверждений в карточке своего запроса)
+  lead_print_revision_created: { label: 'Сформирована печатная редакция заявки', audience: ['staff'], notify: [] },
+  lead_print_revision_confirmed: { label: 'Печатная редакция подтверждена стороной', audience: ['staff'], notify: [] },
   // Поток A волна 1 (BL-3/BL-2): согласование расчёта. Письмо —
   // ответственному, если действовал клиент (сам факт сотрудник видит
   // в ленте); сброс — письмо клиенту (ему предстоит повторное

@@ -336,10 +336,13 @@ export function mergeLeadCargo(
   return Object.keys(merged).length > 1 ? merged : null
 }
 
-// Окно правки анкеты (P1-02): new/calculated. won — история (правится
+// Окно правки анкеты (P1-02 + DF-27 волна 2, Р-1/D75): new, needs_data
+// и calculated; при активном согласовании (client_approved) правка
+// разрешена и атомарно сбрасывает согласование в той же транзакции
+// (снимок остаётся в истории, роуты PATCH). won — история (правится
 // через заявку), lost — закрытая сделка (вернуть в работу может мастер).
 export function isLeadAnketaEditable(status: string): boolean {
-  return status === 'new' || status === 'calculated'
+  return status === 'new' || status === 'needs_data' || status === 'calculated' || status === 'client_approved'
 }
 
 // ─── P1-01: валидация смены ответственного (серверная, с db) ────────
@@ -390,6 +393,9 @@ export function hsCodePatch(
 // lost требует причину; повторная установка — 400; ручной
 // new→calculated — только при ≥1 варианте (порог воронки В3);
 // lost→new — возврат из терминального, только мастер.
+// DF-27 волна 2 (§6.4, D75): needs_data — автоматический статус:
+// вручную ВНУТРЬ не ставится вовсе, ИЗ него — только закрытие lost
+// (new/calculated из needs_data выставляет только автомат).
 export async function validateStatusChange(
   leadId: string,
   existingStatus: LeadStatus,
@@ -405,6 +411,20 @@ export async function validateStatusChange(
   }
   if (status === 'lost' && !lostReason) {
     return { error: 'Укажите причину отказа (lostReason)', statusCode: 400 }
+  }
+  // needs_data — только автомат (§6.4/D75): вручную внутрь нельзя
+  if (status === 'needs_data') {
+    return {
+      error: 'Статус «Требует дополнительных данных» выставляется автоматически по полноте анкеты',
+      statusCode: 409,
+    }
+  }
+  // из needs_data вручную — только закрытие lost (plan §6.4)
+  if (existingStatus === 'needs_data' && status !== 'lost') {
+    return {
+      error: 'Из «Требует дополнительных данных» вручную доступно только закрытие («Отказ»); статус снимется автоматически при дополнении анкеты',
+      statusCode: 409,
+    }
   }
 
   // Матрица переходов лида (P1-05, lib/status-machine.ts)
@@ -433,4 +453,45 @@ export async function validateStatusChange(
     return { error: 'Возврат из «Отказа» доступен только мастеру', statusCode: 403 }
   }
   return null
+}
+
+// ─── DF-27 волна 2 (Р-1/D75): валидация правки анкеты запроса ───────
+// Общая для админского PATCH (patch.ts) и клиентского (client patch.ts):
+// окно правки (isLeadAnketaEditable), дифф «Поле: старое → новое»,
+// слитый груз (mergeLeadCargo). Вынесено за лимит 300 строк роутов
+// (RULES 2.14, прецедент validateStatusChange).
+export type LeadAnketaEdit = {
+  ok: true
+  editDescription: string | null
+  // undefined = груз в этом PATCH не менялся; null = очистить известные поля
+  mergedCargo: Record<string, unknown> | null | undefined
+}
+
+export function validateLeadAnketaEdit(
+  existing: { status: string; customerId: string | null; cargoInfo: unknown } & ExistingRow,
+  incoming: IncomingEdit
+): LeadAnketaEdit | { ok: false; error: string } {
+  const editingAnketa =
+    incoming.rawContact !== undefined ||
+    incoming.cargoInfo !== undefined ||
+    incoming.route !== undefined
+  if (!editingAnketa) return { ok: true, editDescription: null, mergedCargo: undefined }
+  if (incoming.rawContact !== undefined && existing.customerId) {
+    return { ok: false, error: 'У запроса есть клиент из справочника — контакты правятся в карточке клиента' }
+  }
+  if (!isLeadAnketaEditable(existing.status)) {
+    // Р-1/D75: client_approved правится с атомарным сбросом (роут);
+    // lost — закрытая сделка (won отсечён раньше)
+    return { ok: false, error: 'Анкета закрытого («Отказ») запроса не правится — верните запрос в работу (мастер)' }
+  }
+  const diffs = buildLeadEditDiff(existing, incoming)
+  if (!diffs.length) return { ok: true, editDescription: null, mergedCargo: undefined }
+  return {
+    ok: true,
+    editDescription: diffs.join('; '),
+    mergedCargo:
+      incoming.cargoInfo !== undefined
+        ? mergeLeadCargo(existing.cargoInfo, incoming.cargoInfo)
+        : undefined,
+  }
 }

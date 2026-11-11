@@ -6,6 +6,7 @@ import {
   LEAD_STATUS_LABELS,
   type LeadConfirmVia,
 } from '@/lib/leads'
+import { sumOptionCalc } from '@/lib/option-calc'
 
 // ─── Поток A волна 1 (BL): контур согласования расчёта ─────────────
 // Общая серверная логика confirm-API (план ред. 3 §4.1):
@@ -17,11 +18,17 @@ import {
 // Все операции внутри tx: метаданные на лиде, isSelected на вариантах,
 // исторический снимок LeadApprovalSnapshot (§2.5) и событие.
 //
-// Правила (спецификация владельца, раздел 1 плана):
-//   • подтверждение возможно только из `calculated` (new — вариантов
-//     нет; client_approved — уже согласован: 409);
+// Правила (спецификация владельца, раздел 1 плана + DF-27 волна 2, Р-3/D75):
+//   • подтверждение возможно из `calculated` и из `needs_data`
+//     (предварительный вариант согласовать разрешено — согласие НЕ
+//     превращает предварительную цену в окончательное обязательство;
+//     недостающие данные и предварительность фиксируются в снимке);
+//     new — вариантов нет; client_approved — уже согласован: 409;
 //   • снимок — копия ВСЕХ коммерческих полей варианта на момент
 //     блокировки строки лида; себестоимость в снимок не входит;
+//     волна 2: + маршрут/груз (снимки варианта), строки/итоги расчёта
+//     (calcSnapshot), версия таможенного расчёта и печатная редакция,
+//     которую подтверждают стороны (Р-3);
 //   • повторное подтверждение → 409 «уже согласован» (К-02/К-10/К-11:
 //     ровно один победитель — блокировка строки лида);
 //   • сброс («Изменить условия») — resetLeadConfirmation(): статус →
@@ -70,7 +77,7 @@ export async function confirmLeadOption(
   if (lead.status === 'client_approved') {
     return { ok: false, status: 409, error: 'Вариант уже согласован — обновите карточку запроса' }
   }
-  if (lead.status !== 'calculated') {
+  if (lead.status !== 'calculated' && lead.status !== 'needs_data') {
     return {
       ok: false,
       status: 409,
@@ -78,8 +85,11 @@ export async function confirmLeadOption(
     }
   }
 
-  // 2. Вариант принадлежит этому запросу?
-  const option = await tx.quoteOption.findFirst({ where: { id: optionId, leadId } })
+  // 2. Вариант принадлежит этому запросу? (+ строки расчёта для снимка v2)
+  const option = await tx.quoteOption.findFirst({
+    where: { id: optionId, leadId },
+    include: { calcLines: { orderBy: { sortOrder: 'asc' } } },
+  })
   if (!option) {
     return { ok: false, status: 400, error: 'Вариант расчёта не принадлежит этому запросу' }
   }
@@ -108,6 +118,35 @@ export async function confirmLeadOption(
 
   // 5. Исторический снимок согласованных условий (§2.5): копия
   //    коммерческих полей варианта; себестоимость сознательно не входит.
+  //    DF-27 волна 2 (снимок v2, Р-3/D75): + маршрут/груз (копия снимков
+  //    варианта), строки и итоги расчёта (calcSnapshot с признаком
+  //    предварительности и недостающими данными), версия таможенного
+  //    расчёта, привязанная к варианту, и печатная редакция заявки,
+  //    которую стороны подтверждают (последняя на момент согласования).
+  const calcTotals =
+    option.calcLines.length > 0 ? sumOptionCalc(option.calcLines, option.currency) : null
+  const calcSnapshot = {
+    v: 1,
+    lines: option.calcLines.map((l) => ({
+      article: l.article,
+      title: l.title,
+      amount: String(l.amount),
+      currency: l.currency,
+      fxRateToOffer: l.fxRateToOffer !== null ? String(l.fxRateToOffer) : null,
+      amountOffer: l.amountOffer !== null ? String(l.amountOffer) : null,
+    })),
+    totals: calcTotals,
+    isPreliminary: option.isPreliminary,
+    missingData: option.missingData ?? null,
+  }
+  const customsLine = [...option.calcLines]
+    .reverse()
+    .find((l) => l.article === 'customs' && l.customsCalculationId)
+  const printRevision = await tx.leadPrintRevision.findFirst({
+    where: { leadId },
+    orderBy: { seq: 'desc' },
+    select: { id: true },
+  })
   await tx.leadApprovalSnapshot.create({
     data: {
       leadId,
@@ -124,6 +163,11 @@ export async function confirmLeadOption(
       confirmedVia: meta.via,
       confirmedById: meta.byId,
       confirmedByName: meta.byName,
+      routeSnapshot: (option.routeSnapshot ?? Prisma.DbNull) as Prisma.InputJsonValue | typeof Prisma.DbNull,
+      cargoSnapshot: (option.cargoSnapshot ?? Prisma.DbNull) as Prisma.InputJsonValue | typeof Prisma.DbNull,
+      calcSnapshot: calcSnapshot as unknown as Prisma.InputJsonObject,
+      customsCalculationId: customsLine?.customsCalculationId ?? null,
+      printRevisionId: printRevision?.id ?? null,
     },
   })
 
@@ -135,9 +179,10 @@ export async function confirmLeadOption(
     actor: meta.actor,
     type: 'lead_client_confirmed',
     description:
-      meta.via === 'manager_on_behalf'
+      (meta.via === 'manager_on_behalf'
         ? `Согласие зафиксировал ${meta.byName} от имени клиента: «${option.description}», ${option.etaDays} дн.`
-        : `Согласован вариант расчёта: «${option.description}», ${option.etaDays} дн. (${money})`,
+        : `Согласован вариант расчёта: «${option.description}», ${option.etaDays} дн. (${money})`) +
+      (option.isPreliminary ? ' — предварительный расчёт, не окончательная стоимость' : ''),
   })
 
   return { ok: true, confirmedAt: now, optionId, description: option.description }

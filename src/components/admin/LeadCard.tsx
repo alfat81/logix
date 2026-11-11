@@ -17,6 +17,7 @@ import { Breadcrumbs } from '@/components/admin/Breadcrumbs'
 import { AssigneeField } from '@/components/admin/AssigneeField'
 import { LeadEditDialog } from '@/components/admin/LeadEditDialog'
 import { QuoteOptionsSection } from '@/components/admin/QuoteOptionsSection'
+import { LeadPrintRevisions } from '@/components/admin/LeadPrintRevisions'
 import { PermitsSection } from '@/components/permits/PermitsSection'
 import { ActivityFeed } from '@/components/admin/ActivityFeed'
 import { DocumentsSection } from '@/components/documents/DocumentsSection'
@@ -99,9 +100,10 @@ export function LeadCard() {
   // Поток A (BL-5): конвертация — только из «Согласован клиентом»;
   // при «Рассчитан» — подсказка зафиксировать согласие
   const canConvert = lead.status === 'client_approved' && !!selectedOption
-  // P1-02: правка анкеты — new/calculated (won/lost закрывают правку;
-  // у lost возврат в работу — мастер, у won правка через заявку)
-  const anketaEditable = lead.status === 'new' || lead.status === 'calculated'
+  // P1-02 + DF-27 волна 2 (Р-1/D75): правка анкеты открыта до
+  // конвертации/закрытия; при активном согласовании PATCH атомарно
+  // сбрасывает его (снимок остаётся в истории)
+  const anketaEditable = !isWon && lead.status !== 'lost'
 
   // ── DF-19/DF-27 волна 1: бланк запроса и готовность анкеты — сборка
   // вида «как в запросе» — общая leadBlankView (lead/types.ts) ──
@@ -243,6 +245,9 @@ export function LeadCard() {
           }}
           onChanged={load}
         />
+        {/* ── DF-27 волна 2 (Р-3): печатные редакции заявки — снимок
+            состава сведений + раздельные подтверждения сторон ── */}
+        {!isWon && <LeadPrintRevisions leadId={String(id)} onChanged={load} />}
         {/* ── Конвертация / заявка (В4; компонент lead/, P1-19) ──── */}
         {lead.order ? (
           <LeadConvertedBanner order={lead.order} />

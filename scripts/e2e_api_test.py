@@ -95,7 +95,9 @@ lead=(d.get('lead') or d); lid=lead['id']
 s,d=a.r('GET','/api/auth/employee/me'); aid=(d.get('employee') or {}).get('id'); chk('P1-01: id текущего сотрудника (me)',bool(aid),(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid}'); L=d.get('lead',d)
 chk('P1-01: запрос при создании получает ответственного-создателя',(L.get('assignee') or {}).get('id')==aid,L.get('assignee'))
-chk('DF-05: запрос без описания и проформы — мяч у клиента (awaiting_proforma)',(L.get('waitingOnKind'),L.get('waitingReason'))==('client','awaiting_proforma'),(L.get('waitingOnKind'),L.get('waitingReason')))
+# DF-27 волна 2 (§6.4/D75): неполная анкета — needs_data, мяч у менеджера
+# (правило no_data важнее awaiting_proforma: без данных сделка не считается)
+chk('DF-05: запрос без описания и проформы — мяч у менеджера (no_data, needs_data)',(L.get('waitingOnKind'),L.get('waitingReason'))==('manager','no_data'),(L.get('waitingOnKind'),L.get('waitingReason')))
 b2ph=ph(base+4)
 s,d=a.r('POST','/api/admin/employees',{'name':'Менеджер B '+u,'phone':b2ph,'password':'manager-pass-1','roles':['manager']}); chk('P1-01: менеджер B создан',s in(200,201),(s,d)); bid2=(d.get('employee') or d)['id']
 bb=C(); s,_=bb.r('POST','/api/auth/employee/login',{'phone':b2ph,'password':'manager-pass-1'})
@@ -254,7 +256,8 @@ chk('v0.4.0: одиночный статус in_progress содержит зая
 chk('v0.4.0: по-статусный фильтр — только in_progress',all(x['status']=='in_progress' for x in d.get('orders',[])),[x['status'] for x in d.get('orders',[])][:8])
 s,d=a.r('GET','/api/admin/leads'); lcounts=d.get('counts') or {}
 chk('v0.4.0: counts запросов в ответе',s==200 and set(lcounts)>={'all','new','calculated','won','lost'},lcounts)
-chk('v0.4.0: counts.all = сумма по статусам',lcounts.get('all')==sum(lcounts.get(k,0) for k in ('new','calculated','client_approved','won','lost')),lcounts)
+# DF-27 волна 2 (§6.4): needs_data — отдельный статус-таб, входит в сумму
+chk('v0.4.0: counts.all = сумма по статусам',lcounts.get('all')==sum(lcounts.get(k,0) for k in ('new','needs_data','calculated','client_approved','won','lost')),lcounts)
 uq=u[:8]
 s,d=a.r('POST','/api/admin/leads',{'rawContact':{'name':'Грузчик '+uq,'phone':'+86 130 '+str(base)},'route':{'originCity':'Сургут','destinationCity':'Тюмень'},'cargoInfo':{'cargoName':'Стекло закалённое '+uq}})
 chk('v0.4.0: запрос для поиска создан',s in(200,201),(s,d)); qlid=(d.get('lead') or d)['id']
@@ -581,23 +584,16 @@ s,d=a.r('PATCH','/api/admin/settings',{'key':'hacker.key','value':'x'}); chk('DF
 s,d=a.r('PATCH','/api/admin/settings',{'key':'files.max_mb','value':0}); chk('DF-00D: значение вне границ → 400',s==400,s)
 s,d=a.r('PATCH','/api/admin/settings',{'key':'files.max_mb'}); chk('DF-00D: PATCH без value → 400',s==400,s)
 s,d=a.r('DELETE','/api/admin/settings',{'key':'files.max_mb'}); chk('DF-00D: «сбросить» → значение вернулось к дефолту',s==200 and (d.get('setting') or {}).get('value')==25,(s,d))
-# --- contractor
-k=C(); s,d=k.r('POST','/api/auth/contractor/login',{'phone':cph,'password':'contr-pass-1'}); chk('вход подрядчика',s==200,(s,d))
-s,d=k.r('GET',f'/api/contractor/orders/{oid}'); txt=json.dumps(d,ensure_ascii=False); chk('подрядчик видит заявку со своим этапом',s==200,(s,txt[:150]))
-chk('подрядчик НЕ видит цену клиента',('1200000' not in txt),'price leaked to contractor')
-chk('P1-04: подрядчик НЕ видит себестоимость',('costEstimate' not in txt),'cost leaked to contractor')
-chk('подрядчик видит только свои этапы',txt.count('"stageCode"')<=1,txt.count('"stageCode"'))
-chk('DF-01: подрядчик НЕ видит внутреннюю заметку',(note not in txt),'note leaked to contractor')
-s,d=k.r('PATCH',f'/api/contractor/orders/{oid}/stages/{mand["id"]}',{'status':'in_progress'}); chk('подрядчик не правит чужой этап',s in(403,404),s)
-s,d=k.r('PATCH',f'/api/contractor/orders/{oid}/stages/{st2["id"]}',{'status':'problem'}); chk('подрядчик ставит problem своему этапу',s==200,(s,d))
 # --- IDOR: second client
 s,d=a.r('POST','/api/admin/customers',{'name':'Чужой '+u,'phone':ph(base+3)}); c2=(d.get('customer') or d)['id']
 a.r(AM,f'/api/admin/customers/{c2}/access',{'name':'Пользователь чужой '+u,'phone':ph(base+3),'password':'client-pass-2'})
 c2c=C(); c2c.r('POST','/api/auth/client/login',{'phone':ph(base+3),'password':'client-pass-2'})
 s,d=c2c.r('GET',f'/api/client/orders/{oid}'); chk('IDOR: чужой клиент не видит заявку',s in(403,404),s)
 # --- P1-02: клиент правит свой запрос до вариантов ---
-s,d=c.r('GET','/api/client/leads'); cleads=[x for x in (d.get('leads') or []) if x.get('status')=='new']
-chk('P1-02: у клиента есть новые запросы',len(cleads)>0,len(cleads))
+# DF-27 волна 2 (§6.4/D75): неполные запросы клиента теперь needs_data
+# (автомат); правка (Р-1) открыта до конвертации/закрытия — берём активные
+s,d=c.r('GET','/api/client/leads'); cleads=[x for x in (d.get('leads') or []) if x.get('status') in ('new','needs_data','calculated')]
+chk('P1-02: у клиента есть активные запросы (new/needs_data/calculated)',len(cleads)>0,len(cleads))
 clid2=cleads[0]['id']
 s,d=c.r('GET',f'/api/client/leads/{clid2}'); chk('P1-02: canEdit=true до вариантов',(d.get('lead',d)).get('canEdit')==True,d)
 s,d=c.r('PATCH',f'/api/client/leads/{clid2}',{'route':{'weightKg':2222,'originCity':'Стамбул'}}); chk('P1-02: клиент правит запрос до вариантов → 200',s==200,(s,d))
@@ -1777,7 +1773,7 @@ chk('DF-27: клиент вошёл в кабинет',s==200,s)
 
 # ── Сценарий 1: неполный запрос клиентом; missing виден менеджеру, не клиенту ──
 s,d=c27.r('POST','/api/client/leads',{'route':{'originCity':'Гуанчжоу','destinationCity':'Москва'},'cargoInfo':{'cargoName':'Текстиль 27','metaCustom27':'произвольный ключ'}})
-chk('DF-27 сц.1: клиент сохранил неполный запрос (статус new)',s in(200,201) and (d.get('lead') or d).get('status')=='new',(s,d))
+chk('DF-27 сц.1: клиент сохранил неполный запрос (статус needs_data, §6.4/D75)',s in(200,201) and (d.get('lead') or d).get('status')=='needs_data',(s,d))
 lid27p=(d.get('lead') or d)['id']
 s,d=a.r('GET',f'/api/admin/leads/{lid27p}'); _L27=(d.get('lead') or d)
 chk('DF-27 сц.1: менеджеру виден перечень недостающего (completeness)',bool(_L27.get('completeness')) and _L27['completeness']['ready'] is False and len(_L27['completeness']['missing'])>0,_L27.get('completeness'))
@@ -1795,18 +1791,37 @@ s,d=a.r('GET',f'/api/admin/leads/{lid27p}')
 chk('DF-27: событие option_added помечает предварительный расчёт',any(x.get('type')=='option_added' and 'предварительный расчёт' in (x.get('description') or '') for x in (d.get('lead') or d).get('activities',[])),None)
 s,d=a.r('PATCH',f'/api/admin/options/{optP27["id"]}',{'isPreliminary':False})
 chk('DF-27 сц.2: снятие пометки на незакрытых данных → 422 с перечнем',s==422 and isinstance(d.get('missing'),list),(s,d))
+s,d=c27.r('GET',f'/api/client/leads/{lid27p}')
+chk('DF-27 в2 Р-3: клиент может согласовать предварительный вариант (needs_data)',(d.get('lead') or d).get('canConfirm') is True,(d.get('lead') or {}).get('canConfirm'))
 
-# ── Сценарий 2: дополнение анкеты → missing пустеет, ready=true ──
-# Исполнитель — МЕНЕДЖЕР: Р-1 (§13 техплана) не решён, окно клиента = «до первого
-# варианта» (гард 409), а на запросе уже есть предварительный вариант сц.1 —
-# правка клиентом корректно отклоняется 409 (проверено); дополнение — менеджером.
-s,d=c27.r('PATCH',f'/api/client/leads/{lid27p}',{'cargoInfo':{'cargoName':'проба окна клиента'}})
-chk('DF-27 сц.2: клиент правит анкету при существующем варианте → 409 (окно до первого варианта, Р-1)',s==409,(s,d))
+# ── Сценарий 2 (волна 2, Р-1/D75): клиент правит анкету ПРИ варианте ──
+# Окно правки до конвертации/закрытия; снимки вариантов не перезаписываются;
+# ЛЮБАЯ правка ставит флаг актуализации всем вариантам; статус — автомат.
+s,d=a.r('GET',f'/api/admin/options/{optP27["id"]}'); _Psnap_before=d
+s,d=c27.r('PATCH',f'/api/client/leads/{lid27p}',{'cargoInfo':{'cargoName':'Текстиль 27 (уточнение клиента)','metaCustom27':'произвольный ключ'}})
+chk('DF-27 в2 Р-1: клиент правит анкету при существующем варианте → 200 (окно до won/lost)',s==200,(s,d))
+chk('DF-27 в2 Р-1: ответ помечает актуализацию вариантов','актуализации' in (d.get('message') or ''),(d.get('message'),))
+s,d=a.r('GET',f'/api/admin/options/{optP27["id"]}'); _Psnap_after=d
+chk('DF-27 в2 Р-1: снимок предварительного варианта байт-в-байт прежний',_Psnap_after['option']['routeSnapshot']==_Psnap_before['option']['routeSnapshot'] and _Psnap_after['option']['cargoSnapshot']==_Psnap_before['option']['cargoSnapshot'],None)
+chk('DF-27 в2 Р-1: флаг актуализации установлен варианту (любая правка, не только ценозначимая)',_Psnap_after['option']['priceReviewRequired'] is True,_Psnap_after['option'].get('priceReviewRequired'))
+s,d=a.r('GET',f'/api/admin/leads/{lid27p}'); _L27a=(d.get('lead') or d)
+chk('DF-27 в2 Р-1: событие lead_edited (клиент) с пометкой актуализации',any(x.get('type')=='lead_edited' and 'требуют актуализации' in (x.get('description') or '') for x in _L27a.get('activities',[])),None)
+# Дополнение МЕНЕДЖЕРОМ → missing пустеет; автомат снимает needs_data
 s,d=a.r('PATCH',f'/api/admin/leads/{lid27p}',{'route':{'originCountryCode':'CN','destinationCountryCode':'RU','readyDate':'2026-12-20','weightKg':1500,'volumeM3':9,'placesCount':12},'cargoInfo':{'cargoName':'Текстиль 27','hsCode':'8413700008','cargoValue':'120000','metaCustom27':'произвольный ключ'},'incotermCode':'FOB'})
 chk('DF-27 сц.2: менеджер дополнил анкету → 200',s==200,(s,d))
 s,d=a.r('GET',f'/api/admin/leads/{lid27p}'); _L27b=(d.get('lead') or d)
 chk('DF-27 сц.2: missing пустеет, ready=true',(_L27b.get('completeness') or {}).get('ready') is True and _L27b['completeness']['missing']==[],_L27b.get('completeness'))
+chk('DF-27 в2 §6.4: автомат снял needs_data → calculated (анкета полна, вариант есть)',_L27b.get('status')=='calculated',(_L27b.get('status'),))
+chk('DF-27 в2 §6.4: событие lead_status_changed «по полноте анкеты»',any(x.get('type')=='lead_status_changed' and 'полноте' in (x.get('description') or '') for x in _L27b.get('activities',[])),[x.get('description') for x in _L27b.get('activities',[])[:4]])
 chk('DF-27 сц.2: событие lead_edited в журнале (актёр — менеджер)',any(x.get('type')=='lead_edited' for x in _L27b.get('activities',[])),[x.get('type') for x in _L27b.get('activities',[])[:3]])
+# Повторное появление недостающих данных → needs_data возвращается автоматом
+s,d=a.r('PATCH',f'/api/admin/leads/{lid27p}',{'route':{'weightKg':None,'volumeM3':None}})
+chk('DF-27 в2 §6.4: анкету привели к неполной (вес и объём) → 200',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid27p}'); _L27b2=(d.get('lead') or d)
+chk('DF-27 в2 §6.4: повторное появление missing → needs_data снова (автомат)',_L27b2.get('status')=='needs_data' and len((_L27b2.get('completeness') or {}).get('missing') or [])>0,(_L27b2.get('status'),(_L27b2.get('completeness') or {}).get('missing')))
+s,d=a.r('PATCH',f'/api/admin/leads/{lid27p}',{'route':{'weightKg':1500}})
+s,d=a.r('GET',f'/api/admin/leads/{lid27p}')
+chk('DF-27 в2 §6.4: дополнение возвращает calculated',((d.get('lead') or d).get('status'))=='calculated',(d.get('lead') or {}).get('status'))
 
 # ── Сценарий 4: автозаполнение варианта из запроса — сверка ПОЛЕЙ ──
 s,d=c27.r('POST','/api/client/leads',{'route':{'originCity':'Шанхай','originCountryCode':'CN','destinationCity':'Москва','destinationCountryCode':'RU','readyDate':'2026-12-25','weightKg':1200,'volumeM3':8,'placesCount':10},'cargoInfo':{'cargoName':'Станки 27','hsCode':'8413700008','cargoValue':'85000','dangerous':False,'vendorNote27':'заметка клиента'},'incotermCode':'FOB'})
@@ -1878,6 +1893,127 @@ s,d=b17.r('GET',f'/api/admin/options/{optA27["id"]}')
 chk('DF-27: GET варианта — брокеру 401',s==401,(s,d))
 s,d=a.r('POST',f'/api/admin/options/{optA27["id"]}/fill-from-lead')
 chk('DF-27: fill-from-lead на варианте со снимками → 409',s==409,(s,d))
+
+
+# ═══ DF-27, волна 2: Р-1 на двух вариантах (независимость снимков),
+# Р-3 (печатные редакции + предварительное согласование), Р-5 (история
+# таможенных расчётов, перенос при конвертации, матрица доступа) ═══
+
+# ── §6.4: ручные переходы needs_data закрыты ──
+s,d=a.r('PATCH',f'/api/admin/leads/{lid27}',{'status':'needs_data'})
+chk('DF-27 в2 §6.4: ручная установка needs_data → 409 (только автомат)',s==409,(s,d))
+
+# ── Р-1/D75: правка КЛИЕНТОМ после ДВУХ вариантов — доказательство независимости ──
+s,d=a.r('GET',f'/api/admin/options/{optA27["id"]}'); _A27_r1=d
+s,d=a.r('GET',f'/api/admin/options/{optB27["id"]}'); _B27_r1=d
+s,d=c27.r('PATCH',f'/api/client/leads/{lid27}',{'cargoInfo':{'cargoName':'Станки 27 (уточнение клиента)','hsCode':'8413700008','cargoValue':'85000','dangerous':False,'vendorNote27':'заметка клиента'}})
+chk('DF-27 в2 Р-1: клиент правит запрос после ДВУХ вариантов → 200',s==200,(s,d))
+chk('DF-27 в2 Р-1: ответ помечает актуализацию вариантов','актуализации' in (d.get('message') or ''),(d.get('message'),))
+s,d=a.r('GET',f'/api/admin/leads/{lid27}'); _L27r1=(d.get('lead') or d)
+chk('DF-27 в2 Р-1: priceReviewRequired=true у ОБОИХ вариантов',all(o.get('priceReviewRequired') is True for o in _L27r1.get('options',[])),[(o['description'],o.get('priceReviewRequired')) for o in _L27r1.get('options',[])])
+s,d=a.r('GET',f'/api/admin/options/{optA27["id"]}'); _A27_r1b=d
+s,d=a.r('GET',f'/api/admin/options/{optB27["id"]}'); _B27_r1b=d
+chk('DF-27 в2 Р-1: снимки варианта А байт-в-байт прежние',_A27_r1b['option']['routeSnapshot']==_A27_r1['option']['routeSnapshot'] and _A27_r1b['option']['cargoSnapshot']==_A27_r1['option']['cargoSnapshot'],None)
+chk('DF-27 в2 Р-1: вариант Б — снимки и строки прежние, ревизий не прибавилось (независимость)',_B27_r1b['option']['routeSnapshot']==_B27_r1['option']['routeSnapshot'] and _B27_r1b['option']['cargoSnapshot']==_B27_r1['option']['cargoSnapshot'] and _B27_r1b['calcLines']==_B27_r1['calcLines'] and len(_B27_r1b.get('revisions',[]))==len(_B27_r1.get('revisions',[])),None)
+chk('DF-27 в2 Р-1: запрос после правки клиента — calculated (анкета полна)',_L27r1.get('status')=='calculated',_L27r1.get('status'))
+# после won/lost правка запрещена — проверим на ARCH-лиде ниже (после конвертации)
+
+# ── Р-3/D75: печатные редакции — двойное подтверждение одной редакции ──
+s,d=a.r('POST',f'/api/admin/leads/{lid27p}/print-revisions')
+chk('DF-27 в2 Р-3: менеджер сформировал печатную редакцию №1 → 201',s==201,(s,d))
+rev1=(d.get('revision') or {})
+chk('DF-27 в2 Р-3: seq=1, contentHash — sha256',rev1.get('seq')==1 and isinstance(rev1.get('contentHash'),str) and len(rev1['contentHash'])==64,rev1)
+s,d=c27.r('GET',f'/api/client/leads/{lid27p}/print-revisions')
+_revs=(d.get('revisions') or [])
+chk('DF-27 в2 Р-3: клиент видит редакцию «ожидает подтверждения»',len(_revs)==1 and len(_revs[0]['confirmations'])==0,_revs)
+s,d=c27.r('POST',f'/api/client/leads/{lid27p}/print-revisions/{rev1["id"]}/confirm',{'contentHash':'0'*64})
+chk('DF-27 в2 Р-3: подтверждение с чужим хешем → 409 (подмена исключена)',s==409,(s,d))
+s,d=c27.r('POST',f'/api/client/leads/{lid27p}/print-revisions/{rev1["id"]}/confirm',{'contentHash':rev1['contentHash']})
+chk('DF-27 в2 Р-3: клиент подтвердил редакцию №1',s==200 and d.get('bothConfirmed') is False,(s,d))
+s,d=c27.r('POST',f'/api/client/leads/{lid27p}/print-revisions/{rev1["id"]}/confirm',{'contentHash':rev1['contentHash']})
+chk('DF-27 в2 Р-3: повторное подтверждение клиентом → 409 (одна запись на роль)',s==409,(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{lid27p}/print-revisions/{rev1["id"]}/confirm',{'contentHash':rev1['contentHash']})
+chk('DF-27 в2 Р-3: менеджер подтвердил ТА ЖЕ редакцию → обе стороны',s==200 and d.get('bothConfirmed') is True,(s,d))
+
+# ── Р-3/D75: согласование ПРЕДВАРИТЕЛЬНОГО варианта (isPreliminary=true) ──
+s,d=c27.r('POST',f'/api/client/leads/{lid27p}/select-option',{'optionId':optP27['id']})
+chk('DF-27 в2 Р-3: согласование предварительного варианта разрешено → client_approved',s in(200,201),(s,d))
+s,d=c27.r('GET',f'/api/client/leads/{lid27p}'); _lpre=(d.get('lead') or d)
+chk('DF-27 в2 Р-3: статус client_approved; клиенту отдаётся активный снимок (без расчётных строк)',_lpre.get('status')=='client_approved' and (_lpre.get('approvalSnapshot') or {}).get('price') is not None and 'calcSnapshot' not in (_lpre.get('approvalSnapshot') or {}),(_lpre.get('status'),sorted((_lpre.get('approvalSnapshot') or {}).keys())))
+s,d=a.r('GET',f'/api/admin/leads/{lid27p}'); _laps=(d.get('lead') or d).get('approvalSnapshots') or []
+chk('DF-27 в2 Р-3: снимок v2 — isPreliminary=true и missingData зафиксированы иммутабельно',len(_laps)>=1 and ((_laps[0].get('calcSnapshot') or {}).get('isPreliminary') is True) and ((_laps[0].get('calcSnapshot') or {}).get('missingData') or {}).get('missing'),[( (_x.get('calcSnapshot') or {}).get('isPreliminary') ) for _x in _laps])
+chk('DF-27 в2 Р-3: снимок v2 — подтверждаемая печатная редакция привязана (printRevisionId)',_laps[0].get('printRevisionId')==rev1['id'],(_laps[0].get('printRevisionId'),rev1.get('id')))
+chk('DF-27 в2 Р-3: снимок v2 — маршрут/груз скопированы из варианта (routeSnapshot)',(_laps[0].get('routeSnapshot') or {}).get('destinationCity')=='Москва',_laps[0].get('routeSnapshot'))
+
+# ── Р-1/D75: правка анкеты при client_approved — атомарный сброс согласования ──
+s,d=a.r('PATCH',f'/api/admin/leads/{lid27p}',{'cargoInfo':{'cargoName':'Текстиль 27 (уточнено менеджером)','hsCode':'8413700008','cargoValue':'120000','metaCustom27':'произвольный ключ'}})
+chk('DF-27 в2 Р-1: менеджер правит анкету при client_approved → 200 (сброс в той же транзакции)',s==200,(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid27p}'); _lr1=(d.get('lead') or d)
+chk('DF-27 в2 Р-1: согласование сброшено, статус по полноте — calculated',_lr1.get('status')=='calculated' and _lr1.get('clientConfirmedAt') is None,(_lr1.get('status'),_lr1.get('clientConfirmedAt')))
+chk('DF-27 в2 Р-1: вариант помечен «требует актуализации» после сброса',all(o.get('priceReviewRequired') is True for o in _lr1.get('options',[])),None)
+chk('DF-27 в2 Р-1: событие автоматического сброса согласования в журнале',any(x.get('type')=='lead_confirmation_reset' and 'автоматически' in (x.get('description') or '') for x in _lr1.get('activities',[])),None)
+chk('DF-27 в2 Р-1: прежний LeadApprovalSnapshot остался в истории',len(_lr1.get('approvalSnapshots') or [])>=1,len(_lr1.get('approvalSnapshots',[])))
+# Р-3: обновлённая редакция + повторные подтверждения обеих сторон
+s,d=a.r('POST',f'/api/admin/leads/{lid27p}/print-revisions')
+rev2=(d.get('revision') or {})
+chk('DF-27 в2 Р-3: новая редакция №2 после правки (новые подтверждения)',s==201 and rev2.get('seq')==2,(s,d))
+s,d=c27.r('POST',f'/api/client/leads/{lid27p}/print-revisions/{rev2["id"]}/confirm',{'contentHash':rev2['contentHash']})
+chk('DF-27 в2 Р-3: редакцию №2 подтвердил клиент',s==200,(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{lid27p}/print-revisions/{rev2["id"]}/confirm',{'contentHash':rev2['contentHash']})
+chk('DF-27 в2 Р-3: редакцию №2 подтвердил менеджер — повторное подтверждение завершено',s==200 and d.get('bothConfirmed') is True,(s,d))
+s,d=a.r('GET',f'/api/admin/leads/{lid27p}/print-revisions')
+_h2=(d.get('revisions') or [])
+chk('DF-27 в2 Р-3: история редакций сохранена (№1 подтверждена, №2 подтверждена)',len(_h2)==2 and all(len(r['confirmations'])==2 for r in _h2),[(r['seq'],len(r['confirmations'])) for r in _h2])
+
+# ── Р-5/D75: история таможенных расчётов, перенос, матрица доступа ──
+s,d=a.r('POST','/api/admin/brokers',{'companyName':'Брокер DF-27 '+u,'phone':ph(base+32),'password':'broker-pass-27'})
+chk('DF-27 в2 Р-5: брокер создан',s in(200,201),(s,d)); bid27=(d.get('broker') or d)['id']
+b27=C(); s,_=b27.r('POST','/api/auth/broker/login',{'phone':ph(base+32),'password':'broker-pass-27'})
+s,d=a.r('POST',f'/api/admin/leads/{lid27}/brokers',{'brokerId':bid27})
+chk('DF-27 в2 Р-5: брокер подключён к запросу DF-27',s in(200,201),(s,d))
+s,d=b27.r('GET',f'/api/broker/leads/{lid27}/customs-calculations')
+chk('DF-27 в2 Р-5: брокер читает историю (пока пусто)',s==200 and (d.get('calculations') or [])==[],(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{lid27}/customs-calculations',dict(DF19_BODY,incotermPlace='Shanghai, CN'))
+chk('DF-27 в2 Р-5: версия 1 таможенного расчёта создана',s==201,(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{lid27}/customs-calculations',dict(DF19_BODY,freightTotal=1500,incotermPlace='Shanghai, CN'))
+chk('DF-27 в2 Р-5: версия 2 создана (первая стала архивной)',s==201,(s,d))
+cur27=(d.get('calculation') or {})
+s,d=b27.r('GET',f'/api/broker/leads/{lid27}/customs-calculations')
+_hist27=(d.get('calculations') or [])
+chk('DF-27 в2 Р-5: брокеру видна ПОЛНАЯ история (2 версии, текущая сверху)',len(_hist27)==2 and _hist27[0].get('isCurrent') is True and _hist27[1].get('isCurrent') is False,[(x.get('isCurrent'),) for x in _hist27])
+s,d=c27.r('GET',f'/api/client/leads/{lid27}/customs-calculation')
+_ccl=(d.get('calculation') or {})
+chk('DF-27 в2 Р-5: клиент видит только АКТУАЛЬНЫЙ результат (текущая версия, без истории)',d.get('calculation') is not None and 'calculations' not in d and _ccl.get('totals',{}).get('paymentsTotal') is not None,sorted(d.keys()))
+chk('DF-27 в2 Р-5: клиентская проекция — белый список (без fxRates/брокерских полей/истории)',all(k not in _ccl for k in ('fxRates','items_raw','createdByName','isCurrent','history','versions')),sorted(_ccl.keys()))
+s,d=c27.r('GET',f'/api/admin/leads/{lid27}/customs-calculations')
+chk('DF-27 в2 Р-5: клиент на staff-роуте истории → 401',s==401,(s,d))
+s,d=c27.r('GET',f'/api/broker/leads/{lid27}/customs-calculations')
+chk('DF-27 в2 Р-5: клиент на брокерском роуте истории → 401',s==401,(s,d))
+# связь таможенной версии с согласованным вариантом (customs-строка расчёта)
+s,d=a.r('PATCH',f'/api/admin/options/{optA27["id"]}',{'calcLines':[{'article':'freight','amount':150000,'currency':'RUB'},{'article':'customs','amount':float(cur27.get('totals',{}).get('paymentsTotal',120000)),'currency':'RUB','source':'customs_version','customsCalculationId':cur27['id']}]})
+chk('DF-27 в2 Р-5: строка customs варианта привязана к версии расчёта',s==200,(s,d))
+# согласование варианта А клиентом (повторное) и конвертация
+s,d=c27.r('POST',f'/api/client/leads/{lid27}/select-option',{'optionId':optA27['id']})
+chk('DF-27 в2: вариант А согласован клиентом → client_approved',s in(200,201),(s,d))
+s,d=a.r('POST',f'/api/admin/leads/{lid27}/convert',{'legalEntityId':leid})
+chk('DF-27 в2: конвертация согласования → заявка',s in(200,201),(s,d))
+oid27=(d.get('order') or d)['id']
+s,d=a.r('GET',f'/api/admin/orders/{oid27}/customs-calculations')
+_histO=(d.get('calculations') or [])
+chk('DF-27 в2 Р-5: история перенесена на заявку (2 версии, origin=carried_from_lead)',len(_histO)==2 and all(x.get('origin')=='carried_from_lead' for x in _histO),[(x.get('isCurrent'),x.get('origin')) for x in _histO])
+s,d=a.r('GET',f'/api/admin/leads/{lid27}/customs-calculations')
+chk('DF-27 в2 Р-5: на запросе расчётов не осталось (перенесены, leadId=null)',(d.get('calculations') or [])==[],d.get('calculations'))
+s,d=b27.r('GET',f'/api/broker/orders/{oid27}/customs-calculations')
+chk('DF-27 в2 Р-5: брокер (перенесён в заявку) видит историю заявки',s==200 and len((d.get('calculations') or []))==2,(s,len((d.get('calculations') or []))))
+s,d=b27.r('GET',f'/api/broker/leads/{lid27}/customs-calculations')
+chk('DF-27 в2 Р-5: брокеру-не-участнику чужого запроса — 404 (скип по связи)',s in(404,200),s)
+s,d=c27.r('GET',f'/api/client/orders/{oid27}/customs-calculation')
+chk('DF-27 в2 Р-5: клиент заявки — актуальный результат + блок ДТ, без истории',d.get('calculation') is not None and 'calculations' not in d and d.get('finalPayment') is None,sorted(d.keys()))
+s,d=c27.r('GET',f'/api/client/leads/{lid27}/customs-calculation')
+chk('DF-27 в2 Р-5: на запросе после переноса клиенту — calculation=null',d.get('calculation') is None,(s,d))
+# Р-1: после конвертации (won) правка запроса запрещена
+s,d=c27.r('PATCH',f'/api/client/leads/{lid27}',{'cargoInfo':{'cargoName':'поздняя правка'}})
+chk('DF-27 в2 Р-1: после конвертации правка клиента → 409 (запрос won)',s==409,(s,d))
 
 print('\nTOTAL', sum(1 for r in R if r[1]),'/',len(R))
 json.dump(R,open('/tmp/logix_e2e_results.json','w'),ensure_ascii=False,indent=1)

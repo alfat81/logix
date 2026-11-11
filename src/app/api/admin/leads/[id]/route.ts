@@ -35,6 +35,9 @@ export async function GET(req: NextRequest, { params }: Params) {
           include: { calcLines: { orderBy: { sortOrder: 'asc' } } },
         },
         order: { select: { id: true, number: true, status: true } },
+        // DF-27 волна 2 (Р-3): история снимков согласования v2 — staff
+        // (клиенту отдаётся только активный снимок, клиентский роут)
+        approvalSnapshots: { orderBy: { confirmedAt: 'desc' } },
         // Д: брокеры расчёта с оценками (таможенные платежи +
         // разрешительные документы) — оценка на связи, 1:1
         brokers: {

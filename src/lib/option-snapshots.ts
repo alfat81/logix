@@ -295,7 +295,7 @@ export function diffOptionVsLead(
 
 export type Completeness = { ready: boolean; missing: string[] }
 
-type CompletenessRow = LeadBlankRow & { weightKg?: unknown; volumeM3?: unknown; placesCount?: unknown }
+export type CompletenessRow = LeadBlankRow & { weightKg?: unknown; volumeM3?: unknown; placesCount?: unknown }
 
 type OptionOverrideRow = {
   routeSnapshot?: unknown

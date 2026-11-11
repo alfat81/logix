@@ -114,7 +114,7 @@ export function QuoteOptionCard({
             )}
             {option.priceReviewRequired && (
               <Badge variant="outline" className="text-destructive border-destructive">
-                Требует пересмотра цены
+                Требует актуализации расчёта
               </Badge>
             )}
             {option.diffFromLead && option.diffFromLead.length > 0 && (

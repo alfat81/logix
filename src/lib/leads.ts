@@ -23,11 +23,13 @@ import { OPTION_CALC_ARTICLES, OPTION_CALC_SOURCES } from '@/lib/option-calc'
 // confirm): согласие клиента на условия — фиксируемый факт, ручной
 // PATCH его не принимает (симметрия с won). Побочный автомат один и
 // осознанный (В3): первый добавленный вариант расчёта переводит
-// new → calculated — статус буквально означает «посчитан»; удаление
-// вариантов статус НЕ откатывает (симметрия с 8.1: статус меняет
-// человек, не триггер).
+// new → calculated — статус буквально означает «посчитан»;
+// DF-27 волна 2 (§6.4, D75): автомат статуса — expectedLeadStatus
+// (lib/status-machine.ts): неполная анкета — needs_data (назначает
+// и снимает только сервер), полная + варианты — calculated.
 export const LEAD_STATUSES = [
   'new',
+  'needs_data',
   'calculated',
   'client_approved',
   'won',
@@ -37,6 +39,7 @@ export type LeadStatus = (typeof LEAD_STATUSES)[number]
 
 export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
   new: 'Новый',
+  needs_data: 'Требует дополнительных данных',
   calculated: 'Рассчитан',
   client_approved: 'Согласован клиентом',
   won: 'Выигран',
@@ -50,6 +53,7 @@ export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
 // одно место знания о том, что считается «активным».
 export const LEAD_ACTIVE_STATUSES: readonly LeadStatus[] = [
   'new',
+  'needs_data',
   'calculated',
   'client_approved',
 ]

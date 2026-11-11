@@ -11,6 +11,9 @@ import { employeeActor } from '@/lib/activity'
 import { lockLeadForOptions } from '../../leads/[id]/convert/helpers'
 import { sumOptionCalc, calcMismatch } from '@/lib/option-calc'
 import { diffOptionVsLead } from '@/lib/option-snapshots'
+import { applyAutoLeadStatus } from '@/lib/lead-auto-status'
+import { loadLeadBlank } from '@/lib/option-write'
+import { LEAD_STATUS_LABELS, type LeadStatus } from '@/lib/leads'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -199,6 +202,25 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       if (!guard.ok) return guard
       await tx.quoteOption.delete({ where: { id } })
 
+      // DF-27 волна 2 (§6.4/D75): автомат статуса в состоянии-после.
+      // calculated→new в матрице нет — удаление вариантов «Рассчитан»
+      // не откатывает (правило 8.1); needs_data назначается, если анкета
+      // неполна (данные удаляли правкой запроса, а не варианта).
+      let statusNote = ''
+      const blank = await loadLeadBlank(tx, existing.leadId)
+      if (blank) {
+        const statusChange = await applyAutoLeadStatus(
+          tx,
+          existing.leadId,
+          guard.lead.status as LeadStatus,
+          await tx.quoteOption.count({ where: { leadId: existing.leadId } }),
+          blank
+        )
+        if (statusChange) {
+          statusNote = ` — статус: ${LEAD_STATUS_LABELS[statusChange.from]} → ${LEAD_STATUS_LABELS[statusChange.to]}`
+        }
+      }
+
       // Ж5: удаление варианта — тоже движение по лиду.
       await tx.lead.update({ where: { id: existing.leadId }, data: { updatedAt: new Date() } })
 
@@ -207,7 +229,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         target: { leadId: existing.leadId },
         actor: employeeActor(auth.employee),
         type: 'option_removed',
-        description: `Удалён вариант расчёта: ${existing.description}`,
+        description: `Удалён вариант расчёта: ${existing.description}${statusNote}`,
       })
       return { ok: true as const }
     })

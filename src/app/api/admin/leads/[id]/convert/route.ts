@@ -63,12 +63,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Запрос не найден' }, { status: 404 })
     }
 
-    // DF-17: условие поставки — код из справочника приоритетен над
-    // легаси-текстом; код должен быть в справочнике и активен.
-    // DF-23 (а): тело приоритетно, но прямой API-вызов без кода в теле
-    // больше НЕ теряет выбор клиента из запроса молча — пусто в теле →
-    // код с лида. Явный null в теле (менеджер стёр предзаполнение
-    // диалога) остаётся осознанной очисткой.
+    // DF-17/DF-23 (а): код из справочника приоритетен над легаси-текстом;
+    // пусто в теле → код с лида (молчаливой потери выбора клиента нет),
+    // явный null — осознанная очистка. Код должен быть активен в справочнике.
     const effectiveIncotermCode =
       incotermCode !== undefined ? (incotermCode ?? null) : (lead.incotermCode ?? null)
     if (effectiveIncotermCode) {
@@ -158,12 +155,9 @@ export async function POST(req: NextRequest, { params }: Params) {
             status: 409,
           }
         }
-        // Поток A волна 1 (BL-5 п. 3): клиентская часть снимка заявки —
-        // из АКТИВНОГО снимка согласования (ровно то, с чем согласился
-        // клиент); защита по построению, а не по надежде на гард.
-        // Активный снимок = чей confirmedAt совпадает с метаданными
-        // согласования на лиде (план ред. 3 §2.5 п. 2). Не нашли —
-        // инвариант нарушен: 409 с внятной формулировкой.
+        // Поток A волна 1 (BL-5 п. 3): активный снимок согласования —
+        // чей confirmedAt совпадает с метаданными на лиде (план §2.5 п. 2).
+        // Не нашли — инвариант нарушен: 409.
         const approvalSnapshot = await tx.leadApprovalSnapshot.findFirst({
           where: { leadId: id, confirmedAt: locked.clientConfirmedAt ?? undefined },
           orderBy: { createdAt: 'desc' },
@@ -189,10 +183,8 @@ export async function POST(req: NextRequest, { params }: Params) {
           await tx.lead.update({ where: { id }, data: { customerId: customer.id } })
         }
 
-        // 2. Создание заявки с этапами (внутри блокируется строка Contract)
-        // DF-23 (в): ТН ВЭД — одна точка правки, бланк анкеты — источник
-        // правды (buildCargoSnapshot, helpers.ts; пусто в теле → колонка
-        // из бланка, явный null → код снимается с бланка заявки).
+        // 2. Создание заявки с этапами (внутри блокируется строка Contract);
+        // DF-23 (в): бланк анкеты — источник правды ТН ВЭД (helpers.ts).
         const leadBlank = (locked.cargoInfo as Prisma.InputJsonObject | null) ?? null
         const { effectiveHsCode, cargoSnapshot } = buildCargoSnapshot(leadBlank, hsCode)
 
@@ -200,7 +192,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           {
             customerId: customer.id,
             legalEntityId,
-            // DF-17: код приоритетен; легаси-текст — снимок для старых отображений
+            // DF-17: код приоритетен, легаси-текст — снимок для старых отображений
             incoterm: effectiveIncotermCode ?? (incoterm || null),
             incotermCode: effectiveIncotermCode,
             // DF-19/DF-23 (а): место условия поставки — переносится с лида
@@ -248,6 +240,16 @@ export async function POST(req: NextRequest, { params }: Params) {
         // 5а. DF-16: перенос обязательств по разрешительным (лид → заявка)
         const carriedPermits = await carryPermitsToOrder(id, orderRes.id, tx)
 
+        // 5б. DF-27 волна 2 (Р-5, D75 §13): история нормативных версий
+        // запроса переносится на заявку ЦЕЛИКОМ (origin='carried_from_lead'),
+        // без перезаписи; менеджер/брокер — полная история, клиент —
+        // только актуальный результат (матрица доступа Р-5).
+        const carriedCustoms = await tx.customsCalculation.updateMany({
+          where: { leadId: id },
+          data: { orderId: orderRes.id, leadId: null, origin: 'carried_from_lead' },
+        })
+        const carriedCustomsCount = carriedCustoms.count
+
         // 6. Аудит в обе ленты событий
         await emitEvent(tx, {
           target: { leadId: id },
@@ -256,7 +258,8 @@ export async function POST(req: NextRequest, { params }: Params) {
           description: `Сконвертирован в заявку №${orderRes.number}` +
             (carriedBrokers > 0 ? ` — брокеры перенесены: ${carriedBrokers}` : '') +
             (carriedDocs > 0 ? `, документы перенесены: ${carriedDocs}` : '') +
-            (carriedPermits > 0 ? `, разрешительные перенесены: ${carriedPermits}` : ''),
+            (carriedPermits > 0 ? `, разрешительные перенесены: ${carriedPermits}` : '') +
+            (carriedCustomsCount > 0 ? `, расчёты таможни перенесены: ${carriedCustomsCount}` : ''),
         })
         await emitEvent(tx, {
           target: { orderId: orderRes.id },
@@ -265,7 +268,8 @@ export async function POST(req: NextRequest, { params }: Params) {
           description: `Заявка №${orderRes.number} создана конвертацией из запроса — груз и условия скопированы снимком` +
             (carriedBrokers > 0 ? `, брокеры видимости: ${carriedBrokers}` : '') +
             (carriedDocs > 0 ? `, документы: ${carriedDocs}` : '') +
-            (carriedPermits > 0 ? `, разрешительные: ${carriedPermits}` : ''),
+            (carriedPermits > 0 ? `, разрешительные: ${carriedPermits}` : '') +
+            (carriedCustomsCount > 0 ? `, расчёты таможни (история): ${carriedCustomsCount}` : ''),
         })
 
         return {

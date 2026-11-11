@@ -251,6 +251,8 @@ model Order {
   permitChecks        PermitCheck[]
   // DF-19: расчёты таможенных платежей (история версий)
   customsCalculations CustomsCalculation[]
+  // DF-27 волна 2 (D73 §8.6, Р-5): окончательные платежи по ДТ — append-only
+  finalCustomsPayments CustomsFinalPayment[]
 
   @@unique([contractId, numberInContract])
   @@index([status])
@@ -471,9 +473,11 @@ model Lead {
   // DF-26 волна 2: проверки ТН ВЭД на лидах (при конвертации В4
   // переносятся на заявку — carryPermitChecksToOrder, SPEC §10.3 п. 6).
   permitChecks        PermitCheck[]
-  // DF-19: расчёты таможенных платежей (история версий; при
-  // конвертации НЕ переносятся — лид остаётся источником истории,
-  // заявка считает свои расчёты с фрахтом от выбранного варианта)
+  // DF-19: расчёты таможенных платежей (история версий). DF-27 волна 2
+  // (Р-5, §13): при конвертации ИСТОРИЯ нормативных версий переносится
+  // на заявку целиком (origin='carried_from_lead'), ничего не
+  // перезаписывается; менеджер/брокер — полная история, клиент — только
+  // актуальный результат
   customsCalculations CustomsCalculation[]
   // Поток A волна 1 (BL): история согласований расчёта клиентом.
   // Активный снимок = чьи confirmedAt-метаданные совпадают с полями
@@ -481,6 +485,8 @@ model Lead {
   // не удаляются и не правятся никогда. Себестоимость в снимок
   // не входит по определению — см. модель.
   approvalSnapshots   LeadApprovalSnapshot[]
+  // DF-27 волна 2 (Р-3): неизменяемые печатные редакции заявки (append-only)
+  printRevisions      LeadPrintRevision[]
 
   // ─── Поток A волна 1 (BL-3): активное согласование расчёта ──────
   // Заполняет ТОЛЬКО confirm-API (select-option / confirm), не ручной
@@ -561,6 +567,8 @@ model QuoteOption {
   lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
   calcLines QuoteOptionCalcLine[]
   revisions QuoteOptionRevision[]
+  // DF-27 волна 2 (Р-5): таможенные расчёты, которые велись в контуре варианта
+  customsCalculations CustomsCalculation[]
 
   @@index([leadId])
 }
@@ -648,9 +656,25 @@ model LeadApprovalSnapshot {
   confirmedVia    String
   confirmedById   String?
   confirmedByName String?
+  // ─── DF-27 волна 2 (Р-3, снимок согласования v2) ──────────────
+  // Маршрут/груз — копия снимков варианта на момент подтверждения
+  // (иммутабельно, копируются значениями); у легаси-вариантов null.
+  routeSnapshot   Json?
+  cargoSnapshot   Json?
+  // Расчёт на момент согласования: строки и итоги (sumOptionCalc) +
+  // isPreliminary/missingData варианта — { v:1, lines, totals,
+  // isPreliminary, missingData }; предварительное согласование (Р-3)
+  // НЕ превращает цену в окончательное обязательство.
+  calcSnapshot    Json?
+  // Какая версия таможенного расчёта была при согласовании
+  customsCalculationId String?
+  // Неизменяемая печатная редакция заявки, которую подтверждают стороны
+  printRevisionId String?
   createdAt       DateTime @default(now())
 
-  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead                Lead?               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  customsCalculation  CustomsCalculation? @relation(fields: [customsCalculationId], references: [id], onDelete: SetNull)
+  printRevision       LeadPrintRevision?  @relation(fields: [printRevisionId], references: [id], onDelete: SetNull)
 
   @@index([leadId])
 }
@@ -1647,8 +1671,11 @@ model HsImport {
 // счёт TRY) — строки позиций несут СВОЮ валюту (D40: редактируемость).
 //
 // Цель — ровно одна: лид ИЛИ заявка (инвариант union на TS-уровне, как
-// Document/Activity). Расчёты лида при конвертации НЕ переносятся (В4):
-// лид остаётся историей расчёта, заявка считает свои.
+// Document/Activity). DF-27 волна 2 (Р-5, D75): при конвертации версии,
+// привязанные к согласованному варианту, и текущая версия запроса
+// переносятся на заявку с origin='carried_from_lead' — история целиком
+// сохраняется и доступна менеджеру/брокеру, клиенту — только актуальный
+// результат.
 model CustomsCalculation {
   id                 String   @id @default(cuid())
   leadId             String?
@@ -1710,19 +1737,31 @@ model CustomsCalculation {
   // Актуальная версия (последний пересчёт); история — isCurrent=false,
   // правки (PUT) — только текущей.
   isCurrent          Boolean  @default(true)
+  // ─── DF-27 волна 2 (Р-5) ─────────────────────────────────────
+  // Расчёты, которые велись в контуре конкретного варианта; при
+  // конвертации переносятся на заявку вместе с историей версий.
+  quoteOptionId      String?
+  // null = собственный расчёт; 'carried_from_lead' = перенесён при
+  // конвертации (Р-5) — происхождение сохраняется без перезаписи истории
+  origin             String?
   createdById        String?
   // Снимок имени автора (паттерн actorName: история дольше справочника)
   createdByName      String
   createdAt          DateTime @default(now())
   updatedAt          DateTime @default(now()) @updatedAt
 
-  lead  Lead?  @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  order Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  lead        Lead?               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  order       Order?              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  quoteOption QuoteOption?        @relation(fields: [quoteOptionId], references: [id], onDelete: SetNull)
 
   items CustomsCalculationItem[]
   // DF-27: строки расчёта вариантов, ссылающиеся на версию (статья
   // customs) — снимок значений на момент расчёта варианта
   calcLines QuoteOptionCalcLine[]
+  // DF-27 волна 2 (D73, §8.4): информационные пересчёты — append-only
+  fxRecalcs CustomsFxRecalc[]
+  // DF-27 волна 2 (Р-3): снимки согласования, зафиксировавшие эту версию
+  approvalSnapshots LeadApprovalSnapshot[]
 
   @@index([leadId, createdAt])
   @@index([orderId, createdAt])
@@ -1784,4 +1823,110 @@ model CustomsFeeScale {
   sortOrder  Int      @default(0)
 
   @@index([validFrom])
+}
+
+// ─── DF-27 волна 2 (Р-3): неизменяемая печатная редакция заявки ────
+// Каждая значимая правка заявки после согласования формирует НОВУЮ
+// редакцию (append-only): содержимое, файл и hash после создания
+// НЕ меняются; исправление — новая редакция, старые остаются историей.
+// leadSnapshot — полный набор полей заявки, включённых в печатную форму;
+// contentHash — хеш содержимого редакции (подтверждение по revisionId +
+// contentHash, Р-3); renderedFileId — ссылка на Document (паттерн без
+// FK, как actorId: удаление документа не портит историю редакции).
+model LeadPrintRevision {
+  id             String   @id @default(cuid())
+  leadId         String
+  // Порядковый номер редакции внутри заявки (1, 2, …)
+  seq            Int
+  // Полный снимок полей заявки, включённых в печатную форму, на момент
+  // создания редакции — структура v:1, читатели толерантные
+  leadSnapshot   Json
+  renderedFileId String?
+  // Хеш содержимого сформированной редакции (sha256 канонического JSON)
+  contentHash    String
+  createdById    String?
+  createdByName  String?
+  createdAt      DateTime @default(now())
+
+  lead           Lead                          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  confirmations  LeadPrintRevisionConfirmation[]
+  approvalSnapshots LeadApprovalSnapshot[]
+
+  @@unique([leadId, seq])
+  @@index([leadId, createdAt])
+}
+
+// Подтверждение печатной редакции одной из сторон (Р-3): клиент и
+// менеджер подтверждают ОДНУ И ТУ ЖЕ редакцию по revisionId + contentHash;
+// подтверждение менеджера не заменяет подтверждение клиента и наоборот.
+// Подтверждения не перезаписываются и не удаляются; при новой редакции
+// подтверждения старой не переносятся.
+model LeadPrintRevisionConfirmation {
+  id          String   @id @default(cuid())
+  revisionId  String
+  // 'client' | 'manager' — одна запись на роль на редакцию
+  partyRole   String
+  actorId     String?
+  actorName   String
+  confirmedAt DateTime @default(now())
+  // Как именно подтвердили: действие в кабинете / фиксация сотрудником
+  method      String
+  comment     String?
+
+  revision LeadPrintRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@unique([revisionId, partyRole])
+  @@index([revisionId, confirmedAt])
+}
+
+// ─── DF-27 волна 2 (D73, §8.4): информационный пересчёт курса ─────
+// Результат пересчёта — НОВАЯ append-only запись, а не перезапись
+// версии: нормативный слой, fxDate/fxRates и суммы версии не меняются;
+// пересчёты менеджера и клиента независимы и не перезаписывают друг
+// друга (денежный слой — не обязательство, D73). Эндпоинтов правки и
+// удаления нет; удаление записи — только каскадом с расчётом.
+model CustomsFxRecalc {
+  id            String   @id @default(cuid())
+  calculationId String
+  // Кто пересчитал: 'manager' | 'client' — пересчёты независимы
+  actorRole     String
+  actorId       String?
+  actorName     String
+  // Валюта представления (новый параметр контракта по D73)
+  currency      String
+  // Выбранная дата курса (снимок курсов за единицу валюты, lib/cbr.ts)
+  fxDate        DateTime @db.Date
+  fxRates       Json
+  // Пересчитанные таможенная стоимость и суммы платежей по позициям
+  // и итоги (чистая функция — customs-server); нормативный слой версии
+  // не затрагивается
+  totals        Json
+  createdAt     DateTime @default(now())
+
+  calculation CustomsCalculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+
+  @@index([calculationId, createdAt])
+}
+
+// ─── DF-27 волна 2 (D73, §8.6): окончательные платежи по ДТ ────────
+// Вносится сотрудником по факту декларирования: дата подачи ДТ + суммы
+// по видам платежей (в валютах уплаты). Append-only: новая запись
+// прежние не меняет, эндпоинтов правки/удаления нет; отображается
+// последняя запись, история доступна развёрнуто (Р-5: клиенту — только
+// актуальный результат, без журнала).
+model CustomsFinalPayment {
+  id        String   @id @default(cuid())
+  orderId   String
+  // Дата подачи ДТ — по применимым правилам и данным на эту дату
+  dtDate    DateTime @db.Date
+  // Суммы по видам платежей: [{ kind, amount, currency }]
+  lines     Json
+  note      String?
+  actorId   String?
+  actorName String
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
 }

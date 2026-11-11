@@ -25,11 +25,14 @@ import { ClientLeadStatusBadge } from '@/components/client/ClientBadges'
 import type { LeadStatus } from '@/lib/leads'
 import { ClientQuoteOptions } from './ClientQuoteOptions'
 import { ClientLeadAnketa } from './ClientLeadAnketa'
+import { ClientLeadPrintRevisions } from './ClientLeadPrintRevisions'
+import { ClientCustomsResult } from './ClientCustomsResult'
 import type { ClientApprovalSnapshot, ClientOptionRow } from './client-lead-types'
 
 // ─── Карточка запроса на расчёт в кабинете клиента (Е) ────────────
-// Анкета, которую клиент отправлял (P1-02: правится, пока по запросу
-// нет вариантов расчёта), статус воронки и документы: предварительный инвойс для
+// Анкета, которую клиент отправлял (P1-02 + DF-27 волна 2, Р-1/D75:
+// правится до конвертации/закрытия — после правки варианты требуют
+// актуализации), статус воронки и документы: предварительный инвойс для
 // расчёта пошлины брокер получает ещё до заявки (роадмап 5/5а).
 // Конвертированный запрос показывает ссылку на заявку — документы
 // живут там (перенос В4), загрузка сюда закрыта.
@@ -59,7 +62,7 @@ type ClientLeadDetail = {
   clientConfirmedByName?: string | null
   approvalSnapshot?: ClientApprovalSnapshot | null
   canConfirm?: boolean
-  // P1-02: правка открыта до первого варианта расчёта
+  // DF-27 волна 2 (Р-1/D75): правка открыта до конвертации/закрытия
   canEdit?: boolean
   // DF-21: журнал запроса — события с аудиторией 'client', без меток
   activities?: ClientActivityRow[]
@@ -199,8 +202,16 @@ export function ClientLeadCard() {
           сервиса (Е). После конвертации — пусто и читать нечего:
           файлы переехали в заявку (В4), раздел остаётся для истории
           до перехода. */}
-      {/* Анкета запроса + правка (P1-02) — ClientLeadAnketa.tsx (RULES 2.14) */}
+      {/* Анкета запроса + правка (P1-02 + Р-1) — ClientLeadAnketa.tsx (RULES 2.14) */}
       <ClientLeadAnketa lead={lead} reload={load} />
+
+      {/* DF-27 волна 2 (Р-5/D73): актуальный результат таможенного расчёта
+          собственной сделки — без истории версий и пересчётов */}
+      {!lead.order && <ClientCustomsResult leadId={lead.id} />}
+
+      {/* DF-27 волна 2 (Р-3): печатные редакции заявки — подтверждение
+          состава сведений обеими сторонами */}
+      {!lead.order && <ClientLeadPrintRevisions leadId={lead.id} onChanged={load} />}
 
       {/* DF-21: журнал запроса — заметки менеджера «видна клиенту» и
           события статусов; без служебных меток и внутренних событий */}

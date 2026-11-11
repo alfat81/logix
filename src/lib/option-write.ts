@@ -12,6 +12,8 @@ import {
 } from '@/lib/option-snapshots'
 import { computeAmountOffer, sumOptionCalc, type OptionCalcTotals } from '@/lib/option-calc'
 import { recordOptionRevision } from '@/lib/option-revisions'
+import { applyAutoLeadStatus, type AutoStatusResult } from '@/lib/lead-auto-status'
+import type { LeadStatus } from '@/lib/leads'
 
 // ─── DF-27 волна 1: серверная логика создания варианта и «Заполнить
 // из запроса» (план v1.2 §3–§4, §9). Роуты остаются тонкими (RULES 2.5,
@@ -102,7 +104,9 @@ export type CreateOptionResult =
       ok: true
       option: Record<string, unknown>
       calcTotals: OptionCalcTotals | null
-      becomesCalculated: boolean
+      // DF-27 волна 2: автомат статуса — фактический переход (может быть
+      // и needs_data → calculated, и new → calculated)
+      statusChange: AutoStatusResult
       isPreliminary: boolean
       missing: string[]
     }
@@ -148,7 +152,6 @@ export async function createOption(
       return { ok: false as const, status: 422, error: 'Заполните недостающие данные или сохраните вариант как предварительный расчёт', missing: eff.missing }
     }
 
-    const becomesCalculated = locked.status === 'new'
     if (data.isSelected) {
       await tx.quoteOption.updateMany({
         where: { leadId, isSelected: true },
@@ -202,11 +205,16 @@ export async function createOption(
         ...(isPreliminary ? { isPreliminary: { from: null, to: true } } : {}),
       },
     })
-    if (becomesCalculated) {
-      await tx.lead.update({ where: { id: leadId }, data: { status: 'calculated' } })
-    } else {
-      await tx.lead.update({ where: { id: leadId }, data: { updatedAt: new Date() } })
-    }
+    // Автомат статуса (§6.4/D75): полнота по АНКЕТЕ ЗАПРОСА в состоянии-после создания варианта
+    const optionsCount = await tx.quoteOption.count({ where: { leadId } })
+    const statusChange = await applyAutoLeadStatus(
+      tx,
+      leadId,
+      locked.status as LeadStatus,
+      optionsCount,
+      lead
+    )
+    await tx.lead.update({ where: { id: leadId }, data: { updatedAt: new Date() } })
     // Событие option_added: пометка предварительного + перечень
     // переопределений; себестоимость и строки расчёта в ленту не идут
     // (RULES 2.15).
@@ -218,7 +226,9 @@ export async function createOption(
         `Добавлен вариант расчёта: ${data.description} — ${formatMoneyWithVat(data.price, data.currency, data.vatMode as VatModeCode)}, ${data.etaDays} дн.` +
         (isPreliminary ? ' — предварительный расчёт' : '') +
         (applied.editedFields.length > 0 ? ` — изменено полей: ${applied.editedFields.length}` : '') +
-        (becomesCalculated ? ` — запрос посчитан: ${LEAD_STATUS_LABELS.calculated}` : ''),
+        (statusChange
+          ? ` — статус: ${LEAD_STATUS_LABELS[statusChange.from]} → ${LEAD_STATUS_LABELS[statusChange.to]}`
+          : ''),
     })
     const calcRows = await tx.quoteOptionCalcLine.findMany({
       where: { optionId: created.id },
@@ -228,7 +238,7 @@ export async function createOption(
       ok: true as const,
       option: { ...created, calcLines: calcRows },
       calcTotals: calcRows.length > 0 ? sumOptionCalc(calcRows, data.currency) : null,
-      becomesCalculated,
+      statusChange,
       isPreliminary,
       missing: eff.missing,
     }
@@ -279,12 +289,24 @@ export async function fillFromLead(
         cargoSnapshot: { from: null, to: 'снимки заполнены из запроса' },
       },
     })
+    // Автомат статуса (§6.4/D75): заполнение снимков может открыть полноту
+    const statusChange = await applyAutoLeadStatus(
+      tx,
+      existing.leadId,
+      lead.status as LeadStatus,
+      await tx.quoteOption.count({ where: { leadId: existing.leadId } }),
+      lead
+    )
     await tx.lead.update({ where: { id: existing.leadId }, data: { updatedAt: new Date() } })
     await emitEvent(tx, {
       target: { leadId: existing.leadId },
       actor,
       type: 'option_updated',
-      description: `Вариант расчёта заполнен из запроса: ${updated.description}`,
+      description:
+        `Вариант расчёта заполнен из запроса: ${updated.description}` +
+        (statusChange
+          ? ` — статус: ${LEAD_STATUS_LABELS[statusChange.from]} → ${LEAD_STATUS_LABELS[statusChange.to]}`
+          : ''),
     })
     return { ok: true as const, option: { ...updated, calcLines: [], revisions: [] } }
   })

@@ -24,9 +24,11 @@ export type StatusBadgeVariant =
 // (нейтральная пара review, v1.3; согласование — тоже нейтральное
 // «промежуточное» состояние воронки), won — сделка состоялась, lost —
 // не состоялась (отказ — норма воронки, нейтрально; Brick-«ошибку»
-// в визе не рисуем — это не сбой).
+// в визе не рисуем — это не сбой). needs_data (DF-27 волна 2, §6.4) —
+// ждём данные анкеты (пара ожидания pending, как DF-05/DF-16).
 export const LEAD_BADGE_VARIANTS: Record<LeadStatus, StatusBadgeVariant> = {
   new: 'review',
+  needs_data: 'pending',
   calculated: 'review',
   client_approved: 'review',
   won: 'delivered',

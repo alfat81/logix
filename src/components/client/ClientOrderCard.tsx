@@ -12,6 +12,7 @@ import { readApiResponse } from '@/lib/api-client'
 import { CargoGroups } from '@/components/admin/CargoGroups'
 import { DocumentsRegistrySection } from '@/components/documents/DocumentsRegistrySection'
 import { ActivityFeed, type ActivityRow } from '@/components/admin/ActivityFeed'
+import { ClientCustomsResult } from './ClientCustomsResult'
 import {
   ClientOrderStatusBadge,
   ClientStageStatusBadge,
@@ -183,6 +184,11 @@ export function ClientOrderCard() {
       </Card>
 
 
+
+      {/* DF-27 волна 2 (Р-5/D73): актуальный таможенный результат заявки
+          (в т.ч. перенесённый с запроса) + окончательные платежи по ДТ,
+          если внесены; история версий клиенту не отдаётся */}
+      <ClientCustomsResult orderId={order.id} />
 
       {/* DF-21: журнал сделки — заметки менеджера «видна клиенту» и
           события статусов; без служебных меток и внутренних событий */}

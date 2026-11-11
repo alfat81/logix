@@ -40,9 +40,12 @@ export { LeadStatusBadge } from '@/components/admin/LeadStatusBadge'
 type LeadsPage = { leads: LeadRow[]; counts: Record<'all' | LeadStatus, number> }
 
 // v0.4.0: табы по статусам воронки (D25). Ключ таба = ключ API ?status=.
+// DF-27 волна 2 (§6.4/D75): needs_data — отдельный таб (автоматический
+// статус неполных запросов — менеджер видит их отдельным списком).
 const STATUS_TABS: Array<ListTab & { key: 'all' | LeadStatus }> = [
   { key: 'all', label: 'Все' },
   { key: 'new', label: 'Новые' },
+  { key: 'needs_data', label: 'Требуют данных' },
   { key: 'calculated', label: 'Рассчитанные' },
   { key: 'won', label: 'Выигранные' },
   { key: 'lost', label: 'Отказ' },

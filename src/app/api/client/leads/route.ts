@@ -8,6 +8,7 @@ import { emitEvent } from '@/lib/events'
 import { ClientCreateRequestSchema, CLIENT_LEAD_DAILY_LIMIT } from '@/lib/client-constants'
 import { resolveDealCodes } from '@/lib/ref-db'
 import { ROUTE_COLUMN_SELECT } from '@/lib/route-fields'
+import { completeness } from '@/lib/option-snapshots'
 
 // ─── Запросы клиента в кабинете (И1) ────────────────────────────────
 // GET  — «мои запросы»: лиды клиента (любого источника — и созданные
@@ -115,7 +116,18 @@ export async function POST(req: NextRequest) {
 
     const lead = await db.lead.create({
       data: {
-        status: 'new',
+        // DF-27 волна 2 (§6.4/D75): неполная анкета при создании — статус
+        // needs_data, а не new (сценарий 1 техплана); полнота — по бланку
+        // в состоянии-после создания
+        status: completeness({
+          ...(parsed.data.cargoInfo && Object.keys(parsed.data.cargoInfo).length > 0
+            ? { cargoInfo: { ...(parsed.data.cargoInfo as Record<string, unknown>), v: 1 } }
+            : {}),
+          ...deal.columns,
+          incotermCode: deal.incoterm,
+        }).missing.length > 0
+          ? 'needs_data'
+          : 'new',
         source: 'cabinet',
         customerId: auth.client.id,
         rawContact,

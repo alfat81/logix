@@ -105,9 +105,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         calcTotals: result.calcTotals,
         missing: result.missing,
         lead: updatedLead,
-        ...(result.becomesCalculated
+        ...(result.statusChange
           ? {
-              message: `Добавлен вариант расчёта — статус запроса: ${LEAD_STATUS_LABELS.calculated}`,
+              message: `Добавлен вариант расчёта — статус запроса: ${LEAD_STATUS_LABELS[result.statusChange.to]}`,
             }
           : { message: 'Вариант расчёта добавлен' }),
       },
