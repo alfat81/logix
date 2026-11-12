@@ -33,7 +33,9 @@ import { LeadConvertedBanner } from '@/components/admin/lead/LeadConvertedBanner
 import { LeadStatusControls } from '@/components/admin/lead/LeadStatusControls'
 import { leadBlankView } from '@/components/admin/lead/types'
 
-export function LeadCard() {
+export function LeadCard({ autoOpenConvert = false }: { autoOpenConvert?: boolean }) {
+  // TU-01.6: авто-открытие диалога конвертации (?convert=1 из очереди
+  // Обзора) — передаётся в LeadConvertBlock, подтверждение обязательно
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const { toast } = useToast()
@@ -259,6 +261,7 @@ export function LeadCard() {
             leadStatus={lead.status}
             // DF-17: условие поставки из запроса клиента — предзаполняется
             initialIncotermCode={lead.incotermCode}
+            autoOpen={autoOpenConvert}
           />
         ) : null}
       </div>

@@ -11,13 +11,21 @@ import { ActivityEventList, type ActivityEventItem } from './ActivityEventList'
 
 export type SideActivityItem = ActivityEventItem
 
-export function SideActivityFeed({ items }: { items: SideActivityItem[] }) {
+export function SideActivityFeed({
+  items,
+  title = 'События',
+}: {
+  items: SideActivityItem[]
+  // TU-01.6: заголовок панели — на Обзоре «Системный пульс» (референс
+  // commandcenter.png); по умолчанию прежний.
+  title?: string
+}) {
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <History className="size-4 text-muted-foreground" />
-          События
+          {title}
         </CardTitle>
       </CardHeader>
       <CardContent className="px-0 pb-3">

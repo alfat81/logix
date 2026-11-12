@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Container, UserRound } from 'lucide-react'
+import { UserRound, Bell } from 'lucide-react'
 import { getEmployeeByToken, SESSION_COOKIE } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { LEAD_ACTIVE_STATUSES } from '@/lib/leads'
@@ -62,11 +62,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
             сама, пользовательский блок прижат к низу панели. */}
         <aside className="hidden md:flex md:fixed md:inset-y-0 md:left-0 md:z-30 md:w-[280px] md:flex-col bg-sidebar border-r border-sidebar-border">
           <div className="h-14 flex items-center gap-2 px-4 border-b border-sidebar-border shrink-0">
-            <span className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
-              <Container className="size-4" />
+            {/* TU-01.6: брендинг по референсу commandcenter.png — знак
+                «Dynamic T» (LIGHT REBRANDING V2.0) и наименование платформы */}
+            <span
+              aria-hidden="true"
+              className="flex size-7 items-center justify-center rounded-md bg-accent-strong font-bold text-accent-strong-fg"
+            >
+              T
             </span>
-            <Link href="/admin" className="font-semibold hover:opacity-80">
-              Logix
+            <Link href="/admin" className="font-semibold tracking-wide hover:opacity-80">
+              TULOGISTICA
             </Link>
           </div>
           <nav className="flex-1 overflow-y-auto py-4 px-3">
@@ -93,20 +98,40 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <header className="sticky top-0 z-40 border-b bg-card">
             <div className="px-4 h-14 flex items-center gap-3">
               <div className="md:hidden flex items-center gap-2 font-semibold shrink-0">
-                <span className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
-                  <Container className="size-4" />
+                <span
+                  aria-hidden="true"
+                  className="flex size-7 items-center justify-center rounded-md bg-accent-strong font-bold text-accent-strong-fg"
+                >
+                  T
                 </span>
                 <Link href="/admin" className="hover:opacity-80">
-                  Logix
+                  TULOGISTICA
                 </Link>
               </div>
               <GlobalSearch />
               {/* TU-01.3: переключатель темы — в шапке обоих брейкпоинтов */}
-              <div className="ml-auto hidden md:flex items-center">
+              <div className="ml-auto hidden md:flex items-center gap-2">
+                {/* TU-01.6: журнал уведомлений — из шапки (референс:
+                    колокольчик в топбаре) */}
+                <Link
+                  href="/admin/notifications"
+                  aria-label="Журнал уведомлений"
+                  title="Журнал уведомлений"
+                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-all outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] hover:bg-accent hover:text-foreground"
+                >
+                  <Bell className="size-4" aria-hidden="true" />
+                </Link>
                 <ThemeToggle />
               </div>
               <div className="md:hidden flex items-center gap-3 shrink-0 ml-auto">
                 {/* DF-09: на телефоне профиль — иконка в шапке рядом с «Выйти» */}
+                <Link
+                  href="/admin/notifications"
+                  aria-label="Журнал уведомлений"
+                  className="flex text-muted-foreground hover:text-foreground"
+                >
+                  <Bell className="size-4" aria-hidden="true" />
+                </Link>
                 <ThemeToggle />
                 <Link href="/admin/profile" aria-label="Профиль" className="flex">
                   <UserRound className="size-4 text-muted-foreground" />

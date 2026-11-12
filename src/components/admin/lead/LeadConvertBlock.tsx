@@ -42,17 +42,21 @@ export function LeadConvertBlock({
   // DF-17: условие поставки из запроса клиента (Lead.incotermCode) —
   // предзаполняется, менеджер может изменить при конвертации
   initialIncotermCode,
+  // TU-01.6: авто-открытие (?convert=1 из очереди Обзора) — диалог
+  // подтверждения всё равно обязателен: прямого преобразования нет
+  autoOpen = false,
 }: {
   leadId: string
   cargoInfo: Record<string, unknown> | null
   canConvert: boolean
   leadStatus?: string
   initialIncotermCode?: string | null
+  autoOpen?: boolean
 }) {
   const router = useRouter()
   const { toast } = useToast()
 
-  const [convertOpen, setConvertOpen] = useState(false)
+  const [convertOpen, setConvertOpen] = useState(autoOpen)
   const [converting, setConverting] = useState(false)
   const [legalEntities, setLegalEntities] = useState<LegalEntityRow[]>([])
   const [legalEntityId, setLegalEntityId] = useState('')

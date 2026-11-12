@@ -1030,6 +1030,7 @@
 | `LeadEditDialog` | `src/components/admin/LeadEditDialog.tsx` |
 | `LeadListCard` | `src/components/admin/LeadListCard.tsx` |
 | `LeadPrintRevisions` | `src/components/admin/LeadPrintRevisions.tsx` |
+| `LeadQueue` | `src/components/admin/command-center/LeadQueue.tsx` |
 | `LeadStatusBadge` | `src/components/admin/LeadStatusBadge.tsx` |
 | `LeadStatusControls` | `src/components/admin/lead/LeadStatusControls.tsx` |
 | `LeadsList` | `src/components/admin/LeadsList.tsx` |
@@ -1084,6 +1085,7 @@
 | `StageRequirementsDialog` | `src/components/admin/stagecatalog/StageRequirementsDialog.tsx` |
 | `StageSection` | `src/components/admin/attention/AttentionSections.tsx` |
 | `StatusSuggestion` | `src/components/admin/order/StatusSuggestion.tsx` |
+| `SummaryCards` | `src/components/admin/command-center/SummaryCards.tsx` |
 | `TYPE_LABEL` | `src/components/admin/ActivityEventList.tsx` |
 | `TransportChips` | `src/components/admin/contractorlead/TransportChips.tsx` |
 | `WaitingBadge` | `src/components/admin/WaitingBadge.tsx` |
@@ -1373,7 +1375,7 @@
 | `EmployeeSession` | 6 | src/app/api/admin/employees/[id]/route.ts, src/lib/auth.ts, src/lib/totp-db.ts |
 | `HsCode` | 9 | scripts/import-hs.ts, scripts/verify-hs-db.ts, scripts/verify-hs-prefix.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/lib/hs-db.ts |
 | `HsImport` | 5 | scripts/import-hs.ts, scripts/verify-hs-db.ts, src/lib/hs-db.ts |
-| `Lead` | 45 | scripts/backfill_waiting.ts, scripts/e2e_backdate_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts, src/app/api/admin/leads/[id]/brokers/route.ts (+27) |
+| `Lead` | 45 | scripts/backfill_waiting.ts, scripts/e2e_backdate_waiting.ts, src/app/admin/(dashboard)/layout.tsx, src/app/admin/(dashboard)/page.tsx, src/app/api/admin/attention/route.ts, src/app/api/admin/leads/[id]/brokers/[brokerId]/route.ts (+28) |
 | `LeadApprovalSnapshot` | 24 | — |
 | `LeadBroker` | 7 | src/app/api/admin/leads/[id]/brokers/route.ts, src/app/api/broker/leads/[id]/customs-calculations/route.ts, src/app/api/broker/leads/[id]/documents/route.ts, src/app/api/broker/leads/[id]/estimate/route.ts, src/app/api/broker/leads/[id]/route.ts, src/app/api/broker/leads/route.ts (+2) |
 | `LeadPrintRevision` | 12 | src/app/api/admin/leads/[id]/print-revisions/route.ts, src/app/api/client/leads/[id]/print-revisions/route.ts |
