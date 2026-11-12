@@ -132,6 +132,7 @@
 | `DB_OUT_OF_SYNC_HINT` | `src/lib/api-errors.ts` | — |
 | `DEFAULT_LIST_TAKE` | `src/lib/list-query.ts` | — |
 | `DEFAULT_STAGE_REQUIREMENT_SEED` | `src/lib/stage-doc-requirements.ts` | ── Дефолты D5 (сид миграции df_14 и seed.ts — один состав) ────────── |
+| `DEFAULT_THEME_MODE` | `src/lib/theme.ts` | — |
 | `DOCUMENT_BADGE_VARIANTS` | `src/lib/status-badges.ts` | Документ (DF-12): черновик — нейтрально, на проверке — движение, |
 | `DOCUMENT_KINDS` | `src/lib/document-constants.ts` | ── DF-12: виды документов (D5) ───────────────────────────────────── |
 | `DOCUMENT_KIND_GROUPS` | `src/lib/document-phases.ts` | ── Производные группы видов (обратная совместимость DF-12/DF-13) ─── |
@@ -472,6 +473,11 @@
 | `StorageHead` | `src/lib/storage.ts` | — |
 | `SummaryDocInput` | `src/lib/document-summary.ts` | — |
 | `TERMINAL_ORDER_STATUSES` | `src/lib/status-machine.ts` | Терминальные статусы заявки: переход «из них» — только мастеру |
+| `THEME_BOOT_SCRIPT` | `src/lib/theme.ts` | Инлайн-скрипт защиты от FOUC: выполняется до первой отрисовки, |
+| `THEME_COOKIE_MAX_AGE` | `src/lib/theme.ts` | Срок жизни предпочтения — 1 год (V-3: срок явно определён). */ |
+| `THEME_COOKIE_NAME` | `src/lib/theme.ts` | — |
+| `THEME_MODES` | `src/lib/theme.ts` | — |
+| `THEME_STORAGE_KEY` | `src/lib/theme.ts` | — |
 | `TOTP_STEP_SEC` | `src/lib/totp.ts` | — |
 | `TRANSPORT_FORM_TO_CODE` | `src/lib/route-fields.ts` | Форма бланка хранит русские подписи (TRANSPORT_TYPES); на колонки |
 | `TRANSPORT_KINDS` | `src/lib/document-phases.ts` | Все варианты транспортной накладной — один список с LOGICAL_DOC_TYPES. */ |
@@ -479,6 +485,8 @@
 | `TRANSPORT_TYPE_CODES` | `src/lib/route-fields.ts` | Стабильные коды колонок (Prisma enum TransportType). Русские подписи |
 | `TRANSPORT_TYPE_LABELS` | `src/lib/route-fields.ts` | — |
 | `TRANSPORT_VARIANT_SUGGESTION` | `src/lib/document-phases.ts` | Подсказка варианта по типу перевозки заявки (§4.3.3): вид перевозки |
+| `ThemeCookieOptions` | `src/lib/theme.ts` | Атрибуты куки предпочтения (V-3/D79: Path=/, срок, SameSite, |
+| `ThemeMode` | `src/lib/theme.ts` | — |
 | `TopSlowingRow` | `src/lib/notifications/owner-digest.ts` | — |
 | `TotpChallenge` | `src/lib/totp-crypto.ts` | — |
 | `TotpCodeMismatchError` | `src/lib/totp-db.ts` | — |
@@ -747,6 +755,7 @@
 | `isStaffOnlyRow` | `src/lib/activity.ts` | Заметка (и другое staff-only событие) — для UI-пометок. Функция в |
 | `isStageMandatory` | `src/lib/orders.ts` | — |
 | `isStageOverdue` | `src/lib/waiting.ts` | «Просрочка» плана этапа — ТА ЖЕ семантика, что на «Требует внимания» |
+| `isThemeMode` | `src/lib/theme.ts` | — |
 | `isTransportKind` | `src/lib/document-phases.ts` | — |
 | `isValidEmail` | `src/lib/phone.ts` | Проверка: это email (строгая)? |
 | `isVatMode` | `src/lib/money.ts` | — |
@@ -817,6 +826,8 @@
 | `parseOwnerWindow` | `src/lib/notifications/owner-digest.ts` | Окно валидно, если обе границы распознаны и end позже start (подсказка |
 | `parsePrintRevisionConfirm` | `src/lib/print-revisions.ts` | — |
 | `parseRouteText` | `src/lib/route-fields.ts` | ── Разбор свободного «Страна, город» ─────────────────────────────── |
+| `parseThemeFromCookieHeader` | `src/lib/theme.ts` | Разбор заголовка Cookie / document.cookie → режим темы. |
+| `parseThemeMode` | `src/lib/theme.ts` | Разбор значения cookie/localStorage → режим. Чужеродное или |
 | `parseTimeToMinutes` | `src/lib/notifications/windows.ts` | — |
 | `participantsOf` | `src/lib/participants.ts` | Единая точка входа: ref.orderId либо ref.leadId (ровно один). |
 | `participantsOfLead` | `src/lib/participants.ts` | Участники запроса (Lead): до конвертации клиент может отсутствовать |
@@ -894,6 +905,7 @@
 | `resetStorageForTests` | `src/lib/storage.ts` | Для тестов: сброс singleton (после смены env в тестовом процессе). |
 | `resolveActiveCurrencies` | `src/lib/ref-db.ts` | Валидация валют схемы (QuoteOption/QuoteSnapshot): коды должны быть |
 | `resolveActiveRefs` | `src/lib/ref-db.ts` | — |
+| `resolveDark` | `src/lib/theme.ts` | Тёмная ли тема в данном режиме при данной системной настройке. */ |
 | `resolveDealCodes` | `src/lib/ref-db.ts` | — |
 | `resolveDocumentKind` | `src/lib/document-constants.ts` | ── DF-14: страховка чтения вида ──────────────────────────────────── |
 | `resolveFileMime` | `src/lib/file-signature.ts` | — |
@@ -914,6 +926,7 @@
 | `scanPermitOverdue` | `src/lib/notifications/permits-scan.ts` | — |
 | `scheduleDispatch` | `src/lib/notifications/dispatch.ts` | Немедленная попытка диспетчера после коммита write-операции |
 | `searchHsCodes` | `src/lib/hs-db.ts` | Поиск: цифровой запрос — префикс кода (btree-диапазон), иначе — |
+| `serializeThemeCookie` | `src/lib/theme.ts` | Сериализация куки выбора темы. secure — в production (V-3). */ |
 | `sessionCookieOptions` | `src/lib/auth.ts` | — |
 | `setBrokerUserActive` | `src/lib/company-users.ts` | — |
 | `setCustomerUserActive` | `src/lib/company-users.ts` | Деактивация закрывает сессии пользователя немедленно (по образцу |
@@ -928,6 +941,8 @@
 | `summarizeOrderStages` | `src/lib/order-summary.ts` | Этапы заявки (по sequence asc) → сводка: первый незавершённый этап |
 | `syncAfterEstimateDiff` | `src/lib/permit-checks-db.ts` | ─── Синхронизация после дифф-сохранения оценки (§5.7 п. 0а) ───────── |
 | `syncEstimatePermits` | `src/lib/permits-db.ts` | ─── Sync свободного списка ответа брокера (PUT estimate) ──────────── |
+| `themeCookieOptions` | `src/lib/theme.ts` | — |
+| `themeHtmlClass` | `src/lib/theme.ts` | Класс корневого элемента для resolved-темы. */ |
 | `todayUtcMidnight` | `src/lib/order-summary.ts` | Граница «сегодня» по UTC: плановые даты приходят UTC-полуночью |
 | `topSlowingRows` | `src/lib/notifications/owner-digest.ts` | Топ-5 «тормозящих» для письма: самые старые мячи по всем группам |
 | `totpAt` | `src/lib/totp.ts` | — |
@@ -1158,6 +1173,13 @@
 |---|---|
 | `PermitFormFields` | `src/components/permits/parts/PermitFormFields.tsx` |
 
+### src/components/src
+
+| Компонент | Файл |
+|---|---|
+| `ThemeProvider` | `src/components/theme-provider.tsx` |
+| `ThemeToggle` | `src/components/theme-toggle.tsx` |
+
 ### src/components/ui
 
 | Компонент | Файл |
@@ -1371,10 +1393,10 @@
 
 | Переменная | Файлов с использованием | .env.example | DEPLOY.md |
 |---|---|---|---|
-| `ADMIN_PASSWORD` | 1 | да | да |
-| `ADMIN_PHONE` | 1 | да | да |
+| `ADMIN_PASSWORD` | 2 | да | да |
+| `ADMIN_PHONE` | 2 | да | да |
 | `APP_BASE_URL` | 1 | да | да |
-| `BASE_URL` | 2 | да | да |
+| `BASE_URL` | 3 | да | да |
 | `CBR_IMPORT` | 2 | да | да |
 | `CBR_RATE_URL` | 1 | да | да |
 | `CONTRACTOR_PORTAL_ENABLED` | 1 | да | да |
@@ -1387,6 +1409,7 @@
 | `MASTER_PASSWORD` | 2 | да | да |
 | `MASTER_PHONE` | 2 | да | да |
 | `NODE_ENV` | 5 | — | да |
+| `PYTHONHASHSEED` | 1 | да | да |
 | `RESEND_API_KEY` | 1 | да | да |
 | `S3_ACCESS_KEY_ID` | 1 | да | да |
 | `S3_BUCKET` | 1 | да | да |

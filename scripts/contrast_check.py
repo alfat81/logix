@@ -55,13 +55,15 @@ def contrast_ratio(fg: str, bg: str) -> float:
     return (l1 + 0.05) / (l2 + 0.05)
 
 
-def load_tokens() -> dict[str, str]:
-    """Hex-токены из :root globals.css; var(--x) разворачивается по цепочке."""
+def load_tokens(block: str = "light") -> dict[str, str]:
+    """Hex-токены из блока globals.css (light → :root, dark → .dark);
+    var(--x) разворачивается по цепочке внутри блока (TU-01.2: обе темы)."""
     text = GLOBALS.read_text(encoding="utf-8")
-    block = re.search(r":root \{(.*?)\n\}", text, re.S)
-    if not block:
-        raise ValueError("globals.css: не найден блок :root")
-    raw = dict(re.findall(r"--([\w-]+):\s*([^;]+);", block.group(1)))
+    selector = r":root \{" if block == "light" else r"\.dark \{"
+    block_match = re.search(selector + r"(.*?)\n\}", text, re.S)
+    if not block_match:
+        raise ValueError(f"globals.css: не найден блок {selector} для темы {block}")
+    raw = dict(re.findall(r"--([\w-]+):\s*([^;]+);", block_match.group(1)))
 
     def resolve(name: str, depth: int = 0) -> str | None:
         if depth > 8:
@@ -100,19 +102,26 @@ def self_test() -> list[tuple[str, str]]:
 
 def check_pairs() -> list[tuple[str, str]]:
     spec = json.loads(PAIRS.read_text(encoding="utf-8"))
-    tokens = load_tokens()
+    tokens = {"light": load_tokens("light"), "dark": load_tokens("dark")}
     problems: list[tuple[str, str]] = []
 
-    def color(ref: str) -> str:
-        return tokens[ref.lstrip("-")] if ref.startswith("--") else ref
+    def color(ref: str, theme: str) -> str:
+        if ref.startswith("--"):
+            table = tokens[theme]
+            key = ref.lstrip("-")
+            if key not in table:
+                raise KeyError(key)
+            return table[key]
+        return ref
 
     for p in spec["pairs"]:
-        fg, bg = color(p["fg"]), color(p["bg"])
+        theme = p.get("theme", "light")
+        fg, bg = color(p["fg"], theme), color(p["bg"], theme)
         minimum = float(p.get("min", spec["min_ui"] if p["kind"] == "ui" else spec["min_text"]))
         ratio = contrast_ratio(fg, bg)
         if ratio + 1e-9 < minimum:
             problems.append(
-                (f"pair:{p['fg']}-on-{p['bg']}", f"{p.get('why', '')}: {ratio:.2f} < {minimum}")
+                (f"pair:{theme}:{p['fg']}-on-{p['bg']}", f"{p.get('why', '')}: {ratio:.2f} < {minimum}")
             )
     return problems
 

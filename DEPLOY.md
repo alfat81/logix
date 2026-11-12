@@ -419,6 +419,7 @@ SQL Editor вручную для сложных миграций). Vercel сам
 | `S3_FORCE_PATH_STYLE` | `true` (path-style) — **для Cloud.ru обязателен**: virtual-hosted (`<bucket>.s3.cloud.ru`) без привязанного DNS-домена бакета даёт PUT/GET 404; path-style равнозначен и DNS не требует. Пусто (virtual-host) — только если домен бакета привязан у провайдера | Vercel env |
 | `STORAGE_ALLOW_LOCAL` | только CI/e2e-раннер | AUD-06 (поток A волна 1): production (`NODE_ENV`/`VERCEL_ENV=production`) без `S3_*` теперь **fail-fast** — `StorageError 500` при первом обращении к хранилищу (тихая потеря файлов в эфемерном каталоге недопустима). Люк `STORAGE_ALLOW_LOCAL=1` явно разрешает локальный драйвер `.storage` — задавать только на e2e-раннере и при осознанном self-host без S3; на Vercel не задавать |
 | `STORAGE_LOCAL_DIR` | каталог локального драйвера; только dev/e2e, на проде не задаётся | локально |
+| `PYTHONHASHSEED` | только инструмент сборки шрифтов `scripts/build_fonts.py` (TU-01.2/V-1: детерминизм instancer fontTools — итерация множеств имён); в рантайме приложения и на деплое не используется | локально (сборка шрифтов) |
 
 Бакет приватный. **CORS бакета обязателен**: браузер грузит байты напрямую
 (XHR PUT — шаг 2 двухфазной загрузки, `upload-client.ts`), а PUT всегда

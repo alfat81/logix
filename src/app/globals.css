@@ -1,24 +1,28 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Дизайн-токены Logix — BRANDBOOK.md v1.3 (DF-20/D40, RULES 2.14).
-   Структура — стандартный набор shadcn/ui (перенесена с платформы
-   осознанно: подход, не цвета). Палитра — брендбук §1.1:
-   Ivory (фон приложения), Sand (сайдбар, вторичные заливки),
-   Coral (основные действия), Brick (крупные заливки/иконки),
-   Brick-strong (красный сигнал: текст и кнопки), Ink (текст),
-   Border-Sand (рамки вторичных действий); статусные пары — §3.2
-   (цвет несёт точка 8px, текст тёмный).
-   Новые hex — ТОЛЬКО в этом файле (RULES 2.14). */
+/* Дизайн-токены Logix — TU-01.2 (роадмап 1.36 §7, ветка tu01/design-system).
+   Основа: референс владельца TU-01.0 — LIGHT REBRANDING V2.0 и Executive DS
+   V2.0 (набор UX Pilot, `docs/design/reference/tu01/`), светлая и тёмная
+   палитры подтверждены выборкой доминирующих цветов макетов (отчёт TU-01.2).
+   Канонический набор — 17 семантических токенов поручения TU-01 (--c-*):
+   каждое значение существует в Light (:root) и Dark (.dark).
+   Прослеживаемость: токен → значение → элемент референса (комментарии ниже).
+   Структура shadcn/ui сохранена — переменные переопределены через --c-*.
+   Статусные бейджи §3.2 (светлые пары — брендбук v1.3, принятые) и их
+   тёмные аналоги. Новые hex — ТОЛЬКО в этом файле (RULES 2.14). */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  /* Брендбук §1.2: IBM Plex Sans подключается в layout.tsx через
-     next/font/google и привязывается к --font-sans; fallback — system-ui. */
-  --font-sans: var(--font-ibm-plex), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* TU-01.2 (V-1/D79): IBM Plex Sans и IBM Plex Mono подключаются в
+     layout.tsx через next/font/local из src/fonts/ (woff2, latin+cyrillic,
+     OFL) — production-сборка не зависит от доступности Google Fonts.
+     Fallback-стек — системные шрифты. */
+  --font-sans: var(--font-ibm-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, SFMono-Regular, Menlo,
+    monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -36,27 +40,24 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* Семантические цвета статусов этапов/заявок — значения из палитры
-     брендбука (§1.1). Управляются в одном месте, не Tailwind-палитра. */
+  /* Семантические цвета статусов этапов/заявок — из канонических токенов.
+     Управляются в одном месте, не Tailwind-палитра. */
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
-  /* DF-20 (v1.3): усиленные пары красного сигнала и акцентов —
-     Brick-strong (текст/кнопки критичного, белый на нём 4,97),
-     Success-strong (текст/точка успех-тегов, 5,55 на #E6F1E4),
-     Action-icon (иконки/рамки/фокус, 4,28 на White ≥ 3). */
-  --color-brick-strong: var(--brick-strong);
+  /* DF-20 (v1.3): усиленные пары — переопределены через канонические
+     токены (accent-strong — заливки кнопок, danger — текст сигнала). */
+  --color-brick-strong: var(--destructive);
   --color-success-strong: var(--success-strong);
   --color-action-icon: var(--action-icon);
-  /* Сайдбар — Sand (BRANDBOOK §4); потребляется этапом B (P1-18). */
+  /* Сайдбар — поверхностный тон референса (TU-01.2). */
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-border: var(--sidebar-border);
-  /* Статусные бейджи §3.2 — варианты ui/badge.tsx (transit/delay/
-     delivered/pending/version); применяются этапом C (P1-19) через
+  /* Статусные бейджи §3.2 — варианты ui/badge.tsx; маппинг домена —
      lib/status-badges.ts. */
   --color-status-transit-bg: var(--status-transit-bg);
   --color-status-transit-fg: var(--status-transit-fg);
@@ -71,14 +72,20 @@
   --color-status-pending-bg: var(--status-pending-bg);
   --color-status-pending-fg: var(--status-pending-fg);
   --color-status-pending-dot: var(--status-pending-dot);
-  /* DF-20 (v1.3): РАСЧЁТ/СОГЛАСОВАНИЕ — нейтральная пара с точкой
-     #6B6455; ТРЕБУЕТ РЕШЕНИЯ/ПРОСРОЧЕНО — единственный сплошной
-     красный (Brick-strong, белый текст 4,97). */
   --color-status-review-bg: var(--status-review-bg);
   --color-status-review-fg: var(--status-review-fg);
   --color-status-review-dot: var(--status-review-dot);
   --color-status-critical-bg: var(--status-critical-bg);
   --color-status-critical-fg: var(--status-critical-fg);
+  /* TU-01.2: утилиты канонических токенов для волн TU-01.5–01.8. */
+  --color-surface: var(--c-surface);
+  --color-surface-secondary: var(--c-surface-secondary);
+  --color-divider: var(--c-divider);
+  --color-accent-brand: var(--c-accent);
+  --color-accent-strong: var(--c-accent-strong);
+  --color-fg-secondary: var(--c-text-secondary);
+  --color-disabled: var(--c-disabled);
+  --color-disabled-foreground: var(--c-disabled-fg);
   /* Брендбук §5.1/§6: карточки 12px (--radius-lg), кнопки 8px
      (--radius-sm); поля ввода — 10px (--radius-md). */
   --radius-sm: calc(var(--radius) - 4px);
@@ -87,108 +94,208 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* ─── Светлая тема — BRANDBOOK §1.1 ───────────────────────── */
+/* ─── Светлая тема — референс LIGHT REBRANDING V2.0 + поручение §5 ── */
 :root {
-  /* Сырые брендовые токены (§6) */
-  --ivory: #FDFBF7;
-  --sand: #FAF3E0;
-  --coral: #F28C8C;
-  --brick: #D95D39; /* крупные заливки и иконки (белый на нём 3,77 ≥ 3) */
-  --brick-strong: #BF4A27; /* DF-20: красный сигнал — текст/кнопки (белый 4,97) */
-  --success-strong: #2F6A3F; /* DF-20: текст/точка успех-тегов (5,55 на #E6F1E4) */
-  --action-icon: #C9504F; /* DF-20: иконки/рамки/фокус (4,28 на White ≥ 3) */
-  --ink: #2B2A26;
-  --border-sand: #E5DCC5;
+  /* Канонические 17 токенов (значения — выборка референса, отчёт TU-01.2):
+     Ivory #FAF3E0 — фон (референс Light); #FFFFFF — поверхности;
+     #F1E9D4 — вторичная поверхность (тон референса Light);
+     графит #2B2A26 — текст; Slate #3D3C38 — вторичный текст;
+     Terracotta #D95D39 — акцент; Red Signal #BF4A27 — усиленный акцент. */
+  --c-background: #FAF3E0; /* Ivory — фон Light (LIGHT REBRANDING V2.0) */
+  --c-surface: #FFFFFF; /* White — поверхности (референс Light) */
+  --c-surface-secondary: #F1E9D4; /* вторичный тон Light (выборка референса) */
+  --c-text: #2B2A26; /* графит — основной текст (поручение §5) */
+  --c-text-secondary: #3D3C38; /* Slate — вторичный текст (поручение §5) */
+  --c-text-muted: #615B4E; /* приглушённый текст (дериват брендбука #6B6455, контраст ≥ 4,5) */
+  --c-border: #E5DCC5; /* Border-Sand — рамки (брендбук §1.1) */
+  --c-divider: #EFE7D3; /* разделители — между фоном и рамкой (дериват) */
+  --c-accent: #D95D39; /* Terracotta — акцент (поручение §5, референс) */
+  --c-accent-hover: #C94F2F; /* дериват Terracotta −6 % lightness */
+  --c-accent-pressed: #BF4A27; /* Red Signal — нажатие (референс DS V2.0) */
+  --c-success: #2F6A3F; /* Success (референс DS V2.0) */
+  --c-warning: #F28C8C; /* Coral — «ЗАДЕРЖКА» (брендбук §3.2, принятая пара) */
+  --c-danger: #B8451F; /* Red Signal, дериват −4 % lightness для контраста 4,5+ на Ivory (референсный #BF4A27 остаётся в accent-strong для заливок с белым текстом 4,97) */
+  --c-info: #615B4E; /* нейтральный тёплый (§3.2, текст V-бейджа) */
+  --c-focus: #D95D39; /* фокус-кольцо — Terracotta (≥ 3:1 к Ivory/White) */
+  --c-disabled: #EFE7D3; /* фон недоступных элементов (дериват) */
+  /* Дополнительные пары (вне 17 — для кнопок/текстов на заливках): */
+  --c-accent-strong: #BF4A27; /* заливка основных кнопок (белый текст 4,97 ≥ 4,5) */
+  --c-accent-strong-fg: #FFFFFF;
+  --c-accent-tint: #FCEBEA; /* мягкий тинт наведения (брендбук §3.2) */
+  --c-disabled-fg: #8F8878; /* текст недоступных (исключение WCAG для disabled) */
+  --c-danger-fg: #FFFFFF; /* на заливке danger #B8451F — 5,1 ≥ 4,5 */
+  --c-success-fg: #FFFFFF; /* на заливке success (6,0+) */
+  --c-warning-fg: #2B2A26; /* Ink на Coral — 6,09 (брендбук v1.3) */
+  --c-info-fg: #FFFFFF; /* на заливке info (5,6+) */
+  --c-success-strong: #2F6A3F; /* текст/точка успех-тегов (5,55 на #E6F1E4) */
+  --c-action-icon: #C9504F; /* иконки/рамки/фокус (4,28 на White ≥ 3) — брендбук DF-20 */
 
   --radius: 0.75rem; /* 12px — карточки (§5.1); кнопки 8px = --radius-sm */
 
-  /* Маппинг shadcn → брендбук (§6) */
-  --background: var(--ivory);
-  --foreground: var(--ink);
-  --card: #FFFFFF; /* White — фон всех форм, контраст с Ivory (§5.2) */
-  --card-foreground: var(--ink);
-  --popover: #FFFFFF;
-  --popover-foreground: var(--ink);
-  --primary: var(--coral); /* основное действие — Coral (§3.1, §5.4) */
-  --primary-foreground: var(--ink); /* DF-20 (v1.3): Ink на Coral — 6,09 (было white 2,36) */
-  --secondary: var(--sand); /* вторичные заливки — Sand */
-  --secondary-foreground: var(--ink);
-  --muted: #F1EAD9; /* мягкая тёплая заливка (§3.2, фон V-бейджа) */
-  --muted-foreground: #6B6455; /* вторичный текст (§3.2, текст V-бейджа) */
-  --accent: #FCEBEA; /* мягкий коралловый тинт (§3.2, фон «В ПУТИ») */
-  --accent-foreground: var(--ink); /* DF-20: тёмный текст на тинтах (Coral 2,04 запрещён) */
-  --destructive: var(--brick-strong); /* DF-20: кнопки/ошибки — Brick-strong (v1.3 §3.1) */
-  --destructive-foreground: #FFFFFF;
-  --border: var(--border-sand); /* рамки вторичных действий (§5.5) */
-  --input: var(--border-sand);
-  --ring: var(--action-icon); /* DF-20: фокус — Action-icon (4,28 ≥ 3) */
+  /* Маппинг shadcn → канонические токены (TU-01.2) */
+  --background: var(--c-background);
+  --foreground: var(--c-text);
+  --card: var(--c-surface);
+  --card-foreground: var(--c-text);
+  --popover: var(--c-surface);
+  --popover-foreground: var(--c-text);
+  --primary: var(--c-accent-strong); /* основные действия — accent-strong (белый текст 4,97) */
+  --primary-foreground: var(--c-accent-strong-fg);
+  --secondary: var(--c-surface-secondary);
+  --secondary-foreground: var(--c-text);
+  --muted: var(--c-surface-secondary);
+  --muted-foreground: var(--c-text-muted);
+  --accent: var(--c-accent-tint);
+  --accent-foreground: var(--c-text);
+  --destructive: var(--c-danger); /* кнопки/ошибки — Red Signal */
+  --destructive-foreground: var(--c-danger-fg);
+  --border: var(--c-border);
+  --input: var(--c-border);
+  --ring: var(--c-focus);
 
-  /* Семантика статусов: success = Success §1.1 (заливки/иконки),
-     warning = Coral («ЗАДЕРЖКА» §3.2 — текст Ink по v1.3),
-     info = нейтральный тёплый серый (§3.2, текст V-бейджа). */
-  --success: #3F7A4C;
-  --success-foreground: #FFFFFF;
-  --warning: var(--coral);
-  --warning-foreground: var(--ink);
-  --info: #6B6455;
-  --info-foreground: #FFFFFF;
+  /* Сырые брендовые токены (совместимость брендбука v1.3) */
+  --ivory: #FAF3E0;
+  --sand: #F1E9D4;
+  --coral: #F28C8C;
+  --brick: #D95D39;
+  --brick-strong: #BF4A27;
+  --ink: #2B2A26;
+  --border-sand: #E5DCC5;
 
-  /* Сайдбар (§4: Sand) — потребляется этапом B (P1-18) */
-  --sidebar: var(--sand);
-  --sidebar-foreground: var(--ink);
-  --sidebar-border: var(--border-sand);
+  /* Семантика статусов (светлая) */
+  --success: var(--c-success);
+  --success-foreground: var(--c-success-fg);
+  --warning: var(--c-warning);
+  --warning-foreground: var(--c-warning-fg);
+  --info: var(--c-info);
+  --info-foreground: var(--c-info-fg);
 
-  /* Статусные бейджи §3.2 (v1.3, DF-20): цвет несёт точка 8px слева,
-     текст ВСЕГДА тёмный; сплошной красный — только ТРЕБУЕТ РЕШЕНИЯ /
-     ПРОСРОЧЕНО (critical). Маппинг домена — lib/status-badges.ts. */
+  /* Сайдбар — вторичная поверхность (TU-01.2; ранее Sand) */
+  --sidebar: var(--c-surface-secondary);
+  --sidebar-foreground: var(--c-text);
+  --sidebar-border: var(--c-border);
+
+  /* Статусные бейджи §3.2 (v1.3, светлые пары — принятые): цвет несёт
+     точка 8px, текст тёмный; сплошной красный — только critical.
+     Маппинг домена — lib/status-badges.ts. */
   --status-transit-bg: #FCEBEA;
-  --status-transit-fg: var(--ink);
-  --status-transit-dot: var(--action-icon);
+  --status-transit-fg: var(--c-text);
+  --status-transit-dot: var(--c-action-icon);
   --status-delay-bg: var(--coral);
-  --status-delay-fg: var(--ink); /* DF-20: Ink на Coral — 6,09 (было white 2,36) */
+  --status-delay-fg: var(--c-text); /* Ink на Coral — 6,09 */
   --status-delivered-bg: #E6F1E4;
-  --status-delivered-fg: var(--success-strong);
-  --status-delivered-dot: var(--success-strong);
+  --status-delivered-fg: var(--c-success-strong);
+  --status-delivered-dot: var(--c-success-strong);
   --status-version-bg: #F1EAD9;
-  --status-version-fg: #6B6455;
+  --status-version-fg: var(--c-text-muted);
   --status-pending-bg: #FCEBEA;
-  --status-pending-fg: var(--ink);
-  --status-pending-dot: var(--action-icon);
+  --status-pending-fg: var(--c-text);
+  --status-pending-dot: var(--c-action-icon);
   --status-review-bg: #F1EAD9;
-  --status-review-fg: var(--ink);
-  --status-review-dot: #6B6455;
-  --status-critical-bg: var(--brick-strong);
+  --status-review-fg: var(--c-text);
+  --status-review-dot: var(--c-text-muted);
+  --status-critical-bg: var(--c-accent-strong);
   --status-critical-fg: #FFFFFF;
 }
 
-/* ─── Тёмная тема (токены готовы, переключатель — позже; вне скоупа
-       брендбука — он задаёт только светлую тему) ────────── */
+/* ─── Тёмная тема — Executive DS V2.0 / набор UX Pilot (TU-01.2) ──
+     Значения — выборка макетов: фон #2B2A26, поверхности #1B1B1B,
+     приподнятые тона #2E2D29/#232220, текст #F7F6F2, акценты
+     Terracotta/Red Signal сохраняются; текстовые сигналы осветлены
+     до контраста ≥ 4,5:1 (отдельные токены — не инверсия Light). */
 .dark {
-  --background: oklch(0.14 0.01 220);
-  --foreground: oklch(0.95 0.004 210);
-  --card: oklch(0.18 0.012 220);
-  --card-foreground: oklch(0.95 0.004 210);
-  --popover: oklch(0.18 0.012 220);
-  --popover-foreground: oklch(0.95 0.004 210);
-  --primary: oklch(0.68 0.10 195);
-  --primary-foreground: oklch(0.13 0.02 210);
-  --secondary: oklch(0.24 0.012 220);
-  --secondary-foreground: oklch(0.95 0.004 210);
-  --muted: oklch(0.22 0.01 220);
-  --muted-foreground: oklch(0.70 0.012 220);
-  --accent: oklch(0.28 0.03 195);
-  --accent-foreground: oklch(0.95 0.004 210);
-  --destructive: oklch(0.65 0.22 27);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.68 0.10 195);
-  --success: oklch(0.72 0.16 150);
-  --success-foreground: oklch(0.13 0.02 150);
-  --warning: oklch(0.80 0.16 75);
-  --warning-foreground: oklch(0.18 0.04 75);
-  --info: oklch(0.68 0.13 235);
-  --info-foreground: oklch(0.13 0.02 235);
+  --c-background: #2B2A26; /* фон Dark (Executive DS V2.0) */
+  --c-surface: #1B1B1B; /* поверхности Dark (Executive DS V2.0) */
+  --c-surface-secondary: #2E2D29; /* приподнятая поверхность (выборка Command Center) */
+  --c-text: #F7F6F2; /* основной текст (выборка макетов) */
+  --c-text-secondary: #C9C4B6; /* вторичный текст (дериват, ≥ 7:1) */
+  --c-text-muted: #A39D8F; /* приглушённый текст (дериват, ≥ 4,5:1) */
+  --c-border: #3D3B36; /* State // Borders — Slate (референс DS V2.0, решение владельца A-2 12.11.2026) */
+  --c-divider: #32302B; /* разделители */
+  --c-accent: #D95D39; /* Terracotta — тот же акцент (поручение §5) */
+  --c-accent-hover: #E06B47; /* осветлённый Terracotta (дериват) */
+  --c-accent-pressed: #BF4A27; /* Red Signal */
+  --c-success: #8CC9A0; /* текст сигнала успеха (дериват Success, ≥ 4,5:1) */
+  --c-warning: #E8A18C; /* светлая Coral (дериват, ≥ 4,5:1) */
+  --c-danger: #E27B5A; /* текст сигнала опасности (дериват Red Signal, ≥ 4,5:1) */
+  --c-info: #B5AF9F; /* нейтральный тёплый (дериват, ≥ 5:1) */
+  --c-focus: #E06B47; /* фокус-кольцо (≥ 3:1 к фону) */
+  --c-disabled: #32302B; /* фон недоступных */
+  /* Дополнительные пары: */
+  --c-accent-strong: #BF4A27; /* заливка кнопок — единая в обеих темах (белый 4,97) */
+  --c-accent-strong-fg: #FFFFFF;
+  --c-accent-tint: #3A2A24; /* тинт наведения (дериват) */
+  --c-disabled-fg: #6E695E; /* исключение WCAG для disabled */
+  --c-danger-fg: #1B1B1B; /* тёмный текст на светлом сигнале danger — ПАРА ИСПРАВЛЕНА (замечание 3 владельца: было #FFFFFF, 2,9 < 4,5); заливка кнопок — accent-strong с белым 4,97 */
+  --c-success-fg: #1B1B1B; /* тёмный текст на светлом сигнале успеха */
+  --c-warning-fg: #1B1B1B;
+  --c-info-fg: #1B1B1B;
+  --c-success-strong: #8CC9A0; /* текст/точка успех-тегов в тёмной */
+  --c-action-icon: #E06B47; /* иконки/рамки/фокус в тёмной */
+
+  --background: var(--c-background);
+  --foreground: var(--c-text);
+  --card: var(--c-surface);
+  --card-foreground: var(--c-text);
+  --popover: var(--c-surface);
+  --popover-foreground: var(--c-text);
+  --primary: var(--c-accent-strong);
+  --primary-foreground: var(--c-accent-strong-fg);
+  --secondary: var(--c-surface-secondary);
+  --secondary-foreground: var(--c-text);
+  --muted: var(--c-surface-secondary);
+  --muted-foreground: var(--c-text-muted);
+  --accent: var(--c-accent-tint);
+  --accent-foreground: var(--c-text);
+  --destructive: var(--c-accent-strong); /* заливка кнопки — Red Signal (белый 4,97) */
+  --destructive-foreground: var(--c-accent-strong-fg);
+  --border: var(--c-border);
+  --input: var(--c-border);
+  --ring: var(--c-focus);
+
+  /* Сырые брендовые токены в тёмной (совместимость) */
+  --ivory: #FAF3E0;
+  --sand: #2E2D29;
+  --coral: #E8A18C;
+  --brick: #D95D39;
+  --brick-strong: #BF4A27;
+  --ink: #F7F6F2;
+  --border-sand: #3A3833;
+
+  /* Семантика статусов (тёмная) */
+  --success: var(--c-success);
+  --success-foreground: var(--c-success-fg);
+  --warning: var(--c-warning);
+  --warning-foreground: var(--c-warning-fg);
+  --info: var(--c-info);
+  --info-foreground: var(--c-info-fg);
+
+  /* Сайдбар — тон #232220 (выборка Command Center) */
+  --sidebar: #232220;
+  --sidebar-foreground: var(--c-text);
+  --sidebar-border: var(--c-border);
+
+  /* Статусные бейджи в тёмной: тёмные тинты + светлый текст + яркая
+     точка (аналог §3.2, отдельные значения — не инверсия). */
+  --status-transit-bg: #382B27;
+  --status-transit-fg: #F0D4C9;
+  --status-transit-dot: var(--c-action-icon);
+  --status-delay-bg: #41302C;
+  --status-delay-fg: #F5DCD2;
+  --status-delay-dot: #E58C6B;
+  --status-delivered-bg: #2C3A2E;
+  --status-delivered-fg: #CFE6D3;
+  --status-delivered-dot: var(--c-success);
+  --status-version-bg: #33312C;
+  --status-version-fg: #D8D3C7;
+  --status-pending-bg: #382B27;
+  --status-pending-fg: #F0D4C9;
+  --status-pending-dot: var(--c-action-icon);
+  --status-review-bg: #33312C;
+  --status-review-fg: var(--c-text);
+  --status-review-dot: var(--c-text-muted);
+  --status-critical-bg: var(--c-accent-strong);
+  --status-critical-fg: #FFFFFF;
 }
 
 @layer base {
