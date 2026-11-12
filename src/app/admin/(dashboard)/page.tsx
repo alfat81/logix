@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import Link from 'next/link'
 import { fmtRuDate } from '@/lib/activity'
 import { eventWhereFor } from '@/lib/audience'
 import { projectActors, STAFF_READER } from '@/lib/actor-name'
@@ -85,14 +86,14 @@ export default async function AdminPage() {
           <section aria-labelledby="queue-title" className="space-y-3">
             <div className="flex items-end justify-between gap-4">
               <h2 id="queue-title" className="text-lg font-semibold tracking-tight text-foreground">
-                Очередь обработки <span className="text-accent-text">// Заявки</span>
+                Очередь обработки <span className="text-accent-text">{"// Заявки"}</span>
               </h2>
-              <a
+              <Link
                 href="/admin/leads"
                 className="shrink-0 text-xs font-semibold uppercase tracking-widest text-accent-text underline decoration-2 underline-offset-4 hover:text-foreground"
               >
                 Посмотреть все
-              </a>
+              </Link>
             </div>
             <LeadQueue items={queue} />
           </section>
