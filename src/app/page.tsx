@@ -1,105 +1,104 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Container, Ship, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { contractorPortalEnabled } from "@/lib/flags";
+import { SiteHeader } from "@/components/site/site-header";
+import { SiteFooter } from "@/components/site/site-footer";
+import {
+  AboutSection,
+  AdvantagesSection,
+  ApproachSection,
+  DigitalSection,
+  Eyebrow,
+  ServicesSection,
+  WorkflowSection,
+} from "@/components/site/site-sections";
 
-// D31 (DF-00C): флаг заморозки читается в РАНТАЙМЕ, а не при сборке.
-// v0.5.5: без этой директивы Next пререндерит лендинг в статику и вшивает
-// значение флага в HTML на этапе build (CI гоняет build с флагом=true,
-// шаг заморозки перезапускает сервер с false — ссылка оставалась в кэше
-// сборки, e2e-заморозка 15/16). force-dynamic возвращает обещание
-// src/lib/flags.ts: смена env не требует пересборки.
+/* TU-01.5 — главная страница публичного сайта: самостоятельный
+   полноценный экран (отличён от страницы Design System), ориентир
+   секций — макет homedark.png «главная публичного сайта, тёмная тема»;
+   светлая тема — по Executive DS V2.0 / LIGHT REBRANDING V2.0.
+   Наименования — словарь LIGHT REBRANDING V2.0: TuLogistica Pro
+   («LOGIX LOGIN», «Logix Entry», «Платформа Logix» не переносятся).
+   force-dynamic — D31: ссылка подрядчика в футере по рантайм-флагу. */
 export const dynamic = "force-dynamic";
 
-// Корневая страница — минимальный фейс проекта. Куда grows: лендинг
-// с описанием сервиса (когда дойдёт очередь), сюда пока
-// приходит и проверяющий превью, и первый менеджер Logix.
+export const metadata: Metadata = {
+  title: "TuLogistica Pro — логистика, которая работает на ваш бизнес",
+  description:
+    "Профессиональная логистика: международные грузоперевозки, логистическое сопровождение, таможенные вопросы и индивидуальные решения. Цифровая платформа TuLogistica Pro.",
+};
+
 export default function Home() {
   return (
-    <main className="min-h-screen flex flex-col">
-      <header className="border-b">
-        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 font-semibold text-lg">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Container className="size-5" />
-            </span>
-            Logix
-          </div>
-          <div className="flex items-center gap-2">
-            {/* D31 (DF-00C): кабинет подрядчика заморожен — ссылка только
-                при явном включении CONTRACTOR_PORTAL_ENABLED=true */}
-            {contractorPortalEnabled() && (
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/contractor/login">Вход для подрядчиков</Link>
-              </Button>
-            )}
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/broker/login">Вход для брокеров</Link>
-            </Button>
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/client/login">Вход для клиентов</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/admin">Вход для сотрудников</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <section className="flex-1 flex items-center">
-        <div className="max-w-5xl mx-auto px-4 py-16 grid gap-10 md:grid-cols-2 md:items-center">
-          <div className="grid gap-5">
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-balance">
-              Мультимодальная логистика под контролем
+    <div className="min-h-screen">
+      <SiteHeader />
+      <main>
+        {/* Первый экран */}
+        <section className="bg-background">
+          <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
+            <Eyebrow>Professional logistics ecosystem</Eyebrow>
+            <h1 className="mt-6 max-w-4xl text-4xl font-bold uppercase leading-[1.08] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+              Логистика, которая работает на ваш{" "}
+              <em className="italic underline decoration-accent-brand decoration-4 underline-offset-8">
+                бизнес.
+              </em>
             </h1>
-            <p className="text-lg text-muted-foreground">
-              Заявки, этапы перевозки и статусы — в одной системе: от забора
-              груза и экспортного оформления до доставки получателю.
+            <p className="mt-6 max-w-xl text-base text-fg-secondary">
+              TuLogistica объединяет профессиональную экспертизу, управление
+              логистическими процессами и цифровые инструменты, чтобы
+              превращать сложные задачи перевозки в понятные и управляемые
+              решения.
             </p>
-            <div className="flex gap-3">
-              <Button asChild size="lg">
-                <Link href="/admin">
-                  Войти в систему
-                  <ArrowRight className="size-4" />
-                </Link>
+            <div className="mt-8 flex flex-wrap gap-3">
+              {/* Д-08: до TU-03 «Запросить расчёт» ведёт на CTA-секцию */}
+              <Button asChild className="text-xs uppercase tracking-widest">
+                <a href="#contact">Запросить расчёт</a>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className="text-xs uppercase tracking-widest"
+              >
+                <a href="#services">Наши решения</a>
               </Button>
             </div>
           </div>
-          <div className="hidden md:grid gap-4">
-            <div className="rounded-lg border bg-card p-5 flex items-start gap-4">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-                <Truck className="size-5" />
-              </span>
-              <div>
-                <div className="font-medium">Обязательное ядро этапов</div>
-                <p className="text-sm text-muted-foreground">
-                  Шесть этапов перевозки подставляются в заявку автоматически
-                  и не могут быть удалены.
-                </p>
-              </div>
-            </div>
-            <div className="rounded-lg border bg-card p-5 flex items-start gap-4">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-                <Ship className="size-5" />
-              </span>
-              <div>
-                <div className="font-medium">Надстройка под маршрут</div>
-                <p className="text-sm text-muted-foreground">
-                  Менеджер добавляет необязательные этапы из каталога — под
-                  специфику конкретной перевозки.
-                </p>
-              </div>
+        </section>
+
+        <AboutSection />
+        <ApproachSection />
+        <ServicesSection />
+        <WorkflowSection />
+        <DigitalSection />
+        <AdvantagesSection />
+
+        {/* CTA (Д-08: фиктивная форма не создаётся — заглушка до TU-03;
+            кнопка «Связаться с нами» макета не переносится — Д-16) */}
+        <section id="contact" className="scroll-mt-16 bg-accent-strong">
+          <div className="mx-auto max-w-6xl px-4 py-20 text-primary-foreground sm:px-6">
+            <h2 className="text-center text-4xl font-bold italic uppercase tracking-tight sm:text-5xl">
+              Есть логистическая задача?
+            </h2>
+            <p className="mx-auto mt-5 max-w-xl text-center text-base">
+              Расскажите нам о своей задаче. Мы изучим исходные данные и
+              поможем определить подходящий вариант дальнейшей работы.
+            </p>
+            <div className="mx-auto mt-10 max-w-md rounded-lg border border-primary-foreground/30 p-6 text-center">
+              <p className="text-sm">
+                Онлайн-форма запроса расчёта — в подготовке (этап TU-03).
+                Фиктивная форма не создаётся.
+              </p>
+              <Button
+                asChild
+                className="mt-5 bg-background text-foreground hover:bg-background/90"
+              >
+                <Link href="/client/login">Войти в кабинет</Link>
+              </Button>
             </div>
           </div>
-        </div>
-      </section>
-
-      <footer className="border-t">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between text-sm text-muted-foreground">
-          <span>Logix — платформа мультимодальной логистики</span>
-          <span>MVP</span>
-        </div>
-      </footer>
-    </main>
+        </section>
+      </main>
+      <SiteFooter />
+    </div>
   );
 }

@@ -1129,13 +1129,22 @@
 | Компонент | Файл |
 |---|---|
 | `ComboOptionRow` | `src/components/references/ComboOptionRow.tsx` |
+| `EmptyState` | `src/components/states/empty-state.tsx` |
+| `ErrorState` | `src/components/states/error-state.tsx` |
+| `Eyebrow` | `src/components/site/site-sections.tsx` |
+| `FieldError` | `src/components/states/field-error.tsx` |
 | `HsCodeCombobox` | `src/components/references/HsCodeCombobox.tsx` |
 | `IncotermPicker` | `src/components/references/IncotermPicker.tsx` |
+| `LoadingState` | `src/components/states/loading-state.tsx` |
 | `PermitCreateDialog` | `src/components/permits/PermitDialogs.tsx` |
 | `PermitUploadButton` | `src/components/permits/PermitUploadButton.tsx` |
 | `PermitsSection` | `src/components/permits/PermitsSection.tsx` |
 | `PrintRevisionList` | `src/components/print-revisions/PrintRevisionList.tsx` |
 | `ReferenceCombobox` | `src/components/references/ReferenceCombobox.tsx` |
+| `SiteFooter` | `src/components/site/site-footer.tsx` |
+| `SiteHeader` | `src/components/site/site-header.tsx` |
+| `SuccessState` | `src/components/states/success-state.tsx` |
+| `states.test` | `src/components/states/states.test.tsx` |
 
 ### src/components/contractor
 
@@ -1396,7 +1405,7 @@
 | `ADMIN_PASSWORD` | 2 | да | да |
 | `ADMIN_PHONE` | 2 | да | да |
 | `APP_BASE_URL` | 1 | да | да |
-| `BASE_URL` | 3 | да | да |
+| `BASE_URL` | 4 | да | да |
 | `CBR_IMPORT` | 2 | да | да |
 | `CBR_RATE_URL` | 1 | да | да |
 | `CONTRACTOR_PORTAL_ENABLED` | 1 | да | да |

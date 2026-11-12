@@ -29,6 +29,12 @@ const TARGET_THEME_NAME: Record<ThemeMode, string> = {
   system: "системную",
 };
 
+/* Базовые стили кнопки — единые во всех четырёх интерфейсах (TU-01.3):
+   иконка 18px в квадрате 32px, рамка/фон/текст — канонические токены,
+   focus-кольцо — паттерн ui/button.tsx. className добавляется поверх. */
+const TOGGLE_BASE =
+  "inline-flex size-8 shrink-0 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-all outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] hover:bg-accent hover:text-foreground";
+
 export function ThemeToggle({ className }: { className?: string }) {
   const { mode, setMode } = useTheme();
   const next = THEME_MODES[(THEME_MODES.indexOf(mode) + 1) % THEME_MODES.length];
@@ -38,7 +44,7 @@ export function ThemeToggle({ className }: { className?: string }) {
     <button
       type="button"
       onClick={() => setMode(next)}
-      className={className}
+      className={className ? `${TOGGLE_BASE} ${className}` : TOGGLE_BASE}
       aria-label={switchTo}
       title={MODE_TITLE[mode]}
       data-mode={mode}

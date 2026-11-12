@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Landmark } from 'lucide-react'
 import { getBrokerByToken, BROKER_SESSION_COOKIE } from '@/lib/broker-auth'
 import { BrokerLogoutButton } from '@/components/broker/BrokerLogoutButton'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 // Защищённая зона портала брокера (route group «(portal)» не влияет
 // на URL — зеркало admin/(dashboard), contractor/(portal) и
@@ -38,6 +39,8 @@ export default async function BrokerPortalLayout({
             <span className="text-sm text-muted-foreground hidden sm:inline">
               {broker.companyName}
             </span>
+            {/* TU-01.3: переключатель темы — в шапке кабинета */}
+            <ThemeToggle />
             <BrokerLogoutButton />
           </div>
         </div>

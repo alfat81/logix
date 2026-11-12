@@ -3,55 +3,341 @@
   "min_text": 4.5,
   "min_ui": 3.0,
   "pairs": [
-    { "fg": "#2B2A26", "bg": "#FDFBF7", "kind": "text", "why": "Ink на старом Ivory — историческая пара DF-20" },
-    { "fg": "#2B2A26", "bg": "#FAF3E0", "kind": "text", "why": "Ink на Sand/Ivory — текст сайдбара и фона (TU-01.2: фон Light = Ivory #FAF3E0)" },
-    { "fg": "#2B2A26", "bg": "#FFFFFF", "kind": "text", "why": "Ink на White — текст форм" },
-    { "fg": "#6B6455", "bg": "#FDFBF7", "kind": "text", "why": "Muted на старом Ivory — историческая пара DF-20" },
-    { "fg": "#6B6455", "bg": "#FAF3E0", "kind": "text", "why": "Muted на Sand — подписи сайдбара (5,3)" },
-    { "fg": "#6B6455", "bg": "#FFFFFF", "kind": "text", "why": "Muted на White — подписи форм" },
-    { "fg": "#6B6455", "bg": "#F1EAD9", "kind": "text", "why": "Muted на muted — пара V-бейджа/ЧЕРНОВИК" },
-    { "fg": "#2B2A26", "bg": "#F28C8C", "kind": "text", "why": "Ink на Coral — текст основных кнопок и счётчиков (6,09)" },
-    { "fg": "#FFFFFF", "bg": "--c-accent-strong", "kind": "text", "why": "белый на accent-strong/Brick-strong — критичная кнопка, ТРЕБУЕТ РЕШЕНИЯ (4,97)" },
-    { "fg": "--c-danger", "bg": "#FDFBF7", "kind": "text", "why": "Brick-strong на старом Ivory — историческая пара DF-20" },
-    { "fg": "#2B2A26", "bg": "#FCEBEA", "kind": "text", "why": "Ink на accent-тинте — В ПУТИ/В РАБОТЕ/ОЖИДАНИЕ/НА ПРОВЕРКЕ" },
-    { "fg": "--c-success-strong", "bg": "#E6F1E4", "kind": "text", "why": "Success-strong на success-тинте — ДОСТАВЛЕНО/ФИНАЛЬНЫЙ (5,55)" },
-    { "fg": "--c-action-icon", "bg": "#FDFBF7", "kind": "ui", "why": "Action-icon на старом Ivory — историческая пара DF-20 (4,28)" },
-
-    { "fg": "--c-text", "bg": "--c-background", "kind": "text", "why": "TU-01.2 Light: графит на Ivory — основной текст" },
-    { "fg": "--c-text-secondary", "bg": "--c-background", "kind": "text", "why": "TU-01.2 Light: Slate на Ivory — вторичный текст" },
-    { "fg": "--c-text-muted", "bg": "--c-background", "kind": "text", "why": "TU-01.2 Light: приглушённый текст на фоне" },
-    { "fg": "--c-text-muted", "bg": "--c-surface", "kind": "text", "why": "TU-01.2 Light: приглушённый текст на поверхности" },
-    { "fg": "--c-danger", "bg": "--c-background", "kind": "text", "why": "TU-01.2 Light: Red Signal на Ivory — текст сигнала" },
-    { "fg": "--c-success", "bg": "--c-surface", "kind": "text", "why": "TU-01.2 Light: Success на White — текст сигнала успеха" },
-    { "fg": "--c-warning-fg", "bg": "--c-warning", "kind": "text", "why": "TU-01.2 Light: Ink на Coral — заливка warning (6,09)" },
-    { "fg": "--c-info-fg", "bg": "--c-info", "kind": "text", "why": "TU-01.2 Light: белый на нейтральном info" },
-    { "fg": "--c-accent", "bg": "--c-background", "kind": "ui", "why": "TU-01.2 Light: Terracotta как UI/крупный текст к Ivory" },
-    { "fg": "--c-focus", "bg": "--c-background", "kind": "ui", "why": "TU-01.2 Light: фокус-кольцо к фону" },
-    { "fg": "--status-version-fg", "bg": "--status-version-bg", "kind": "text", "why": "TU-01.2 Light: бейдж VERSION" },
-    { "fg": "--sidebar-foreground", "bg": "--sidebar", "kind": "text", "why": "TU-01.2 Light: текст сайдбара" },
-    { "fg": "--c-danger-fg", "bg": "--c-danger", "kind": "text", "why": "TU-01.2 Light: текст на заливке danger #B8451F (замечание 3 владельца)" },
-
-    { "fg": "--c-text", "bg": "--c-background", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: текст #F7F6F2 на фоне #2B2A26" },
-    { "fg": "--c-text", "bg": "--c-surface", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: текст на поверхности #1B1B1B" },
-    { "fg": "--c-text-secondary", "bg": "--c-background", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: вторичный текст" },
-    { "fg": "--c-text-secondary", "bg": "--c-surface", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: вторичный текст на поверхности" },
-    { "fg": "--c-text-muted", "bg": "--c-background", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: приглушённый текст" },
-    { "fg": "--c-text-muted", "bg": "--c-surface", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: приглушённый текст на поверхности" },
-    { "fg": "--c-accent-strong-fg", "bg": "--c-accent-strong", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: белый на заливке кнопок (4,97)" },
-    { "fg": "--c-danger", "bg": "--c-surface", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: осветлённый сигнал danger на поверхности" },
-    { "fg": "--c-danger", "bg": "--c-background", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: осветлённый сигнал danger на фоне" },
-    { "fg": "--c-success", "bg": "--c-surface", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: осветлённый сигнал успеха на поверхности" },
-    { "fg": "--c-warning-fg", "bg": "--c-warning", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: текст на заливке warning" },
-    { "fg": "--c-info-fg", "bg": "--c-info", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: текст на заливке info" },
-    { "fg": "--c-accent", "bg": "--c-background", "theme": "dark", "kind": "ui", "why": "TU-01.2 Dark: Terracotta как UI к фону" },
-    { "fg": "--c-focus", "bg": "--c-background", "theme": "dark", "kind": "ui", "why": "TU-01.2 Dark: фокус-кольцо к фону" },
-    { "fg": "--status-transit-fg", "bg": "--status-transit-bg", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: бейдж TRANSIT" },
-    { "fg": "--status-delay-fg", "bg": "--status-delay-bg", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: бейдж DELAY" },
-    { "fg": "--status-delivered-fg", "bg": "--status-delivered-bg", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: бейдж DELIVERED" },
-    { "fg": "--status-version-fg", "bg": "--status-version-bg", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: бейдж VERSION" },
-    { "fg": "--status-review-fg", "bg": "--status-review-bg", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: бейдж REVIEW" },
-    { "fg": "--status-critical-fg", "bg": "--status-critical-bg", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: бейдж CRITICAL" },
-    { "fg": "--sidebar-foreground", "bg": "--sidebar", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: текст сайдбара" },
-    { "fg": "--c-danger-fg", "bg": "--c-danger", "theme": "dark", "kind": "text", "why": "TU-01.2 Dark: пара ИСПРАВЛЕНА — тёмный текст #1B1B1B на светлом сигнале #E27B5A (замечание 3 владельца: было #FFFFFF, 2,9 < 4,5)" }
+    {
+      "fg": "#2B2A26",
+      "bg": "#FDFBF7",
+      "kind": "text",
+      "why": "Ink на старом Ivory — историческая пара DF-20"
+    },
+    {
+      "fg": "#2B2A26",
+      "bg": "#FAF3E0",
+      "kind": "text",
+      "why": "Ink на Sand/Ivory — текст сайдбара и фона (TU-01.2: фон Light = Ivory #FAF3E0)"
+    },
+    {
+      "fg": "#2B2A26",
+      "bg": "#FFFFFF",
+      "kind": "text",
+      "why": "Ink на White — текст форм"
+    },
+    {
+      "fg": "#6B6455",
+      "bg": "#FDFBF7",
+      "kind": "text",
+      "why": "Muted на старом Ivory — историческая пара DF-20"
+    },
+    {
+      "fg": "#6B6455",
+      "bg": "#FAF3E0",
+      "kind": "text",
+      "why": "Muted на Sand — подписи сайдбара (5,3)"
+    },
+    {
+      "fg": "#6B6455",
+      "bg": "#FFFFFF",
+      "kind": "text",
+      "why": "Muted на White — подписи форм"
+    },
+    {
+      "fg": "#6B6455",
+      "bg": "#F1EAD9",
+      "kind": "text",
+      "why": "Muted на muted — пара V-бейджа/ЧЕРНОВИК"
+    },
+    {
+      "fg": "#2B2A26",
+      "bg": "#F28C8C",
+      "kind": "text",
+      "why": "Ink на Coral — текст основных кнопок и счётчиков (6,09)"
+    },
+    {
+      "fg": "#FFFFFF",
+      "bg": "--c-accent-strong",
+      "kind": "text",
+      "why": "белый на accent-strong/Brick-strong — критичная кнопка, ТРЕБУЕТ РЕШЕНИЯ (4,97)"
+    },
+    {
+      "fg": "--c-danger",
+      "bg": "#FDFBF7",
+      "kind": "text",
+      "why": "Brick-strong на старом Ivory — историческая пара DF-20"
+    },
+    {
+      "fg": "#2B2A26",
+      "bg": "#FCEBEA",
+      "kind": "text",
+      "why": "Ink на accent-тинте — В ПУТИ/В РАБОТЕ/ОЖИДАНИЕ/НА ПРОВЕРКЕ"
+    },
+    {
+      "fg": "--c-success-strong",
+      "bg": "#E6F1E4",
+      "kind": "text",
+      "why": "Success-strong на success-тинте — ДОСТАВЛЕНО/ФИНАЛЬНЫЙ (5,55)"
+    },
+    {
+      "fg": "--c-action-icon",
+      "bg": "#FDFBF7",
+      "kind": "ui",
+      "why": "Action-icon на старом Ivory — историческая пара DF-20 (4,28)"
+    },
+    {
+      "fg": "--c-text",
+      "bg": "--c-background",
+      "kind": "text",
+      "why": "TU-01.2 Light: графит на Ivory — основной текст"
+    },
+    {
+      "fg": "--c-text-secondary",
+      "bg": "--c-background",
+      "kind": "text",
+      "why": "TU-01.2 Light: Slate на Ivory — вторичный текст"
+    },
+    {
+      "fg": "--c-text-muted",
+      "bg": "--c-background",
+      "kind": "text",
+      "why": "TU-01.2 Light: приглушённый текст на фоне"
+    },
+    {
+      "fg": "--c-text-muted",
+      "bg": "--c-surface",
+      "kind": "text",
+      "why": "TU-01.2 Light: приглушённый текст на поверхности"
+    },
+    {
+      "fg": "--c-danger",
+      "bg": "--c-background",
+      "kind": "text",
+      "why": "TU-01.2 Light: Red Signal на Ivory — текст сигнала"
+    },
+    {
+      "fg": "--c-success",
+      "bg": "--c-surface",
+      "kind": "text",
+      "why": "TU-01.2 Light: Success на White — текст сигнала успеха"
+    },
+    {
+      "fg": "--c-warning-fg",
+      "bg": "--c-warning",
+      "kind": "text",
+      "why": "TU-01.2 Light: Ink на Coral — заливка warning (6,09)"
+    },
+    {
+      "fg": "--c-info-fg",
+      "bg": "--c-info",
+      "kind": "text",
+      "why": "TU-01.2 Light: белый на нейтральном info"
+    },
+    {
+      "fg": "--c-accent",
+      "bg": "--c-background",
+      "kind": "ui",
+      "why": "TU-01.2 Light: Terracotta как UI/крупный текст к Ivory"
+    },
+    {
+      "fg": "--c-focus",
+      "bg": "--c-background",
+      "kind": "ui",
+      "why": "TU-01.2 Light: фокус-кольцо к фону"
+    },
+    {
+      "fg": "--status-version-fg",
+      "bg": "--status-version-bg",
+      "kind": "text",
+      "why": "TU-01.2 Light: бейдж VERSION"
+    },
+    {
+      "fg": "--sidebar-foreground",
+      "bg": "--sidebar",
+      "kind": "text",
+      "why": "TU-01.2 Light: текст сайдбара"
+    },
+    {
+      "fg": "--c-danger-fg",
+      "bg": "--c-danger",
+      "kind": "text",
+      "why": "TU-01.2 Light: текст на заливке danger #B8451F (замечание 3 владельца)"
+    },
+    {
+      "fg": "--c-text",
+      "bg": "--c-background",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: текст #F7F6F2 на фоне #2B2A26"
+    },
+    {
+      "fg": "--c-text",
+      "bg": "--c-surface",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: текст на поверхности #1B1B1B"
+    },
+    {
+      "fg": "--c-text-secondary",
+      "bg": "--c-background",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: вторичный текст"
+    },
+    {
+      "fg": "--c-text-secondary",
+      "bg": "--c-surface",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: вторичный текст на поверхности"
+    },
+    {
+      "fg": "--c-text-muted",
+      "bg": "--c-background",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: приглушённый текст"
+    },
+    {
+      "fg": "--c-text-muted",
+      "bg": "--c-surface",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: приглушённый текст на поверхности"
+    },
+    {
+      "fg": "--c-accent-strong-fg",
+      "bg": "--c-accent-strong",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: белый на заливке кнопок (4,97)"
+    },
+    {
+      "fg": "--c-danger",
+      "bg": "--c-surface",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: осветлённый сигнал danger на поверхности"
+    },
+    {
+      "fg": "--c-danger",
+      "bg": "--c-background",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: осветлённый сигнал danger на фоне"
+    },
+    {
+      "fg": "--c-success",
+      "bg": "--c-surface",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: осветлённый сигнал успеха на поверхности"
+    },
+    {
+      "fg": "--c-warning-fg",
+      "bg": "--c-warning",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: текст на заливке warning"
+    },
+    {
+      "fg": "--c-info-fg",
+      "bg": "--c-info",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: текст на заливке info"
+    },
+    {
+      "fg": "--c-accent",
+      "bg": "--c-background",
+      "theme": "dark",
+      "kind": "ui",
+      "why": "TU-01.2 Dark: Terracotta как UI к фону"
+    },
+    {
+      "fg": "--c-focus",
+      "bg": "--c-background",
+      "theme": "dark",
+      "kind": "ui",
+      "why": "TU-01.2 Dark: фокус-кольцо к фону"
+    },
+    {
+      "fg": "--status-transit-fg",
+      "bg": "--status-transit-bg",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: бейдж TRANSIT"
+    },
+    {
+      "fg": "--status-delay-fg",
+      "bg": "--status-delay-bg",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: бейдж DELAY"
+    },
+    {
+      "fg": "--status-delivered-fg",
+      "bg": "--status-delivered-bg",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: бейдж DELIVERED"
+    },
+    {
+      "fg": "--status-version-fg",
+      "bg": "--status-version-bg",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: бейдж VERSION"
+    },
+    {
+      "fg": "--status-review-fg",
+      "bg": "--status-review-bg",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: бейдж REVIEW"
+    },
+    {
+      "fg": "--status-critical-fg",
+      "bg": "--status-critical-bg",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: бейдж CRITICAL"
+    },
+    {
+      "fg": "--sidebar-foreground",
+      "bg": "--sidebar",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: текст сайдбара"
+    },
+    {
+      "fg": "--c-danger-fg",
+      "bg": "--c-danger",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.2 Dark: пара ИСПРАВЛЕНА — тёмный текст #1B1B1B на светлом сигнале #E27B5A (замечание 3 владельца: было #FFFFFF, 2,9 < 4,5)"
+    },
+    {
+      "fg": "--c-accent-text",
+      "bg": "--c-background",
+      "kind": "text",
+      "why": "TU-01.5 Light: eyebrow-подписи секций публичного сайта — мелкий акцентный текст (4,83 на Ivory; значение = danger-дериват, совпадение расчётное — Д-17)"
+    },
+    {
+      "fg": "--c-accent-text",
+      "bg": "--c-background",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.5 Dark: eyebrow-подписи секций (4,92 на фоне Dark — Д-17)"
+    },
+    {
+      "fg": "--c-accent-text",
+      "bg": "--c-surface",
+      "kind": "text",
+      "why": "TU-01.5 Light: показатель эффективности и акцентные подписи на карточках"
+    },
+    {
+      "fg": "--c-accent-text",
+      "bg": "--c-surface",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.5 Dark: показатель эффективности на карточке surface"
+    }
   ]
 }

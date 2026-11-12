@@ -10,6 +10,7 @@ import { AdminNav } from '@/components/admin/AdminNav'
 import { IsMasterProvider } from '@/components/admin/EmployeeRolesProvider'
 import { AdminBottomNav } from '@/components/admin/AdminBottomNav'
 import { GlobalSearch } from '@/components/admin/GlobalSearch'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { activeOrdersTotal, orderStatusCounts } from '@/lib/order-counts'
 
 // Защищённая зона кабинета (route group «(dashboard)» не влияет на URL):
@@ -100,8 +101,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 </Link>
               </div>
               <GlobalSearch />
+              {/* TU-01.3: переключатель темы — в шапке обоих брейкпоинтов */}
+              <div className="ml-auto hidden md:flex items-center">
+                <ThemeToggle />
+              </div>
               <div className="md:hidden flex items-center gap-3 shrink-0 ml-auto">
                 {/* DF-09: на телефоне профиль — иконка в шапке рядом с «Выйти» */}
+                <ThemeToggle />
                 <Link href="/admin/profile" aria-label="Профиль" className="flex">
                   <UserRound className="size-4 text-muted-foreground" />
                 </Link>

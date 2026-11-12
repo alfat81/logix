@@ -83,6 +83,7 @@
   --color-divider: var(--c-divider);
   --color-accent-brand: var(--c-accent);
   --color-accent-strong: var(--c-accent-strong);
+  --color-accent-text: var(--c-accent-text);
   --color-fg-secondary: var(--c-text-secondary);
   --color-disabled: var(--c-disabled);
   --color-disabled-foreground: var(--c-disabled-fg);
@@ -129,6 +130,7 @@
   --c-info-fg: #FFFFFF; /* на заливке info (5,6+) */
   --c-success-strong: #2F6A3F; /* текст/точка успех-тегов (5,55 на #E6F1E4) */
   --c-action-icon: #C9504F; /* иконки/рамки/фокус (4,28 на White ≥ 3) — брендбук DF-20 */
+  --c-accent-text: #B8451F; /* мелкий акцентный текст на фоне (TU-01.5, Д-17): 4,83 на Ivory ≥ 4,5; значение совпадает с danger Light — совпадение расчётное (контраст), семантика — акцент, не сигнал */
 
   --radius: 0.75rem; /* 12px — карточки (§5.1); кнопки 8px = --radius-sm */
 
@@ -232,6 +234,7 @@
   --c-info-fg: #1B1B1B;
   --c-success-strong: #8CC9A0; /* текст/точка успех-тегов в тёмной */
   --c-action-icon: #E06B47; /* иконки/рамки/фокус в тёмной */
+  --c-accent-text: #E27B5A; /* мелкий акцентный текст на фоне (TU-01.5, Д-17): 4,92 на фоне Dark ≥ 4,5; значение совпадает с danger Dark — совпадение расчётное */
 
   --background: var(--c-background);
   --foreground: var(--c-text);

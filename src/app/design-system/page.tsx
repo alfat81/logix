@@ -5,6 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LoadingState } from "@/components/states/loading-state";
+import { EmptyState } from "@/components/states/empty-state";
+import { ErrorState } from "@/components/states/error-state";
+import { SuccessState } from "@/components/states/success-state";
+import { FieldError } from "@/components/states/field-error";
 
 /* TU-01.2 — каталог Design System (принят TU-G1, решение A-3).
    Служебная страница: реальный рендер токенов и компонентов в ОБОИХ
@@ -75,7 +80,8 @@ export default function DesignSystemPage() {
             состояния. Переключатель ниже меняет Light / Dark / System (первый вход — System).
           </p>
         </div>
-        <ThemeToggle className="rounded-md border p-2" />
+        {/* TU-01.3: базовые стили кнопки внутри компонента */}
+        <ThemeToggle />
       </header>
 
       <section aria-labelledby="palette-title" className="space-y-3">
@@ -171,6 +177,24 @@ export default function DesignSystemPage() {
             </p>
           </CardContent>
         </Card>
+      </section>
+
+      {/* TU-01.4: общие компоненты состояний (каталог §4, обе темы). */}
+      <section aria-labelledby="states-title" className="space-y-3">
+        <h2 id="states-title" className="text-lg font-semibold">
+          6. Состояния — loading / empty / error / success / validation (TU-01.4)
+        </h2>
+        <div className="grid gap-3 md:grid-cols-2">
+          <LoadingState label="Загрузка данных…" className="rounded-lg border border-border bg-card" />
+          <ErrorState description="Не удалось загрузить данные. Повторите попытку." />
+          <EmptyState title="Пока ничего нет" description="Здесь появятся объекты после создания." />
+          <SuccessState title="Изменения сохранены" description="Данные актуальны." />
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <Label htmlFor="ds-state-input">Поле с ошибкой заполнения</Label>
+          <Input id="ds-state-input" className="mt-2" aria-invalid="true" aria-describedby="ds-state-error" defaultValue="17-0" />
+          <FieldError id="ds-state-error" message="Номер заявки не может начинаться с нуля" />
+        </div>
       </section>
 
       <footer className="text-xs" style={{ color: "var(--c-text-muted)" }}>

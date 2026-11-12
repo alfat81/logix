@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Container } from 'lucide-react'
 import { getClientByToken, CLIENT_SESSION_COOKIE } from '@/lib/client-auth'
 import { ClientLogoutButton } from '@/components/client/ClientLogoutButton'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 // Защищённая зона клиентского кабинета (route group «(portal)» не
 // влияет на URL — зеркало admin/(dashboard) и contractor/(portal)):
@@ -37,6 +38,8 @@ export default async function ClientPortalLayout({
             <span className="text-sm text-muted-foreground hidden sm:inline">
               {client.name}
             </span>
+            {/* TU-01.3: переключатель темы — в шапке кабинета */}
+            <ThemeToggle />
             <ClientLogoutButton />
           </div>
         </div>

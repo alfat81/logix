@@ -9,11 +9,13 @@
 | Артефакт | Где | Что показывает |
 |---|---|---|
 | Живая страница каталога | `/design-system` (`src/app/design-system/page.tsx`) | Реальный рендер токенов и компонентов в обеих темах: палитра, типографика, кнопки и состояния, статусные бейджи, поверхности/формы/фокус. Индексация запрещена. |
-| Семантические токены | `src/app/globals.css` | 17 канонических токенов `--c-*` (background, surface, surface-secondary, text-primary, text-secondary, text-muted, border, divider, accent, accent-hover, accent-pressed, success, warning, danger, info, focus, disabled) — значения для **обеих** тем + пары кнопок/состояний (`--c-accent-strong`, `--c-accent-tint`, `--c-*-fg`). Hex — только в этом файле (RULES 2.14). |
+| Семантические токены | `src/app/globals.css` | 17 канонических токенов `--c-*` (background, surface, surface-secondary, text-primary, text-secondary, text-muted, border, divider, accent, accent-hover, accent-pressed, success, warning, danger, info, focus, disabled) — значения для **обеих** тем + пары кнопок/состояний (`--c-accent-strong`, `--c-accent-tint`, `--c-accent-text` — TU-01.5/Д-17, `--c-*-fg`). Hex — только в этом файле (RULES 2.14). |
 | Типографика | `src/fonts/` + `src/app/layout.tsx` | IBM Plex Sans 400/500/600/700, IBM Plex Mono 400/500/600 — `next/font/local`, woff2 (latin+cyrillic, OFL, `OFL-IBMPlex.txt`). Сборка не зависит от Google Fonts (V-1/D79; проверено: 0 обращений в build). |
 | Механизм тем | `src/lib/theme.ts`, `src/components/theme-provider.tsx`, `theme-toggle.tsx` | Light / Dark / System, cookie `logix-theme` (Path=/, срок 1 год, SameSite=Lax, Secure в production — V-3), boot-скрипт от FOUC, режим System слушает `prefers-color-scheme`. Без новых npm-зависимостей (V-4). |
 | Контраст WCAG 2.2 AA | `docs/design/contrast-pairs.json` + `scripts/contrast_check.py` (IC-17) | Пары обеих тем; пороги 4,5 текст / 3,0 UI. Прогон: `python3 scripts/contrast_check.py` — 0 находок. |
 | Юнит-тесты темы | `src/lib/theme.test.ts` | Разбор cookie/режимов, атрибуты куки, разрешение System, сериализация. |
+| Компоненты состояний | `src/components/states/` (TU-01.4) | Единые loading / empty / error / success / validation (`LoadingState`, `EmptyState`, `ErrorState`, `SuccessState`, `FieldError`) — цвета только токенами, роли a11y (status/alert); vitest-тест обеих тем (`states.test.tsx`, jsdom — devDep только для тестов); раздел 6 живого каталога. Внедрение по экранам — волны TU-01.6–01.8. |
+| Переключатель темы в интерфейсах | `theme-toggle.tsx` + лэйауты (TU-01.3) | Публичная навигация и шапки трёх кабинетов (admin — оба брейкпоинта); единые базовые стили кнопки внутри компонента. |
 
 ## 2. Прослеживаемость «токен → значение → референс» (TU-01.0)
 
