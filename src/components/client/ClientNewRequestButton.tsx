@@ -17,7 +17,10 @@ export function ClientNewRequestButton() {
     <>
       <Button onClick={() => setOpen(true)} size="sm">
         <Plus className="size-4" />
-        Новый запрос
+        {/* TU-01.9 @375: на узкой ширине — иконка с доступным именем,
+            чтобы топбар не переполнялся. */}
+        <span className="hidden sm:inline">Новый запрос</span>
+        <span className="sr-only sm:hidden">Новый запрос</span>
       </Button>
       <ClientLeadCreateDialog
         onCreated={() => window.dispatchEvent(new CustomEvent('client:lead-created'))}

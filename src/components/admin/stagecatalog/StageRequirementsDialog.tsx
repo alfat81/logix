@@ -243,7 +243,7 @@ export function StageRequirementsDialog({
               <div className="grid gap-1.5 min-w-44 flex-1">
                 <Label>Вид документа</Label>
                 <Select value={newKind} onValueChange={(v) => setNewKind(v as DocumentKind)}>
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger aria-label="Вид требования" className="h-9">
                     <SelectValue placeholder="Выберите вид" />
                   </SelectTrigger>
                   <SelectContent>

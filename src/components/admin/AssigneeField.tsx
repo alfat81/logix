@@ -77,7 +77,7 @@ export function AssigneeField({
       ) : (
         <>
           <Select value={value ?? 'none'} onValueChange={handleChange} disabled={saving}>
-            <SelectTrigger size="sm" className="w-52">
+            <SelectTrigger aria-label="Ответственный" size="sm" className="w-52">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

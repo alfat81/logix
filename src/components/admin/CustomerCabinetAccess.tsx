@@ -140,7 +140,7 @@ export function CustomerCabinetAccess({
                     {!u.isActive && (
                       <Badge
                         variant="outline"
-                        className="text-xs bg-destructive/10 text-destructive border-transparent"
+                        className="text-xs bg-destructive/10 text-danger border-transparent"
                       >
                         Доступ закрыт
                       </Badge>
@@ -209,7 +209,7 @@ export function CustomerCabinetAccess({
                       }
                     >
                       {u.isActive ? (
-                        <ShieldOff className="size-4 text-destructive" />
+                        <ShieldOff className="size-4 text-danger" />
                       ) : (
                         <ShieldCheck className="size-4" />
                       )}

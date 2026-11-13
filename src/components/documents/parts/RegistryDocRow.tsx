@@ -126,7 +126,7 @@ export function RegistryDocRow({
                   void patchStage(stagePatchUrlFor(doc.id), v === UNSET_STAGE ? null : v, onDone)
                 }}
               >
-                <SelectTrigger size="sm" className="w-64">
+                <SelectTrigger aria-label="Этап документа" size="sm" className="w-64">
                   <SelectValue placeholder="— не привязан —" />
                 </SelectTrigger>
                 <SelectContent>

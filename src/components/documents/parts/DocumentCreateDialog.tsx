@@ -207,7 +207,7 @@ export function DocumentCreateDialog({
                 onValueChange={(v) => setCKind(v as DocumentKind)}
                 disabled={byPermit}
               >
-                <SelectTrigger id="doc-kind">
+                <SelectTrigger id="doc-kind" aria-label="Вид документа">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -243,7 +243,7 @@ export function DocumentCreateDialog({
                     if (!internalOnly) setCInternal(v === 'internal')
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Режим доступа документа">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

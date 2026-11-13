@@ -116,7 +116,7 @@ export function QuoteOptionFormFields({
         <div className="grid gap-2">
           <Label>НДС</Label>
           <Select value={form.vatMode} onValueChange={(v) => onChange({ vatMode: v })}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Режим НДС">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -163,7 +163,7 @@ export function QuoteOptionFormFields({
       <div className="grid gap-2">
         <Label>Ориентир</Label>
         <Select value={form.priorityFit} onValueChange={(v) => onChange({ priorityFit: v })}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger aria-label="Ориентир варианта" className="w-48">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

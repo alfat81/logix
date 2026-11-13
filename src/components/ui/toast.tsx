@@ -84,6 +84,8 @@ const ToastClose = React.forwardRef<
     {...props}
   >
     <X className="h-4 w-4" />
+    {/* TU-01.9: доступное имя кнопки закрытия тоста (axe button-name). */}
+    <span className="sr-only">Закрыть уведомление</span>
   </ToastPrimitives.Close>
 ))
 ToastClose.displayName = ToastPrimitives.Close.displayName

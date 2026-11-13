@@ -220,7 +220,7 @@ export function QuoteOptionDialog({
               6. Недостающие сведения и предупреждения
             </div>
             {missing.length > 0 && (
-              <div className="text-sm text-destructive">
+              <div className="text-sm text-danger">
                 Недостающие данные: {missing.join(', ')}
               </div>
             )}

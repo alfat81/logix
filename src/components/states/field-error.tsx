@@ -13,7 +13,7 @@ export function FieldError({
 }) {
   if (!message) return null;
   return (
-    <p role="alert" id={id} className={`mt-1 text-xs text-destructive ${className}`}>
+    <p role="alert" id={id} className={`mt-1 text-xs text-danger ${className}`}>
       {message}
     </p>
   );

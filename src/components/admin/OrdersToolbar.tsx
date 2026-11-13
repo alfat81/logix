@@ -48,7 +48,7 @@ export function OrdersToolbar({
         )}
       </div>
       <Select value={sort} onValueChange={onSortChange}>
-        <SelectTrigger className="w-52">
+        <SelectTrigger aria-label="Сортировка заявок" className="w-52">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

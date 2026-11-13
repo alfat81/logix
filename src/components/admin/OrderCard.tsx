@@ -105,7 +105,7 @@ function EtaBlock({ order }: { order: OrderRow }) {
       <div className="text-sm font-semibold text-foreground tabular-nums">
         ETA: {new Date(order.etaDate).toLocaleDateString('ru-RU')}
       </div>
-      <div className={cn('text-xs', days < 0 ? 'text-destructive' : 'text-muted-foreground')}>
+      <div className={cn('text-xs', days < 0 ? 'text-danger' : 'text-muted-foreground')}>
         {days < 0
           ? `Просрочка на ${Math.abs(days)} ${dayWord}`
           : days === 0
@@ -188,7 +188,7 @@ export function OrderCard({ order }: { order: OrderRow }) {
             </span>
           )}
           {order.overdue && order.overdueStage && (
-            <span className="flex items-center gap-1.5 text-sm text-destructive">
+            <span className="flex items-center gap-1.5 text-sm text-danger">
               <CircleAlert className="size-4 shrink-0" aria-hidden />
               Просрочка: {order.overdueStage}
             </span>

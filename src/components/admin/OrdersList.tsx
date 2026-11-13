@@ -244,7 +244,7 @@ export function OrdersList() {
           onChange={(e) => setDestinationFilter(e.target.value)}
         />
         <Select value={transportFilter} onValueChange={setTransportFilter}>
-          <SelectTrigger className="w-full sm:w-40">
+          <SelectTrigger aria-label="Тип перевозки" className="w-full sm:w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

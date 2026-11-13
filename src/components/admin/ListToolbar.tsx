@@ -55,7 +55,7 @@ export function ListToolbar({
         )}
       </div>
       <Select value={sort} onValueChange={onSortChange}>
-        <SelectTrigger className="w-52">
+        <SelectTrigger aria-label="Сортировка списка" className="w-52">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

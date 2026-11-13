@@ -215,7 +215,7 @@ export function OrderStages({
                 </DialogDescription>
               </DialogHeader>
               <Select value={addCode} onValueChange={setAddCode}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Этап">
                   <SelectValue placeholder="Выберите этап" />
                 </SelectTrigger>
                 <SelectContent>

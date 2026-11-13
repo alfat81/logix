@@ -338,6 +338,25 @@
       "theme": "dark",
       "kind": "text",
       "why": "TU-01.5 Dark: показатель эффективности на карточке surface"
+    },
+    {
+      "fg": "--c-danger",
+      "bg": "--c-surface",
+      "kind": "text",
+      "why": "TU-01.9 Light: текст сигнала danger на карточках (5,37)"
+    },
+    {
+      "fg": "--c-danger",
+      "bg": "--c-surface",
+      "theme": "dark",
+      "kind": "text",
+      "why": "TU-01.9 Dark: danger на карточках (5,92); utility --color-danger зарегистрирована в @theme"
+    },
+    {
+      "fg": "--c-accent-strong-fg",
+      "bg": "--c-accent-strong",
+      "kind": "text",
+      "why": "TU-01.9 Light: текст на Brick-strong (4,97); utility --color-accent-strong-fg зарегистрирована в @theme"
     }
   ]
 }

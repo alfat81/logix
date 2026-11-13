@@ -50,8 +50,8 @@ export function StageSection({
             variant="outline"
             className={
               tone === 'destructive'
-                ? 'bg-destructive/10 text-destructive border-destructive/30'
-                : 'bg-warning/10 text-warning-foreground border-warning/30'
+                ? 'bg-destructive/10 text-danger border-destructive/30'
+                : 'bg-warning/10 text-warning-foreground dark:text-warning border-warning/30'
             }
           >
             {count}
@@ -108,7 +108,7 @@ export function NotificationsFailedSection({ count }: { count: number }) {
     <Card className="border-destructive/40">
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
-          <MailX className="size-4 text-destructive" />
+          <MailX className="size-4 text-danger" />
           Письма не ушли
           <Badge className="bg-destructive text-destructive-foreground border-transparent">
             {count}
@@ -152,7 +152,7 @@ export function WaitingLongSection({
         <CardTitle className="text-base flex items-center gap-2">
           <Hourglass className="size-4 text-warning-foreground" />
           Ждут дольше {hours} {hoursWord(hours)}
-          <Badge variant="outline" className="bg-warning/10 text-warning-foreground border-warning/30">
+          <Badge variant="outline" className="bg-warning/10 text-warning-foreground dark:text-warning border-warning/30">
             {count}
           </Badge>
         </CardTitle>

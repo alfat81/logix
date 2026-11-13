@@ -100,7 +100,7 @@ export function EstimateItemsEditor({
               type="button"
               variant="ghost"
               size="sm"
-              className="ml-auto h-7 px-2 text-destructive hover:text-destructive"
+              className="ml-auto h-7 px-2 text-danger hover:text-danger"
               onClick={() => onChange(items.filter((_, i) => i !== idx))}
               disabled={disabled}
               title="Убрать строку"

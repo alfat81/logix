@@ -202,7 +202,7 @@ export function OptionRouteBlock({
               type="button"
               variant="ghost"
               size="icon"
-              className="size-8 text-destructive hover:text-destructive"
+              className="size-8 text-danger hover:text-danger"
               onClick={() => onStopsChange(stops.filter((_, j) => j !== i))}
               aria-label="Удалить точку"
             >

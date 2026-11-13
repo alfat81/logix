@@ -126,7 +126,7 @@ export function DocumentsSummaryPart({
                     ПРОСРОЧЕНО
                   </Badge>
                 )}
-                <span className={red ? 'text-destructive' : ''}>
+                <span className={red ? 'text-danger' : ''}>
                   «{p.title}»
                   {p.neededBy && ` — до ${fmtDate(p.neededBy)}`} · ожидается от{' '}
                   {providerLabelFor(p.providedBy, 'staff')}

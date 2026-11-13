@@ -223,7 +223,7 @@ export function NotificationsJournal() {
                   {n.attempts > 0 && ` · попыток: ${n.attempts}`}
                 </div>
                 {n.lastError && (
-                  <div className="text-sm text-destructive break-all">
+                  <div className="text-sm text-danger break-all">
                     Ошибка: {n.lastError}
                     {n.providerId && !n.providerId.startsWith('fake:') && ` (${n.providerId})`}
                   </div>

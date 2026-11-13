@@ -176,7 +176,7 @@ export function BrokerLinksSection({
                     {!l.broker.isActive && (
                       <Badge
                         variant="outline"
-                        className="text-xs bg-destructive/10 text-destructive border-transparent"
+                        className="text-xs bg-destructive/10 text-danger border-transparent"
                       >
                         деактивирован
                       </Badge>
@@ -186,7 +186,7 @@ export function BrokerLinksSection({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 px-2 ml-auto text-destructive hover:text-destructive"
+                        className="h-7 px-2 ml-auto text-danger hover:text-danger"
                         disabled={busy}
                         onClick={() => detach(l.broker.id)}
                         title="Отключить — видимость сделки закрывается"
@@ -224,7 +224,7 @@ export function BrokerLinksSection({
             ) : (
               <>
                 <Select value={attachId} onValueChange={setAttachId} disabled={busy}>
-                  <SelectTrigger size="sm" className="w-64">
+                  <SelectTrigger aria-label="Брокер сделки" size="sm" className="w-64">
                     <SelectValue placeholder="Выберите брокера" />
                   </SelectTrigger>
                   <SelectContent>

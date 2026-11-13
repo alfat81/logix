@@ -96,7 +96,7 @@ export function LeadStatusControls({
     <div className="ml-auto flex items-center gap-2">
       {!isWon && (
         <Select value={status} onValueChange={onStatusChange}>
-          <SelectTrigger size="sm" className="w-40">
+          <SelectTrigger aria-label="Статус запроса" size="sm" className="w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -113,7 +113,7 @@ export function LeadStatusControls({
         <Button
           variant="ghost"
           size="icon"
-          className="size-8 text-destructive hover:text-destructive"
+          className="size-8 text-danger hover:text-danger"
           onClick={() => setDeleteOpen(true)}
           title="Удалить запрос"
         >

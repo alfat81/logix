@@ -27,8 +27,8 @@ export function BrokerCard({
   saving: boolean
 }) {
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-3">
+    <Card className="overflow-hidden p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground tabular-nums">
@@ -40,7 +40,7 @@ export function BrokerCard({
             {!broker.isActive && (
               <Badge
                 variant="outline"
-                className="text-xs bg-destructive/10 text-destructive border-transparent"
+                className="text-xs bg-destructive/10 text-danger border-transparent"
               >
                 деактивирован
               </Badge>
@@ -94,7 +94,7 @@ export function BrokerCard({
                 }
               >
                 {broker.isActive ? (
-                  <ShieldOff className="size-4 text-destructive" />
+                  <ShieldOff className="size-4 text-danger" />
                 ) : (
                   <ShieldCheck className="size-4" />
                 )}

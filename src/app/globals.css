@@ -84,6 +84,14 @@
   --color-accent-brand: var(--c-accent);
   --color-accent-strong: var(--c-accent-strong);
   --color-accent-text: var(--c-accent-text);
+  /* TU-01.9 (axe-аудит): регистрация существующих канонических токенов
+     как utilities. danger — ТЕКСТ сигнала опасности (Brick-дериват,
+     ≥4,5 на card/фоне в обеих темах; заливки — destructive/accent-strong
+     с white/Ink по брендбуку §3.2). accent-strong-fg — текст на заливке
+     Brick-strong (white 4,97): без регистрации класс text-accent-strong-fg
+     не генерировался, текст наследовался (Ink на Coral 2,89 — fail). */
+  --color-danger: var(--c-danger);
+  --color-accent-strong-fg: var(--c-accent-strong-fg);
   --color-fg-secondary: var(--c-text-secondary);
   --color-disabled: var(--c-disabled);
   --color-disabled-foreground: var(--c-disabled-fg);
@@ -308,6 +316,15 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
+  }
+  /* TU-01.9: видимый focus клавиатуры на всех интерактивных элементах —
+     глобальное правило (ui/button, ui/input и др. имеют собственные
+     focus-visible:ring; ссылки, кастомные кнопки-вкладки и табы получали
+     кольцо только здесь). Цвет — --c-focus (Terracotta, ≥3:1 к фонам
+     обеих тем, брендбук §1.2). */
+  :focus-visible {
+    outline: 2px solid var(--c-focus);
+    outline-offset: 2px;
   }
 }
 

@@ -113,7 +113,7 @@ export function QuoteOptionCard({
               </Badge>
             )}
             {option.priceReviewRequired && (
-              <Badge variant="outline" className="text-destructive border-destructive">
+              <Badge variant="outline" className="text-danger border-destructive">
                 Требует актуализации расчёта
               </Badge>
             )}
@@ -176,7 +176,7 @@ export function QuoteOptionCard({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-8 text-destructive hover:text-destructive"
+                className="size-8 text-danger hover:text-danger"
                 onClick={onDelete}
                 title="Удалить вариант"
               >

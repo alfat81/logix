@@ -168,7 +168,7 @@ export function LeadCreateDialog({ onCreated }: { onCreated: () => void }) {
             ) : (
               <div className="flex gap-2">
                 <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger aria-label="Клиент" className="w-full">
                     <SelectValue placeholder="Выберите клиента" />
                   </SelectTrigger>
                   <SelectContent>

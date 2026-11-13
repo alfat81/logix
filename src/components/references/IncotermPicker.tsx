@@ -77,7 +77,7 @@ export function IncotermPicker({
             {meta.addInsurance && ' Страхование добавляется к стоимости груза.'}
             {meta.deductPostArrival && ' Расходы после места прибытия вычитаются из стоимости.'}
           </div>
-          {meta.warning && <div className="text-destructive">{meta.warning}</div>}
+          {meta.warning && <div className="text-danger">{meta.warning}</div>}
           {meta.draft && (
             <div className="text-muted-foreground italic">
               Правила расчёта — черновик: до утверждения брокером (O-12) расчёт их не применяет.

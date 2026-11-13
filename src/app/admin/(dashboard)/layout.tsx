@@ -60,7 +60,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {/* Фиксированная навигация 280px (§4.1):Sand-панель, группировка
             разделов внутри AdminNav; при длинных списках прокручивается
             сама, пользовательский блок прижат к низу панели. */}
-        <aside className="hidden md:flex md:fixed md:inset-y-0 md:left-0 md:z-30 md:w-[280px] md:flex-col bg-sidebar border-r border-sidebar-border">
+        <aside aria-label="Меню портала" className="hidden md:flex md:fixed md:inset-y-0 md:left-0 md:z-30 md:w-[280px] md:flex-col bg-sidebar border-r border-sidebar-border">
           <div className="h-14 flex items-center gap-2 px-4 border-b border-sidebar-border shrink-0">
             {/* TU-01.6: брендинг по референсу commandcenter.png — знак
                 «Dynamic T» (LIGHT REBRANDING V2.0) и наименование платформы */}
@@ -74,9 +74,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
               TULOGISTICA
             </Link>
           </div>
-          <nav className="flex-1 overflow-y-auto py-4 px-3">
+          <div className="flex-1 overflow-y-auto py-4 px-3">
             <AdminNav isMaster={isMaster} counts={{ '/admin/orders': activeOrders, '/admin/leads': activeLeads }} />
-          </nav>
+          </div>
           <div className="border-t border-sidebar-border px-4 py-3 flex items-center gap-3 shrink-0">
             {/* DF-09: профиль (в т.ч. TOTP) — вне меню (гард DF-21), ссылка — здесь */}
             <Link

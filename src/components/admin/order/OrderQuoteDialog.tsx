@@ -180,7 +180,7 @@ export function OrderQuoteDialog({
                 value={quoteForm.vatMode}
                 onValueChange={(v) => setQuoteForm((f) => ({ ...f, vatMode: v }))}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Режим НДС">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -210,7 +210,7 @@ export function OrderQuoteDialog({
                   setQuoteForm((f) => ({ ...f, priorityFit: v === 'none' ? '' : v }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Ориентир варианта">
                   <SelectValue placeholder="—" />
                 </SelectTrigger>
                 <SelectContent>

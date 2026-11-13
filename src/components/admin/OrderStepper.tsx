@@ -26,7 +26,7 @@ const STAGE_CIRCLE_BASE =
 function circleClasses(status: string, current: boolean): string {
   if (status === 'done') return cn(STAGE_CIRCLE_BASE, 'bg-success text-success-foreground')
   if (status === 'problem')
-    return cn(STAGE_CIRCLE_BASE, 'border-2 border-destructive bg-card text-destructive')
+    return cn(STAGE_CIRCLE_BASE, 'border-2 border-destructive bg-card text-danger')
   if (current) return cn(STAGE_CIRCLE_BASE, 'border-2 border-action-icon bg-card text-action-icon')
   return cn(STAGE_CIRCLE_BASE, 'border border-border bg-muted text-muted-foreground')
 }

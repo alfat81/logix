@@ -105,7 +105,7 @@ export default async function AdminPage() {
           </section>
         </div>
 
-        <aside className="mt-6 xl:mt-0 self-start xl:sticky xl:top-14">
+        <aside aria-label="Системный пульс" className="mt-6 xl:mt-0 self-start xl:sticky xl:top-14">
           {/* Системный пульс (референс): лента событий платформы */}
           <SideActivityFeed items={items} title="Системный пульс" />
         </aside>

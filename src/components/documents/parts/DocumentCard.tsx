@@ -147,7 +147,7 @@ export function DocumentCard({
             <Button
               size="sm"
               variant="ghost"
-              className="text-destructive hover:text-destructive"
+              className="text-danger hover:text-danger"
               onClick={() => void submitDelete()}
               title="Удалить документ целиком (только менеджер)"
             >

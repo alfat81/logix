@@ -151,7 +151,7 @@ export function LeadConvertBlock({
             <div className="grid gap-2">
               <Label>Наше юрлицо</Label>
               <Select value={legalEntityId} onValueChange={setLegalEntityId}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Юрлицо договора">
                   <SelectValue placeholder="Юрлицо договора" />
                 </SelectTrigger>
                 <SelectContent>

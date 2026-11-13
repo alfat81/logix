@@ -176,7 +176,7 @@ export function LeadsList() {
           onChange={(e) => setDestinationFilter(e.target.value)}
         />
         <Select value={transportFilter} onValueChange={setTransportFilter}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger aria-label="Фильтр статусов запросов" className="w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

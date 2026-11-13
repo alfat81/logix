@@ -187,9 +187,9 @@ export function ReferencesScreen({ canWrite }: { canWrite: boolean }) {
             const meta = dir === 'incoterm' ? incotermMetaOf(row.meta) : null
             const rate = rateByCode.get(row.code)
             return (
-              <Card key={row.id} className="p-4">
+              <Card key={row.id} className="overflow-hidden p-4">
                 {/* Анатомия §4.3-lite (эталон — «Юрлица», DF-22) */}
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="w-14 shrink-0 font-mono text-muted-foreground tabular-nums">{row.code}</span>

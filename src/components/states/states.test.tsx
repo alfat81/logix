@@ -69,7 +69,7 @@ describe("ErrorState", () => {
       expect(screen.getByRole("alert")).toBeTruthy();
       expect(screen.getByText("Что-то пошло не так")).toBeTruthy();
       const alert = container.querySelector('[role="alert"]') as HTMLElement;
-      expect(alert.querySelector(".text-destructive")).toBeTruthy();
+      expect(alert.querySelector(".text-danger")).toBeTruthy();
       unmount();
     }
   });
@@ -96,7 +96,7 @@ describe("FieldError", () => {
       const { container, unmount } = render(themed(dark, <FieldError id="f-err" message="Обязательное поле" />));
       const alert = container.querySelector('[role="alert"]') as HTMLElement;
       expect(alert.id).toBe("f-err");
-      expect(alert.className).toContain("text-destructive");
+      expect(alert.className).toContain("text-danger");
       expect(alert.className).toContain("text-xs");
       unmount();
       const empty = render(themed(dark, <FieldError id="x" message="" />));

@@ -68,7 +68,7 @@ export function PermitsEditor({
               {p}
               <button
                 type="button"
-                className="text-muted-foreground hover:text-destructive"
+                className="text-muted-foreground hover:text-danger"
                 disabled={disabled}
                 onClick={() => onChange(value.filter((x) => x !== p))}
                 title="Убрать документ"

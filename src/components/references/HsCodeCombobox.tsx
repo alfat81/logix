@@ -193,7 +193,7 @@ export function HsCodeCombobox({
               </div>
             )}
             {error && (
-              <div className="px-3 py-3 text-sm text-destructive">{error}</div>
+              <div className="px-3 py-3 text-sm text-danger">{error}</div>
             )}
             {options !== null && !error && options.length === 0 && !loading && (
               <div className="px-3 py-3 text-sm text-muted-foreground">

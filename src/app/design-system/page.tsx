@@ -135,7 +135,9 @@ export default function DesignSystemPage() {
           <Button disabled>Недоступная</Button>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <a href="#buttons-title" className="underline" style={{ color: "var(--c-accent)" }}>
+          {/* TU-01.9: текстовая ссылка — токен accent-text (4,83/4,92 на
+              фоне обеих тем); --c-accent — только фоновые/крупные акценты. */}
+          <a href="#buttons-title" className="underline" style={{ color: "var(--c-accent-text)" }}>
             Ссылка-акцент (Terracotta)
           </a>
           <span style={{ color: "var(--c-danger)" }}>Текст сигнала danger</span>

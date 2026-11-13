@@ -188,7 +188,10 @@ export function BrokerQueue({ loading, rows }: BrokerQueueProps) {
             {visible.map((r) => (
               <Card key={r.key} className="p-0">
                 <CardContent className="grid gap-2 p-4">
-                  <div className="flex items-center justify-between gap-2">
+                  {/* TU-01.9 @375: flex-wrap — длинный nowrap-бейдж статуса
+                      («Требует дополнительных данных») переносится, иначе
+                      карточка растягивает grid-дорожку (переполнение). */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     {r.number ? (
                       <span className="font-mono font-semibold text-lg">{r.number}</span>
                     ) : (
@@ -208,7 +211,7 @@ export function BrokerQueue({ loading, rows }: BrokerQueueProps) {
                   <div className="text-xs text-muted-foreground">
                     {r.routeFrom || r.routeTo ? `${r.routeFrom || '—'} → ${r.routeTo || '—'}` : 'Маршрут не указан'}
                   </div>
-                  <div className="mt-1 flex items-center justify-between gap-2">
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs text-muted-foreground">
                       {r.payments ? `Платежи (оценка): ${r.payments}` : 'Оценка не сообщалась'}
                     </span>

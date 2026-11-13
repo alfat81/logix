@@ -153,7 +153,7 @@ export default function OrderPage() {
               value={order.status}
               onValueChange={(v) => patchOrder({ status: v })}
             >
-              <SelectTrigger size="sm" className="w-44">
+              <SelectTrigger aria-label="Статус заявки" size="sm" className="w-44">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -225,7 +225,7 @@ export default function OrderPage() {
       {/* Правая панель (BRANDBOOK §4, 320px) — DF-21: вкладки
           «События | Документы | Расчёт»; DF-26: «Документы» — сводка
           и переключение основной области в реестр */}
-      <aside className="min-w-0 xl:sticky xl:top-14">
+      <aside aria-label="Панель сделки" className="min-w-0 xl:sticky xl:top-14">
         <OrderSidePanel
           orderNumber={order.number}
           orderId={String(id)}

@@ -158,7 +158,7 @@ export function CustomersList() {
           )}
         </div>
         <Select value={sort} onValueChange={setSort}>
-          <SelectTrigger className="w-52">
+          <SelectTrigger aria-label="Сортировка клиентов" className="w-52">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -182,8 +182,8 @@ export function CustomersList() {
       ) : (
         <div className="grid gap-2">
           {customers.map((c) => (
-            <Link key={c.id} href={`/admin/customers/${c.id}`} className="block group">
-              <Card className="p-4 transition-colors group-hover:border-ring">
+            <Link key={c.id} href={`/admin/customers/${c.id}`} className="block overflow-hidden group">
+              <Card className="overflow-hidden p-4 transition-colors group-hover:border-ring">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-muted-foreground text-sm tabular-nums">

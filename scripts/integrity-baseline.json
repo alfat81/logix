@@ -272,19 +272,11 @@
       "reason": "первичный baseline DF-00B"
     },
     {
-      "key": "block:src/components/admin/OrderCreateDialog.tsx~src/components/admin/lead/LeadConvertBlock.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
       "key": "block:src/components/admin/OrderCreateDialog.tsx~src/components/admin/legalentity/LegalEntityCreateDialog.tsx",
       "reason": "первичный baseline DF-00B"
     },
     {
       "key": "block:src/components/admin/OrderCreateDialog.tsx~src/components/admin/stagecatalog/StageCreateDialog.tsx",
-      "reason": "первичный baseline DF-00B"
-    },
-    {
-      "key": "block:src/components/admin/QuoteOptionFormFields.tsx~src/components/admin/order/OrderQuoteDialog.tsx",
       "reason": "первичный baseline DF-00B"
     },
     {
@@ -674,6 +666,10 @@
     {
       "key": "block:src/components/broker/BrokerHome.tsx~src/components/client/ClientHome.tsx",
       "note": "[TU-01.7: блок перенесён ClientHome→ClientOrdersList (RULES 2.14, лимит 300)]"
+    },
+    {
+      "key": "block:src/components/admin/QuoteOptionFormFields.tsx~src/components/admin/order/OrderQuoteDialog.tsx",
+      "reason": "TU-01.9: сходство строк карточек после правок доступности (перенос подписей), ручная приёмка"
     }
   ],
   "IC-08": [

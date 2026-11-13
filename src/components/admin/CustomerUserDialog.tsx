@@ -256,7 +256,7 @@ export function CustomerUserDialog({
         </div>
         <DialogFooter className="sm:justify-between">
           {editing && user.hasPassword ? (
-            <Button type="button" variant="ghost" onClick={revokePassword} disabled={busy} className="text-destructive hover:text-destructive">
+            <Button type="button" variant="ghost" onClick={revokePassword} disabled={busy} className="text-danger hover:text-danger">
               Снять пароль
             </Button>
           ) : (

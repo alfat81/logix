@@ -122,7 +122,7 @@ export function BrokerUsersDialog({
                     {!u.isActive && (
                       <Badge
                         variant="outline"
-                        className="text-xs bg-destructive/10 text-destructive border-transparent"
+                        className="text-xs bg-destructive/10 text-danger border-transparent"
                       >
                         Доступ закрыт
                       </Badge>
@@ -152,7 +152,7 @@ export function BrokerUsersDialog({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 px-2 text-destructive hover:text-destructive"
+                        className="h-8 px-2 text-danger hover:text-danger"
                         disabled={busyId === u.id}
                         onClick={() => patch(u.id, { password: null }, 'Пароль снят — вход этому сотруднику закрыт')}
                         title="Снять пароль — вход закрыт"
@@ -176,7 +176,7 @@ export function BrokerUsersDialog({
                         title={u.isActive ? 'Закрыть доступ' : 'Вернуть доступ'}
                       >
                         {u.isActive ? (
-                          <ShieldOff className="size-4 text-destructive" />
+                          <ShieldOff className="size-4 text-danger" />
                         ) : (
                           <ShieldCheck className="size-4" />
                         )}

@@ -27,7 +27,7 @@ export function ProviderSelect({
 }) {
   return (
     <Select value={value} onValueChange={(v) => onValue(v as DocProvider)} disabled={disabled}>
-      <SelectTrigger className={className}>
+      <SelectTrigger aria-label="Источник документов этапа" className={className}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

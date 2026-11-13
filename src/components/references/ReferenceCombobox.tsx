@@ -189,7 +189,7 @@ export function ReferenceCombobox({
             {items === null ? (
               <div className="flex items-center gap-2 px-3 py-4 text-sm text-muted-foreground">
                 {loadError ? (
-                  <span className="text-destructive">{loadError}</span>
+                  <span className="text-danger">{loadError}</span>
                 ) : (
                   <>
                     <Loader2 className="size-4 animate-spin" /> Загрузка справочника…

@@ -269,7 +269,7 @@ export function LeadCard({ autoOpenConvert = false }: { autoOpenConvert?: boolea
       {/* Правая панель «Детали/Журнал» (BRANDBOOK §4, 320px):
           заметка (Ж3) + лента (Ж2). Sticky на xl — контекст не
           теряется при длинной анкете; на < xl — блок внизу. */}
-      <aside className="space-y-4 min-w-0 xl:sticky xl:top-14">
+      <aside aria-label="Заметка и лента запроса" className="space-y-4 min-w-0 xl:sticky xl:top-14">
         <NoteForm targetType="lead" targetId={String(id)} onAdded={load} />
         <ActivityFeed
           activities={lead.activities}

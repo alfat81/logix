@@ -48,7 +48,7 @@ export function LeadsToolbar({
         )}
       </div>
       <Select value={sort} onValueChange={onSortChange}>
-        <SelectTrigger className="w-52">
+        <SelectTrigger aria-label="Сортировка запросов" className="w-52">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

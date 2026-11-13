@@ -100,7 +100,7 @@ export function AttentionScreen() {
           <StageSection
             title="Просроченные этапы"
             subtitle="План прошёл, этап не завершён"
-            icon={<AlertTriangle className="size-4 text-destructive" />}
+            icon={<AlertTriangle className="size-4 text-danger" />}
             count={counts.overdue}
             rows={data?.overdueStages ?? []}
             tone="destructive"
@@ -108,7 +108,7 @@ export function AttentionScreen() {
           <StageSection
             title="Этапы с проблемой"
             subtitle="Статус «Проблема» — требуют разбора"
-            icon={<AlertOctagon className="size-4 text-destructive" />}
+            icon={<AlertOctagon className="size-4 text-danger" />}
             count={counts.problem}
             rows={data?.problemStages ?? []}
             tone="destructive"

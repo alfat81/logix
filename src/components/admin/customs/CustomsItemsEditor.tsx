@@ -142,7 +142,7 @@ export function CustomsItemsEditor({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-destructive hover:text-destructive"
+              className="h-8 px-2 text-danger hover:text-danger"
               disabled={disabled}
               aria-label={`Удалить строку ${i + 1}`}
               onClick={() => removeRow(i)}

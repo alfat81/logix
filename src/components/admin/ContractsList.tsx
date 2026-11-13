@@ -143,7 +143,7 @@ export function ContractsList() {
           )}
         </div>
         <Select value={sort} onValueChange={setSort}>
-          <SelectTrigger className="w-52">
+          <SelectTrigger aria-label="Сортировка договоров" className="w-52">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -167,8 +167,8 @@ export function ContractsList() {
       ) : (
         <div className="grid gap-2">
           {contracts.map((c) => (
-            <Card key={c.id} className="p-4">
-              <div className="flex items-start justify-between gap-3">
+            <Card key={c.id} className="overflow-hidden p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-sm tabular-nums">№{c.number}</div>
                   <div className="truncate font-semibold">

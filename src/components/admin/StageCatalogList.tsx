@@ -130,13 +130,13 @@ export function StageCatalogList({ isMaster }: { isMaster: boolean }) {
       ) : (
         <div className="grid gap-2">
           {stages.map((row, i) => (
-            <Card key={row.id} className="p-4">
+            <Card key={row.id} className="overflow-hidden p-4">
               {/* Анатомия §4.3-lite (эталон — «Юрлица», DF-22): строка 1 —
                   номер + бейдж обязательности (нейтральная пара §3.2 —
                   красный только для срочного), строка 2 — название
                   semibold, строка 3 — код; стрелки порядка слева,
                   «Править» справа, как в правом блоке юрлица */}
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 items-start gap-3">
                   <div className="flex shrink-0 flex-col gap-1">
                     <Button

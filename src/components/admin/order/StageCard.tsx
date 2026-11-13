@@ -108,7 +108,7 @@ export function StageCard({
           onValueChange={(v) => onPatchStage({ status: v })}
           disabled={busy}
         >
-          <SelectTrigger size="sm" className="w-36">
+          <SelectTrigger aria-label="Статус этапа" size="sm" className="w-36">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -146,7 +146,7 @@ export function StageCard({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-8 text-destructive hover:text-destructive"
+                className="size-8 text-danger hover:text-danger"
                 disabled={busy}
                 onClick={onDelete}
                 title="Удалить этап"
@@ -175,7 +175,7 @@ export function StageCard({
               onValueChange={(v) => onPatchStage({ contractorId: v })}
               disabled={busy}
             >
-              <SelectTrigger size="sm" className="w-60">
+              <SelectTrigger aria-label="Подрядчик этапа" size="sm" className="w-60">
                 <SelectValue placeholder="Не назначен" />
               </SelectTrigger>
               <SelectContent>
@@ -193,7 +193,7 @@ export function StageCard({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-destructive hover:text-destructive"
+                className="h-7 px-2 text-danger hover:text-danger"
                 disabled={busy}
                 // Снятие статус этапа не трогает (Г3): только исполнитель.
                 onClick={() => onPatchStage({ contractorId: null })}
@@ -210,6 +210,7 @@ export function StageCard({
           <span className="text-xs text-muted-foreground">План</span>
           <Input
             type="date"
+            aria-label={`Плановая дата этапа «${s.name}»`}
             className="h-7 w-36 text-xs"
             value={plannedValue}
             onChange={(e) => onPlannedDraft(e.target.value)}

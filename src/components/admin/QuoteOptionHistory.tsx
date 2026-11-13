@@ -53,7 +53,7 @@ export function QuoteOptionHistory({ optionId, open }: { optionId: string; open:
   }, [open, optionId, rows, error])
 
   if (!open) return null
-  if (error) return <div className="text-sm text-destructive">{error}</div>
+  if (error) return <div className="text-sm text-danger">{error}</div>
   if (!rows) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">

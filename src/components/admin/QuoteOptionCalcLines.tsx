@@ -74,7 +74,7 @@ export function QuoteOptionCalcLines({
                 value={l.article}
                 onValueChange={(v) => patch(i, { article: v as OptionCalcArticle })}
               >
-                <SelectTrigger className="h-9">
+                <SelectTrigger aria-label="Валюта строки расчёта" className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -138,7 +138,7 @@ export function QuoteOptionCalcLines({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-8 text-destructive hover:text-destructive"
+            className="size-8 text-danger hover:text-danger"
             onClick={() => onChange(lines.filter((_, j) => j !== i))}
             aria-label="Удалить строку расчёта"
           >

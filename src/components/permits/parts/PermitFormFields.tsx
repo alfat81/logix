@@ -45,7 +45,7 @@ export function PermitFormFields(props: {
       <div className="grid gap-2">
         <Label>Кто предоставляет</Label>
         <Select value={props.providedBy} onValueChange={props.onProvidedBy}>
-          <SelectTrigger>
+          <SelectTrigger aria-label="Кто предоставляет">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -60,7 +60,7 @@ export function PermitFormFields(props: {
       <div className="grid gap-2">
         <Label>Блокирует отправку</Label>
         <Select value={props.blocking} onValueChange={props.onBlocking}>
-          <SelectTrigger>
+          <SelectTrigger aria-label="Блокирует отправку">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

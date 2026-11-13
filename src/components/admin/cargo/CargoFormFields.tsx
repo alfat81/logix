@@ -69,7 +69,7 @@ export function CargoFormFields({
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">Тип перевозки</Label>
             <Select value={form.transportType} onValueChange={(v) => setSelected('transportType', v)}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Тип перевозки">
                 <SelectValue placeholder="Не выбран" />
               </SelectTrigger>
               <SelectContent>
@@ -214,7 +214,7 @@ export function CargoFormFields({
               <div key={key} className="grid gap-1.5">
                 <Label className="text-xs text-muted-foreground">{label}</Label>
                 <Select value={form[key]} onValueChange={(v) => setSelected(key, v)}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label={label}>
                     <SelectValue placeholder="—" />
                   </SelectTrigger>
                   <SelectContent>

@@ -190,7 +190,7 @@ export function OrderCreateDialog({
             ) : (
               <div className="flex gap-2">
                 <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger aria-label="Клиент" className="w-full">
                     <SelectValue placeholder="Выберите клиента" />
                   </SelectTrigger>
                   <SelectContent>
@@ -222,7 +222,7 @@ export function OrderCreateDialog({
           <div className="grid gap-2">
             <Label>Наше юрлицо</Label>
             <Select value={legalEntityId} onValueChange={setLegalEntityId}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Наше юрлицо">
                 <SelectValue placeholder="Юрлицо договора" />
               </SelectTrigger>
               <SelectContent>
@@ -245,7 +245,7 @@ export function OrderCreateDialog({
           <div className="grid gap-2">
             <Label>Груз</Label>
             <Select value={cargoProfile} onValueChange={setCargoProfile}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Профиль груза">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
