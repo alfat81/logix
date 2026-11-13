@@ -28,6 +28,7 @@ LOGO_NAV_FILES = [
     "src/app/admin/(dashboard)/layout.tsx",
     "src/components/admin/AdminNav.tsx",
     "src/app/client/(portal)/layout.tsx",
+    "src/app/broker/(portal)/layout.tsx",
     "src/app/contractor/(portal)/layout.tsx",
 ]
 RED_SIGNAL_CLASSES = re.compile(

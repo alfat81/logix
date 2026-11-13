@@ -404,11 +404,6 @@
       "reason": "первичный baseline DF-00B"
     },
     {
-      "key": "block:src/components/broker/BrokerHome.tsx~src/components/client/ClientOrdersList.tsx",
-      "reason": "первичный baseline DF-00B",
-      "note": "[TU-01.7: блок перенесён ClientHome→ClientOrdersList (RULES 2.14, лимит 300)]"
-    },
-    {
       "key": "block:src/components/broker/BrokerLeadCard.tsx~src/components/client/ClientLeadCard.tsx",
       "reason": "первичный baseline DF-00B"
     },

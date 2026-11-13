@@ -1106,6 +1106,10 @@
 | `BrokerLogoutButton` | `src/components/broker/BrokerLogoutButton.tsx` |
 | `BrokerOrderCard` | `src/components/broker/BrokerOrderCard.tsx` |
 | `BrokerOrderStatusBadge` | `src/components/broker/BrokerBadges.tsx` |
+| `BrokerQueue` | `src/components/broker/overview/BrokerQueue.tsx` |
+| `BrokerQueue.test` | `src/components/broker/overview/BrokerQueue.test.tsx` |
+| `BrokerSummaryCards` | `src/components/broker/overview/BrokerSummaryCards.tsx` |
+| `BrokerSummaryCards.test` | `src/components/broker/overview/BrokerSummaryCards.test.tsx` |
 | `BrokerUserForm` | `src/components/admin/broker/BrokerUserForm.tsx` |
 | `EMPTY_ITEM` | `src/components/broker/estimate/ItemsEditor.tsx` |
 | `PermitsEditor` | `src/components/broker/estimate/FormBlocks.tsx` |
