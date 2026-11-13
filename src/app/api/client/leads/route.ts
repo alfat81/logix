@@ -53,7 +53,35 @@ export async function GET(req: NextRequest) {
       orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
       select: CLIENT_LEAD_SELECT,
     })
-    return NextResponse.json({ leads })
+
+    // TU-01.7 (волна 3, «Актуальные предложения»): для запросов в статусе
+    // «рассчитан» — сводка вариантов: сколько предложено и «от … » по
+    // продажной цене (price — клиентская цена, P1-04; costEstimate наружу
+    // не выходит никогда, D3/D19; маржа не вычисляется). Чтение, аддитивно.
+    const calculatedIds = leads.filter((l) => l.status === 'calculated').map((l) => l.id)
+    const offers = calculatedIds.length
+      ? await db.quoteOption.findMany({
+          where: { leadId: { in: calculatedIds } },
+          select: { leadId: true, price: true, currency: true, etaDays: true },
+          orderBy: [{ price: 'asc' }, { id: 'asc' }],
+        })
+      : []
+    const offerSummary = calculatedIds.map((leadId) => {
+      const rows = offers.filter((o) => o.leadId === leadId)
+      const minEta = rows.reduce<number | null>(
+        (m, r) => (m === null || r.etaDays < m ? r.etaDays : m),
+        null
+      )
+      return {
+        leadId,
+        count: rows.length,
+        fromPrice: rows[0]?.price ?? null,
+        currency: rows[0]?.currency ?? null,
+        minEtaDays: minEta,
+      }
+    })
+
+    return NextResponse.json({ leads, offerSummary })
   } catch (e) {
     return apiErrorResponse(e, 'client/leads GET', 'Не удалось загрузить запросы')
   }

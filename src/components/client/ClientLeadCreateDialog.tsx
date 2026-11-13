@@ -29,10 +29,28 @@ import { CLIENT_LEAD_DAILY_LIMIT } from '@/lib/client-constants'
 // кабинета — выезд из ClientHome.tsx (резка под лимит 300, RULES
 // 2.14). Логика 1:1: анкета по бланку заявки (P1-03), непусто — хотя
 // бы одно поле маршрута или анкеты; дневной лимит И1.
-export function ClientLeadCreateDialog({ onCreated }: { onCreated: () => void }) {
+//
+// TU-01.7 (волна 3): опционально управляемый режим (open/onOpenChange)
+// для запуска из шапки (ClientNewRequestButton) — в этом режиме штатная
+// кнопка-триггер не рендерится; без пропсов поведение прежнее.
+export function ClientLeadCreateDialog({
+  onCreated,
+  open,
+  onOpenChange,
+}: {
+  onCreated: () => void
+  open?: boolean
+  onOpenChange?: (v: boolean) => void
+}) {
   const { toast } = useToast()
 
-  const [createOpen, setCreateOpen] = useState(false)
+  const [createOpenState, setCreateOpen] = useState(false)
+  const createOpen = open ?? createOpenState
+  const setCreate = (v: boolean) => {
+    onOpenChange?.(v)
+    if (open === undefined) setCreateOpen(v)
+  }
+  const controlled = open !== undefined
   const [creating, setCreating] = useState(false)
   const [cargo, setCargo] = useState<LeadCargoForm>({ ...EMPTY_LEAD_CARGO_FORM })
 
@@ -60,7 +78,7 @@ export function ClientLeadCreateDialog({ onCreated }: { onCreated: () => void })
       if (!res.ok) throw new Error(data.error || 'Не удалось отправить запрос')
 
       toast({ title: 'Запрос отправлен', description: 'Менеджер свяжется с вами по расчёту' })
-      setCreateOpen(false)
+      setCreate(false)
       setCargo({ ...EMPTY_LEAD_CARGO_FORM })
       onCreated()
     } catch (e) {
@@ -75,11 +93,13 @@ export function ClientLeadCreateDialog({ onCreated }: { onCreated: () => void })
   }
 
   return (
-    <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-      <Button onClick={() => setCreateOpen(true)}>
-        <Plus className="size-4" />
-        Новый запрос
-      </Button>
+    <Dialog open={createOpen} onOpenChange={setCreate}>
+      {!controlled && (
+        <Button onClick={() => setCreate(true)}>
+          <Plus className="size-4" />
+          Новый запрос
+        </Button>
+      )}
       <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Новый запрос на расчёт</DialogTitle>

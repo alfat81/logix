@@ -701,6 +701,7 @@
 | `formatMoneyWithVat` | `src/lib/money.ts` | Строка «1 450 ₽ · без НДС» — цена варианта/снимка с режимом НДС. |
 | `formatOwnerPermitLines` | `src/lib/notifications/owner-digest.ts` | Чистый форматировщик (unit-тесты): «• заявка №17-1 — «Сертификат…» — |
 | `formatPhoneInput` | `src/lib/phone.ts` | Маска телефона при вводе — форматирует по мере печатания |
+| `formatTons` | `src/lib/money.ts` | «12,4» — форматирование тонн (TU-01.7 сводка «Общий объём» кабинета |
 | `formatWaitingHours` | `src/lib/waiting.ts` | Возраст мяча одним значением: «N ч» до суток, далее «N дн.» — общий |
 | `generateRecoveryCode` | `src/lib/totp.ts` | — |
 | `generateTotpSecret` | `src/lib/totp.ts` | Секрет — 20 случайных байт (160 бит, рекомендация RFC 4226 §4). |
@@ -1121,10 +1122,16 @@
 | `ClientLeadCreateDialog` | `src/components/client/ClientLeadCreateDialog.tsx` |
 | `ClientLeadPrintRevisions` | `src/components/client/ClientLeadPrintRevisions.tsx` |
 | `ClientLogoutButton` | `src/components/client/ClientLogoutButton.tsx` |
+| `ClientNav` | `src/components/client/ClientNav.tsx` |
+| `ClientNewRequestButton` | `src/components/client/ClientNewRequestButton.tsx` |
+| `ClientOffers` | `src/components/client/ClientOffers.tsx` |
 | `ClientOrderCard` | `src/components/client/ClientOrderCard.tsx` |
 | `ClientOrderStatusBadge` | `src/components/client/ClientBadges.tsx` |
 | `ClientQuoteOptions` | `src/components/client/ClientQuoteOptions.tsx` |
+| `ClientStatusTimeline` | `src/components/client/ClientStatusTimeline.tsx` |
+| `ClientSummaryCards` | `src/components/client/ClientSummaryCards.tsx` |
 | `clientLeadRouteOf` | `src/components/client/ClientLeadRow.tsx` |
+| `routeOf` | `src/components/client/ClientOrdersList.tsx` |
 
 ### src/components/components
 
@@ -1392,7 +1399,7 @@
 | `PermitCheckItem` | 5 | — |
 | `PermitCheckRequirement` | 6 | — |
 | `PermitRequirement` | 35 | src/app/api/admin/leads/[id]/permits/route.ts, src/app/api/admin/orders/[id]/permits/route.ts, src/app/api/broker/leads/[id]/permits/route.ts, src/app/api/broker/orders/[id]/permits/route.ts, src/lib/document-package-server.ts, src/lib/document-upload.ts (+8) |
-| `QuoteOption` | 28 | src/app/api/admin/options/[id]/route.ts, src/lib/lead-edit.ts, src/lib/lead-patch.ts |
+| `QuoteOption` | 28 | src/app/api/admin/options/[id]/route.ts, src/app/api/client/leads/route.ts, src/lib/lead-edit.ts, src/lib/lead-patch.ts |
 | `QuoteOptionCalcLine` | 16 | — |
 | `QuoteOptionRevision` | 10 | — |
 | `RefItem` | 10 | scripts/seed.ts, src/app/api/admin/references/[id]/route.ts, src/app/api/admin/references/route.ts, src/lib/ref-db.ts |

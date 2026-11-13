@@ -84,6 +84,16 @@ function toNumber(amount: MoneyAmount): number {
   return n
 }
 
+// «12,4» — форматирование тонн (TU-01.7 сводка «Общий объём» кабинета
+// клиента): физическая величина, не деньги, но Intl в UI-компонентах
+// мимо этой точки недопустим (RULES 2.15 / IC-09) — группировка и
+// запятая как у formatMoney. Вход — килограммы суммарно; без данных
+// или пустая сумма → «—» решает вызывающий.
+export function formatTons(totalKg: number): string {
+  if (!Number.isFinite(totalKg) || totalKg <= 0) return '—'
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(totalKg / 1000)
+}
+
 // «1 450 ₽» | «1 450,50 $» — детерминированный вывод для UI, ленты и
 // печатной формы. Дробная часть показывается только если она есть.
 // DF-17: валюта — любой код справочника (string): знак из таблицы

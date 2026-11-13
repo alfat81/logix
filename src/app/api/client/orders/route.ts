@@ -34,7 +34,8 @@ export async function GET(req: NextRequest) {
         createdAt: true,
         cargoInfo: true,
         // DF-23 (б): маршрут/метрики — строка маршрута в списке из
-        // колонок (легаси-ключи from/to из cargoInfo больше не пишутся)
+        // колонок (легаси-ключи from/to из cargoInfo больше не пишутся);
+        // weightKg — метрика веса, TU-01.7 сводит «Общий объём» из него
         ...ROUTE_COLUMN_SELECT,
         stages: {
           orderBy: { sequence: 'asc' },
